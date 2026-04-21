@@ -197,7 +197,11 @@
                   window.location.reload();
               }
           });
-      
+
+          elements.langInput?.addEventListener('focus', function() {
+              this.value = ''; // Clears current text to show the full list
+          });
+        
           // 5. Modal Management (Login / Signup)
           const toggleModal = (modal, show) => {
               if (!modal) return;
