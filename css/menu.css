@@ -64,9 +64,24 @@ a.current{
 
 /*********  Dropdown button for languages ALSOSEE: https://codepen.io/tsk/pen/eEVWdg different dropdown *********/
 /*the container must be positioned relative:*/
-.custom-select {
-  position: relative;
-  font-family: Arima;
+.custom-combobox input {
+  width: 100%;
+  height: 34px;
+  background-color: #31ACFF;
+  color: white;
+  border: 1px solid #ccc;
+  padding-left: 10px;
+  font-family: Arima, sans-serif;
+  border-radius: 4px;
+}
+
+.custom-combobox input::placeholder {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Removes the default arrow in some browsers if you want a cleaner look */
+.custom-combobox input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
 }
 
 .custom-select select {
