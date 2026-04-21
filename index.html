@@ -171,13 +171,16 @@
               }
           });
 
-          // 4. Combobox Language Selection (The API Trigger)
-         const langInput = elements.langInput;
-
+         // 4. Combobox Language Selection (The API Trigger)
+          const langInput = elements.langInput;
+          
           if (langInput) {
-              // SINGLE CLICK TRICK: Show list on first click
-              langInput.addEventListener('mousedown', function() {
-                  this.value = ''; // Clear to show all options
+              // FORCE list to open on a single click
+              langInput.addEventListener('click', function() {
+                  this.value = ''; // Clear text to show all options
+                  if (typeof this.showPicker === 'function') {
+                      this.showPicker(); // This is the modern magic "open" command
+                  }
               });
           
               langInput.addEventListener('input', function() {
@@ -198,6 +201,7 @@
                   }
               });
           }
+        
           // 5. Modal Management (Login / Signup)
           const toggleModal = (modal, show) => {
               if (!modal) return;
