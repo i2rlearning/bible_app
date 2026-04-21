@@ -140,68 +140,91 @@
     <script src="js/misc.js"></script>
 
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // --- Elements ---
-        const elements = {
-            menuNav: document.getElementById("menuNav"),
-            fontSizeSlider: document.getElementById("font-size-slider"),
-            displayText: document.getElementById("bible-version-list"),
-            langInput: document.getElementById('langInput'),
-            // Modals
-            loginModal: document.getElementById('loginModal'),
-            signupModal: document.getElementById('signupModal')
-        };
-    
-        // --- Side Navigation ---
-        window.openNav = () => elements.menuNav.style.width = "225px";
-        window.closeNav = () => elements.menuNav.style.width = "0px";
-    
-        // --- Font Resizing ---
-        elements.fontSizeSlider?.addEventListener("input", (e) => {
-            if (elements.displayText) {
-                elements.displayText.style.fontSize = `${e.target.value}px`;
-            }
-        });
-    
-        // --- Combobox Language Selection ---
-        elements.langInput?.addEventListener('change', function() {
-            const selectedValue = this.value;
-            const options = document.querySelectorAll('#languages option');
-            
-            const match = Array.from(options).find(opt => opt.value === selectedValue);
-            
-            if (match) {
-                const apiUrl = match.getAttribute('data-url');
-                console.log("Navigating to:", apiUrl);
-                
-                // Logic: Save preference then reload
-                // localStorage.setItem('selectedBibleApi', apiUrl);
-                // window.location.reload();
-            }
-        });
-    
-        // --- Modal Logic (Login/Signup) ---
-        const toggleModal = (modal, show) => {
-            modal?.classList.toggle('is-open', show);
-        };
-    
-        // Global click listener for buttons and "click outside"
-        document.addEventListener('click', (e) => {
-            const id = e.target.id;
-    
-            // Open Actions
-            if (id === 'login')  toggleModal(elements.loginModal, true);
-            if (id === 'signup') toggleModal(elements.signupModal, true);
-    
-            // Close Actions (Cancel buttons, Close icons, or clicking the background overlay)
-            if (['cancelLogin', 'closelogin', 'cancelSignupBtn', 'closeSignup'].includes(id) || 
-                e.target === elements.loginModal || 
-                e.target === elements.signupModal) {
-                toggleModal(elements.loginModal, false);
-                toggleModal(elements.signupModal, false);
-            }
-        });
-    });
+      document.addEventListener('DOMContentLoaded', () => {
+          
+          // 1. Element Selectors
+          const elements = {
+              menuNav: document.getElementById("menuNav"),
+              fontSizeSlider: document.getElementById("font-size-slider"),
+              displayText: document.getElementById("bible-version-list"),
+              langInput: document.getElementById('langInput'),
+              loginModal: document.getElementById('loginModal'),
+              signupModal: document.getElementById('signupModal'),
+              languagesList: document.getElementById('languages')
+          };
+      
+          // 2. Side Navigation (Side Menu)
+          // Assigned to window so the inline onclick="openNav()" still works
+          window.openNav = () => {
+              if (elements.menuNav) elements.menuNav.style.width = "225px";
+          };
+      
+          window.closeNav = () => {
+              if (elements.menuNav) elements.menuNav.style.width = "0px";
+          };
+      
+          // 3. Font Resize Logic
+          elements.fontSizeSlider?.addEventListener("input", (e) => {
+              if (elements.displayText) {
+                  elements.displayText.style.fontSize = `${e.target.value}px`;
+              }
+          });
+      
+          // 4. Combobox Language Selection (The API Trigger)
+          elements.langInput?.addEventListener('change', function() {
+              const selectedValue = this.value;
+              const options = elements.languagesList.options;
+              
+              // Find the match in the datalist
+              let apiUrl = null;
+              for (let i = 0; i < options.length; i++) {
+                  if (options[i].value === selectedValue) {
+                      apiUrl = options[i].getAttribute('data-url');
+                      break;
+                  }
+              }
+      
+              if (apiUrl) {
+                  console.log("Selected API URL:", apiUrl);
+                  
+                  // Save selection to localStorage so misc.js/my_key.js can use it
+                  localStorage.setItem('selectedBibleApi', apiUrl);
+                  
+                  // Reload the page to trigger your data-fetching logic
+                  window.location.reload();
+              }
+          });
+      
+          // 5. Modal Management (Login / Signup)
+          const toggleModal = (modal, show) => {
+              if (!modal) return;
+              if (show) {
+                  modal.style.display = "block"; // Ensure visibility
+                  modal.classList.add('is-open');
+              } else {
+                  modal.style.display = "none";
+                  modal.classList.remove('is-open');
+              }
+          };
+      
+          // Global Click Listener (Event Delegation)
+          document.addEventListener('click', (e) => {
+              const target = e.target;
+      
+              // Openers
+              if (target.id === 'login')  toggleModal(elements.loginModal, true);
+              if (target.id === 'signup') toggleModal(elements.signupModal, true);
+      
+              // Closers (Cancel buttons, Close icons, or clicking background)
+              const isCloser = ['cancelLogin', 'closelogin', 'cancelSignupBtn', 'closeSignup'].includes(target.id);
+              const isBackgroundClick = target === elements.loginModal || target === elements.signupModal;
+      
+              if (isCloser || isBackgroundClick) {
+                  toggleModal(elements.loginModal, false);
+                  toggleModal(elements.signupModal, false);
+              }
+          });
+      });
   </script>
   </body>
 </html>
