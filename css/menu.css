@@ -65,14 +65,16 @@ a.current{
 /*********  Dropdown button for languages ALSOSEE: https://codepen.io/tsk/pen/eEVWdg different dropdown *********/
 /*the container must be positioned relative:*/
 .custom-combobox input {
-  width: 100%;
-  height: 34px;
-  background-color: #31ACFF;
-  color: white;
-  border: 1px solid #ccc;
-  padding-left: 10px;
-  font-family: Arima, sans-serif;
-  border-radius: 4px;
+    width: 100%;
+    height: 34px;
+    background-color: #31ACFF;
+    color: white;
+    border: 1px solid #ccc;
+    padding-left: 10px;
+    padding-right: 30px; /* IMPORTANT: leave space for the arrow */
+    font-family: Arima, sans-serif;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 .custom-combobox input::placeholder {
@@ -98,15 +100,22 @@ a.current{
     cursor: pointer;
 }
 
+/* Ensure the arrow sits inside the blue box and is white */
 .down-arrow {
     position: absolute;
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    pointer-events: none; /* Allows clicks to pass through to the input */
-    color: #555;
+    pointer-events: none; 
+    color: white; /* Changed from #555 to white */
+    font-size: 12px;
+    z-index: 2; /* Make sure it stays on top */
 }
 
+/* This hides the "default" browser arrow so only YOUR arrow shows */
+.custom-combobox input::-webkit-calendar-picker-indicator {
+    display: none !important;
+}
 .select-selected {
   background-color: #31ACFF;
   height:34px;
