@@ -25,15 +25,15 @@
               <span style="color:lightgray;">Book & Chapter</span>
             </div>
             <div class="column">
-              <div class="custom-select" style="width:12vw;" onclick="getOption()">  
-                <select id="optVal">  
-                  <option value="language">Language</option>
-                  <option value='https://api.scripture.api.bible/v1/bibles?language=eng&include-full-details=false'>English</option>
-                  <option value="https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false">Greek</option>
-                  <option value='https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=false'>Hebrew</option>
-                  <option value="https://api.scripture.api.bible/v1/bibles?include-full-details=false">All</option>              
-                </select>
-              </div>          
+              <div class="custom-combobox" style="width:12vw;">
+                <input list="languages" id="langInput" placeholder="Select Language" onchange="handleLangSelection()">
+                <datalist id="languages">
+                  <option value="English" data-url="https://api.scripture.api.bible/v1/bibles?language=eng&include-full-details=false">
+                  <option value="Greek" data-url="https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false">
+                  <option value="Hebrew" data-url="https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=false">
+                  <option value="All" data-url="https://api.scripture.api.bible/v1/bibles?include-full-details=false">
+                </datalist>
+              </div>        
             </div>
             <div class="column">
               <div class="align-group">
