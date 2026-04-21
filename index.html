@@ -172,37 +172,32 @@
           });
 
           // 4. Combobox Language Selection (The API Trigger)
-          elements.langInput?.addEventListener('input', function() {
-              const selectedValue = this.value;
-              const options = elements.languagesList.options;
-              
-              // Find the match in the datalist
-              let apiUrl = null;
-              for (let i = 0; i < options.length; i++) {
-                  if (options[i].value === selectedValue) {
-                      apiUrl = options[i].getAttribute('data-url');
-                      break;
-                  }
-              }
-          
-              if (apiUrl) {
-                  console.log("Match found! Selected API URL:", apiUrl);
-                  
-                  // Save selection to localStorage so misc.js/my_key.js can use it
-                  localStorage.setItem('selectedBibleApi', apiUrl);
-                  
-                  // Clear the input value so it's clean on reload
-                  this.value = '';
-          
-                  // Reload the page immediately - No 'Enter' key needed!
-                  window.location.reload();
-              }
-          });
+         const langInput = elements.langInput;
 
-          elements.langInput?.addEventListener('focus', function() {
-              this.value = ''; // Clears current text to show the full list
-          });
-        
+          if (langInput) {
+              // SINGLE CLICK TRICK: Show list on first click
+              langInput.addEventListener('mousedown', function() {
+                  this.value = ''; // Clear to show all options
+              });
+          
+              langInput.addEventListener('input', function() {
+                  const selectedValue = this.value;
+                  const options = elements.languagesList.options;
+                  
+                  let apiUrl = null;
+                  for (let i = 0; i < options.length; i++) {
+                      if (options[i].value === selectedValue) {
+                          apiUrl = options[i].getAttribute('data-url');
+                          break;
+                      }
+                  }
+          
+                  if (apiUrl) {
+                      localStorage.setItem('selectedBibleApi', apiUrl);
+                      window.location.reload();
+                  }
+              });
+          }
           // 5. Modal Management (Login / Signup)
           const toggleModal = (modal, show) => {
               if (!modal) return;
