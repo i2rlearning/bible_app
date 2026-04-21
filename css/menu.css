@@ -88,6 +88,25 @@ a.current{
   display: none; /*hide original SELECT element:*/
 }
 
+.combobox-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+#langInput {
+    padding-right: 30px; /* Make room for the arrow */
+    cursor: pointer;
+}
+
+.down-arrow {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none; /* Allows clicks to pass through to the input */
+    color: #555;
+}
+
 .select-selected {
   background-color: #31ACFF;
   height:34px;
