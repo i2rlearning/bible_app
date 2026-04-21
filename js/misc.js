@@ -1,10 +1,13 @@
       const versionList = document.querySelector(`#bible-version-list`);
-      var selectVal = document.querySelector('#optVal').value;
-      
-      if (selectVal == 'language') {
-           selectVal = 'https://api.scripture.api.bible/v1/bibles?include-full-details=false';
-      }
+      let selectVal = localStorage.getItem('selectedBibleApi') || 
+                document.querySelector('#optVal')?.value || 
+                'https://api.scripture.api.bible/v1/bibles?include-full-details=false';
 
+      // Keep your existing check for the word 'language' just in case
+      if (selectVal === 'language') {
+          selectVal = 'https://api.scripture.api.bible/v1/bibles?include-full-details=false';
+      }
+      
       let versionHTML = ``;
  
       getBibleVersions().then((bibleVersionList) => {
