@@ -169,9 +169,9 @@
                   elements.displayText.style.fontSize = `${e.target.value}px`;
               }
           });
-      
+
           // 4. Combobox Language Selection (The API Trigger)
-          elements.langInput?.addEventListener('change', function() {
+          elements.langInput?.addEventListener('input', function() {
               const selectedValue = this.value;
               const options = elements.languagesList.options;
               
@@ -183,14 +183,17 @@
                       break;
                   }
               }
-      
+          
               if (apiUrl) {
-                  console.log("Selected API URL:", apiUrl);
+                  console.log("Match found! Selected API URL:", apiUrl);
                   
                   // Save selection to localStorage so misc.js/my_key.js can use it
                   localStorage.setItem('selectedBibleApi', apiUrl);
                   
-                  // Reload the page to trigger your data-fetching logic
+                  // Clear the input value so it's clean on reload
+                  this.value = '';
+          
+                  // Reload the page immediately - No 'Enter' key needed!
                   window.location.reload();
               }
           });
