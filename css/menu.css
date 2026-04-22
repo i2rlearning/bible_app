@@ -73,6 +73,8 @@ a.current { pointer-events: none; color: white; }
     cursor: pointer;
     outline: none;
     font-size: 16px;
+    caret-color: transparent; /* Makes the flashing cursor invisible */
+    user-select: none;
 }
 
 #langInput::placeholder {
