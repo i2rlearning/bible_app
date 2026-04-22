@@ -108,7 +108,7 @@ a.current{
     transform: translateY(-50%);
     pointer-events: none; 
     color: white; /* Changed from #555 to white */
-    font-size: 12px;
+    font-size: 16px;
     z-index: 2; /* Make sure it stays on top */
 }
 
