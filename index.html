@@ -174,21 +174,23 @@
               }
           });
 
-          // 4. Combobox Language Selection (Strict Selection Logic)
+          // 4. Combobox Language Selection (No-Typing Logic)
           const langInput = elements.langInput;
           
           if (langInput) {
-              // 1. Prevent typing but allow clicking
-              langInput.setAttribute('readonly', 'true');
+              // Prevent typing by blocking all key presses
+              langInput.addEventListener('keydown', (e) => {
+                  e.preventDefault();
+              });
           
-              // 2. Open the list on a single click
+              // Open the list on a single click
               langInput.addEventListener('click', function() {
                   if (typeof this.showPicker === 'function') {
                       this.showPicker();
                   }
               });
           
-              // 3. Handle the selection
+              // Handle the selection and reload
               langInput.addEventListener('input', function() {
                   const selectedValue = this.value;
                   const options = elements.languagesList.options;
@@ -202,16 +204,13 @@
                   }
           
                   if (apiUrl) {
-                      // Save selection so it stays after reload
                       localStorage.setItem('selectedBibleApi', apiUrl);
                       localStorage.setItem('selectedBibleName', selectedValue);
-                      
-                      // Reload to apply changes
                       window.location.reload();
                   }
               });
           
-              // 4. PERSISTENCE: Display the last selected language on page load
+              // On page load, show the last selected name
               const savedName = localStorage.getItem('selectedBibleName');
               if (savedName) {
                   langInput.value = savedName;
