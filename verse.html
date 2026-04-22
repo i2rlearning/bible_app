@@ -267,57 +267,73 @@
         document.getElementById("menuNav").style.width = "0px";
       }  
 
-    // ******************* Left/Right Seals *********************
-    var imageLeft = document.getElementById('imgleft');
-    var imageRight = document.getElementById('imgright');
-    var currURL = window.location.href;
-    
-    // Use the chapter variable already defined earlier in your script
-    const currentChapterNum = parseInt(chapter); 
-    const totalChapters = parseInt(maxChapters);
-    
-    // --- LEFT ARROW LOGIC ---
-    // ******************* Left/Right Seals *********************
-    var imageLeft = document.getElementById('imgleft');
-    var imageRight = document.getElementById('imgright');
-    
-    // Parse values to ensure they are numbers
-    const currentChapterNum = parseInt(chapter); 
-    const totalChapters = parseInt(maxChapters);
-    
-    // Function to build the new URL based on chapter number
-    function getNavUrl(targetChapter) {
-        // This builds a clean URL using your existing variables
-        return `./verse.html?version=${bibleVersionID}&chapter=${book}.${targetChapter}&name=${bibleName}&abbr=${abbreviation}`;
-    }
-    
-    // --- LEFT ARROW LOGIC ---
-    if (currentChapterNum > 1) {
-        imageLeft.addEventListener('mouseover', () => imageLeft.src = './img/left_stamp_on.png');
-        imageLeft.addEventListener('mouseout', () => imageLeft.src = './img/orig_left_stamp.png');
-        
-        imageLeft.addEventListener('click', function() {
-            // Redirect to the calculated URL
-            window.location.href = getNavUrl(currentChapterNum - 1);
-        });
-    } else {
-        imageLeft.style.opacity = "0.5";
-        imageLeft.style.cursor = "not-allowed";
-    }
-    
-    // --- RIGHT ARROW LOGIC ---
-    if (currentChapterNum < totalChapters) {
-        imageRight.addEventListener('mouseover', () => imageRight.src = './img/right_stamp_on.png');
-        imageRight.addEventListener('mouseout', () => imageRight.src = './img/orig_right_stamp.png');
-    
-        imageRight.addEventListener('click', function() {
-            // Redirect to the calculated URL
-            window.location.href = getNavUrl(currentChapterNum + 1);
-        });
-    } else {
-        imageRight.style.opacity = "0.5";
-        imageRight.style.cursor = "not-allowed";
-    }
+
+    //******************* Left/Right Seals *********************
+      var imageLeft = document.getElementById('imgleft');
+      var imageRight = document.getElementById('imgright');
+      var currURL = window.location.href;
+      var lastchar = currURL.substring(currURL.length - 2);
+      var charpos = lastchar.indexOf('.'); 
+      var currNum = -1;
+      var urlwonum = 0;
+
+      imageLeft.addEventListener('mouseover', function() {
+        imageLeft.src = './img/left_stamp_on.png';
+      });
+
+      imageLeft.addEventListener('mouseout', function() {
+        imageLeft.src = './img/orig_left_stamp.png';
+      });
+
+      imageLeft.addEventListener('click', function() {
+        switch (charpos) {
+          case 0:
+              currNum = lastchar.substring(1,2);
+              urlwonum = currURL.slice (0,currURL.length-1);
+              break;
+          
+          case -1:
+              currNum = lastchar;
+              urlwonum = currURL.slice (0,currURL.length-2);
+              break;
+        } 
+                    
+        var prevnum = --currNum;                     
+        var updatedUrl = urlwonum + prevnum;
+        if (prevnum > 0) {
+          document.getElementById("prevURL").setAttribute("href",updatedUrl);
+        }  
+      });
+
+
+
+      imageRight.addEventListener('mouseover', function() {
+        imageRight.src = './img/right_stamp_on.png';
+      });
+
+      imageRight.addEventListener('mouseout', function() {
+        imageRight.src = './img/orig_right_stamp.png';
+      });
+
+      imageRight.addEventListener('click', function() {
+        switch (charpos) {
+          case 0:
+              currNum = lastchar.substring(1,2);
+              urlwonum = currURL.slice (0,currURL.length-1);
+              break;
+          
+          case -1:
+              currNum = lastchar;
+              urlwonum = currURL.slice (0,currURL.length-2);
+              break;
+        } 
+               
+        var nextnum = ++currNum;       
+        var updatedUrl = urlwonum + nextnum;
+        if (nextnum <= maxChapters) {
+          document.getElementById("nextURL").setAttribute("href",updatedUrl);
+        }  
+      });
 
 
   //******************* Font resize slider *********************
@@ -327,8 +343,7 @@
   fontSizeSlider.addEventListener("input", () => {
     const fontSize = fontSizeSlider.value;
     displayText.style.fontSize = `${fontSize}px`;
-  }); 
+  });
  </script>
-    
 </body>
 </html>
