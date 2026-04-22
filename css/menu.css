@@ -72,7 +72,7 @@ a.current { pointer-events: none; color: white; }
     border-radius: 4px;
     cursor: pointer;
     outline: none;
-    font-size: 14px;
+    font-size: 16px;
 }
 
 #langInput::placeholder {
@@ -87,7 +87,7 @@ a.current { pointer-events: none; color: white; }
     transform: translateY(-50%);
     pointer-events: none; 
     color: white !important;
-    font-size: 14px;
+    font-size: 16px;
     z-index: 5;
 }
 
