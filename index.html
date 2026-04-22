@@ -174,19 +174,22 @@
               }
           });
 
-         // 4. Combobox Language Selection (The API Trigger)
+          // 4. Combobox Language Selection (Strict Selection Logic)
           const langInput = elements.langInput;
           
           if (langInput) {
-              // FORCE list to open on a single click
+              // 1. Prevent typing but allow clicking
+              langInput.setAttribute('readonly', 'true');
+          
+              // 2. Open the list on a single click
               langInput.addEventListener('click', function() {
-                  this.value = ''; // Clear text to show all options
                   if (typeof this.showPicker === 'function') {
-                      this.showPicker(); // This is the modern magic "open" command
+                      this.showPicker();
                   }
               });
           
-              langInput.addEventListener('change', function() {
+              // 3. Handle the selection
+              langInput.addEventListener('input', function() {
                   const selectedValue = this.value;
                   const options = elements.languagesList.options;
                   
@@ -199,10 +202,20 @@
                   }
           
                   if (apiUrl) {
+                      // Save selection so it stays after reload
                       localStorage.setItem('selectedBibleApi', apiUrl);
+                      localStorage.setItem('selectedBibleName', selectedValue);
+                      
+                      // Reload to apply changes
                       window.location.reload();
                   }
               });
+          
+              // 4. PERSISTENCE: Display the last selected language on page load
+              const savedName = localStorage.getItem('selectedBibleName');
+              if (savedName) {
+                  langInput.value = savedName;
+              }
           }
         
           // 5. Modal Management (Login / Signup)
