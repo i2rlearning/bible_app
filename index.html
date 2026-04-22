@@ -174,48 +174,56 @@
               }
           });
 
-          // 4. Combobox Language Selection (No-Typing Logic)
-          const langInput = elements.langInput;
-          
-          if (langInput) {
-              // Prevent typing by blocking all key presses
-              langInput.addEventListener('keydown', (e) => {
-                  e.preventDefault();
-              });
-          
-              // Open the list on a single click
-              langInput.addEventListener('click', function() {
-                  if (typeof this.showPicker === 'function') {
-                      this.showPicker();
-                  }
-              });
-          
-              // Handle the selection and reload
-              langInput.addEventListener('input', function() {
-                  const selectedValue = this.value;
-                  const options = elements.languagesList.options;
-                  
-                  let apiUrl = null;
-                  for (let i = 0; i < options.length; i++) {
-                      if (options[i].value === selectedValue) {
-                          apiUrl = options[i].getAttribute('data-url');
-                          break;
-                      }
-                  }
-          
-                  if (apiUrl) {
-                      localStorage.setItem('selectedBibleApi', apiUrl);
-                      localStorage.setItem('selectedBibleName', selectedValue);
-                      window.location.reload();
-                  }
-              });
-          
-              // On page load, show the last selected name
-              const savedName = localStorage.getItem('selectedBibleName');
-              if (savedName) {
-                  langInput.value = savedName;
-              }
-          }
+         // 4. Combobox Language Selection (Always Show Full List)
+        const langInput = elements.langInput;
+        
+        if (langInput) {
+            // Block typing
+            langInput.addEventListener('keydown', (e) => e.preventDefault());
+        
+            langInput.addEventListener('click', function() {
+                // Store the current value so we don't lose it
+                const currentVal = this.value;
+                
+                // Temporarily clear it so the datalist shows ALL options
+                this.value = ''; 
+                
+                if (typeof this.showPicker === 'function') {
+                    this.showPicker();
+                }
+        
+                // If they click away without picking, put the old value back
+                const self = this;
+                setTimeout(() => {
+                    if (!self.value) self.value = currentVal;
+                }, 100);
+            });
+        
+            langInput.addEventListener('input', function() {
+                const selectedValue = this.value;
+                const options = elements.languagesList.options;
+                
+                let apiUrl = null;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value === selectedValue) {
+                        apiUrl = options[i].getAttribute('data-url');
+                        break;
+                    }
+                }
+        
+                if (apiUrl) {
+                    localStorage.setItem('selectedBibleApi', apiUrl);
+                    localStorage.setItem('selectedBibleName', selectedValue);
+                    window.location.reload();
+                }
+            });
+        
+            // On page load, restore the saved name
+            const savedName = localStorage.getItem('selectedBibleName');
+            if (savedName) {
+                langInput.value = savedName;
+            }
+        }
         
           // 5. Modal Management (Login / Signup)
           const toggleModal = (modal, show) => {
