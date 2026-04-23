@@ -144,65 +144,80 @@
     <script src="js/misc.js"></script>
 
     <script>
-      document.addEventListener('DOMContentLoaded', () => {
-          
-          // 1. Element Selectors
-          const elements = {
-              menuNav: document.getElementById("menuNav"),
-              fontSizeSlider: document.getElementById("font-size-slider"),
-              displayText: document.getElementById("bible-version-list"),
-              langInput: document.getElementById('langInput'),
-              loginModal: document.getElementById('loginModal'),
-              signupModal: document.getElementById('signupModal'),
-              languagesList: document.getElementById('languages')
-          };
-      
-          // 2. Side Navigation (Side Menu)
-          // Assigned to window so the inline onclick="openNav()" still works
-          window.openNav = () => {
-              if (elements.menuNav) elements.menuNav.style.width = "225px";
-          };
-      
-          window.closeNav = () => {
-              if (elements.menuNav) elements.menuNav.style.width = "0px";
-          };
-      
-          // 3. Font Resize Logic
-          elements.fontSizeSlider?.addEventListener("input", (e) => {
-              if (elements.displayText) {
-                  elements.displayText.style.fontSize = `${e.target.value}px`;
-              }
-          });
+      <script>
+    document.addEventListener('DOMContentLoaded', () => {
 
-         // 4. Combobox Language Selection (Always Show Full List)
+        // 1. Element Selectors
+        const elements = {
+            menuNav: document.getElementById("menuNav"),
+            fontSizeSlider: document.getElementById("font-size-slider"),
+            displayText: document.getElementById("bible-version-list"),
+            langInput: document.getElementById('langInput'),
+            loginModal: document.getElementById('loginModal'),
+            signupModal: document.getElementById('signupModal'),
+            languagesList: document.getElementById('languages')
+        };
+
+        // 2. Side Navigation (Side Menu)
+        window.openNav = () => {
+            if (elements.menuNav) elements.menuNav.style.width = "225px";
+        };
+
+        window.closeNav = () => {
+            if (elements.menuNav) elements.menuNav.style.width = "0px";
+        };
+
+        // 3. Font Resize Logic
+        elements.fontSizeSlider?.addEventListener("input", (e) => {
+            if (elements.displayText) {
+                elements.displayText.style.fontSize = `${e.target.value}px`;
+            }
+        });
+
+        // 4. Bible API Fetch (Single ID lookup)
+        // We run this inside the DOMContentLoaded to ensure the browser is ready
+        fetch("https://api.scripture.api.bible/v1/bibles/bba9f40183526463-01", {
+            headers: {
+                "api-key": "f7f78795f10ad20d1cc0d1fcdacbf497"
+            }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error("API request failed");
+            return response.json();
+        })
+        .then(data => {
+            if (data.data && data.data.name) {
+                alert("Bible Name: " + data.data.name);
+            }
+        })
+        .catch(err => console.error("Error fetching Bible name:", err));
+
+
+        // 5. Combobox Language Selection (Always Show Full List)
         const langInput = elements.langInput;
-        
+
         if (langInput) {
             // Block typing
             langInput.addEventListener('keydown', (e) => e.preventDefault());
-        
+
             langInput.addEventListener('click', function() {
-                // Store the current value so we don't lose it
                 const currentVal = this.value;
-                
-                // Temporarily clear it so the datalist shows ALL options
                 this.value = ''; 
-                
+
                 if (typeof this.showPicker === 'function') {
                     this.showPicker();
                 }
-        
-                // If they click away without picking, put the old value back
+
                 const self = this;
                 setTimeout(() => {
                     if (!self.value) self.value = currentVal;
                 }, 100);
             });
-        
+
             langInput.addEventListener('input', function() {
                 const selectedValue = this.value;
                 const options = elements.languagesList.options;
-                
+
                 let apiUrl = null;
                 for (let i = 0; i < options.length; i++) {
                     if (options[i].value === selectedValue) {
@@ -210,59 +225,49 @@
                         break;
                     }
                 }
-        
+
                 if (apiUrl) {
                     localStorage.setItem('selectedBibleApi', apiUrl);
                     localStorage.setItem('selectedBibleName', selectedValue);
                     window.location.reload();
                 }
             });
-        
-            // On page load, restore the saved name
+
             const savedName = localStorage.getItem('selectedBibleName');
             if (savedName) {
                 langInput.value = savedName;
             }
         }
-        
-          // 5. Modal Management (Login / Signup)
-          const toggleModal = (modal, show) => {
-              if (!modal) return;
-              if (show) {
-                  modal.style.display = "block"; // Ensure visibility
-                  modal.classList.add('is-open');
-              } else {
-                  modal.style.display = "none";
-                  modal.classList.remove('is-open');
-              }
-          };
-      
-          // Global Click Listener (Event Delegation)
-          document.addEventListener('click', (e) => {
-              const target = e.target;
-      
-              // Openers
-              if (target.id === 'login')  toggleModal(elements.loginModal, true);
-              if (target.id === 'signup') toggleModal(elements.signupModal, true);
-      
-              // Closers (Cancel buttons, Close icons, or clicking background)
-              const isCloser = ['cancelLogin', 'closelogin', 'cancelSignupBtn', 'closeSignup'].includes(target.id);
-              const isBackgroundClick = target === elements.loginModal || target === elements.signupModal;
-      
-              if (isCloser || isBackgroundClick) {
-                  toggleModal(elements.loginModal, false);
-                  toggleModal(elements.signupModal, false);
-              }
-          });
-      });
 
-      fetch("https://api.scripture.api.bible/v1/bibles/bba9f40183526463-01", {
-  headers: {
-    "api-key": "f7f78795f10ad20d1cc0d1fcdacbf497"
-  }
-})
-.then(response => response.json())
-.then(data => alert(data.data.name));
+        // 6. Modal Management (Login / Signup)
+        const toggleModal = (modal, show) => {
+            if (!modal) return;
+            if (show) {
+                modal.style.display = "block"; 
+                modal.classList.add('is-open');
+            } else {
+                modal.style.display = "none";
+                modal.classList.remove('is-open');
+            }
+        };
+
+        // Global Click Listener (Event Delegation)
+        document.addEventListener('click', (e) => {
+            const target = e.target;
+
+            if (target.id === 'login')  toggleModal(elements.loginModal, true);
+            if (target.id === 'signup') toggleModal(elements.signupModal, true);
+
+            const isCloser = ['cancelLogin', 'closelogin', 'cancelSignupBtn', 'closeSignup'].includes(target.id);
+            const isBackgroundClick = target === elements.loginModal || target === elements.signupModal;
+
+            if (isCloser || isBackgroundClick) {
+                toggleModal(elements.loginModal, false);
+                toggleModal(elements.signupModal, false);
+            }
+        });
+    });
+</script>
   </script>
   </body>
 </html>
