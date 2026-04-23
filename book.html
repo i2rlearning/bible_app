@@ -1,20 +1,18 @@
 <!DOCTYPE html>
 <html>
-  <head><!DOCTYPE html>
-<html>
 <head>
     <link href="css/menu.css" rel="stylesheet" />
     <link href="css/bible-main.css" rel="stylesheet" />
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
     <title>Branch of Israel - Bible App</title>
     <style>
-        /* Ensures the abbreviation matches the dark theme of the header */
+        /* Internal fix to prevent conflicts and ensure dark text */
         #bibleabbr {
             color: #333 !important;
             font-weight: bold;
             cursor: help;
         }
-        /* Fixes tooltip layering and positioning */
+        /* Tooltip styling for the full bible name hover */
         .tooltip .tooltiptext {
             visibility: hidden;
             width: 200px;
@@ -90,30 +88,28 @@
 
     <script src="js/my_key.js"></script>
     <script>
+        // Use standard selectors and variables as in your original file
         const bibleBookList = document.querySelector(`#book-list`);
         const bibleVersionID = getParameterByName(`version`);
         const fullbiblename = getParameterByName(`name`);
         const abbreviation = getParameterByName(`abbr`);
 
-        // Redirect if no version found
         if (!bibleVersionID) {
             window.location.href = `./index.html`;
         }
 
-        // Initialize Header content
-        // We use document.getElementById to avoid variable reference errors
+        // Initialize header text from URL parameters
         document.getElementById('biblefullname').innerText = fullbiblename;
         document.getElementById('bibleabbr').innerText = abbreviation;
 
-        // Session storage for subsequent pages
         sessionStorage.setItem("bookabbr", window.location.href);
         sessionStorage.setItem("fullbookname", fullbiblename);
 
-        // Fetch and build the book list
+        // Fetch and build book list
         getBooks(bibleVersionID).then((bookList) => {
             let bookHTML = `<ol>`;
             for (let book of bookList) {
-                // encodeURIComponent ensures the full name passes correctly through the URL
+                // Pass the full name forward to the chapter page via URL
                 bookHTML += `<li class="grid">
                     <a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${encodeURIComponent(fullbiblename)}"> 
                         ${book.id} 
@@ -124,16 +120,12 @@
             bibleBookList.innerHTML = bookHTML;
         });
 
-        /**
-         * Fetch list of books from the API
-         */
         function getBooks(bibleVersionID) {
             return fetch(`https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books`, {
                 headers: { 'api-key': API_KEY }
             })
             .then(response => response.json())
             .then(result => {
-                // Map the data to the format the loop expects
                 return result.data.map(({ name, id }) => ({ name, id }));
             })
             .catch(error => {
@@ -142,15 +134,11 @@
             });
         }
 
-        /**
-         * Helper to grab variables from the URL
-         */
         function getParameterByName(name) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(name);
         }
 
-        // Side Menu Functions
         function openNav() {
             document.getElementById("menuNav").style.width = "225px";
         }
@@ -160,152 +148,4 @@
         }
     </script>
 </body>
-</html>
-    <link href="css/menu.css" rel="stylesheet" />
-    <link href="css/bible-main.css" rel="stylesheet" />
-    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
-    <title>Branch of Israel - Bible App</title>
-    <style>
-      /* Fix for dark text in subheader */
-      #bibleabbr {
-        color: #333 !important; 
-        font-weight: bold;
-        cursor: help;
-        text-transform: lowercase; /* Matches your 'engbrent' look */
-      }
-      
-      .tooltip .tooltiptext {
-        visibility: hidden;
-        width: 220px;
-        background-color: #333;
-        color: #fff;
-        text-align: center;
-        border-radius: 6px;
-        padding: 8px;
-        position: absolute;
-        z-index: 99;
-        top: 125%; 
-        left: 50%;
-        margin-left: -110px;
-        opacity: 0;
-        transition: opacity 0.3s;
-        font-size: 14px;
-        line-height: 1.2;
-      }
-
-      .tooltip:hover .tooltiptext {
-        visibility: visible;
-        opacity: 1;
-      }
-    </style>
-  </head>
-
-  <body class="index">
-    <div class="subheader" id="stickyHeader">
-      <div class="container flex">
-        <div class="subheadings">
-          <div class="column">
-            <span style="font-size:25px;cursor:pointer;" onclick="openNav()">&#9776;</span>
-          </div>
-          <div class="column">
-            <span class="tooltip"> 
-              <span id="bibleabbr"></span>
-              <span class="tooltiptext">
-                <span id="biblefullname"></span>
-              </span>
-            </span>
-          </div>
-          <div class="column">
-            <span style="color:lightgray;">Book & Chapter</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <header>
-      <div id="menuNav" class="overlay">
-        <a href="javascript:void(0)" class="closebtn" style="color:red" onclick="closeNav()">&times;</a>
-        <div class="overlay-content">
-          <a href="./index.html">Home</a>
-          <a href="#" class="current">Books</a>
-          <a id="sticky" href="#" class="disabled">Chapter</a>
-          <a href="./search.html">Search</a>
-        </div>
-      </div>
-    </header>
-
-    <main class="container">
-      <span id="book-list" class="list-container numeric-list tooltip-container"></span>
-      
-      <div class="leftcol">
-        <a id="prevURL">
-          <img id="imgleft" class="left-button" src="./img/orig_left_stamp.png" />
-        </a>
-      </div>      
-      
-      <div class="rightcol">
-        <a id="nextURL">
-          <img id="imgright" class="right-button" src="./img/orig_right_stamp.png"  />
-        </a>
-      </div>
-    </main>
-    
-    <script src="js/my_key.js"></script>
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        const bibleBookList = document.querySelector(`#book-list`);
-        
-        // Grab current URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const bibleVersionID = urlParams.get('version'); 
-        const fullbiblename = urlParams.get('name');    
-        const abbreviation = urlParams.get('abbr') || "bible"; 
-
-        if (!bibleVersionID) {
-          window.location.href = `./index.html`;
-          return;
-        }
-
-        // Set the header text immediately
-        document.getElementById('biblefullname').innerText = fullbiblename || "Bible Version";
-        document.getElementById('bibleabbr').innerText = abbreviation;
-
-        // Fetch Books
-        fetch(`https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books`, {
-          headers: { 'api-key': API_KEY }
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (!data.data) return;
-
-          let bookHTML = `<ol>`;
-          for (let book of data.data) {
-            // CRITICAL: Building the next link using the variables we just grabbed
-            // We use encodeURIComponent to make sure the full name passes safely
-            const nextUrl = `chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${encodeURIComponent(fullbiblename)}`;
-            
-            bookHTML += `
-              <li class="grid">
-                <a href="${nextUrl}"> 
-                  ${book.id} 
-                </a>
-              </li>`;
-          }
-          bookHTML += `</ol>`;
-          bibleBookList.innerHTML = bookHTML;
-        })
-        .catch(err => {
-          console.error("Fetch Error:", err);
-        });
-      });
-
-      function openNav() {
-        document.getElementById("menuNav").style.width = "225px";
-      }
-
-      function closeNav() {
-        document.getElementById("menuNav").style.width = "0px";
-      }
-    </script>
-  </body>
 </html>
