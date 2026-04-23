@@ -61,36 +61,34 @@
     <script>
       document.addEventListener('DOMContentLoaded', () => {
         const bibleBookList = document.querySelector(`#book-list`);
-        const bibleVersionID = getParameterByName(`version`);
-        const fullbiblename = getParameterByName(`name`);
-        const abbreviation = getParameterByName(`abbr`);
+        
+        // GRABBING DATA DIRECTLY FROM THE URL
+        const bibleVersionID = getParameterByName(`version`); // bba9f40183526463-01
+        const fullbiblename = getParameterByName(`name`);    // Berean Standard
+        const abbreviation = getParameterByName(`abbr`) || "Bible"; // Fallback if abbr is missing
 
-        // Verify version exists, otherwise kick back to home
         if (!bibleVersionID) {
           window.location.href = `./index.html`;
           return;
         }
 
-        // Update Subheader text
-        document.getElementById('biblefullname').innerText = fullbiblename || "Bible";
-        document.getElementById('bibleabbr').innerText = abbreviation || "N/A";
+        // Update Subheader with the data from the URL
+        document.getElementById('biblefullname').innerText = fullbiblename;
+        document.getElementById('bibleabbr').innerText = abbreviation;
 
-        // Save for next screens
-        sessionStorage.setItem("bookabbr", window.location.href);
-        sessionStorage.setItem("fullbookname", fullbiblename);
-
-        // Fetch Books using the modern Fetch API
+        // Fetch Books using the 16-digit ID from the URL
         fetch(`https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books`, {
           headers: { 'api-key': API_KEY }
         })
         .then(response => response.json())
         .then(data => {
+          if (!data.data) throw new Error("No data found");
+
           let bookHTML = `<ol>`;
-          // The API returns data inside a 'data' property
           for (let book of data.data) {
             bookHTML += `
               <li class="grid">
-                <a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${encodeURIComponent(book.name)}"> 
+                <a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${encodeURIComponent(fullbiblename)}"> 
                   ${book.id} 
                 </a>
               </li>`;
@@ -99,23 +97,17 @@
           bibleBookList.innerHTML = bookHTML;
         })
         .catch(err => {
-          console.error("Error loading books:", err);
-          bibleBookList.innerHTML = "<p style='color:white;'>Error loading books. Please try again.</p>";
+          console.error("Fetch Error:", err);
+          bibleBookList.innerHTML = "<p style='color:white;'>Unable to load books for this version.</p>";
         });
       });
 
-      // URL Parameter Helper
+      // Robust URL parameter grabber
       function getParameterByName(name) {
-        const url = window.location.href;
-        name = name.replace(/[\[\]]/g, `\\$&`);
-        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`);
-        const results = regex.exec(url);
-        if (!results) return null;
-        if (!results[2]) return ``;
-        return decodeURIComponent(results[2].replace(/\+/g, ` `));
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
       }
 
-      // Side Menu Functions
       window.openNav = () => {
         document.getElementById("menuNav").style.width = "225px";
       };
