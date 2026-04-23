@@ -255,6 +255,14 @@
               }
           });
       });
+
+      fetch("https://api.scripture.api.bible/v1/bibles/bba9f40183526463-01", {
+  headers: {
+    "api-key": "f7f78795f10ad20d1cc0d1fcdacbf497"
+  }
+})
+.then(response => response.json())
+.then(data => alert(data.data.name));
   </script>
   </body>
 </html>
