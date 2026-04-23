@@ -7,24 +7,27 @@
     <title>Branch of Israel - Bible App</title>
   </head>
 
-   <body class="index">
-      <div class="subheader" id="stickyHeader">
-        <div class="container flex">
-          <div class="subheadings">
-            <div class="column">
-              <span style="font-size:25px;cursor:pointer;" onclick="openNav()">&#9776;</span><!-- show foo foo bar --> 
-            </div>
-            <div class="column">
-              <span class="tooltip"> <span id="bibleabbr"></span>
-                  <span class="tooltiptext  tooltip-bottom"><span id="biblefullname"></span></span>
+  <body class="index">
+    <div class="subheader" id="stickyHeader">
+      <div class="container flex">
+        <div class="subheadings">
+          <div class="column">
+            <span style="font-size:25px;cursor:pointer;" onclick="openNav()">&#9776;</span>
+          </div>
+          <div class="column">
+            <span class="tooltip"> 
+              <span id="bibleabbr" style="color:white; font-weight:bold;"></span>
+              <span class="tooltiptext tooltip-bottom">
+                <span id="biblefullname"></span>
               </span>
-            </div>
-            <div class="column">
-              <span style="color:lightgray;">Book & Chapter</span>
-            </div>
+            </span>
+          </div>
+          <div class="column">
+            <span style="color:lightgray;">Book & Chapter</span>
           </div>
         </div>
       </div>
+    </div>
 
     <header>
       <div id="menuNav" class="overlay">
@@ -32,120 +35,94 @@
         <div class="overlay-content">
           <a href="./index.html">Home</a>
           <a href="#" class="current">Books</a>
-          <a  id="sticky"href="#" class="disabled">Chapter</a>
+          <a id="sticky" href="#" class="disabled">Chapter</a>
           <a href="./search.html">Search</a>
         </div>
       </div>
     </header>
 
     <main class="container">
-      <!--<h4 class="list-heading"><span>Select a Book</span></h4>-->
-        <span id="book-list" class="list-container numeric-list tooltip-container"></span>
-        <!-- <span class="tooltip">Tooltip text</span> -->
-        <div class="leftcol">
-          <a id="prevURL" >
-            <img id="imgleft" class="left-button" src="./img/orig_left_stamp.png" />
-          </a>
-        </div>      
+      <span id="book-list" class="list-container numeric-list tooltip-container"></span>
+      
+      <div class="leftcol">
+        <a id="prevURL">
+          <img id="imgleft" class="left-button" src="./img/orig_left_stamp.png" />
+        </a>
+      </div>      
       
       <div class="rightcol">
-          <a id="nextURL">
-            <img id="imgright" class="right-button" src="./img/orig_right_stamp.png"  />
-          </a>
+        <a id="nextURL">
+          <img id="imgright" class="right-button" src="./img/orig_right_stamp.png"  />
+        </a>
       </div>
     </main>
     
     <script src="js/my_key.js"></script>
     <script>
-      const bibleBookList = document.querySelector(`#book-list`);
-      //const breadcrumbs = document.querySelector(`#breadcrumbs`);
-      const bibleVersionID = getParameterByName(`version`);
-      const fullbiblename = getParameterByName(`name`);
-      const abbreviation = getParameterByName(`abbr`);
+      document.addEventListener('DOMContentLoaded', () => {
+        const bibleBookList = document.querySelector(`#book-list`);
+        const bibleVersionID = getParameterByName(`version`);
+        const fullbiblename = getParameterByName(`name`);
+        const abbreviation = getParameterByName(`abbr`);
 
-      let bookHTML = ``;
+        // Verify version exists, otherwise kick back to home
+        if (!bibleVersionID) {
+          window.location.href = `./index.html`;
+          return;
+        }
 
-      if (!bibleVersionID) {
-        window.location.href = `./index.html`;
-      }
+        // Update Subheader text
+        document.getElementById('biblefullname').innerText = fullbiblename || "Bible";
+        document.getElementById('bibleabbr').innerText = abbreviation || "N/A";
 
-      getBooks(bibleVersionID).then((bookList) => {
-        bookHTML += `<ol>`;
-        for (let book of bookList) {
-          bookHTML += `<li class="grid"><a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${book.name}"> ${book.id} </a></li>`;
+        // Save for next screens
+        sessionStorage.setItem("bookabbr", window.location.href);
+        sessionStorage.setItem("fullbookname", fullbiblename);
+
+        // Fetch Books using the modern Fetch API
+        fetch(`https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books`, {
+          headers: { 'api-key': API_KEY }
+        })
+        .then(response => response.json())
+        .then(data => {
+          let bookHTML = `<ol>`;
+          // The API returns data inside a 'data' property
+          for (let book of data.data) {
+            bookHTML += `
+              <li class="grid">
+                <a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${encodeURIComponent(book.name)}"> 
+                  ${book.id} 
+                </a>
+              </li>`;
           }
-        bookHTML += `</ol>`;
-       
-        bibleBookList.innerHTML = bookHTML;
-
+          bookHTML += `</ol>`;
+          bibleBookList.innerHTML = bookHTML;
+        })
+        .catch(err => {
+          console.error("Error loading books:", err);
+          bibleBookList.innerHTML = "<p style='color:white;'>Error loading books. Please try again.</p>";
+        });
       });
 
-      //************ subheader content ***********
-      biblefullname.innerHTML = fullbiblename;
-      bibleabbr.innerHTML = abbreviation;  //tootlip for abbreviaion
-      
-
-      //set current book url for next 2 screens
-      sessionStorage.setItem("bookabbr", window.location.href);
-      sessionStorage.setItem("fullbookname", fullbiblename); //used for tooltip only in the next 2 screen
-      //************ subheader content ***********
-
-      //document.querySelector(`#viewing`).innerHTML = `${abbreviation}`;
-      //const breadcrumbsHTML = `
-      //    ${abbreviation}
-      //`;
-      //breadcrumbs.innerHTML = breadcrumbsHTML;  
-
-      function getBooks(bibleVersionID) {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.withCredentials = false;
-
-          xhr.addEventListener(`readystatechange`, function () {
-            if (this.readyState === this.DONE) {
-              const { data } = JSON.parse(this.responseText);
-              const books = data.map(({ name, id }) => {
-                return { name, id };
-              });
-
-              resolve(books);
-            }
-          });
-
-          xhr.open(
-            `GET`,
-            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books`
-          );
-
-          xhr.setRequestHeader(`api-key`, API_KEY);
-
-          xhr.onerror = () => reject(xhr.statusText);
-
-          xhr.send();
-        });
-      }
-
+      // URL Parameter Helper
       function getParameterByName(name) {
         const url = window.location.href;
         name = name.replace(/[\[\]]/g, `\\$&`);
-        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`),
-          results = regex.exec(url);
+        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`);
+        const results = regex.exec(url);
         if (!results) return null;
         if (!results[2]) return ``;
         return decodeURIComponent(results[2].replace(/\+/g, ` `));
       }
 
+      // Side Menu Functions
+      window.openNav = () => {
+        document.getElementById("menuNav").style.width = "225px";
+      };
 
-
-
-    // ************* Side Menu **************
-    function openNav() {
-      document.getElementById("menuNav").style.width = "225px";
-    }
-
-    function closeNav() {
-      document.getElementById("menuNav").style.width = "0px";
-    }  
+      window.closeNav = () => {
+        document.getElementById("menuNav").style.width = "0px";
+      };
     </script>
   </body>
 </html>
