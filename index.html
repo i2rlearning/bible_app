@@ -173,25 +173,6 @@
             }
         });
 
-        // 4. Bible API Fetch (Single ID lookup)
-        // We run this inside the DOMContentLoaded to ensure the browser is ready
-        fetch("https://api.scripture.api.bible/v1/bibles/bba9f40183526463-01", {
-            headers: {
-                "api-key": "f7f78795f10ad20d1cc0d1fcdacbf497"
-            }
-        })
-        .then(response => {
-            if (!response.ok) throw new Error("API request failed");
-            return response.json();
-        })
-        .then(data => {
-            if (data.data && data.data.name) {
-                alert("Bible Name: " + data.data.name);
-            }
-        })
-        .catch(err => console.error("Error fetching Bible name:", err));
-
-
         // 5. Combobox Language Selection (Always Show Full List)
         const langInput = elements.langInput;
 
