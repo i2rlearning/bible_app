@@ -2,7 +2,7 @@
     --primary-blue: #1d44b8;
 }
 
-/* --- 1. Sliding parchment menu from left --- */
+/* --- Sliding parchment menu from left --- */
 .overlay {
   height: 100vh;
   width: 0;
