@@ -11,53 +11,29 @@
   </head>
 
   <style>
+    /* Keep it simple */
     .eb-container {
-        position: relative; 
-        min-height: 600px; /* Give it enough space */
+        margin-top: 20px;
     }
     
-    #chapter-text {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        z-index: 1; /* Sits behind */
-        pointer-events: none; /* VERY IMPORTANT: Clicks go through this to the editor */
-        padding: 20px;
-        margin: 0;
-    }
-    
-    /* This gives the editor content area a top margin so it doesn't hide Verse 1 */
+    /* Ensure the editor looks like part of your page */
     .ql-container.ql-snow {
-        margin-top: 42px; /* Adjust this to match the height of your toolbar */
-        background-color: transparent !important;
         border: none !important;
+        font-family: inherit; /* Use your app's font */
     }
     
-    #editor-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        z-index: 2;
+    .ql-editor {
+        padding: 20px;
+        font-size: 18px; /* Default size */
     }
     
-    /* Keep the toolbar solid so you can actually see the buttons! */
+    /* Optional: Make the toolbar stick to the top when scrolling */
     .ql-toolbar.ql-snow {
         position: sticky;
         top: 0;
-        background-color: white;
-        z-index: 10;
-    }
-
-    #editor-overlay .ql-editor {
-        color: transparent !important; /* Makes text invisible */
-        caret-color: black; /* Keep the typing cursor visible */
-    }
-    
-    /* Allow the background color (highlights) to show through */
-    #editor-overlay .ql-editor span {
-        color: transparent;
+        z-index: 100;
+        background: white;
+        border: 1px solid #ccc !important;
     }
   </style>
 
@@ -101,10 +77,9 @@
     
     <main class="container">
       <div class="eb-container" id="display-text">
-          <p id="chapter-text"></p>
-      
-          <div id="editor-overlay"></div>
-        </div>
+        <div id="bible-editor" style="min-height: 400px;"></div>
+      </div>
+    </main>>
 
           <div class="leftcol">
           <a id="prevURL" >
@@ -122,7 +97,6 @@
 
       <div id="editor" style="height: 200px; background-color: white; border: 1px solid black;"></div>
       <div class="bottom-spacer" ></div>
-    </main>
    
 
     <script src="js/my_key.js"></script>
@@ -151,14 +125,15 @@
         window.location.href = `./index.html`;
       }
 
-      var annotationQuill = new Quill('#editor-overlay', {
-      theme: 'snow',
-      modules: {
-        toolbar: [
-          ['bold', 'italic', 'underline'],
-          [{ 'background': ['yellow', 'lightgreen', 'pink', 'lightblue'] }] // Your Highlighters
-        ]
-      }
+      var bibleQuill = new Quill('#bible-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline'],
+                [{ 'background': ['yellow', 'lightgreen', 'pink', 'lightblue'] }],
+                ['clean'] // Useful for "un-highlighting"
+            ]
+        }
     });
 
       getChapterText(bibleChapterID).then((content) => {
