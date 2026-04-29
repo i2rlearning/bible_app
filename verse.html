@@ -137,7 +137,8 @@
     });
 
       getChapterText(bibleChapterID).then((content) => {
-          //get text of id in: <span id="">
+        bibleQuill.root.innerHTML = content;
+        //get text of id in: <span id="">
        //   const regex =  /span id="[^"]*"/g;
        //   const match = regex.exec(content);
        //   let newStr = match[0].slice(8);  //remove first 8 chars to expose just the id   
@@ -156,7 +157,7 @@
      //       } 
      //     else 
      //       {
-            chapterText.innerHTML = content;
+      //      chapterText.innerHTML = content;
       //      }
       });
 
@@ -376,7 +377,8 @@
   
   fontSizeSlider.addEventListener("input", () => {
     const fontSize = fontSizeSlider.value;
-    displayText.style.fontSize = `${fontSize}px`;
+    //displayText.style.fontSize = `${fontSize}px`;
+    document.querySelector(".ql-editor").style.fontSize = `${fontSize}px`;
   });
 
  </script>
