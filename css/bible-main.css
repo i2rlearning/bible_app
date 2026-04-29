@@ -294,14 +294,45 @@ body.basic_index #select-prompt, body.basic_verse-selected #select-prompt, body.
   color: #fff;
 }
 
-
 #stickyHeader {
-  position: -webkit-sticky; /* Safari */
   position: sticky;
   top: 0;
+  z-index: 3000;
 }
 
+.eb-container .ql-toolbar.ql-snow {
+  position: sticky;
+  top: 35px;
+  z-index: 2500;
+  background: #fff;
+  border: 1px solid #ddd !important;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
 
+.eb-container .ql-toolbar.ql-snow button {
+  width: 28px;
+  height: 28px;
+  margin: 2px 4px;
+}
+
+.eb-container .ql-toolbar.ql-snow .ql-formats {
+  margin-right: 12px;
+}
+
+.eb-container .ql-container.ql-snow {
+  position: relative;
+  z-index: 1;
+  border: none !important;
+  font-family: inherit;
+}
+
+.eb-container .ql-editor {
+  padding: 20px;
+  font-size: 18px;
+}
 /**** columns for subheader *****/
 * {
   box-sizing: border-box;
