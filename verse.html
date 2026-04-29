@@ -9,7 +9,42 @@
 
     <title>Branch of Israel - Bible App</title>
   </head>
-  
+
+  <style>
+    /* The container that holds both layers */
+    .eb-container {
+        position: relative; 
+        min-height: 400px;
+    }
+    
+    /* The Bible text layer */
+    #chapter-text {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 1; /* Sits in back */
+        pointer-events: none; /* Mouse clicks pass right through to the editor! */
+        padding: 15px; /* Match editor padding */
+    }
+    
+    /* The Note-taking layer */
+    #editor-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 2; /* Sits in front */
+        background-color: transparent !important; /* See through to the text */
+    }
+    
+    /* Remove the white background Quill usually adds */
+    .ql-container.ql-snow {
+        background-color: transparent !important;
+        border: none !important;
+    }
+  </style>
+
   <body class="index" >    
       <div class="subheader" id="stickyHeader">
         <div class="container flex">
@@ -50,7 +85,9 @@
     
     <main class="container">
       <div class="eb-container" id="display-text">
+          <div id="editor" style="border: 1px solid black;">
           <p id="chapter-text"></p>
+          </div>
       </div>
 
           <div class="leftcol">
