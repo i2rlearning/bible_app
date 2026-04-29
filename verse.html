@@ -136,30 +136,28 @@
         }
     });
 
-      getChapterText(bibleChapterID).then((content) => {
-        bibleQuill.root.innerHTML = content;
-        //get text of id in: <span id="">
-       //   const regex =  /span id="[^"]*"/g;
-       //   const match = regex.exec(content);
-       //   let newStr = match[0].slice(8);  //remove first 8 chars to expose just the id   
-       //   const finalStr = newStr.replace(/"/g, '');  //remove "" from the id             
+    getChapterText(bibleChapterID).then((content) => {
+        let lockedText = "";
 
-          //get text between the tags: <span id=""></span>
-     //     const parser = new DOMParser();              
-      //    const doc = parser.parseFromString(content, 'text/html'); 
-      //    const span = doc.getElementById(finalStr);
-
-          //put text back into content
-      //    if (span) {
-     //       span.innerHTML = `<a href="./search.html?&version=${bibleVersionID}&abbr=${abbreviation}&query=${span.textContent}">${span.textContent}</a>`;
-     //       let newText = content.replace(span.textContent, span.innerHTML);
-     //       chapterText.innerHTML = newText;  
-     //       } 
-     //     else 
-     //       {
-      //      chapterText.innerHTML = content;
-      //      }
-      });
+    getChapterText(bibleChapterID).then((content) => {
+      bibleQuill.clipboard.dangerouslyPasteHTML(content);
+    
+      lockedText = normalizeText(bibleQuill.getText());
+    });
+    
+    function normalizeText(text) {
+      return text.replace(/\s+/g, " ").trim();
+    }
+    
+    bibleQuill.on("text-change", function(delta, oldDelta, source) {
+      if (source !== "user") return;
+    
+      const currentText = normalizeText(bibleQuill.getText());
+    
+      if (lockedText && currentText !== lockedText) {
+        bibleQuill.setContents(oldDelta, "silent");
+      }
+    });
 
       const [book, chapter] = bibleChapterID.split(`.`);
       const bibleHTML = `${abbreviation}`; 
