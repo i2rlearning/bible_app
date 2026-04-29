@@ -269,71 +269,67 @@
 
 
     //******************* Left/Right Seals *********************
-      var imageLeft = document.getElementById('imgleft');
-      var imageRight = document.getElementById('imgright');
-      var currURL = window.location.href;
-      var lastchar = currURL.substring(currURL.length - 2);
-      var charpos = lastchar.indexOf('.'); 
-      var currNum = -1;
-      var urlwonum = 0;
-
-      imageLeft.addEventListener('mouseover', function() {
-        imageLeft.src = './img/left_stamp_on.png';
-      });
-
-      imageLeft.addEventListener('mouseout', function() {
+    var imageLeft = document.getElementById('imgleft');
+    var imageRight = document.getElementById('imgright');
+    var currURL = window.location.href;
+    var lastchar = currURL.substring(currURL.length - 2);
+    var charpos = lastchar.indexOf('.'); 
+    var currNum = -1;
+    var urlwonum = "";
+    
+    // MOVE THE LOGIC HERE so it runs once when the page loads
+    switch (charpos) {
+        case 0: // Handles single digits (e.g., .1)
+            currNum = parseInt(lastchar.substring(1, 2));
+            urlwonum = currURL.slice(0, currURL.length - 1);
+            break;
+        case -1: // Handles double digits (e.g., 12)
+            currNum = parseInt(lastchar);
+            urlwonum = currURL.slice(0, currURL.length - 2);
+            break;
+    }
+    
+    // --- LEFT ARROW EVENTS ---
+    imageLeft.addEventListener('mouseover', function() {
+        // Only light up if we are NOT on Chapter 1
+        if (currNum > 1) {
+            imageLeft.src = './img/left_stamp_on.png';
+            imageLeft.style.cursor = "pointer";
+        } else {
+            imageLeft.style.cursor = "default";
+        }
+    });
+    
+    imageLeft.addEventListener('mouseout', function() {
         imageLeft.src = './img/orig_left_stamp.png';
-      });
-
-      imageLeft.addEventListener('click', function() {
-        switch (charpos) {
-          case 0:
-              currNum = lastchar.substring(1,2);
-              urlwonum = currURL.slice (0,currURL.length-1);
-              break;
-          
-          case -1:
-              currNum = lastchar;
-              urlwonum = currURL.slice (0,currURL.length-2);
-              break;
-        } 
-                    
-        var prevnum = --currNum;                     
-        var updatedUrl = urlwonum + prevnum;
-        if (prevnum > 0) {
-          document.getElementById("prevURL").setAttribute("href",updatedUrl);
-        }  
-      });
-
-
-
-      imageRight.addEventListener('mouseover', function() {
-        imageRight.src = './img/right_stamp_on.png';
-      });
-
-      imageRight.addEventListener('mouseout', function() {
+    });
+    
+    imageLeft.addEventListener('click', function() {
+        if (currNum > 1) {
+            window.location.href = urlwonum + (currNum - 1);
+        }
+    });
+    
+    // --- RIGHT ARROW EVENTS ---
+    imageRight.addEventListener('mouseover', function() {
+        // Only light up if we are NOT on the last chapter
+        if (currNum < maxChapters) {
+            imageRight.src = './img/right_stamp_on.png';
+            imageRight.style.cursor = "pointer";
+        } else {
+            imageRight.style.cursor = "default";
+        }
+    });
+    
+    imageRight.addEventListener('mouseout', function() {
         imageRight.src = './img/orig_right_stamp.png';
-      });
-
-      imageRight.addEventListener('click', function() {
-        switch (charpos) {
-          case 0:
-              currNum = lastchar.substring(1,2);
-              urlwonum = currURL.slice (0,currURL.length-1);
-              break;
-          
-          case -1:
-              currNum = lastchar;
-              urlwonum = currURL.slice (0,currURL.length-2);
-              break;
-        } 
-               
-        var nextnum = ++currNum;       
-        var updatedUrl = urlwonum + nextnum;
-        if (nextnum <= maxChapters) {
-          document.getElementById("nextURL").setAttribute("href",updatedUrl);
-        }  
-      });
+    });
+    
+    imageRight.addEventListener('click', function() {
+        if (currNum < maxChapters) {
+            window.location.href = urlwonum + (currNum + 1);
+        }
+    });
 
 
   //******************* Font resize slider *********************
