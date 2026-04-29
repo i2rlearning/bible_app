@@ -112,7 +112,7 @@
     let lockedText = "";
 
     getChapterText(bibleChapterID).then((content) => {
-      bibleQuill.clipboard.dangerouslyPasteHTML(content);
+      bibleQuill.root.innerHTML = content;
       lockedText = normalizeText(bibleQuill.getText());
     });
     
