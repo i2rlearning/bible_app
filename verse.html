@@ -27,19 +27,19 @@
         margin: 0;
     }
     
+    /* This gives the editor content area a top margin so it doesn't hide Verse 1 */
+    .ql-container.ql-snow {
+        margin-top: 42px; /* Adjust this to match the height of your toolbar */
+        background-color: transparent !important;
+        border: none !important;
+    }
+    
     #editor-overlay {
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
-        z-index: 2; /* Sits on top */
-        min-height: 600px;
-    }
-    
-    /* This makes the editor itself see-through */
-    .ql-container.ql-snow {
-        background-color: transparent !important;
-        border: none !important;
+        z-index: 2;
     }
     
     /* Keep the toolbar solid so you can actually see the buttons! */
@@ -48,6 +48,16 @@
         top: 0;
         background-color: white;
         z-index: 10;
+    }
+
+    #editor-overlay .ql-editor {
+        color: transparent !important; /* Makes text invisible */
+        caret-color: black; /* Keep the typing cursor visible */
+    }
+    
+    /* Allow the background color (highlights) to show through */
+    #editor-overlay .ql-editor span {
+        color: transparent;
     }
   </style>
 
@@ -140,6 +150,16 @@
       if (!bibleVersionID || !bibleChapterID) {
         window.location.href = `./index.html`;
       }
+
+      var annotationQuill = new Quill('#editor-overlay', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          ['bold', 'italic', 'underline'],
+          [{ 'background': ['yellow', 'lightgreen', 'pink', 'lightblue'] }] // Your Highlighters
+        ]
+      }
+    });
 
       getChapterText(bibleChapterID).then((content) => {
           //get text of id in: <span id="">
@@ -384,15 +404,6 @@
     displayText.style.fontSize = `${fontSize}px`;
   });
 
-  var annotationQuill = new Quill('#editor-overlay', {
-      theme: 'snow',
-      modules: {
-        toolbar: [
-          ['bold', 'italic', 'underline'],
-          [{ 'background': [] }] // This acts as your 'Highlighter'
-        ]
-      }
-    });
  </script>
 </body>
 </html>
