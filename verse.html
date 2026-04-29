@@ -11,37 +11,43 @@
   </head>
 
   <style>
-    /* The container that holds both layers */
     .eb-container {
         position: relative; 
-        min-height: 400px;
+        min-height: 600px; /* Give it enough space */
     }
     
-    /* The Bible text layer */
     #chapter-text {
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
-        z-index: 1; /* Sits in back */
-        pointer-events: none; /* Mouse clicks pass right through to the editor! */
-        padding: 15px; /* Match editor padding */
+        z-index: 1; /* Sits behind */
+        pointer-events: none; /* VERY IMPORTANT: Clicks go through this to the editor */
+        padding: 20px;
+        margin: 0;
     }
     
-    /* The Note-taking layer */
     #editor-overlay {
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
-        z-index: 2; /* Sits in front */
-        background-color: transparent !important; /* See through to the text */
+        z-index: 2; /* Sits on top */
+        min-height: 600px;
     }
     
-    /* Remove the white background Quill usually adds */
+    /* This makes the editor itself see-through */
     .ql-container.ql-snow {
         background-color: transparent !important;
         border: none !important;
+    }
+    
+    /* Keep the toolbar solid so you can actually see the buttons! */
+    .ql-toolbar.ql-snow {
+        position: sticky;
+        top: 0;
+        background-color: white;
+        z-index: 10;
     }
   </style>
 
@@ -85,10 +91,10 @@
     
     <main class="container">
       <div class="eb-container" id="display-text">
-          <div id="editor" style="border: 1px solid black;">
           <p id="chapter-text"></p>
-          </div>
-      </div>
+      
+          <div id="editor-overlay"></div>
+        </div>
 
           <div class="leftcol">
           <a id="prevURL" >
@@ -377,6 +383,16 @@
     const fontSize = fontSizeSlider.value;
     displayText.style.fontSize = `${fontSize}px`;
   });
+
+  var annotationQuill = new Quill('#editor-overlay', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          ['bold', 'italic', 'underline'],
+          [{ 'background': [] }] // This acts as your 'Highlighter'
+        ]
+      }
+    });
  </script>
 </body>
 </html>
