@@ -11,29 +11,40 @@
   </head>
 
   <style>
-    /* Keep it simple */
     .eb-container {
-        margin-top: 20px;
+      margin-top: 20px;
     }
     
-    /* Ensure the editor looks like part of your page */
-    .ql-container.ql-snow {
-        border: none !important;
-        font-family: inherit; /* Use your app's font */
+    .eb-container .ql-toolbar.ql-snow {
+      position: sticky;
+      top: 45px; /* change to your navbar height */
+      z-index: 999;
+      background: #fff;
+      border: 1px solid #ddd !important;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
     
-    .ql-editor {
-        padding: 20px;
-        font-size: 18px; /* Default size */
+    .eb-container .ql-toolbar.ql-snow button {
+      width: 28px;
+      height: 28px;
+      margin: 2px 4px;
     }
     
-    /* Optional: Make the toolbar stick to the top when scrolling */
-    .ql-toolbar.ql-snow {
-        position: sticky;
-        top: 23px;
-        z-index: 100;
-        background: white;
-        border: 1px solid #ccc !important;
+    .eb-container .ql-toolbar.ql-snow .ql-formats {
+      margin-right: 12px;
+    }
+    
+    .eb-container .ql-container.ql-snow {
+      border: none !important;
+      font-family: inherit;
+    }
+    
+    .eb-container .ql-editor {
+      padding: 20px;
+      font-size: 18px;
     }
   </style>
 
