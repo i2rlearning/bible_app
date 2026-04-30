@@ -335,44 +335,60 @@
 
   //******************* Mini-editor *********************
   function applyBibleFormat(className) {
-  const selection = window.getSelection();
-
-  if (!selection.rangeCount || selection.isCollapsed) return;
-
-  const range = selection.getRangeAt(0);
-
-  const bibleText = document.getElementById("bible-text");
-
-  if (!bibleText.contains(range.commonAncestorContainer)) return;
-
-  const span = document.createElement("span");
-  span.className = className;
-
-  const selectedContent = range.extractContents();
-  span.appendChild(selectedContent);
-  range.insertNode(span);
-
-  selection.removeAllRanges();
-}
-
-        
-function clearBibleSelectionFormat() {
-  const selection = window.getSelection();
-
-  if (!selection.rangeCount || selection.isCollapsed) return;
-
-  const range = selection.getRangeAt(0);
-  const bibleText = document.getElementById("bible-text");
-
-  if (!bibleText.contains(range.commonAncestorContainer)) return;
-
-  const selectedText = range.toString();
-
-  range.deleteContents();
-  range.insertNode(document.createTextNode(selectedText));
-
-  selection.removeAllRanges();
-}      
+      const selection = window.getSelection();
+    
+      if (!selection.rangeCount || selection.isCollapsed) return;
+    
+      const range = selection.getRangeAt(0);
+      const bibleText = document.getElementById("bible-text");
+    
+      if (!bibleText.contains(range.commonAncestorContainer)) return;
+    
+      const span = document.createElement("span");
+    
+      // This lets us identify only user-added formatting later
+      span.classList.add("bible-user-format", className);
+    
+      const selectedContent = range.extractContents();
+      span.appendChild(selectedContent);
+      range.insertNode(span);
+    
+      selection.removeAllRanges();
+    }
+    
+    function clearBibleSelectionFormat() {
+      const selection = window.getSelection();
+    
+      if (!selection.rangeCount || selection.isCollapsed) return;
+    
+      const range = selection.getRangeAt(0);
+      const bibleText = document.getElementById("bible-text");
+    
+      if (!bibleText.contains(range.commonAncestorContainer)) return;
+    
+      const userFormatSpans = Array.from(
+        bibleText.querySelectorAll(".bible-user-format")
+      ).filter((span) => {
+        return range.intersectsNode(span);
+      });
+    
+      userFormatSpans.forEach((span) => {
+        unwrapElement(span);
+      });
+    
+      selection.removeAllRanges();
+    }
+    
+    function unwrapElement(element) {
+      const parent = element.parentNode;
+    
+      while (element.firstChild) {
+        parent.insertBefore(element.firstChild, element);
+      }
+    
+      parent.removeChild(element);
+      parent.normalize();
+    }     
  </script>
 </body>
 </html>
