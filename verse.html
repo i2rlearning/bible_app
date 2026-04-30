@@ -49,34 +49,37 @@
     </header>
     
     <main class="container">
-        <div id="bible-mini-toolbar">
-            <button onclick="applyBibleFormat('bold')"><b>B</b></button>
-            <button onclick="applyBibleFormat('underline')"><u>U</u></button>
-            <button onclick="applyBibleFormat('double-underline')">DU</button>
-            <button onclick="applyBibleFormat('highlight-yellow')">Highlight</button>
-            <button onclick="applyBibleFormat('circle-mark')">◯</button>
-            <button onclick="applyBibleFormat('square-mark')">□</button>
-            <button onclick="clearBibleSelectionFormat()">Clear</button>
-          </div>
-        
-          <div id="bible-text"></div>
+      <div id="bible-mini-toolbar">
+        <button onclick="applyBibleFormat('bold')"><b>B</b></button>
+        <button onclick="applyBibleFormat('underline')"><u>U</u></button>
+        <button onclick="applyBibleFormat('double-underline')">DU</button>
+        <button onclick="applyBibleFormat('highlight-yellow')">Highlight</button>
+        <button onclick="applyBibleFormat('circle-mark')">◯</button>
+        <button onclick="applyBibleFormat('square-mark')">□</button>
+        <button onclick="clearBibleSelectionFormat()">Clear</button>
+      </div>
     
-        <div class="leftcol">
-            <a id="prevURL">
-                <img id="imgleft" class="left-button" src="./img/orig_left_stamp.png" />
-            </a>
-        </div>
+      <div class="eb-container" id="display-text">
+        <div id="bible-text"></div>
+      </div>
     
-        <div class="rightcol">
-            <a id="nextURL">
-                <img id="imgright" class="right-button" src="./img/orig_right_stamp.png" />
-            </a>
-        </div>
+      <div class="leftcol">
+        <a id="prevURL">
+          <img id="imgleft" class="left-button" src="./img/orig_left_stamp.png" />
+        </a>
+      </div>
     
-        <div class="bottom-spacer"></div>
+      <div class="rightcol">
+        <a id="nextURL">
+          <img id="imgright" class="right-button" src="./img/orig_right_stamp.png" />
+        </a>
+      </div>
     
-        <div id="editor" style="height: 200px; background-color: white; border: 1px solid black;"></div>
-        <div class="bottom-spacer"></div>
+      <div class="bottom-spacer"></div>
+    
+      <div id="editor" style="height: 200px; background-color: white; border: 1px solid black;"></div>
+      <div class="bottom-spacer"></div>
+    
     </main>
    
 
