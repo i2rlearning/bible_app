@@ -339,11 +339,20 @@
       // ******************* Font resize slider *********************
       const fontSizeSlider = document.getElementById("font-size-slider");
     
-      fontSizeSlider.addEventListener("input", () => {
-        const fontSize = fontSizeSlider.value;
-        document.getElementById("bible-text").style.fontSize = `${fontSize}px`;
-        resizeAnnotationLayer();
-      });
+      let currentBibleFontSize = Number(fontSizeSlider.value);
+
+        fontSizeSlider.addEventListener("input", () => {
+          const newFontSize = Number(fontSizeSlider.value);
+          const scale = newFontSize / currentBibleFontSize;
+        
+          document.getElementById("bible-text").style.fontSize = `${newFontSize}px`;
+        
+          setTimeout(() => {
+            resizeAnnotationLayer();
+            scaleDrawnAnnotations(scale);
+            currentBibleFontSize = newFontSize;
+          }, 0);
+        });
     
       // ******************* Mini-editor text formatting *********************
       function applyBibleFormat(className) {
@@ -583,6 +592,24 @@
       });
     
       window.addEventListener("resize", resizeAnnotationLayer);
+
+     function scaleDrawnAnnotations(scale) {
+      document.querySelectorAll(".drawn-annotation").forEach((shape) => {
+        if (shape.tagName.toLowerCase() === "ellipse") {
+          shape.setAttribute("cx", Number(shape.getAttribute("cx")) * scale);
+          shape.setAttribute("cy", Number(shape.getAttribute("cy")) * scale);
+          shape.setAttribute("rx", Number(shape.getAttribute("rx")) * scale);
+          shape.setAttribute("ry", Number(shape.getAttribute("ry")) * scale);
+        }
+    
+        if (shape.tagName.toLowerCase() === "rect") {
+          shape.setAttribute("x", Number(shape.getAttribute("x")) * scale);
+          shape.setAttribute("y", Number(shape.getAttribute("y")) * scale);
+          shape.setAttribute("width", Number(shape.getAttribute("width")) * scale);
+          shape.setAttribute("height", Number(shape.getAttribute("height")) * scale);
+        }
+      });
+    }   
 
      //********** Highlighter **********//    
      function toggleHighlightMenu() {
