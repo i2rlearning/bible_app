@@ -96,6 +96,11 @@
   cursor: crosshair;
 }
 
+#bible-drawing-area.drawing-mode,
+#bible-drawing-area.drawing-mode * {
+  user-select: none;
+}
+
 .drawn-annotation {
   fill: none;
   stroke-width: 2;
