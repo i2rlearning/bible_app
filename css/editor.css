@@ -108,11 +108,6 @@
   user-select: none;
 }
 
-.drawn-annotation {
-  fill: none;
-  stroke-width: 2;
-}
-
 .drawn-annotation.circle {
   stroke: #c40000;
 }
