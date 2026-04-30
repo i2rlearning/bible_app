@@ -56,7 +56,7 @@
         <button onclick="applyBibleFormat('highlight-yellow')">Highlight</button>
         <button onclick="setDrawingTool('circle')">◯</button>
         <button onclick="setDrawingTool('square')">□</button>
-        <button onclick="clearBibleSelectionFormat(); clearDrawnAnnotations();">Clear</button>
+        <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();">Clear</button>
       </div>
     
       <div class="eb-container" id="display-text">
@@ -451,7 +451,27 @@
     let startX = 0;
     let startY = 0;
     let currentShape = null;
+    let selectedDrawnAnnotation = null;
     
+    annotationLayer.addEventListener("click", function (event) {
+      if (!event.target.classList.contains("drawn-annotation")) return;
+    
+      selectedDrawnAnnotation = event.target;
+    
+      document.querySelectorAll(".drawn-annotation").forEach((shape) => {
+        shape.classList.remove("selected-annotation");
+      });
+    
+      selectedDrawnAnnotation.classList.add("selected-annotation");
+    });
+
+   function clearSelectedDrawnAnnotation() {
+      if (selectedDrawnAnnotation) {
+        selectedDrawnAnnotation.remove();
+        selectedDrawnAnnotation = null;
+      }
+    }
+        
     function setDrawingTool(tool) {
       activeDrawingTool = tool;
     
