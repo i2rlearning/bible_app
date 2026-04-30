@@ -76,6 +76,9 @@
   text-decoration-thickness: 1.5px;
 }
 
+.eb-container .bible-user-format.strike-through {
+  text-decoration: line-through;
+}
 /************* Bible highlight colors *************/
 .eb-container .bible-user-format.highlight-yellow {
   background-color: #fff59d !important;
