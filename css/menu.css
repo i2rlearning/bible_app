@@ -62,11 +62,15 @@ a.current { pointer-events: none; color: white; }
 }
 
 #langInput {
+  min-width: 120px;
+  height: 34px;
   background: #fff;
   color: #222;
   border: 1px solid #2f9ae0;
   border-radius: 4px;
-  padding: 6px 10px;
+  padding: 4px 10px;
+  font-size: 16px;
+  cursor: pointer;
 }
 
 #langInput:focus {
@@ -77,6 +81,20 @@ a.current { pointer-events: none; color: white; }
 
 #langInput::placeholder {
     color: rgba(255, 255, 255, 0.8);
+}
+
+.language-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+}
+
+.language-label {
+  font-size: 18px;
+  font-weight: bold;
+  color: #222;
+  white-space: nowrap;
 }
 
 /* The White Down Arrow (The part that was missing) */
