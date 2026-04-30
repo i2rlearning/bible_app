@@ -92,108 +92,108 @@
     <script src="js/editor.js" defer></script>
       
     <script>
-     //NOT USED:
-     // <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous">
-     // <script src="https://code.jquery.com/jquery-3.5.1.min.js" crossorigin="anonymous">
-      
+      // NOT USED:
+      // <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js">
+      // <script src="https://code.jquery.com/jquery-3.5.1.min.js">
+    
       const searchInput = document.querySelector(`#search-input`);
-      const bibleSectionList = document.querySelector(`#section-list`);    
-      //const bibleVerseList = document.querySelector(`#verse-list`);
+      const bibleSectionList = document.querySelector(`#section-list`);
+      // const bibleVerseList = document.querySelector(`#verse-list`);
       const chapterText = document.querySelector(`#chapter-text`);
       const bibleVersionID = getParameterByName(`version`);
       const bibleChapterID = getParameterByName(`chapter`);
       const bibleName = getParameterByName(`name`);
       const abbreviation = getParameterByName(`abbr`);
-      const maxChapters = sessionStorage.getItem('maxchapnum');
-
+      const maxChapters = sessionStorage.getItem("maxchapnum");
+    
       let verseHTML = ``;
-
+    
       if (!bibleVersionID || !bibleChapterID) {
-          window.location.href = `./index.html`;
+        window.location.href = `./index.html`;
       }
-        
+    
       getChapterText(bibleChapterID).then((content) => {
-          document.getElementById("bible-text").innerHTML = content;
+        document.getElementById("bible-text").innerHTML = content;
+        resizeAnnotationLayer();
       });
-
+    
       const [book, chapter] = bibleChapterID.split(`.`);
-      const bibleHTML = `${abbreviation}`; 
-      const bookChapHTML  = `${bibleName} ${chapter}`;
-      const chapterHTML  = `${chapter}`;
-      
+      const bibleHTML = `${abbreviation}`;
+      const bookChapHTML = `${bibleName} ${chapter}`;
+      const chapterHTML = `${chapter}`;
+    
       bible.innerHTML = bibleHTML;
       bookChap.innerHTML = bookChapHTML;
-      //bookChapter.innerHTML = chapterHTML;
-
-      //gets fullbookname for tooltip
+    
+      // Gets full book name for tooltip
       var fbookname = sessionStorage.getItem("fullbookname");
-      document.getElementById("biblefullname").innerHTML = fbookname;       
-
-      //document.querySelector(`#viewing`).innerHTML = `${chapter}`;
-
+      document.getElementById("biblefullname").innerHTML = fbookname;
+    
       /**
        * Gets verses from API.Bible
-       * @param {string} bibleVersionID to get verses from
-       * @param {string} bibleChapterID to get verses from
-       * @returns {Promise} containing list of verses from selected book
        */
-      
       function getVerses(bibleVersionID, bibleChapterID) {
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.withCredentials = false;
-
-          xhr.addEventListener(`readystatechange`, function() {
+    
+          xhr.addEventListener(`readystatechange`, function () {
             if (this.readyState === this.DONE) {
-              const {data} = JSON.parse(this.responseText);
-              const verses = data.map( ({id}) => { return {id};} );
-
+              const { data } = JSON.parse(this.responseText);
+              const verses = data.map(({ id }) => {
+                return { id };
+              });
+    
               resolve(verses);
             }
           });
-
-          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}/verses`);
+    
+          xhr.open(
+            `GET`,
+            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}/verses`
+          );
           xhr.setRequestHeader(`api-key`, API_KEY);
-
+    
           xhr.onerror = () => reject(xhr.statusText);
-
+    
           xhr.send();
         });
       }
-
+    
       /**
        * Gets chapter text from API.Bible
-       * @param {string} bibleChapterID to get chapter text from
-       * @returns {Promise} containing text from selected chapter
        */
       function getChapterText(bibleChapterID) {
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.withCredentials = false;
-
-          xhr.addEventListener(`readystatechange`, function() {
+    
+          xhr.addEventListener(`readystatechange`, function () {
             if (this.readyState === this.DONE) {
-              const {data, meta} = JSON.parse(this.responseText);
-
+              const { data, meta } = JSON.parse(this.responseText);
+    
               _BAPI.t(meta.fumsId);
               resolve(data.content);
             }
           });
-
-          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}`);
+    
+          xhr.open(
+            `GET`,
+            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}`
+          );
           xhr.setRequestHeader(`api-key`, API_KEY);
-
+    
           xhr.onerror = () => reject(xhr.statusText);
-
+    
           xhr.send();
         });
       }
-
+    
       function getSections(bibleVersionID, bibleBookID) {
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.withCredentials = false;
-
+    
           xhr.addEventListener(`readystatechange`, function () {
             if (this.readyState === this.DONE) {
               const { data } = JSON.parse(this.responseText);
@@ -202,354 +202,375 @@
                     return { title, id };
                   })
                 : null;
-
+    
               resolve(sections);
             }
           });
-
+    
           xhr.open(
             `GET`,
             `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books/${bibleBookID}/sections`
           );
           xhr.setRequestHeader(`api-key`, API_KEY);
-
+    
           xhr.onerror = () => reject(xhr.statusText);
-
+    
           xhr.send();
         });
       }
-
+    
       /**
        * Parses verse number from verseID
-       * @param {string} verseID verse ID
-       * @returns {string} verse number or numbers
        */
       function getVerseNumber(verseID) {
         let verseNumber;
+    
         if (verseID.includes(`-`)) {
-          verseNumber = verseID.split(`-`).shift().split(`.`).pop() + `-` + verseID.split(`-`).pop().split(`.`).pop();
+          verseNumber =
+            verseID.split(`-`).shift().split(`.`).pop() +
+            `-` +
+            verseID.split(`-`).pop().split(`.`).pop();
         } else {
           verseNumber = verseID.split(`.`).pop();
         }
+    
         return verseNumber;
       }
-
+    
       function getParameterByName(name) {
         const url = window.location.href;
         name = name.replace(/[\[\]]/g, `\\$&`);
-        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`),
-          results = regex.exec(url);
+    
+        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`);
+        const results = regex.exec(url);
+    
         if (!results) return null;
         if (!results[2]) return ``;
+    
         return decodeURIComponent(results[2].replace(/\+/g, ` `));
       }
-      
+    
       // ************* Menu **************
       function openNav() {
         document.getElementById("menuNav").style.width = "225px";
-
-        //inserts book.html url into the <a> tag for the menu
+    
         var bookLink = sessionStorage.getItem("bookabbr");
-        document.getElementById("bookurl").setAttribute("href",bookLink);
-
-        //inserts chapter.html url into the <a> tag for the menu
+        document.getElementById("bookurl").setAttribute("href", bookLink);
+    
         var chapterLink = sessionStorage.getItem("chapter");
-        document.getElementById("chapterurl").setAttribute("href",chapterLink);                    
+        document.getElementById("chapterurl").setAttribute("href", chapterLink);
       }
-
+    
       function closeNav() {
         document.getElementById("menuNav").style.width = "0px";
-      }  
-
-
-    //******************* Left/Right Seals *********************
-    var imageLeft = document.getElementById('imgleft');
-    var imageRight = document.getElementById('imgright');
-    var currURL = window.location.href;
-    var lastchar = currURL.substring(currURL.length - 2);
-    var charpos = lastchar.indexOf('.'); 
-    var currNum = -1;
-    var urlwonum = "";
+      }
     
-    // MOVE THE LOGIC HERE so it runs once when the page loads
-    switch (charpos) {
-        case 0: // Handles single digits (e.g., .1)
-            currNum = parseInt(lastchar.substring(1, 2));
-            urlwonum = currURL.slice(0, currURL.length - 1);
-            break;
-        case -1: // Handles double digits (e.g., 12)
-            currNum = parseInt(lastchar);
-            urlwonum = currURL.slice(0, currURL.length - 2);
-            break;
-    }
+      // ******************* Left/Right Seals *********************
+      var imageLeft = document.getElementById("imgleft");
+      var imageRight = document.getElementById("imgright");
+      var currURL = window.location.href;
+      var lastchar = currURL.substring(currURL.length - 2);
+      var charpos = lastchar.indexOf(".");
+      var currNum = -1;
+      var urlwonum = "";
     
-    // --- LEFT ARROW EVENTS ---
-    imageLeft.addEventListener('mouseover', function() {
-        // Only light up if we are NOT on Chapter 1
+      switch (charpos) {
+        case 0:
+          currNum = parseInt(lastchar.substring(1, 2));
+          urlwonum = currURL.slice(0, currURL.length - 1);
+          break;
+    
+        case -1:
+          currNum = parseInt(lastchar);
+          urlwonum = currURL.slice(0, currURL.length - 2);
+          break;
+      }
+    
+      imageLeft.addEventListener("mouseover", function () {
         if (currNum > 1) {
-            imageLeft.src = './img/left_stamp_on.png';
-            imageLeft.style.cursor = "pointer";
+          imageLeft.src = "./img/left_stamp_on.png";
+          imageLeft.style.cursor = "pointer";
         } else {
-            imageLeft.style.cursor = "default";
+          imageLeft.style.cursor = "default";
         }
-    });
+      });
     
-    imageLeft.addEventListener('mouseout', function() {
-        imageLeft.src = './img/orig_left_stamp.png';
-    });
+      imageLeft.addEventListener("mouseout", function () {
+        imageLeft.src = "./img/orig_left_stamp.png";
+      });
     
-    imageLeft.addEventListener('click', function() {
+      imageLeft.addEventListener("click", function () {
         if (currNum > 1) {
-            window.location.href = urlwonum + (currNum - 1);
+          window.location.href = urlwonum + (currNum - 1);
         }
-    });
+      });
     
-    // --- RIGHT ARROW EVENTS ---
-    imageRight.addEventListener('mouseover', function() {
-        // Only light up if we are NOT on the last chapter
+      imageRight.addEventListener("mouseover", function () {
         if (currNum < maxChapters) {
-            imageRight.src = './img/right_stamp_on.png';
-            imageRight.style.cursor = "pointer";
+          imageRight.src = "./img/right_stamp_on.png";
+          imageRight.style.cursor = "pointer";
         } else {
-            imageRight.style.cursor = "default";
+          imageRight.style.cursor = "default";
         }
-    });
+      });
     
-    imageRight.addEventListener('mouseout', function() {
-        imageRight.src = './img/orig_right_stamp.png';
-    });
+      imageRight.addEventListener("mouseout", function () {
+        imageRight.src = "./img/orig_right_stamp.png";
+      });
     
-    imageRight.addEventListener('click', function() {
+      imageRight.addEventListener("click", function () {
         if (currNum < maxChapters) {
-            window.location.href = urlwonum + (currNum + 1);
+          window.location.href = urlwonum + (currNum + 1);
         }
-    });
-
-
-  //******************* Font resize slider *********************
-  const fontSizeSlider = document.getElementById("font-size-slider");
-  const displayText = document.getElementById("display-text");
-  
-  fontSizeSlider.addEventListener("input", () => {
-    const fontSize = fontSizeSlider.value;
-    //displayText.style.fontSize = `${fontSize}px`;
-    document.getElementById("bible-text").style.fontSize = `${fontSize}px`;
-  });
-
-  //******************* Mini-editor *********************
-  function applyBibleFormat(className) {
-      const selection = window.getSelection();
+      });
     
-      if (!selection.rangeCount || selection.isCollapsed) return;
+      // ******************* Font resize slider *********************
+      const fontSizeSlider = document.getElementById("font-size-slider");
     
-      const range = selection.getRangeAt(0);
-      const bibleText = document.getElementById("bible-text");
+      fontSizeSlider.addEventListener("input", () => {
+        const fontSize = fontSizeSlider.value;
+        document.getElementById("bible-text").style.fontSize = `${fontSize}px`;
+        resizeAnnotationLayer();
+      });
     
-      if (!bibleText.contains(range.commonAncestorContainer)) return;
+      // ******************* Mini-editor text formatting *********************
+      function applyBibleFormat(className) {
+        const selection = window.getSelection();
     
-      wrapSelectedTextNodes(range, className);
+        if (!selection.rangeCount || selection.isCollapsed) return;
     
-      selection.removeAllRanges();
-    }
+        const range = selection.getRangeAt(0);
+        const bibleText = document.getElementById("bible-text");
     
-    function wrapSelectedTextNodes(range, className) {
-      const textNodes = [];
-      const bibleText = document.getElementById("bible-text");
+        if (!bibleText.contains(range.commonAncestorContainer)) return;
     
-      const walker = document.createTreeWalker(
-        bibleText,
-        NodeFilter.SHOW_TEXT,
-        {
-          acceptNode(node) {
-            if (!node.nodeValue.trim()) {
-              return NodeFilter.FILTER_REJECT;
-            }
+        wrapSelectedTextNodes(range, className);
     
-            if (!range.intersectsNode(node)) {
-              return NodeFilter.FILTER_REJECT;
-            }
+        selection.removeAllRanges();
+      }
     
-            return NodeFilter.FILTER_ACCEPT;
+      function wrapSelectedTextNodes(range, className) {
+        const textNodes = [];
+        const bibleText = document.getElementById("bible-text");
+    
+        const walker = document.createTreeWalker(
+          bibleText,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode(node) {
+              if (!node.nodeValue.trim()) {
+                return NodeFilter.FILTER_REJECT;
+              }
+    
+              if (!range.intersectsNode(node)) {
+                return NodeFilter.FILTER_REJECT;
+              }
+    
+              return NodeFilter.FILTER_ACCEPT;
+            },
           }
+        );
+    
+        while (walker.nextNode()) {
+          textNodes.push(walker.currentNode);
         }
-      );
     
-      while (walker.nextNode()) {
-        textNodes.push(walker.currentNode);
+        textNodes.forEach((textNode) => {
+          wrapTextNodePart(textNode, range, className);
+        });
       }
     
-      textNodes.forEach((textNode) => {
-        wrapTextNodePart(textNode, range, className);
-      });
-    }
+      function wrapTextNodePart(textNode, range, className) {
+        let startOffset = 0;
+        let endOffset = textNode.nodeValue.length;
     
-    function wrapTextNodePart(textNode, range, className) {
-      let startOffset = 0;
-      let endOffset = textNode.nodeValue.length;
+        if (textNode === range.startContainer) {
+          startOffset = range.startOffset;
+        }
     
-      if (textNode === range.startContainer) {
-        startOffset = range.startOffset;
+        if (textNode === range.endContainer) {
+          endOffset = range.endOffset;
+        }
+    
+        if (startOffset >= endOffset) return;
+    
+        const selectedRange = document.createRange();
+        selectedRange.setStart(textNode, startOffset);
+        selectedRange.setEnd(textNode, endOffset);
+    
+        const span = document.createElement("span");
+        span.classList.add("bible-user-format", className);
+    
+        selectedRange.surroundContents(span);
       }
     
-      if (textNode === range.endContainer) {
-        endOffset = range.endOffset;
+      function clearBibleSelectionFormat() {
+        const selection = window.getSelection();
+    
+        if (!selection.rangeCount || selection.isCollapsed) return;
+    
+        const range = selection.getRangeAt(0);
+        const bibleText = document.getElementById("bible-text");
+    
+        if (!bibleText.contains(range.commonAncestorContainer)) return;
+    
+        const userFormatSpans = Array.from(
+          bibleText.querySelectorAll(".bible-user-format")
+        ).filter((span) => {
+          return range.intersectsNode(span);
+        });
+    
+        userFormatSpans.forEach((span) => {
+          unwrapElement(span);
+        });
+    
+        selection.removeAllRanges();
       }
     
-      if (startOffset >= endOffset) return;
+      function unwrapElement(element) {
+        const parent = element.parentNode;
     
-      const selectedRange = document.createRange();
-      selectedRange.setStart(textNode, startOffset);
-      selectedRange.setEnd(textNode, endOffset);
+        while (element.firstChild) {
+          parent.insertBefore(element.firstChild, element);
+        }
     
-      const span = document.createElement("span");
-      span.classList.add("bible-user-format", className);
-    
-      selectedRange.surroundContents(span);
-    }
-    
-    function clearBibleSelectionFormat() {
-      const selection = window.getSelection();
-    
-      if (!selection.rangeCount || selection.isCollapsed) return;
-    
-      const range = selection.getRangeAt(0);
-      const bibleText = document.getElementById("bible-text");
-    
-      if (!bibleText.contains(range.commonAncestorContainer)) return;
-    
-      const userFormatSpans = Array.from(
-        bibleText.querySelectorAll(".bible-user-format")
-      ).filter((span) => {
-        return range.intersectsNode(span);
-      });
-    
-      userFormatSpans.forEach((span) => {
-        unwrapElement(span);
-      });
-    
-      selection.removeAllRanges();
-    }
-
-    function clearDrawnAnnotations() {
-      const annotationLayer = document.getElementById("bible-annotation-layer");
-      annotationLayer.innerHTML = "";
-    }
-        
-    function unwrapElement(element) {
-      const parent = element.parentNode;
-    
-      while (element.firstChild) {
-        parent.insertBefore(element.firstChild, element);
+        parent.removeChild(element);
+        parent.normalize();
       }
     
-      parent.removeChild(element);
-      parent.normalize();
-    }
-
-    let activeDrawingTool = null;
-    let isDrawing = false;
-    let startX = 0;
-    let startY = 0;
-    let currentShape = null;
-    let selectedDrawnAnnotation = null;
-    
-    annotationLayer.addEventListener("click", function (event) {
-      if (!event.target.classList.contains("drawn-annotation")) return;
-    
-      selectedDrawnAnnotation = event.target;
-    
-      document.querySelectorAll(".drawn-annotation").forEach((shape) => {
-        shape.classList.remove("selected-annotation");
-      });
-    
-      selectedDrawnAnnotation.classList.add("selected-annotation");
-    });
-
-   function clearSelectedDrawnAnnotation() {
-      if (selectedDrawnAnnotation) {
-        selectedDrawnAnnotation.remove();
-        selectedDrawnAnnotation = null;
-      }
-    }
-        
-    function setDrawingTool(tool) {
-      activeDrawingTool = tool;
+      // ******************* Mini-editor drawing tools *********************
+      let activeDrawingTool = null;
+      let isDrawing = false;
+      let startX = 0;
+      let startY = 0;
+      let currentShape = null;
+      let selectedDrawnAnnotation = null;
     
       const drawingArea = document.getElementById("bible-drawing-area");
+      const annotationLayer = document.getElementById("bible-annotation-layer");
     
-      if (tool) {
-        drawingArea.classList.add("drawing-mode");
-      } else {
-        drawingArea.classList.remove("drawing-mode");
-      }
-    }
+      function resizeAnnotationLayer() {
+        const bibleText = document.getElementById("bible-text");
+        const annotationLayer = document.getElementById("bible-annotation-layer");
     
-    const drawingArea = document.getElementById("bible-drawing-area");
-    const annotationLayer = document.getElementById("bible-annotation-layer");
+        if (!bibleText || !annotationLayer) return;
     
-    drawingArea.addEventListener("mousedown", function (event) {
-      if (!activeDrawingTool) return;
-    
-      event.preventDefault();
-    
-      isDrawing = true;
-    
-      const rect = drawingArea.getBoundingClientRect();
-    
-      startX = event.clientX - rect.left;
-      startY = event.clientY - rect.top;
-    
-      if (activeDrawingTool === "circle") {
-        currentShape = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
-        currentShape.classList.add("drawn-annotation", "circle");
-        annotationLayer.appendChild(currentShape);
+        annotationLayer.setAttribute("width", bibleText.scrollWidth);
+        annotationLayer.setAttribute("height", bibleText.scrollHeight);
+        annotationLayer.style.width = `${bibleText.scrollWidth}px`;
+        annotationLayer.style.height = `${bibleText.scrollHeight}px`;
       }
     
-      if (activeDrawingTool === "square") {
-        currentShape = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        currentShape.classList.add("drawn-annotation", "square");
-        annotationLayer.appendChild(currentShape);
-      }
-    });
+      function setDrawingTool(tool) {
+        activeDrawingTool = tool;
     
-    drawingArea.addEventListener("mousemove", function (event) {
-      if (!isDrawing || !currentShape) return;
-    
-      event.preventDefault();
-    
-      const rect = drawingArea.getBoundingClientRect();
-    
-      const currentX = event.clientX - rect.left;
-      const currentY = event.clientY - rect.top;
-    
-      const x = Math.min(startX, currentX);
-      const y = Math.min(startY, currentY);
-      const width = Math.abs(currentX - startX);
-      const height = Math.abs(currentY - startY);
-    
-      if (activeDrawingTool === "circle") {
-        currentShape.setAttribute("cx", x + width / 2);
-        currentShape.setAttribute("cy", y + height / 2);
-        currentShape.setAttribute("rx", width / 2);
-        currentShape.setAttribute("ry", height / 2);
+        if (tool) {
+          drawingArea.classList.add("drawing-mode");
+        } else {
+          drawingArea.classList.remove("drawing-mode");
+        }
       }
     
-      if (activeDrawingTool === "square") {
-        currentShape.setAttribute("x", x);
-        currentShape.setAttribute("y", y);
-        currentShape.setAttribute("width", width);
-        currentShape.setAttribute("height", height);
+      annotationLayer.addEventListener("click", function (event) {
+        if (!event.target.classList.contains("drawn-annotation")) return;
+    
+        selectedDrawnAnnotation = event.target;
+    
+        document.querySelectorAll(".drawn-annotation").forEach((shape) => {
+          shape.classList.remove("selected-annotation");
+        });
+    
+        selectedDrawnAnnotation.classList.add("selected-annotation");
+      });
+    
+      function clearSelectedDrawnAnnotation() {
+        if (selectedDrawnAnnotation) {
+          selectedDrawnAnnotation.remove();
+          selectedDrawnAnnotation = null;
+        }
       }
-    });
     
-    drawingArea.addEventListener("mouseup", function () {
-      if (!isDrawing) return;
+      function clearDrawnAnnotations() {
+        annotationLayer.innerHTML = "";
+        selectedDrawnAnnotation = null;
+      }
     
-      isDrawing = false;
-      currentShape = null;
+      drawingArea.addEventListener("mousedown", function (event) {
+        if (!activeDrawingTool) return;
     
-      setDrawingTool(null);
-    });    
- </script>
+        event.preventDefault();
+    
+        isDrawing = true;
+        selectedDrawnAnnotation = null;
+    
+        document.querySelectorAll(".drawn-annotation").forEach((shape) => {
+          shape.classList.remove("selected-annotation");
+        });
+    
+        const rect = drawingArea.getBoundingClientRect();
+    
+        startX = event.clientX - rect.left;
+        startY = event.clientY - rect.top;
+    
+        if (activeDrawingTool === "circle") {
+          currentShape = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "ellipse"
+          );
+          currentShape.classList.add("drawn-annotation", "circle");
+          annotationLayer.appendChild(currentShape);
+        }
+    
+        if (activeDrawingTool === "square") {
+          currentShape = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          currentShape.classList.add("drawn-annotation", "square");
+          annotationLayer.appendChild(currentShape);
+        }
+      });
+    
+      drawingArea.addEventListener("mousemove", function (event) {
+        if (!isDrawing || !currentShape) return;
+    
+        event.preventDefault();
+    
+        const rect = drawingArea.getBoundingClientRect();
+    
+        const currentX = event.clientX - rect.left;
+        const currentY = event.clientY - rect.top;
+    
+        const x = Math.min(startX, currentX);
+        const y = Math.min(startY, currentY);
+        const width = Math.abs(currentX - startX);
+        const height = Math.abs(currentY - startY);
+    
+        if (activeDrawingTool === "circle") {
+          currentShape.setAttribute("cx", x + width / 2);
+          currentShape.setAttribute("cy", y + height / 2);
+          currentShape.setAttribute("rx", width / 2);
+          currentShape.setAttribute("ry", height / 2);
+        }
+    
+        if (activeDrawingTool === "square") {
+          currentShape.setAttribute("x", x);
+          currentShape.setAttribute("y", y);
+          currentShape.setAttribute("width", width);
+          currentShape.setAttribute("height", height);
+        }
+      });
+    
+      drawingArea.addEventListener("mouseup", function () {
+        if (!isDrawing) return;
+    
+        isDrawing = false;
+        currentShape = null;
+    
+        setDrawingTool(null);
+      });
+    
+      window.addEventListener("resize", resizeAnnotationLayer);
+    </script>
 </body>
 </html>
