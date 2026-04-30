@@ -53,7 +53,19 @@
         <button onclick="applyBibleFormat('bold')"><b>B</b></button>
         <button onclick="applyBibleFormat('underline')"><u>U</u></button>
         <button onclick="applyBibleFormat('double-underline')">DU</button>
-        <button onclick="applyBibleFormat('highlight-yellow')">Highlight</button>
+        <div class="toolbar-dropdown">
+          <button type="button" onclick="toggleHighlightMenu()">
+            Highlight ▾
+          </button>
+        
+          <div id="highlight-menu" class="toolbar-dropdown-menu">
+            <button type="button" class="color-option yellow" onclick="applyBibleFormat('highlight-yellow'); closeHighlightMenu();">Yellow</button>
+            <button type="button" class="color-option green" onclick="applyBibleFormat('highlight-green'); closeHighlightMenu();">Green</button>
+            <button type="button" class="color-option blue" onclick="applyBibleFormat('highlight-blue'); closeHighlightMenu();">Blue</button>
+            <button type="button" class="color-option pink" onclick="applyBibleFormat('highlight-pink'); closeHighlightMenu();">Pink</button>
+            <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeHighlightMenu();">Orange</button>
+          </div>
+        </div>
         <button onclick="setDrawingTool('circle')">◯</button>
         <button onclick="setDrawingTool('square')">□</button>
         <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();">Clear</button>
@@ -571,6 +583,25 @@
       });
     
       window.addEventListener("resize", resizeAnnotationLayer);
+
+     //********** Highlighter **********//    
+     function toggleHighlightMenu() {
+      document.getElementById("highlight-menu").classList.toggle("show");
+    }
+    
+    function closeHighlightMenu() {
+      document.getElementById("highlight-menu").classList.remove("show");
+    }
+    
+    document.addEventListener("click", function(event) {
+      const dropdown = document.querySelector(".toolbar-dropdown");
+    
+      if (!dropdown) return;
+    
+      if (!dropdown.contains(event.target)) {
+        closeHighlightMenu();
+      }
+    });        
     </script>
 </body>
 </html>
