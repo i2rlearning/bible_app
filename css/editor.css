@@ -79,26 +79,6 @@
   background-color: yellow !important;
 }
 
-.eb-container .bible-user-format.circle-mark {
-  display: inline;
-  border: 2px solid #c40000 !important;
-  border-radius: 999px;
-  padding: 0 5px;
-  margin: 0 1px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-.eb-container .bible-user-format.square-mark {
-  display: inline;
-  border: 2px solid #0066cc !important;
-  border-radius: 2px;
-  padding: 0 5px;
-  margin: 0 1px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
 #bible-drawing-area {
   position: relative;
 }
