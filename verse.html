@@ -439,7 +439,88 @@
     
       parent.removeChild(element);
       parent.normalize();
-    }     
+    }
+
+    let activeDrawingTool = null;
+    let isDrawing = false;
+    let startX = 0;
+    let startY = 0;
+    let currentShape = null;
+    
+    function setDrawingTool(tool) {
+      activeDrawingTool = tool;
+    
+      const drawingArea = document.getElementById("bible-drawing-area");
+    
+      if (tool) {
+        drawingArea.classList.add("drawing-mode");
+      } else {
+        drawingArea.classList.remove("drawing-mode");
+      }
+    }
+    
+    const drawingArea = document.getElementById("bible-drawing-area");
+    const annotationLayer = document.getElementById("bible-annotation-layer");
+    
+    drawingArea.addEventListener("mousedown", function (event) {
+      if (!activeDrawingTool) return;
+    
+      isDrawing = true;
+    
+      const rect = drawingArea.getBoundingClientRect();
+    
+      startX = event.clientX - rect.left;
+      startY = event.clientY - rect.top;
+    
+      if (activeDrawingTool === "circle") {
+        currentShape = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+        currentShape.classList.add("drawn-annotation", "circle");
+        annotationLayer.appendChild(currentShape);
+      }
+    
+      if (activeDrawingTool === "square") {
+        currentShape = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        currentShape.classList.add("drawn-annotation", "square");
+        annotationLayer.appendChild(currentShape);
+      }
+    });
+    
+    drawingArea.addEventListener("mousemove", function (event) {
+      if (!isDrawing || !currentShape) return;
+    
+      const rect = drawingArea.getBoundingClientRect();
+    
+      const currentX = event.clientX - rect.left;
+      const currentY = event.clientY - rect.top;
+    
+      const x = Math.min(startX, currentX);
+      const y = Math.min(startY, currentY);
+      const width = Math.abs(currentX - startX);
+      const height = Math.abs(currentY - startY);
+    
+      if (activeDrawingTool === "circle") {
+        currentShape.setAttribute("cx", x + width / 2);
+        currentShape.setAttribute("cy", y + height / 2);
+        currentShape.setAttribute("rx", width / 2);
+        currentShape.setAttribute("ry", height / 2);
+      }
+    
+      if (activeDrawingTool === "square") {
+        currentShape.setAttribute("x", x);
+        currentShape.setAttribute("y", y);
+        currentShape.setAttribute("width", width);
+        currentShape.setAttribute("height", height);
+      }
+    });
+    
+    drawingArea.addEventListener("mouseup", function () {
+      if (!isDrawing) return;
+    
+      isDrawing = false;
+      currentShape = null;
+    
+      setDrawingTool(null);
+    });    
  </script>
 </body>
 </html>
