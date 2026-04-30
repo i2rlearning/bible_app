@@ -120,3 +120,7 @@
 .drawn-annotation.square {
   stroke: #0066cc;
 }
+
+.drawn-annotation.selected-annotation {
+  stroke-width: 4;
+}
