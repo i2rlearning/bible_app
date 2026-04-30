@@ -59,37 +59,9 @@
   user-select: text;
 }
 
-.bold {
-  font-weight: bold;
-}
-
-.underline {
-  text-decoration: underline;
-}
-
-.double-underline {
-  text-decoration: underline;
-  text-decoration-style: double;
-}
-
-.highlight-yellow {
-  background-color: yellow;
-}
-
-.circle-mark {
-  border: 2px solid red;
-  border-radius: 50%;
-  padding: 1px 5px;
-}
-
-.square-mark {
-  border: 2px solid blue;
-  padding: 1px 5px;
-}
-
 /* User-added Bible annotations */
 .eb-container .bible-user-format.bold {
-  font-weight: 700 !important;
+  font-weight: 900 !important;
 }
 
 .eb-container .bible-user-format.underline {
@@ -108,6 +80,7 @@
 }
 
 .eb-container .bible-user-format.circle-mark {
+  display: inline;
   border: 2px solid #c40000 !important;
   border-radius: 999px;
   padding: 0 5px;
@@ -117,6 +90,7 @@
 }
 
 .eb-container .bible-user-format.square-mark {
+  display: inline;
   border: 2px solid #0066cc !important;
   border-radius: 2px;
   padding: 0 5px;
