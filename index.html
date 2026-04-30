@@ -25,18 +25,21 @@
             </div>
             <div class="column">
               <div class="custom-combobox" style="width:12vw;">
-                <div class="combobox-wrapper">
-                  <input list="languages" id="langInput" value="All" placeholder="Select Language">
-                  <span class="down-arrow">&#9662;</span> 
-                </div>
-            
-                <datalist id="languages">
-                  <option value="All" data-url="https://api.scripture.api.bible/v1/bibles?include-full-details=false">
-                  <option value="English" data-url="https://api.scripture.api.bible/v1/bibles?language=eng&include-full-details=false">
-                  <option value="Greek" data-url="https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false">
-                  <option value="Hebrew" data-url="https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=false">
-                </datalist>
-              </div>        
+                <select id="langInput">
+                  <option value="https://api.scripture.api.bible/v1/bibles?include-full-details=false" selected>
+                    All
+                  </option>
+                  <option value="https://api.scripture.api.bible/v1/bibles?language=eng&include-full-details=false">
+                    English
+                  </option>
+                  <option value="https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false">
+                    Greek
+                  </option>
+                  <option value="https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=false">
+                    Hebrew
+                  </option>
+                </select>
+              </div>       
             </div>
             <div class="column">
               <div class="align-group">
@@ -144,109 +147,99 @@
     <script src="js/misc.js"></script>
 
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-
+      document.addEventListener("DOMContentLoaded", () => {
+      
         // 1. Element Selectors
         const elements = {
-            menuNav: document.getElementById("menuNav"),
-            fontSizeSlider: document.getElementById("font-size-slider"),
-            displayText: document.getElementById("bible-version-list"),
-            langInput: document.getElementById('langInput'),
-            loginModal: document.getElementById('loginModal'),
-            signupModal: document.getElementById('signupModal'),
-            languagesList: document.getElementById('languages')
+          menuNav: document.getElementById("menuNav"),
+          fontSizeSlider: document.getElementById("font-size-slider"),
+          displayText: document.getElementById("bible-version-list"),
+          langInput: document.getElementById("langInput"),
+          loginModal: document.getElementById("loginModal"),
+          signupModal: document.getElementById("signupModal")
         };
-
-        // 2. Side Navigation (Side Menu)
+      
+        // 2. Side Navigation
         window.openNav = () => {
-            if (elements.menuNav) elements.menuNav.style.width = "225px";
+          if (elements.menuNav) {
+            elements.menuNav.style.width = "225px";
+          }
         };
-
+      
         window.closeNav = () => {
-            if (elements.menuNav) elements.menuNav.style.width = "0px";
+          if (elements.menuNav) {
+            elements.menuNav.style.width = "0px";
+          }
         };
-
+      
         // 3. Font Resize Logic
         elements.fontSizeSlider?.addEventListener("input", (e) => {
-            if (elements.displayText) {
-                elements.displayText.style.fontSize = `${e.target.value}px`;
-            }
+          if (elements.displayText) {
+            elements.displayText.style.fontSize = `${e.target.value}px`;
+          }
         });
-
-        // 5. Combobox Language Selection (Always Show Full List)
-        const langInput = elements.langInput;
-
-        if (langInput) {
-            // Block typing
-            langInput.addEventListener('keydown', (e) => e.preventDefault());
-
-            langInput.addEventListener('click', function() {
-                const currentVal = this.value;
-                this.value = ''; 
-
-                if (typeof this.showPicker === 'function') {
-                    this.showPicker();
-                }
-
-                const self = this;
-                setTimeout(() => {
-                    if (!self.value) self.value = currentVal;
-                }, 100);
-            });
-
-            langInput.addEventListener('input', function() {
-                const selectedValue = this.value;
-                const options = elements.languagesList.options;
-
-                let apiUrl = null;
-                for (let i = 0; i < options.length; i++) {
-                    if (options[i].value === selectedValue) {
-                        apiUrl = options[i].getAttribute('data-url');
-                        break;
-                    }
-                }
-
-                if (apiUrl) {
-                    localStorage.setItem('selectedBibleApi', apiUrl);
-                    localStorage.setItem('selectedBibleName', selectedValue);
-                    window.location.reload();
-                }
-            });
-
-            const savedName = localStorage.getItem('selectedBibleName');
-            if (savedName) {
-                langInput.value = savedName;
-            }
+      
+        // 4. Language Selection
+        if (elements.langInput) {
+          const savedApiUrl = localStorage.getItem("selectedBibleApi");
+      
+          if (savedApiUrl) {
+            elements.langInput.value = savedApiUrl;
+          }
+      
+          elements.langInput.addEventListener("change", function () {
+            const selectedUrl = this.value;
+            const selectedName = this.options[this.selectedIndex].text.trim();
+      
+            localStorage.setItem("selectedBibleApi", selectedUrl);
+            localStorage.setItem("selectedBibleName", selectedName);
+      
+            window.location.reload();
+          });
         }
-
-        // 6. Modal Management (Login / Signup)
+      
+        // 5. Modal Management
         const toggleModal = (modal, show) => {
-            if (!modal) return;
-            if (show) {
-                modal.style.display = "block"; 
-                modal.classList.add('is-open');
-            } else {
-                modal.style.display = "none";
-                modal.classList.remove('is-open');
-            }
+          if (!modal) return;
+      
+          if (show) {
+            modal.style.display = "block";
+            modal.classList.add("is-open");
+          } else {
+            modal.style.display = "none";
+            modal.classList.remove("is-open");
+          }
         };
-
-        // Global Click Listener (Event Delegation)
-        document.addEventListener('click', (e) => {
-            const target = e.target;
-
-            if (target.id === 'login')  toggleModal(elements.loginModal, true);
-            if (target.id === 'signup') toggleModal(elements.signupModal, true);
-
-            const isCloser = ['cancelLogin', 'closelogin', 'cancelSignupBtn', 'closeSignup'].includes(target.id);
-            const isBackgroundClick = target === elements.loginModal || target === elements.signupModal;
-
-            if (isCloser || isBackgroundClick) {
-                toggleModal(elements.loginModal, false);
-                toggleModal(elements.signupModal, false);
-            }
+      
+        // 6. Global Click Listener
+        document.addEventListener("click", (e) => {
+          const target = e.target;
+      
+          if (target.id === "login") {
+            toggleModal(elements.loginModal, true);
+          }
+      
+          if (target.id === "signup") {
+            toggleModal(elements.signupModal, true);
+          }
+      
+          const isCloser = [
+            "cancelLogin",
+            "closelogin",
+            "cancelSignupBtn",
+            "closeSignup"
+          ].includes(target.id);
+      
+          const isBackgroundClick =
+            target === elements.loginModal || target === elements.signupModal;
+      
+          if (isCloser || isBackgroundClick) {
+            toggleModal(elements.loginModal, false);
+            toggleModal(elements.signupModal, false);
+          }
         });
-    });
-  </script>
+      
+      });
+      </script>
   </body>
 </html>
