@@ -59,6 +59,14 @@
   user-select: text;
 }
 
+.bold {
+  font-weight: bold;
+}
+
+.underline {
+  text-decoration: underline;
+}
+
 .double-underline {
   text-decoration: underline;
   text-decoration-style: double;
