@@ -201,11 +201,11 @@ a.current { pointer-events: none; color: white; }
 }
 
 .language-label {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 25px;
+  font-weight: bold;
   color: #555;
   white-space: nowrap;
-  font-family: Arial, sans-serif;
+  font-family: Arima, sans-serif;
 }
 
 /* The White Down Arrow (The part that was missing) */
