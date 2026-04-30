@@ -465,6 +465,8 @@
     drawingArea.addEventListener("mousedown", function (event) {
       if (!activeDrawingTool) return;
     
+      event.preventDefault();
+    
       isDrawing = true;
     
       const rect = drawingArea.getBoundingClientRect();
@@ -487,6 +489,8 @@
     
     drawingArea.addEventListener("mousemove", function (event) {
       if (!isDrawing || !currentShape) return;
+    
+      event.preventDefault();
     
       const rect = drawingArea.getBoundingClientRect();
     
