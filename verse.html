@@ -103,8 +103,12 @@
       let verseHTML = ``;
 
       if (!bibleVersionID || !bibleChapterID) {
-        window.location.href = `./index.html`;
+          window.location.href = `./index.html`;
       }
+        
+      getChapterText(bibleChapterID).then((content) => {
+          document.getElementById("bible-text").innerHTML = content;
+      });
 
       const [book, chapter] = bibleChapterID.split(`.`);
       const bibleHTML = `${abbreviation}`; 
