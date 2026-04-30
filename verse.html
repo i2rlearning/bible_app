@@ -106,27 +106,6 @@
         window.location.href = `./index.html`;
       }
 
-        
-    let lockedText = "";
-
-    getChapterText(bibleChapterID).then((content) => {
-      document.getElementById("bible-text").innerHTML = content;
-    });
-    
-    function normalizeText(text) {
-      return text.replace(/\s+/g, " ").trim();
-    }
-    
-    bibleQuill.on("text-change", function(delta, oldDelta, source) {
-      if (source !== "user") return;
-    
-      const currentText = normalizeText(bibleQuill.getText());
-    
-      if (lockedText && currentText !== lockedText) {
-        bibleQuill.setContents(oldDelta, "silent");
-      }
-    });
-
       const [book, chapter] = bibleChapterID.split(`.`);
       const bibleHTML = `${abbreviation}`; 
       const bookChapHTML  = `${bibleName} ${chapter}`;
@@ -344,7 +323,7 @@
   fontSizeSlider.addEventListener("input", () => {
     const fontSize = fontSizeSlider.value;
     //displayText.style.fontSize = `${fontSize}px`;
-    document.querySelector(".ql-editor").style.fontSize = `${fontSize}px`;
+    document.getElementById("bible-text").style.fontSize = `${fontSize}px`;
   });
 
   //******************* Mini-editor *********************
