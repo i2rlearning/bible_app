@@ -29,7 +29,7 @@
 /************* Mini-Editor at the top *************/
 #bible-mini-toolbar {
   position: sticky;
-  top: 35px;
+  top: 30px;
   z-index: 2500;
   background: #fff;
   border: 1px solid #ddd;
