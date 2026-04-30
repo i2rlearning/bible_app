@@ -98,3 +98,33 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
+
+#bible-drawing-area {
+  position: relative;
+}
+
+#bible-annotation-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+#bible-drawing-area.drawing-mode {
+  cursor: crosshair;
+}
+
+.drawn-annotation {
+  fill: none;
+  stroke-width: 2;
+}
+
+.drawn-annotation.circle {
+  stroke: #c40000;
+}
+
+.drawn-annotation.square {
+  stroke: #0066cc;
+}
