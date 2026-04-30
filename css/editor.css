@@ -119,3 +119,78 @@
 .drawn-annotation.selected-annotation {
   stroke-width: 4;
 }
+
+/* HIGHLIGHTER */
+.toolbar-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.toolbar-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 32px;
+  left: 0;
+  z-index: 3000;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 6px;
+  min-width: 120px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+
+.toolbar-dropdown-menu.show {
+  display: block;
+}
+
+.toolbar-dropdown-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 4px;
+}
+
+.toolbar-dropdown-menu button:last-child {
+  margin-bottom: 0;
+}
+
+.color-option.yellow {
+  background: #fff59d !important;
+}
+
+.color-option.green {
+  background: #c8f7c5 !important;
+}
+
+.color-option.blue {
+  background: #cce5ff !important;
+}
+
+.color-option.pink {
+  background: #ffd6e7 !important;
+}
+
+.color-option.orange {
+  background: #ffd59e !important;
+}
+
+/* Bible highlight colors */
+.eb-container .bible-user-format.highlight-yellow {
+  background-color: #fff59d !important;
+}
+
+.eb-container .bible-user-format.highlight-green {
+  background-color: #c8f7c5 !important;
+}
+
+.eb-container .bible-user-format.highlight-blue {
+  background-color: #cce5ff !important;
+}
+
+.eb-container .bible-user-format.highlight-pink {
+  background-color: #ffd6e7 !important;
+}
+
+.eb-container .bible-user-format.highlight-orange {
+  background-color: #ffd59e !important;
+}
