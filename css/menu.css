@@ -62,7 +62,7 @@ a.current { pointer-events: none; color: white; }
 }
 
 #langInput {
-  min-width: 120px;
+  min-width: 130px;
   height: 34px;
   background: #fff;
   color: #222;
@@ -70,6 +70,7 @@ a.current { pointer-events: none; color: white; }
   border-radius: 4px;
   padding: 4px 10px;
   font-size: 16px;
+  font-family: Arial, sans-serif;
   cursor: pointer;
 }
 
@@ -86,15 +87,16 @@ a.current { pointer-events: none; color: white; }
 .language-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: auto;
 }
 
 .language-label {
   font-size: 18px;
-  font-weight: bold;
-  color: #222;
+  font-weight: 600;
+  color: #555;
   white-space: nowrap;
+  font-family: Arial, sans-serif;
 }
 
 /* The White Down Arrow (The part that was missing) */
