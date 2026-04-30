@@ -344,16 +344,64 @@
     
       if (!bibleText.contains(range.commonAncestorContainer)) return;
     
-      const span = document.createElement("span");
-    
-      // This lets us identify only user-added formatting later
-      span.classList.add("bible-user-format", className);
-    
-      const selectedContent = range.extractContents();
-      span.appendChild(selectedContent);
-      range.insertNode(span);
+      wrapSelectedTextNodes(range, className);
     
       selection.removeAllRanges();
+    }
+    
+    function wrapSelectedTextNodes(range, className) {
+      const textNodes = [];
+      const bibleText = document.getElementById("bible-text");
+    
+      const walker = document.createTreeWalker(
+        bibleText,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode(node) {
+            if (!node.nodeValue.trim()) {
+              return NodeFilter.FILTER_REJECT;
+            }
+    
+            if (!range.intersectsNode(node)) {
+              return NodeFilter.FILTER_REJECT;
+            }
+    
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }
+      );
+    
+      while (walker.nextNode()) {
+        textNodes.push(walker.currentNode);
+      }
+    
+      textNodes.forEach((textNode) => {
+        wrapTextNodePart(textNode, range, className);
+      });
+    }
+    
+    function wrapTextNodePart(textNode, range, className) {
+      let startOffset = 0;
+      let endOffset = textNode.nodeValue.length;
+    
+      if (textNode === range.startContainer) {
+        startOffset = range.startOffset;
+      }
+    
+      if (textNode === range.endContainer) {
+        endOffset = range.endOffset;
+      }
+    
+      if (startOffset >= endOffset) return;
+    
+      const selectedRange = document.createRange();
+      selectedRange.setStart(textNode, startOffset);
+      selectedRange.setEnd(textNode, endOffset);
+    
+      const span = document.createElement("span");
+      span.classList.add("bible-user-format", className);
+    
+      selectedRange.surroundContents(span);
     }
     
     function clearBibleSelectionFormat() {
