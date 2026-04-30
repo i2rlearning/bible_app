@@ -92,6 +92,13 @@
   overflow: visible;
 }
 
+.drawn-annotation {
+  fill: transparent;
+  stroke-width: 2;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 #bible-drawing-area.drawing-mode {
   cursor: crosshair;
 }
