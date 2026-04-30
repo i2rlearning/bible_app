@@ -56,7 +56,7 @@
         <button onclick="applyBibleFormat('highlight-yellow')">Highlight</button>
         <button onclick="setDrawingTool('circle')">◯</button>
         <button onclick="setDrawingTool('square')">□</button>
-        <button onclick="clearBibleSelectionFormat()">Clear</button>
+        <button onclick="clearBibleSelectionFormat(); clearDrawnAnnotations();">Clear</button>
       </div>
     
       <div class="eb-container" id="display-text">
@@ -429,7 +429,12 @@
     
       selection.removeAllRanges();
     }
-    
+
+    function clearDrawnAnnotations() {
+      const annotationLayer = document.getElementById("bible-annotation-layer");
+      annotationLayer.innerHTML = "";
+    }
+        
     function unwrapElement(element) {
       const parent = element.parentNode;
     
