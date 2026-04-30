@@ -76,7 +76,6 @@ ul, ol {
   box-sizing: border-box;
 }
 
-
 .container .inside {
   background-color: white;
   text-align: center;
@@ -129,7 +128,6 @@ header h1 a {
   font-size: 1.5rem;
   line-height: 2.75rem;
 }
-
 
 .subheader {
   background: #F6FBFF;
