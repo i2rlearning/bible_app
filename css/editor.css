@@ -163,7 +163,7 @@
   gap: 6px;
 }
 
-.toolbar-dropdown-menu .color-swatch {
+.toolbar-dropdown-menu .color-option {
   width: 26px;
   height: 26px;
   min-width: 26px;
@@ -174,26 +174,26 @@
   cursor: pointer;
 }
 
-.toolbar-dropdown-menu .color-swatch:hover {
+.toolbar-dropdown-menu .color-option:hover {
   outline: 2px solid #555;
 }
 
-.color-swatch.yellow {
+.color-option.yellow {
   background: #fff59d !important;
 }
 
-.color-swatch.green {
+.color-option.green {
   background: #c8f7c5 !important;
 }
 
-.color-swatch.blue {
+.color-option.blue {
   background: #cce5ff !important;
 }
 
-.color-swatch.pink {
+.color-option.pink {
   background: #ffd6e7 !important;
 }
 
-.color-swatch.orange {
+.color-option.orange {
   background: #ffd59e !important;
 }
