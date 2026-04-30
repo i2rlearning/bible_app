@@ -49,9 +49,17 @@
     </header>
     
     <main class="container">
-        <div class="eb-container" id="display-text">
-            <div id="bible-editor" style="min-height: 400px;"></div>
-        </div>
+        <div id="bible-mini-toolbar">
+            <button onclick="applyBibleFormat('bold')"><b>B</b></button>
+            <button onclick="applyBibleFormat('underline')"><u>U</u></button>
+            <button onclick="applyBibleFormat('double-underline')">DU</button>
+            <button onclick="applyBibleFormat('highlight-yellow')">Highlight</button>
+            <button onclick="applyBibleFormat('circle-mark')">◯</button>
+            <button onclick="applyBibleFormat('square-mark')">□</button>
+            <button onclick="clearBibleSelectionFormat()">Clear</button>
+          </div>
+        
+          <div id="bible-text"></div>
     
         <div class="leftcol">
             <a id="prevURL">
@@ -98,22 +106,11 @@
         window.location.href = `./index.html`;
       }
 
-      var bibleQuill = new Quill('#bible-editor', {
-        theme: 'snow',
-        modules: {
-            toolbar: [
-                ['bold', 'italic', 'underline'],
-                [{ 'background': ['yellow', 'lightgreen', 'pink', 'lightblue'] }],
-                ['clean'] // Useful for "un-highlighting"
-            ]
-        }
-    });
-
+        
     let lockedText = "";
 
     getChapterText(bibleChapterID).then((content) => {
-      bibleQuill.root.innerHTML = content;
-      lockedText = normalizeText(bibleQuill.getText());
+      document.getElementById("bible-text").innerHTML = content;
     });
     
     function normalizeText(text) {
@@ -350,6 +347,46 @@
     document.querySelector(".ql-editor").style.fontSize = `${fontSize}px`;
   });
 
+  //******************* Mini-editor *********************
+  function applyBibleFormat(className) {
+  const selection = window.getSelection();
+
+  if (!selection.rangeCount || selection.isCollapsed) return;
+
+  const range = selection.getRangeAt(0);
+
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText.contains(range.commonAncestorContainer)) return;
+
+  const span = document.createElement("span");
+  span.className = className;
+
+  const selectedContent = range.extractContents();
+  span.appendChild(selectedContent);
+  range.insertNode(span);
+
+  selection.removeAllRanges();
+}
+
+        
+function clearBibleSelectionFormat() {
+  const selection = window.getSelection();
+
+  if (!selection.rangeCount || selection.isCollapsed) return;
+
+  const range = selection.getRangeAt(0);
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText.contains(range.commonAncestorContainer)) return;
+
+  const selectedText = range.toString();
+
+  range.deleteContents();
+  range.insertNode(document.createTextNode(selectedText));
+
+  selection.removeAllRanges();
+}      
  </script>
 </body>
 </html>
