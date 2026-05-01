@@ -67,8 +67,10 @@
             <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeHighlightMenu();"></button>
           </div>
         </div>
+        <span>|</span>
         <button onclick="setDrawingTool('circle')" title="Draw a circle">◯</button>
         <button onclick="setDrawingTool('square')" title="Draw a square">⬜</button>
+        <button onclick="setDrawingTool('freehand')" title="Freehand Draw">✎</button>  
         <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();" title="Clear Format">Clear</button>
       </div>
     
@@ -467,6 +469,7 @@
       let startY = 0;
       let currentShape = null;
       let selectedDrawnAnnotation = null;
+      let freehandPoints = [];
     
       const drawingArea = document.getElementById("bible-drawing-area");
       const annotationLayer = document.getElementById("bible-annotation-layer");
@@ -551,6 +554,19 @@
           currentShape.classList.add("drawn-annotation", "square");
           annotationLayer.appendChild(currentShape);
         }
+
+        if (activeDrawingTool === "freehand") {
+          freehandPoints = [`M ${startX} ${startY}`];
+        
+          currentShape = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "path"
+          );
+        
+          currentShape.classList.add("drawn-annotation", "freehand");
+          currentShape.setAttribute("d", freehandPoints.join(" "));
+          annotationLayer.appendChild(currentShape);
+        }  
       });
     
       drawingArea.addEventListener("mousemove", function (event) {
@@ -581,6 +597,11 @@
           currentShape.setAttribute("width", width);
           currentShape.setAttribute("height", height);
         }
+
+        if (activeDrawingTool === "freehand") {
+          freehandPoints.push(`L ${currentX} ${currentY}`);
+          currentShape.setAttribute("d", freehandPoints.join(" "));
+        }  
       });
     
       drawingArea.addEventListener("mouseup", function () {
