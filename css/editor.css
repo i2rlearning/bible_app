@@ -232,3 +232,8 @@
   user-select: none;
   text-decoration-thickness: 2px;
 }
+
+.text-tool-button {
+  font-weight: bold;
+  font-size: 14px;
+}
