@@ -30,7 +30,7 @@
 /************* Mini-Editor at the top *************/
 #bible-mini-toolbar {
   position: sticky;
-  top: 30px; /* should match the height of your top navbar */
+  top: 35px;
   z-index: 2500;
   background: #fff;
   border: 1px solid #ddd;
