@@ -43,11 +43,6 @@
   margin-bottom: 0;
 }
 
-main.container {
-  padding-top: 0;
-  margin-top: 0;
-}
-
 #bible-mini-toolbar button {
   border: 1px solid #ddd;
   background: #fff;
