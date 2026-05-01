@@ -73,6 +73,10 @@
   user-select: text;
 }
 
+#bible-drawing-area.drawing-mode {
+  cursor: crosshair;
+}
+
 #display-text {
   padding-top: 45px;
 }
@@ -120,6 +124,7 @@
 /************* Drawing layer for circles and squares *************/
 #bible-drawing-area {
   position: relative;
+   cursor: text;  
 }
 
 #bible-annotation-layer {
