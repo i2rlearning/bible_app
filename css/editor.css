@@ -33,17 +33,18 @@
   top: 35px;
   left: 50%;
   transform: translateX(-50%);
-  width: calc(100vw - 400px);
-  max-width: 1060px;
+  width: auto;
+  max-width: calc(100vw - 40px);
   z-index: 2500;
 
   background: #000;
-  border: 1px solid #ddd;
+  border: 1px solid #222;
   padding: 6px 10px;
-  display: flex;
+  display: inline-flex;
   gap: 8px;
   align-items: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
   margin: 0;
 }
 
@@ -220,7 +221,7 @@
 }
 
 .toolbar-separator {
-  color: #bbb;
+  color: #777;
   margin: 0 4px;
   user-select: none;
 }
