@@ -72,102 +72,9 @@ a.current {
 .language-label {
   font-size: 25px;
   font-weight: bold;
-  color: #222;
+  color: #555;
   white-space: nowrap;
   font-family: Arima, sans-serif;
-}
-
-#langInput {
-  min-width: 130px;
-  height: 34px;
-  background: #fff;
-  color: #222;
-  border: 1px solid #2f9ae0;
-  border-radius: 4px;
-  padding: 4px 10px;
-  font-size: 18px;
-  font-family: Arima, sans-serif;
-  cursor: pointer;
-}
-
-#langInput:focus {
-  outline: none;
-  border-color: #1f7fc2;
-  box-shadow: 0 0 0 2px rgba(47,154,224,0.15);
-}
-
-/* --- Responsive Adjustments --- */
-@media screen and (max-height: 450px) {
-  .overlay a {
-    font-size: 20px;
-  }
-
-  .overlay .closebtn {
-    font-size: 40px;
-    top: 15px;
-    right: 35px;
-  }
-}:root {
-    --primary-blue: #1d44b8;
-}
-
-/* --- Sliding parchment menu from left --- */
-.overlay {
-  height: 100vh;
-  width: 0;
-  position: fixed;
-  z-index: 100; /* Increased to stay above everything */
-  top: 22.55vh;
-  left: 115px;
-  background-image: url('../img/scrollpaper.png');
-  background-repeat: no-repeat;
-  background-size: 250px 60vh;
-  overflow-x: hidden;
-  transition: 0.65s;
-}
-
-.overlay-content {
-  position: relative;
-  top: 12%;
-  text-align: center;
-  margin-top: 10px;
-}
-
-.overlay a {
-  text-decoration: none;
-  font-size: 30px;
-  color: black;
-  display: block;
-  transition: 0.3s;
-  font-family: Arima, sans-serif;
-}
-
-.overlay a:hover, .overlay a:focus { color: white; }
-
-.overlay .closebtn {
-  position: absolute;
-  top: 14px;
-  right: 30px;
-  font-size: 60px;
-}
-
-/* Menu Link States */
-a.disabled { pointer-events: none; color: darkgray; }
-a.current { pointer-events: none; color: white; }
-
-/* --- 2. Blue Language Combobox & Layout --- */
-
-/* This handles the width you set in the HTML style attribute */
-.custom-combobox {
-    display: inline-block;
-    vertical-align: middle;
-}
-
-.combobox-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-    width: 100%;
 }
 
 #langInput {
@@ -189,45 +96,15 @@ a.current { pointer-events: none; color: white; }
   box-shadow: 0 0 0 2px rgba(47,154,224,0.15);
 }
 
-#langInput::placeholder {
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.language-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-}
-
-.language-label {
-  font-size: 25px;
-  font-weight: bold;
-  color: #555;
-  white-space: nowrap;
-  font-family: Arima, sans-serif;
-}
-
-/* The White Down Arrow (The part that was missing) */
-.down-arrow {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none; 
-    color: white !important;
-    font-size: 16px;
-    z-index: 5;
-}
-
-/* Force hide the browser's default arrow icon */
-#langInput::-webkit-calendar-picker-indicator {
-    display: none !important;
-    opacity: 0;
-}
-
-/* --- 3. Responsive Adjustments --- */
+/* --- Responsive Adjustments --- */
 @media screen and (max-height: 450px) {
-  .overlay a { font-size: 20px; }
-  .overlay .closebtn { font-size: 40px; top: 15px; right: 35px; }
+  .overlay a {
+    font-size: 20px;
+  }
+
+  .overlay .closebtn {
+    font-size: 40px;
+    top: 15px;
+    right: 35px;
+  }
 }
