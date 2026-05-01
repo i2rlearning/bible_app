@@ -27,7 +27,6 @@
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"] { font-size: 32px !important; }
 
 
-/************* Mini-Editor at the top *************/
 #bible-mini-toolbar {
   position: fixed;
   top: 35px;
@@ -66,19 +65,15 @@
   border-color: #31ACFF;
 }
 
+#display-text {
+  padding-top: 45px;
+}
+
 #bible-text {
   padding: 20px;
   font-size: 18px;
   line-height: 1.7;
   user-select: text;
-}
-
-#bible-drawing-area.drawing-mode {
-  cursor: crosshair;
-}
-
-#display-text {
-  padding-top: 45px;
 }
 
 /************* User-added Bible text annotations *************/
@@ -98,8 +93,9 @@
 }
 
 .eb-container .bible-user-format.strike-through {
-  text-decoration: line-through;
+  text-decoration-line: line-through !important;
 }
+
 /************* Bible highlight colors *************/
 .eb-container .bible-user-format.highlight-yellow {
   background-color: #fff59d !important;
@@ -124,16 +120,7 @@
 /************* Drawing layer for circles and squares *************/
 #bible-drawing-area {
   position: relative;
-   cursor: text;  
-}
-
-#bible-annotation-layer {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  overflow: visible;
+  cursor: text;
 }
 
 #bible-drawing-area.drawing-mode {
@@ -143,6 +130,15 @@
 #bible-drawing-area.drawing-mode,
 #bible-drawing-area.drawing-mode * {
   user-select: none;
+}
+
+#bible-annotation-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
 }
 
 .drawn-annotation {
