@@ -73,7 +73,7 @@
 .eb-container .bible-user-format.double-underline {
   text-decoration-line: underline !important;
   text-decoration-style: double !important;
-  text-decoration-thickness: 1.5px;
+  text-decoration-thickness: 2px;
 }
 
 .eb-container .bible-user-format.strike-through {
