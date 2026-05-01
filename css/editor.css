@@ -60,6 +60,12 @@
   background: #f3f3f3;
 }
 
+#bible-mini-toolbar button.active-tool {
+  background: #31ACFF;
+  color: #fff;
+  border-color: #31ACFF;
+}
+
 #bible-text {
   padding: 20px;
   font-size: 18px;
