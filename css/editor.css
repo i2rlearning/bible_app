@@ -227,10 +227,12 @@
 }
 
 .toolbar-separator {
-  color: #777;
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  background: #777;
   margin: 0 4px;
   user-select: none;
-  text-decoration-thickness: 2px;
 }
 
 .text-tool-button {
