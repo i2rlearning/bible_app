@@ -69,10 +69,10 @@
         </div>
         
         <span class="toolbar-separator">|</span>    
-        <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" title="Text / Select">T</button>
-        <button onclick="setDrawingTool('circle')" title="Draw a circle">◯</button>
-        <button onclick="setDrawingTool('square')" title="Draw a square">⬜</button>
-        <button onclick="setDrawingTool('freehand')" title="Freehand Draw">✎</button>  
+        <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" data-drawing-tool="text" title="Text / Select">T</button>
+        <button onclick="setDrawingTool('circle')" data-drawing-tool="circle" title="Draw a circle">◯</button>
+        <button onclick="setDrawingTool('square')" data-drawing-tool="square" title="Draw a square">⬜</button>
+        <button onclick="setDrawingTool('freehand')" data-drawing-tool="freehand" title="Freehand Draw">✎</button>
         
         <span class="toolbar-separator">|</span>
         <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();" title="Clear Format">Clear</button>
@@ -491,14 +491,30 @@
       }
     
       function setDrawingTool(tool) {
-        activeDrawingTool = tool;
-    
-        if (tool) {
-          drawingArea.classList.add("drawing-mode");
-        } else {
-          drawingArea.classList.remove("drawing-mode");
+          activeDrawingTool = tool;
+        
+          document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+            button.classList.remove("active-tool");
+          });
+        
+          if (tool) {
+            drawingArea.classList.add("drawing-mode");
+        
+            const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
+            if (activeButton) {
+              activeButton.classList.add("active-tool");
+            }
+          } else {
+            drawingArea.classList.remove("drawing-mode");
+        
+            const textButton = document.querySelector('[data-drawing-tool="text"]');
+            if (textButton) {
+              textButton.classList.add("active-tool");
+            }
+          }
         }
-      }
+        
+        setDrawingTool(null);
     
       annotationLayer.addEventListener("click", function (event) {
         if (!event.target.classList.contains("drawn-annotation")) return;
@@ -614,7 +630,7 @@
         isDrawing = false;
         currentShape = null;
     
-        setDrawingTool(null);
+        //setDrawingTool(null);
       });
     
       window.addEventListener("resize", resizeAnnotationLayer);
