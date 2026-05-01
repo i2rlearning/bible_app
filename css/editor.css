@@ -208,3 +208,9 @@
 .color-option.orange {
   background: #ffd59e !important;
 }
+
+.toolbar-separator {
+  color: #bbb;
+  margin: 0 4px;
+  user-select: none;
+}
