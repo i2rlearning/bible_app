@@ -1,6 +1,7 @@
 // 1. Switch from 'style' to 'class' (This stops the inline style conflicts)
 const Size = Quill.import('attributors/class/size');
 Size.whitelist = ['8px', '10px', '12px', '14px', '16px', '18px', '24px', '32px'];
+Size.default = '16px'; 
 Quill.register(Size, true);
 
 const toolbarOptions = [
