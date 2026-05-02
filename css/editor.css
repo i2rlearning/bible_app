@@ -41,6 +41,7 @@
 }
 
 /* Optional: Make the items in the dropdown list actually reflect their size */
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8px"] { font-size: 8px; }
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"] { font-size: 10px; }
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
 /* 16px is missing because it is the default*/
