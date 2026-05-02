@@ -45,7 +45,7 @@
 
 /************* Quill size dropdown labels *************/
 
-/* Main toolbar label when no specific size is selected */
+/* Main toolbar label when default size is selected */
 .ql-snow .ql-picker.ql-size .ql-picker-label::before {
   content: "16px" !important;
 }
@@ -56,7 +56,7 @@
 }
 
 /* Dropdown item for default size */
-.ql-snow .ql-picker.ql-size .ql-picker-item::before {
+.ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before {
   content: "16px" !important;
 }
 
@@ -65,9 +65,37 @@
   content: attr(data-value) !important;
 }
 
-/* Keep dropdown list visually consistent */
-.ql-snow .ql-picker.ql-size .ql-picker-item {
+/************* Quill size dropdown visual previews *************/
+.ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before {
+  font-size: 16px !important;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8px"]::before {
+  font-size: 8px !important;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before {
+  font-size: 10px !important;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before {
+  font-size: 12px !important;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before {
   font-size: 14px !important;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before {
+  font-size: 18px !important;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before {
+  font-size: 24px !important;
+}
+
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before {
+  font-size: 32px !important;
 }
 
 
