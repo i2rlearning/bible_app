@@ -1,42 +1,51 @@
 /************* Quill Editor *************/
-/* Force bolding to show through any spans or size attributes */
+
+/* 1. Set the Global Default */
+.ql-editor {
+  font-size: 16px; 
+  line-height: 1.6;
+}
+
+/* 2. Bold Fixes: Ensure strong tags override everything */
 .ql-editor strong, 
 .ql-editor b {
   font-weight: bold !important;
 }
 
-/* Ensure the spans inside the editor don't force a normal weight */
-.ql-editor span {
-  font-weight: inherit;
-}
+/* 3. Class-Based Sizes (The "Automatic" way) */
+/* These match the JS: const Size = Quill.import('attributors/class/size'); */
+.ql-editor .ql-size-8px  { font-size: 8px; }
+.ql-editor .ql-size-10px { font-size: 10px; }
+.ql-editor .ql-size-12px { font-size: 12px; }
+.ql-editor .ql-size-14px { font-size: 14px; }
+/* We skip 16px here because it's the default above */
+.ql-editor .ql-size-18px { font-size: 18px; }
+.ql-editor .ql-size-24px { font-size: 24px; }
+.ql-editor .ql-size-32px { font-size: 32px; }
 
-/* Show "Size" when nothing is applied (unselected state) */
+/* 4. Toolbar UI: Make the dropdown look correct */
+
+/* Force the main label to show '16px' by default */
 .ql-snow .ql-picker.ql-size .ql-picker-label::before {
-    content: "Size";
+  content: '16px' !important;
 }
 
-/* 2. Show the actual data-value for the SELECTED TITLE */
-/* This targets the label when a data-value is present and forces the content to be that value. */
-/* This is the key fix for the "Normal" title. */
+/* If a user selects a different size, show THAT size in the label */
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value]::before {
-    content: attr(data-value) !important;
+  content: attr(data-value) !important;
 }
 
-/* 3. Show the actual data-value for the ITEMS inside the dropdown */
-/* This forces the content for ALL list items (including the one that was 'Normal') to be its data-value. */
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value]::before {
-    content: attr(data-value) !important;
+/* Show the actual numbers in the dropdown list items */
+.ql-snow .ql-picker.ql-size .ql-picker-item::before {
+  content: attr(data-value) !important;
 }
 
-/* 4. Ensure the actual size is applied to the text within the dropdown */
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8px"] { font-size: 8px !important; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"] { font-size: 10px !important; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"] { font-size: 12px !important; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px !important; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px !important; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px !important; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"] { font-size: 24px !important; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"] { font-size: 32px !important; }
+/* Optional: Make the items in the dropdown list actually reflect their size */
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"] { font-size: 10px; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
+/* 16px is missing because it is the default*/
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"] { font-size: 32px; }
 
 
 /************* Mini-Editor *************/
