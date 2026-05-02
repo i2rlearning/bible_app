@@ -1,3 +1,4 @@
+/************* Quill Editor *************/
 /* Force bolding to show through any spans or size attributes */
 .ql-editor strong, 
 .ql-editor b {
@@ -38,6 +39,7 @@
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"] { font-size: 32px !important; }
 
 
+/************* Mini-Editor *************/
 #bible-mini-toolbar {
   position: fixed;
   top: 35px;
