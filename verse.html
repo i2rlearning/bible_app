@@ -105,8 +105,7 @@
       <div id="editor" style="height: 200px; background-color: white; border: 1px solid black;"></div>
       <div class="bottom-spacer"></div>
     
-    </main>
-   
+    </main>   
 
     <script src="js/my_key.js"></script>
     <script src="https://cdn.scripture.api.bible/fums/fumsv2.min.js"></script>
@@ -120,7 +119,6 @@
     
       const searchInput = document.querySelector(`#search-input`);
       const bibleSectionList = document.querySelector(`#section-list`);
-      // const bibleVerseList = document.querySelector(`#verse-list`);
       const chapterText = document.querySelector(`#chapter-text`);
       const bibleVersionID = getParameterByName(`version`);
       const bibleChapterID = getParameterByName(`chapter`);
@@ -134,11 +132,6 @@
         window.location.href = `./index.html`;
       }
     
-      getChapterText(bibleChapterID).then((content) => {
-        document.getElementById("bible-text").innerHTML = content;
-        resizeAnnotationLayer();
-      });
-    
       const [book, chapter] = bibleChapterID.split(`.`);
       const bibleHTML = `${abbreviation}`;
       const bookChapHTML = `${bibleName} ${chapter}`;
@@ -150,6 +143,43 @@
       // Gets full book name for tooltip
       var fbookname = sessionStorage.getItem("fullbookname");
       document.getElementById("biblefullname").innerHTML = fbookname;
+    
+      // ******************* Bible zoom state *********************
+      const fontSizeSlider = document.getElementById("font-size-slider");
+    
+      let currentBibleZoom = 1;
+    
+      fontSizeSlider.min = 18;
+      fontSizeSlider.max = 35;
+      fontSizeSlider.value = 18;
+    
+      function updateBibleZoomLayout() {
+        const displayText = document.getElementById("display-text");
+        const drawingArea = document.getElementById("bible-drawing-area");
+    
+        if (!displayText || !drawingArea) return;
+    
+        drawingArea.style.transform = `scale(${currentBibleZoom})`;
+        drawingArea.style.transformOrigin = "top left";
+    
+        displayText.style.height = `${drawingArea.scrollHeight * currentBibleZoom}px`;
+      }
+    
+      fontSizeSlider.addEventListener("input", () => {
+        const sliderValue = Number(fontSizeSlider.value);
+    
+        // 18 = 100%, 35 = about 194%
+        currentBibleZoom = sliderValue / 18;
+    
+        updateBibleZoomLayout();
+      });
+    
+      // ******************* Load chapter text *********************
+      getChapterText(bibleChapterID).then((content) => {
+        document.getElementById("bible-text").innerHTML = content;
+        resizeAnnotationLayer();
+        updateBibleZoomLayout();
+      });
     
       /**
        * Gets verses from API.Bible
@@ -346,24 +376,6 @@
         }
       });
     
-      // ******************* Font resize slider *********************
-      const fontSizeSlider = document.getElementById("font-size-slider");
-    
-      let currentBibleFontSize = Number(fontSizeSlider.value);
-
-        fontSizeSlider.addEventListener("input", () => {
-          const newFontSize = Number(fontSizeSlider.value);
-          const scale = newFontSize / currentBibleFontSize;
-        
-          document.getElementById("bible-text").style.fontSize = `${newFontSize}px`;
-        
-          setTimeout(() => {
-            resizeAnnotationLayer();
-            scaleDrawnAnnotations(scale);
-            currentBibleFontSize = newFontSize;
-          }, 0);
-        });
-    
       // ******************* Mini-editor text formatting *********************
       function applyBibleFormat(className) {
         const selection = window.getSelection();
@@ -494,30 +506,30 @@
       }
     
       function setDrawingTool(tool) {
-          activeDrawingTool = tool;
-        
-          document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
-            button.classList.remove("active-tool");
-          });
-        
-          if (tool) {
-            drawingArea.classList.add("drawing-mode");
-        
-            const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
-            if (activeButton) {
-              activeButton.classList.add("active-tool");
-            }
-          } else {
-            drawingArea.classList.remove("drawing-mode");
-        
-            const textButton = document.querySelector('[data-drawing-tool="text"]');
-            if (textButton) {
-              textButton.classList.add("active-tool");
-            }
+        activeDrawingTool = tool;
+    
+        document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+          button.classList.remove("active-tool");
+        });
+    
+        if (tool) {
+          drawingArea.classList.add("drawing-mode");
+    
+          const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
+          if (activeButton) {
+            activeButton.classList.add("active-tool");
+          }
+        } else {
+          drawingArea.classList.remove("drawing-mode");
+    
+          const textButton = document.querySelector('[data-drawing-tool="text"]');
+          if (textButton) {
+            textButton.classList.add("active-tool");
           }
         }
-        
-        setDrawingTool(null);
+      }
+    
+      setDrawingTool(null);
     
       annotationLayer.addEventListener("click", function (event) {
         if (!event.target.classList.contains("drawn-annotation")) return;
@@ -557,8 +569,8 @@
     
         const rect = drawingArea.getBoundingClientRect();
     
-        startX = event.clientX - rect.left;
-        startY = event.clientY - rect.top;
+        startX = (event.clientX - rect.left) / currentBibleZoom;
+        startY = (event.clientY - rect.top) / currentBibleZoom;
     
         if (activeDrawingTool === "circle") {
           currentShape = document.createElementNS(
@@ -577,19 +589,19 @@
           currentShape.classList.add("drawn-annotation", "square");
           annotationLayer.appendChild(currentShape);
         }
-
+    
         if (activeDrawingTool === "freehand") {
           freehandPoints = [`M ${startX} ${startY}`];
-        
+    
           currentShape = document.createElementNS(
             "http://www.w3.org/2000/svg",
             "path"
           );
-        
+    
           currentShape.classList.add("drawn-annotation", "freehand");
           currentShape.setAttribute("d", freehandPoints.join(" "));
           annotationLayer.appendChild(currentShape);
-        }  
+        }
       });
     
       drawingArea.addEventListener("mousemove", function (event) {
@@ -599,8 +611,8 @@
     
         const rect = drawingArea.getBoundingClientRect();
     
-        const currentX = event.clientX - rect.left;
-        const currentY = event.clientY - rect.top;
+        const currentX = (event.clientX - rect.left) / currentBibleZoom;
+        const currentY = (event.clientY - rect.top) / currentBibleZoom;
     
         const x = Math.min(startX, currentX);
         const y = Math.min(startY, currentY);
@@ -620,11 +632,11 @@
           currentShape.setAttribute("width", width);
           currentShape.setAttribute("height", height);
         }
-
+    
         if (activeDrawingTool === "freehand") {
           freehandPoints.push(`L ${currentX} ${currentY}`);
           currentShape.setAttribute("d", freehandPoints.join(" "));
-        }  
+        }
       });
     
       drawingArea.addEventListener("mouseup", function () {
@@ -632,48 +644,38 @@
     
         isDrawing = false;
         currentShape = null;
-    
-        //setDrawingTool(null);
       });
     
-      window.addEventListener("resize", resizeAnnotationLayer);
-
-     function scaleDrawnAnnotations(scale) {
-      document.querySelectorAll(".drawn-annotation").forEach((shape) => {
-        if (shape.tagName.toLowerCase() === "ellipse") {
-          shape.setAttribute("cx", Number(shape.getAttribute("cx")) * scale);
-          shape.setAttribute("cy", Number(shape.getAttribute("cy")) * scale);
-          shape.setAttribute("rx", Number(shape.getAttribute("rx")) * scale);
-          shape.setAttribute("ry", Number(shape.getAttribute("ry")) * scale);
-        }
+      document.addEventListener("mouseup", function () {
+        if (!isDrawing) return;
     
-        if (shape.tagName.toLowerCase() === "rect") {
-          shape.setAttribute("x", Number(shape.getAttribute("x")) * scale);
-          shape.setAttribute("y", Number(shape.getAttribute("y")) * scale);
-          shape.setAttribute("width", Number(shape.getAttribute("width")) * scale);
-          shape.setAttribute("height", Number(shape.getAttribute("height")) * scale);
-        }
+        isDrawing = false;
+        currentShape = null;
       });
-    }   
-
-     //********** Highlighter **********//    
-     function toggleHighlightMenu() {
-      document.getElementById("highlight-menu").classList.toggle("show");
-    }
     
-    function closeHighlightMenu() {
-      document.getElementById("highlight-menu").classList.remove("show");
-    }
+      window.addEventListener("resize", function () {
+        resizeAnnotationLayer();
+        updateBibleZoomLayout();
+      });
     
-    document.addEventListener("click", function(event) {
-      const dropdown = document.querySelector(".toolbar-dropdown");
-    
-      if (!dropdown) return;
-    
-      if (!dropdown.contains(event.target)) {
-        closeHighlightMenu();
+      //********** Highlighter **********//
+      function toggleHighlightMenu() {
+        document.getElementById("highlight-menu").classList.toggle("show");
       }
-    });        
+    
+      function closeHighlightMenu() {
+        document.getElementById("highlight-menu").classList.remove("show");
+      }
+    
+      document.addEventListener("click", function (event) {
+        const dropdown = document.querySelector(".toolbar-dropdown");
+    
+        if (!dropdown) return;
+    
+        if (!dropdown.contains(event.target)) {
+          closeHighlightMenu();
+        }
+      });
     </script>
 </body>
 </html>
