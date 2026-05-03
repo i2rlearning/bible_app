@@ -197,7 +197,7 @@
 }
 
 #bible-drawing-area.drawing-mode {
-  cursor: pointer;
+  cursor: default;
 }
 
 #bible-drawing-area.drawing-mode,
