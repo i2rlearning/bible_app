@@ -319,7 +319,8 @@
 /* Used for zooming in/out text with drawings */
 #display-text {
   padding-top: 45px;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 #bible-drawing-area {
