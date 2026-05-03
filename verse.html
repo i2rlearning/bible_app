@@ -152,16 +152,25 @@
       fontSizeSlider.value = 18;
     
       function updateBibleZoomLayout() {
-        const displayText = document.getElementById("display-text");
-        const drawingArea = document.getElementById("bible-drawing-area");
-    
-        if (!displayText || !drawingArea) return;
-    
-        drawingArea.style.transform = `scale(${currentBibleZoom})`;
-        drawingArea.style.transformOrigin = "top left";
-    
-        displayText.style.height = `${drawingArea.scrollHeight * currentBibleZoom}px`;
-      }
+          const displayText = document.getElementById("display-text");
+          const drawingArea = document.getElementById("bible-drawing-area");
+        
+          if (!displayText || !drawingArea) return;
+        
+          drawingArea.style.transform = `scale(${currentBibleZoom})`;
+          drawingArea.style.transformOrigin = "top left";
+        
+          const zoomedHeight = drawingArea.scrollHeight * currentBibleZoom;
+          const zoomedWidth = drawingArea.scrollWidth * currentBibleZoom;
+        
+          displayText.style.height = `${zoomedHeight}px`;
+          displayText.style.minHeight = `${zoomedHeight}px`;
+        
+          drawingArea.style.width = `${drawingArea.scrollWidth}px`;
+        
+          displayText.style.overflowX = zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
+          displayText.style.overflowY = "visible";
+        }
     
       fontSizeSlider.addEventListener("input", () => {
         const sliderValue = Number(fontSizeSlider.value);
