@@ -624,32 +624,24 @@
         }  
     
       function setDrawingTool(tool) {
-          if (activeDrawingTool === "freehand" && tool !== "freehand") {
-            finalizeFreehandGroup();
-          }
+        if (activeDrawingTool === "freehand") {
+          freehandPoints = [`M ${startX} ${startY}`];
         
-          activeDrawingTool = tool;
+          currentShape = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "path"
+          );
         
-          document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
-            button.classList.remove("active-tool");
-          });
+          currentShape.classList.add("freehand");
+          currentShape.setAttribute("d", freehandPoints.join(" "));
         
-          if (tool) {
-            drawingArea.classList.add("drawing-mode");
-        
-            const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
-            if (activeButton) {
-              activeButton.classList.add("active-tool");
-            }
-          } else {
-            drawingArea.classList.remove("drawing-mode");
-        
-            const textButton = document.querySelector('[data-drawing-tool="text"]');
-            if (textButton) {
-              textButton.classList.add("active-tool");
-            }
-          }
+          // Temporarily place the path on the SVG layer.
+          // When the user releases the mouse, we attach it to the correct group.
+          annotationLayer.appendChild(currentShape);
         }
+    });
+
+drawingArea.addEventListener("mousemove", function (event) {
     
       setDrawingTool(null);
     
