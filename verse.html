@@ -160,16 +160,29 @@
           drawingArea.style.transform = `scale(${currentBibleZoom})`;
           drawingArea.style.transformOrigin = "top left";
         
-          const zoomedHeight = drawingArea.scrollHeight * currentBibleZoom;
-          const zoomedWidth = drawingArea.scrollWidth * currentBibleZoom;
+          const displayStyles = window.getComputedStyle(displayText);
         
-          displayText.style.height = `${zoomedHeight}px`;
-          displayText.style.minHeight = `${zoomedHeight}px`;
+          const paddingTop = parseFloat(displayStyles.paddingTop) || 0;
+          const paddingBottom = parseFloat(displayStyles.paddingBottom) || 0;
         
-          drawingArea.style.width = `${drawingArea.scrollWidth}px`;
+          const originalHeight = drawingArea.scrollHeight;
+          const originalWidth = drawingArea.scrollWidth;
         
-          displayText.style.overflowX = zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
-          displayText.style.overflowY = "visible";
+          const zoomedHeight = originalHeight * currentBibleZoom;
+          const zoomedWidth = originalWidth * currentBibleZoom;
+        
+          // Add padding and a small safety buffer so the bottom never gets cut off
+          const totalHeight = zoomedHeight + paddingTop + paddingBottom + 30;
+        
+          displayText.style.height = `${totalHeight}px`;
+          displayText.style.minHeight = `${totalHeight}px`;
+        
+          drawingArea.style.width = `${originalWidth}px`;
+        
+          displayText.style.overflowX =
+            zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
+        
+          displayText.style.overflowY = "hidden";
         }
     
       fontSizeSlider.addEventListener("input", () => {
