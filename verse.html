@@ -510,6 +510,11 @@
       let selectedDrawnAnnotation = null;
       let freehandPoints = [];
     
+      let currentFreehandGroup = null;
+      let freehandGroupCounter = 0;
+    
+      const FREEHAND_GROUP_TOUCH_PADDING = 10;
+    
       const drawingArea = document.getElementById("bible-drawing-area");
       const annotationLayer = document.getElementById("bible-annotation-layer");
     
@@ -524,30 +529,115 @@
         annotationLayer.style.width = `${bibleText.scrollWidth}px`;
         annotationLayer.style.height = `${bibleText.scrollHeight}px`;
       }
+
+      function getExpandedBBox(element, padding = 0) {
+          const box = element.getBBox();
+        
+          return {
+            x: box.x - padding,
+            y: box.y - padding,
+            width: box.width + padding * 2,
+            height: box.height + padding * 2,
+            right: box.x + box.width + padding,
+            bottom: box.y + box.height + padding
+          };
+        }
+        
+        function boxesOverlap(a, b) {
+          return !(
+            a.right < b.x ||
+            a.x > b.right ||
+            a.bottom < b.y ||
+            a.y > b.bottom
+          );
+        }
+        
+        function findTouchingFreehandGroups(path) {
+          const pathBox = getExpandedBBox(path, FREEHAND_GROUP_TOUCH_PADDING);
+        
+          return Array.from(annotationLayer.querySelectorAll(".freehand-group")).filter((group) => {
+            if (group.contains(path)) return false;
+        
+            const groupBox = getExpandedBBox(group, FREEHAND_GROUP_TOUCH_PADDING);
+            return boxesOverlap(pathBox, groupBox);
+          });
+        }
+        
+        function createFreehandGroup() {
+          const newGroup = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "g"
+          );
+        
+          newGroup.classList.add("drawn-annotation", "freehand-group");
+          newGroup.dataset.groupId = `freehand-${freehandGroupCounter++}`;
+        
+          annotationLayer.appendChild(newGroup);
+        
+          return newGroup;
+        }
+        
+        function mergeFreehandGroups(targetGroup, groupsToMerge) {
+          groupsToMerge.forEach((group) => {
+            while (group.firstChild) {
+              targetGroup.appendChild(group.firstChild);
+            }
+        
+            group.remove();
+          });
+        }
+        
+        function attachFreehandPathToGroup(path) {
+          const touchingGroups = findTouchingFreehandGroups(path);
+        
+          if (touchingGroups.length === 0) {
+            const group = currentFreehandGroup || createFreehandGroup();
+            group.appendChild(path);
+            currentFreehandGroup = group;
+            return;
+          }
+        
+          const targetGroup = touchingGroups[0];
+          targetGroup.appendChild(path);
+        
+          if (touchingGroups.length > 1) {
+            mergeFreehandGroups(targetGroup, touchingGroups.slice(1));
+          }
+        
+          currentFreehandGroup = targetGroup;
+        }
+        
+        function finalizeFreehandGroup() {
+          currentFreehandGroup = null;
+        }  
     
       function setDrawingTool(tool) {
-        activeDrawingTool = tool;
-    
-        document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
-          button.classList.remove("active-tool");
-        });
-    
-        if (tool) {
-          drawingArea.classList.add("drawing-mode");
-    
-          const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
-          if (activeButton) {
-            activeButton.classList.add("active-tool");
+          if (activeDrawingTool === "freehand" && tool !== "freehand") {
+            finalizeFreehandGroup();
           }
-        } else {
-          drawingArea.classList.remove("drawing-mode");
-    
-          const textButton = document.querySelector('[data-drawing-tool="text"]');
-          if (textButton) {
-            textButton.classList.add("active-tool");
+        
+          activeDrawingTool = tool;
+        
+          document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+            button.classList.remove("active-tool");
+          });
+        
+          if (tool) {
+            drawingArea.classList.add("drawing-mode");
+        
+            const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
+            if (activeButton) {
+              activeButton.classList.add("active-tool");
+            }
+          } else {
+            drawingArea.classList.remove("drawing-mode");
+        
+            const textButton = document.querySelector('[data-drawing-tool="text"]');
+            if (textButton) {
+              textButton.classList.add("active-tool");
+            }
           }
         }
-      }
     
       setDrawingTool(null);
     
@@ -612,17 +702,19 @@
     
         if (activeDrawingTool === "freehand") {
           freehandPoints = [`M ${startX} ${startY}`];
-    
+        
           currentShape = document.createElementNS(
             "http://www.w3.org/2000/svg",
             "path"
           );
-    
-          currentShape.classList.add("drawn-annotation", "freehand");
+        
+          currentShape.classList.add("freehand");
           currentShape.setAttribute("d", freehandPoints.join(" "));
+        
+          // Temporarily place the path on the SVG layer.
+          // When the user releases the mouse, we attach it to the correct group.
           annotationLayer.appendChild(currentShape);
         }
-      });
     
       drawingArea.addEventListener("mousemove", function (event) {
         if (!isDrawing || !currentShape) return;
@@ -659,19 +751,19 @@
         }
       });
     
-      drawingArea.addEventListener("mouseup", function () {
-        if (!isDrawing) return;
-    
-        isDrawing = false;
-        currentShape = null;
-      });
-    
-      document.addEventListener("mouseup", function () {
-        if (!isDrawing) return;
-    
-        isDrawing = false;
-        currentShape = null;
-      });
+      function finishDrawingStroke() {
+          if (!isDrawing) return;
+        
+          if (activeDrawingTool === "freehand" && currentShape) {
+            attachFreehandPathToGroup(currentShape);
+          }
+        
+          isDrawing = false;
+          currentShape = null;
+        }
+        
+        drawingArea.addEventListener("mouseup", finishDrawingStroke);
+        document.addEventListener("mouseup", finishDrawingStroke);
     
       window.addEventListener("resize", function () {
         resizeAnnotationLayer();
