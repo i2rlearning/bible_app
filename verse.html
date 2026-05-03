@@ -604,7 +604,7 @@
         const touchingGroups = findTouchingFreehandGroups(path);
     
         if (touchingGroups.length === 0) {
-          const group = currentFreehandGroup || createFreehandGroup();
+          const group = createFreehandGroup();
           group.appendChild(path);
           currentFreehandGroup = group;
           return;
