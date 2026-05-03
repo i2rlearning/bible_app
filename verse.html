@@ -147,9 +147,9 @@
       }
     
       // Gets full book name for tooltip
-      var fbookname = sessionStorage.getItem("fullbookname");
+      const fbookname = sessionStorage.getItem("fullbookname");
       const bibleFullName = document.getElementById("biblefullname");
-
+    
       if (bibleFullName) {
         bibleFullName.innerHTML = fbookname;
       }
@@ -164,38 +164,37 @@
       fontSizeSlider.value = 18;
     
       function updateBibleZoomLayout() {
-          const displayText = document.getElementById("display-text");
-          const drawingArea = document.getElementById("bible-drawing-area");
-        
-          if (!displayText || !drawingArea) return;
-        
-          drawingArea.style.transform = `scale(${currentBibleZoom})`;
-          drawingArea.style.transformOrigin = "top left";
-        
-          const displayStyles = window.getComputedStyle(displayText);
-        
-          const paddingTop = parseFloat(displayStyles.paddingTop) || 0;
-          const paddingBottom = parseFloat(displayStyles.paddingBottom) || 0;
-        
-          const originalHeight = drawingArea.scrollHeight;
-          const originalWidth = drawingArea.scrollWidth;
-        
-          const zoomedHeight = originalHeight * currentBibleZoom;
-          const zoomedWidth = originalWidth * currentBibleZoom;
-        
-          // Add padding and a small safety buffer so the bottom never gets cut off
-          const totalHeight = zoomedHeight + paddingTop + paddingBottom + 30;
-        
-          displayText.style.height = `${totalHeight}px`;
-          displayText.style.minHeight = `${totalHeight}px`;
-        
-          drawingArea.style.width = `${originalWidth}px`;
-        
-          displayText.style.overflowX =
-            zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
-        
-          displayText.style.overflowY = "hidden";
-        }
+        const displayText = document.getElementById("display-text");
+        const drawingArea = document.getElementById("bible-drawing-area");
+    
+        if (!displayText || !drawingArea) return;
+    
+        drawingArea.style.transform = `scale(${currentBibleZoom})`;
+        drawingArea.style.transformOrigin = "top left";
+    
+        const displayStyles = window.getComputedStyle(displayText);
+    
+        const paddingTop = parseFloat(displayStyles.paddingTop) || 0;
+        const paddingBottom = parseFloat(displayStyles.paddingBottom) || 0;
+    
+        const originalHeight = drawingArea.scrollHeight;
+        const originalWidth = drawingArea.scrollWidth;
+    
+        const zoomedHeight = originalHeight * currentBibleZoom;
+        const zoomedWidth = originalWidth * currentBibleZoom;
+    
+        const totalHeight = zoomedHeight + paddingTop + paddingBottom + 30;
+    
+        displayText.style.height = `${totalHeight}px`;
+        displayText.style.minHeight = `${totalHeight}px`;
+    
+        drawingArea.style.width = `${originalWidth}px`;
+    
+        displayText.style.overflowX =
+          zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
+    
+        displayText.style.overflowY = "hidden";
+      }
     
       fontSizeSlider.addEventListener("input", () => {
         const sliderValue = Number(fontSizeSlider.value);
@@ -338,10 +337,10 @@
       function openNav() {
         document.getElementById("menuNav").style.width = "225px";
     
-        var bookLink = sessionStorage.getItem("bookabbr");
+        const bookLink = sessionStorage.getItem("bookabbr");
         document.getElementById("bookurl").setAttribute("href", bookLink);
     
-        var chapterLink = sessionStorage.getItem("chapter");
+        const chapterLink = sessionStorage.getItem("chapter");
         document.getElementById("chapterurl").setAttribute("href", chapterLink);
       }
     
@@ -350,13 +349,13 @@
       }
     
       // ******************* Left/Right Seals *********************
-      var imageLeft = document.getElementById("imgleft");
-      var imageRight = document.getElementById("imgright");
-      var currURL = window.location.href;
-      var lastchar = currURL.substring(currURL.length - 2);
-      var charpos = lastchar.indexOf(".");
-      var currNum = -1;
-      var urlwonum = "";
+      const imageLeft = document.getElementById("imgleft");
+      const imageRight = document.getElementById("imgright");
+      const currURL = window.location.href;
+      const lastchar = currURL.substring(currURL.length - 2);
+      const charpos = lastchar.indexOf(".");
+      let currNum = -1;
+      let urlwonum = "";
     
       switch (charpos) {
         case 0:
@@ -541,114 +540,126 @@
         annotationLayer.style.width = `${bibleText.scrollWidth}px`;
         annotationLayer.style.height = `${bibleText.scrollHeight}px`;
       }
-
+    
       function getExpandedBBox(element, padding = 0) {
-          const box = element.getBBox();
-        
-          return {
-            x: box.x - padding,
-            y: box.y - padding,
-            width: box.width + padding * 2,
-            height: box.height + padding * 2,
-            right: box.x + box.width + padding,
-            bottom: box.y + box.height + padding
-          };
-        }
-        
-        function boxesOverlap(a, b) {
-          return !(
-            a.right < b.x ||
-            a.x > b.right ||
-            a.bottom < b.y ||
-            a.y > b.bottom
-          );
-        }
-        
-        function findTouchingFreehandGroups(path) {
-          const pathBox = getExpandedBBox(path, FREEHAND_GROUP_TOUCH_PADDING);
-        
-          return Array.from(annotationLayer.querySelectorAll(".freehand-group")).filter((group) => {
+        const box = element.getBBox();
+    
+        return {
+          x: box.x - padding,
+          y: box.y - padding,
+          width: box.width + padding * 2,
+          height: box.height + padding * 2,
+          right: box.x + box.width + padding,
+          bottom: box.y + box.height + padding,
+        };
+      }
+    
+      function boxesOverlap(a, b) {
+        return !(
+          a.right < b.x ||
+          a.x > b.right ||
+          a.bottom < b.y ||
+          a.y > b.bottom
+        );
+      }
+    
+      function findTouchingFreehandGroups(path) {
+        const pathBox = getExpandedBBox(path, FREEHAND_GROUP_TOUCH_PADDING);
+    
+        return Array.from(annotationLayer.querySelectorAll(".freehand-group")).filter(
+          (group) => {
             if (group.contains(path)) return false;
-        
+    
             const groupBox = getExpandedBBox(group, FREEHAND_GROUP_TOUCH_PADDING);
             return boxesOverlap(pathBox, groupBox);
-          });
-        }
-        
-        function createFreehandGroup() {
-          const newGroup = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "g"
-          );
-        
-          newGroup.classList.add("drawn-annotation", "freehand-group");
-          newGroup.dataset.groupId = `freehand-${freehandGroupCounter++}`;
-        
-          annotationLayer.appendChild(newGroup);
-        
-          return newGroup;
-        }
-        
-        function mergeFreehandGroups(targetGroup, groupsToMerge) {
-          groupsToMerge.forEach((group) => {
-            while (group.firstChild) {
-              targetGroup.appendChild(group.firstChild);
-            }
-        
-            group.remove();
-          });
-        }
-        
-        function attachFreehandPathToGroup(path) {
-          const touchingGroups = findTouchingFreehandGroups(path);
-        
-          if (touchingGroups.length === 0) {
-            const group = currentFreehandGroup || createFreehandGroup();
-            group.appendChild(path);
-            currentFreehandGroup = group;
-            return;
           }
-        
-          const targetGroup = touchingGroups[0];
-          targetGroup.appendChild(path);
-        
-          if (touchingGroups.length > 1) {
-            mergeFreehandGroups(targetGroup, touchingGroups.slice(1));
+        );
+      }
+    
+      function createFreehandGroup() {
+        const newGroup = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g"
+        );
+    
+        newGroup.classList.add("drawn-annotation", "freehand-group");
+        newGroup.dataset.groupId = `freehand-${freehandGroupCounter++}`;
+    
+        annotationLayer.appendChild(newGroup);
+    
+        return newGroup;
+      }
+    
+      function mergeFreehandGroups(targetGroup, groupsToMerge) {
+        groupsToMerge.forEach((group) => {
+          while (group.firstChild) {
+            targetGroup.appendChild(group.firstChild);
           }
-        
-          currentFreehandGroup = targetGroup;
+    
+          group.remove();
+        });
+      }
+    
+      function attachFreehandPathToGroup(path) {
+        const touchingGroups = findTouchingFreehandGroups(path);
+    
+        if (touchingGroups.length === 0) {
+          const group = currentFreehandGroup || createFreehandGroup();
+          group.appendChild(path);
+          currentFreehandGroup = group;
+          return;
         }
-        
-        function finalizeFreehandGroup() {
-          currentFreehandGroup = null;
-        }  
+    
+        const targetGroup = touchingGroups[0];
+        targetGroup.appendChild(path);
+    
+        if (touchingGroups.length > 1) {
+          mergeFreehandGroups(targetGroup, touchingGroups.slice(1));
+        }
+    
+        currentFreehandGroup = targetGroup;
+      }
+    
+      function finalizeFreehandGroup() {
+        currentFreehandGroup = null;
+      }
     
       function setDrawingTool(tool) {
-        if (activeDrawingTool === "freehand") {
-          freehandPoints = [`M ${startX} ${startY}`];
-        
-          currentShape = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "path"
-          );
-        
-          currentShape.classList.add("freehand");
-          currentShape.setAttribute("d", freehandPoints.join(" "));
-        
-          // Temporarily place the path on the SVG layer.
-          // When the user releases the mouse, we attach it to the correct group.
-          annotationLayer.appendChild(currentShape);
+        if (activeDrawingTool === "freehand" && tool !== "freehand") {
+          finalizeFreehandGroup();
         }
-    });
-
-drawingArea.addEventListener("mousemove", function (event) {
+    
+        activeDrawingTool = tool;
+    
+        document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+          button.classList.remove("active-tool");
+        });
+    
+        if (tool) {
+          drawingArea.classList.add("drawing-mode");
+    
+          const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
+          if (activeButton) {
+            activeButton.classList.add("active-tool");
+          }
+        } else {
+          drawingArea.classList.remove("drawing-mode");
+    
+          const textButton = document.querySelector('[data-drawing-tool="text"]');
+          if (textButton) {
+            textButton.classList.add("active-tool");
+          }
+        }
+      }
     
       setDrawingTool(null);
     
       annotationLayer.addEventListener("click", function (event) {
-        if (!event.target.classList.contains("drawn-annotation")) return;
+        const clickedAnnotation = event.target.closest(".drawn-annotation");
     
-        selectedDrawnAnnotation = event.target;
+        if (!clickedAnnotation) return;
+    
+        selectedDrawnAnnotation = clickedAnnotation;
     
         document.querySelectorAll(".drawn-annotation").forEach((shape) => {
           shape.classList.remove("selected-annotation");
@@ -667,6 +678,7 @@ drawingArea.addEventListener("mousemove", function (event) {
       function clearDrawnAnnotations() {
         annotationLayer.innerHTML = "";
         selectedDrawnAnnotation = null;
+        currentFreehandGroup = null;
       }
     
       drawingArea.addEventListener("mousedown", function (event) {
@@ -691,6 +703,7 @@ drawingArea.addEventListener("mousemove", function (event) {
             "http://www.w3.org/2000/svg",
             "ellipse"
           );
+    
           currentShape.classList.add("drawn-annotation", "circle");
           annotationLayer.appendChild(currentShape);
         }
@@ -700,25 +713,27 @@ drawingArea.addEventListener("mousemove", function (event) {
             "http://www.w3.org/2000/svg",
             "rect"
           );
+    
           currentShape.classList.add("drawn-annotation", "square");
           annotationLayer.appendChild(currentShape);
         }
     
         if (activeDrawingTool === "freehand") {
           freehandPoints = [`M ${startX} ${startY}`];
-        
+    
           currentShape = document.createElementNS(
             "http://www.w3.org/2000/svg",
             "path"
           );
-        
+    
           currentShape.classList.add("freehand");
           currentShape.setAttribute("d", freehandPoints.join(" "));
-        
+    
           // Temporarily place the path on the SVG layer.
           // When the user releases the mouse, we attach it to the correct group.
           annotationLayer.appendChild(currentShape);
         }
+      });
     
       drawingArea.addEventListener("mousemove", function (event) {
         if (!isDrawing || !currentShape) return;
@@ -756,18 +771,18 @@ drawingArea.addEventListener("mousemove", function (event) {
       });
     
       function finishDrawingStroke() {
-          if (!isDrawing) return;
-        
-          if (activeDrawingTool === "freehand" && currentShape) {
-            attachFreehandPathToGroup(currentShape);
-          }
-        
-          isDrawing = false;
-          currentShape = null;
+        if (!isDrawing) return;
+    
+        if (activeDrawingTool === "freehand" && currentShape) {
+          attachFreehandPathToGroup(currentShape);
         }
-        
-        drawingArea.addEventListener("mouseup", finishDrawingStroke);
-        document.addEventListener("mouseup", finishDrawingStroke);
+    
+        isDrawing = false;
+        currentShape = null;
+      }
+    
+      drawingArea.addEventListener("mouseup", finishDrawingStroke);
+      document.addEventListener("mouseup", finishDrawingStroke);
     
       window.addEventListener("resize", function () {
         resizeAnnotationLayer();
@@ -792,6 +807,6 @@ drawingArea.addEventListener("mousemove", function (event) {
           closeHighlightMenu();
         }
       });
-    </script>
+</script>
 </body>
 </html>
