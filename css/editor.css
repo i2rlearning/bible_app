@@ -319,14 +319,8 @@
 /* Used for zooming in/out text with drawings */
 #display-text {
   padding-top: 45px;
-
-  /* horizontal scrollbar only when needed */
   overflow-x: auto !important;
-
-  /* never show vertical scrollbar inside this container */
   overflow-y: hidden !important;
-
-  /* make sure no old limit is forcing an inner scroll */
   max-height: none !important;
 }
 
