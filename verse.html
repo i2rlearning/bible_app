@@ -135,12 +135,24 @@
       const bookChapHTML = `${bibleName} ${chapter}`;
       const chapterHTML = `${chapter}`;
     
-      bible.innerHTML = bibleHTML;
-      bookChap.innerHTML = bookChapHTML;
+      const bibleTitle = document.getElementById("bible");
+      const bookChapTitle = document.getElementById("bookChap");
+    
+      if (bibleTitle) {
+        bibleTitle.innerHTML = bibleHTML;
+      }
+    
+      if (bookChapTitle) {
+        bookChapTitle.innerHTML = bookChapHTML;
+      }
     
       // Gets full book name for tooltip
       var fbookname = sessionStorage.getItem("fullbookname");
-      document.getElementById("biblefullname").innerHTML = fbookname;
+      const bibleFullName = document.getElementById("biblefullname");
+
+      if (bibleFullName) {
+        bibleFullName.innerHTML = fbookname;
+      }
     
       // ******************* Bible zoom state *********************
       const fontSizeSlider = document.getElementById("font-size-slider");
