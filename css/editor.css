@@ -233,12 +233,27 @@
   stroke-width: 4;
 }
 
-.drawn-annotation.freehand {
+/*  FREEHAND GROUP */
+.freehand-group {
+  fill: none;
   stroke: #c40000;
   stroke-width: 2;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.freehand-group path,
+.freehand {
   fill: none;
+  stroke: #c40000;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  pointer-events: stroke;
+}
+
+.freehand-group.selected-annotation path {
+  stroke-width: 4;
 }
 
 /************* Highlight dropdown *************/
