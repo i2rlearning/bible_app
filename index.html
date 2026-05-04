@@ -42,7 +42,7 @@
                 </select>
               </div>       
             </div>
-            <div class="column">
+            <!--<div class="column">
               <div class="align-group">
                 <label for="font-size-slider">Font size: </label>&nbsp;
                 <input type="range" id="font-size-slider" min="18" max="35" value="18">
@@ -50,7 +50,7 @@
             </div>  
                 <button type="button" id="login">Login</button>
                 <button type="button" id="logout" style="display:none;">Logout</button>
-          </div>
+          </div>-->
         </div>
       </div>
 
@@ -174,12 +174,12 @@
           }
         };
       
-        // 3. Font Resize Logic
-        elements.fontSizeSlider?.addEventListener("input", (e) => {
-          if (elements.displayText) {
-            elements.displayText.style.fontSize = `${e.target.value}px`;
-          }
-        });
+        //3. Font Resize Logic
+        //elements.fontSizeSlider?.addEventListener("input", (e) => {
+          //if (elements.displayText) {
+            //elements.displayText.style.fontSize = `${e.target.value}px`;
+          //}
+        //});
       
         // 4. Language Selection
         if (elements.langInput) {
