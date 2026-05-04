@@ -95,6 +95,8 @@ async function checkEditorAuth() {
 function lockEditorTools() {
   editorToolsUnlocked = false;
 
+  document.body.classList.add("editor-locked-state");
+
   if (typeof quill !== "undefined") {
     quill.disable();
   }
@@ -102,9 +104,22 @@ function lockEditorTools() {
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
   if (miniToolbar) {
+    miniToolbar.classList.add("editor-tools-locked");
+
     miniToolbar.querySelectorAll("button").forEach((button) => {
       button.disabled = true;
       button.title = "Log in to use editor tools";
+    });
+  }
+
+  const quillToolbar = document.querySelector(".ql-toolbar");
+
+  if (quillToolbar) {
+    quillToolbar.classList.add("editor-tools-locked");
+
+    quillToolbar.querySelectorAll("button, select").forEach((control) => {
+      control.disabled = true;
+      control.title = "Log in to use notes";
     });
   }
 
@@ -130,6 +145,8 @@ function lockEditorTools() {
 function unlockEditorTools() {
   editorToolsUnlocked = true;
 
+  document.body.classList.remove("editor-locked-state");
+
   if (typeof quill !== "undefined") {
     quill.enable();
   }
@@ -137,9 +154,22 @@ function unlockEditorTools() {
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
   if (miniToolbar) {
+    miniToolbar.classList.remove("editor-tools-locked");
+
     miniToolbar.querySelectorAll("button").forEach((button) => {
       button.disabled = false;
       button.title = "";
+    });
+  }
+
+  const quillToolbar = document.querySelector(".ql-toolbar");
+
+  if (quillToolbar) {
+    quillToolbar.classList.remove("editor-tools-locked");
+
+    quillToolbar.querySelectorAll("button, select").forEach((control) => {
+      control.disabled = false;
+      control.title = "";
     });
   }
 
@@ -149,5 +179,3 @@ function unlockEditorTools() {
     message.remove();
   }
 }
-
-checkEditorAuth();
