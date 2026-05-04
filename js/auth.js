@@ -180,7 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
           lockEditorTools();
         }
 
-        alert("Logged out");
+       window.location.reload();
       } catch (error) {
         alert(error.message);
       }
