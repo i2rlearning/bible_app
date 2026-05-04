@@ -1,6 +1,47 @@
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.querySelector("#loginModal form");
   const signupForm = document.querySelector("#signupModal form");
+  const loginButton = document.getElementById("login");
+  const signupButton = document.getElementById("signup");
+
+  function setLoggedInUI(user) {
+    if (loginButton) {
+      loginButton.textContent = "Logged in";
+      loginButton.disabled = true;
+      loginButton.title = user?.email || "Logged in";
+    }
+
+    if (signupButton) {
+      signupButton.style.display = "none";
+    }
+  }
+
+  function setLoggedOutUI() {
+    if (loginButton) {
+      loginButton.textContent = "Login";
+      loginButton.disabled = false;
+      loginButton.title = "";
+    }
+
+    if (signupButton) {
+      signupButton.style.display = "";
+    }
+  }
+
+  async function getJson(url) {
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include"
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Request failed");
+    }
+
+    return result;
+  }
 
   async function postJson(url, data) {
     const response = await fetch(url, {
@@ -19,6 +60,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     return result;
+  }
+
+  async function checkLoginStatus() {
+    try {
+      const result = await getJson("/api/me");
+
+      if (result.ok && result.user) {
+        setLoggedInUI(result.user);
+      } else {
+        setLoggedOutUI();
+      }
+    } catch (error) {
+      setLoggedOutUI();
+    }
   }
 
   if (signupForm) {
@@ -82,20 +137,12 @@ document.addEventListener("DOMContentLoaded", () => {
           loginModal.classList.remove("is-open");
         }
 
-        const loginButton = document.getElementById("login");
-        const signupButton = document.getElementById("signup");
-
-        if (loginButton) {
-          loginButton.textContent = "Logged in";
-          loginButton.disabled = true;
-        }
-
-        if (signupButton) {
-          signupButton.style.display = "none";
-        }
+        setLoggedInUI(result.user);
       } catch (error) {
         alert(error.message);
       }
     });
   }
+
+  checkLoginStatus();
 });
