@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.querySelector("#signupModal form");
   const loginButton = document.getElementById("login");
   const signupButton = document.getElementById("signup");
+  const logoutButton = document.getElementById("logout");
 
   function setLoggedInUI(user) {
     if (loginButton) {
@@ -13,6 +14,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (signupButton) {
       signupButton.style.display = "none";
+    }
+
+    if (logoutButton) {
+      logoutButton.style.display = "";
     }
   }
 
@@ -25,6 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (signupButton) {
       signupButton.style.display = "";
+    }
+
+    if (logoutButton) {
+      logoutButton.style.display = "none";
     }
   }
 
@@ -43,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return result;
   }
 
-  async function postJson(url, data) {
+  async function postJson(url, data = {}) {
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -138,6 +147,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         setLoggedInUI(result.user);
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  }
+
+  if (logoutButton) {
+    logoutButton.addEventListener("click", async () => {
+      try {
+        await postJson("/api/logout");
+
+        setLoggedOutUI();
+
+        alert("Logged out");
       } catch (error) {
         alert(error.message);
       }
