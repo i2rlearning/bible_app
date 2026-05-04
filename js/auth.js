@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (signupButton) {
-      signupButton.style.display = "";
+      signupButton.style.display = "none";
     }
 
     if (logoutButton) {
@@ -77,11 +77,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (result.ok && result.user) {
         setLoggedInUI(result.user);
+
+        if (typeof unlockEditorTools === "function") {
+          unlockEditorTools();
+        }
       } else {
         setLoggedOutUI();
+
+        if (typeof lockEditorTools === "function") {
+          lockEditorTools();
+        }
       }
     } catch (error) {
       setLoggedOutUI();
+
+      if (typeof lockEditorTools === "function") {
+        lockEditorTools();
+      }
     }
   }
 
@@ -147,6 +159,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         setLoggedInUI(result.user);
+
+        if (typeof unlockEditorTools === "function") {
+          unlockEditorTools();
+        }
       } catch (error) {
         alert(error.message);
       }
@@ -160,6 +176,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setLoggedOutUI();
 
+        if (typeof lockEditorTools === "function") {
+          lockEditorTools();
+        }
+
         alert("Logged out");
       } catch (error) {
         alert(error.message);
@@ -169,81 +189,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkLoginStatus();
 });
-
-// ----------------------------------------------------
-// Auth lock for editor tools
-// ----------------------------------------------------
-let editorToolsUnlocked = false;
-
-async function checkEditorAuth() {
-  try {
-    const response = await fetch("/api/me", {
-      method: "GET",
-      credentials: "include"
-    });
-
-    const result = await response.json();
-
-    if (response.ok && result.ok && result.user) {
-      unlockEditorTools();
-    } else {
-      lockEditorTools();
-    }
-  } catch (error) {
-    lockEditorTools();
-  }
-}
-
-function lockEditorTools() {
-  editorToolsUnlocked = false;
-
-  quill.disable();
-
-  const miniToolbar = document.getElementById("bible-mini-toolbar");
-
-  if (miniToolbar) {
-    miniToolbar.querySelectorAll("button").forEach((button) => {
-      button.disabled = true;
-      button.title = "Log in to use editor tools";
-    });
-  }
-
-  setDrawingTool(null);
-
-  let message = document.getElementById("editor-login-message");
-
-  if (!message) {
-    message = document.createElement("div");
-    message.id = "editor-login-message";
-    message.textContent = "Log in to use notes and editor tools.";
-
-    const editor = document.getElementById("editor");
-
-    if (editor) {
-      editor.parentNode.insertBefore(message, editor);
-    }
-  }
-}
-
-function unlockEditorTools() {
-  editorToolsUnlocked = true;
-
-  quill.enable();
-
-  const miniToolbar = document.getElementById("bible-mini-toolbar");
-
-  if (miniToolbar) {
-    miniToolbar.querySelectorAll("button").forEach((button) => {
-      button.disabled = false;
-      button.title = "";
-    });
-  }
-
-  const message = document.getElementById("editor-login-message");
-
-  if (message) {
-    message.remove();
-  }
-}
-
-checkEditorAuth();
