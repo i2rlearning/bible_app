@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
           remember
         });
 
-        alert(result.message || "Logged in");
+        //alert(result.message || "Logged in");
 
         loginForm.reset();
 
