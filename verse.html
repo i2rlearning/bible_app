@@ -75,17 +75,19 @@
         
         <span class="toolbar-separator">|</span>    
         <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" data-drawing-tool="text" title="Text / Select">T</button>
+        <span class="toolbar-separator">|</span>   
 
          <div class="toolbar-dropdown">
-          <button type="button" onclick="toggleHighlightMenu()">
+          <button type="button" onclick="toggleDrawMenu()">
             Draw ▾
-          </button>  
-            <div id="highlight-menu" class="toolbar-dropdown-menu">  
-                <button onclick="setDrawingTool('circle')" data-drawing-tool="circle" title="Draw a circle">◯</button>
-                <button onclick="setDrawingTool('square')" data-drawing-tool="square" title="Draw a square">⬜</button>
-                <button onclick="setDrawingTool('freehand')" data-drawing-tool="freehand" title="Freehand Draw">✎</button>
-            </div>
-         </div>     
+          </button>
+        
+          <div id="draw-menu" class="toolbar-dropdown-menu">
+            <button type="button" onclick="setDrawingTool('circle'); closeDrawMenu();" data-drawing-tool="circle" title="Draw a circle">◯</button>
+            <button type="button" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Draw a square">⬜</button>
+            <button type="button" onclick="setDrawingTool('freehand'); closeDrawMenu();" data-drawing-tool="freehand" title="Freehand Draw">✎</button>
+          </div>
+        </div>     
             
         <span class="toolbar-separator">|</span>
         <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();" title="Clear Format">Clear</button>
@@ -802,7 +804,7 @@
         updateBibleZoomLayout();
       });
     
-      //********** Highlighter **********//
+      //********** Dropdown Buttons (draw and highlighter) **********//
       function toggleHighlightMenu() {
         document.getElementById("highlight-menu").classList.toggle("show");
       }
@@ -810,16 +812,27 @@
       function closeHighlightMenu() {
         document.getElementById("highlight-menu").classList.remove("show");
       }
+
+      function toggleDrawMenu() {
+          document.getElementById("draw-menu").classList.toggle("show");
+      }
     
+      function closeDrawMenu() {
+          document.getElementById("draw-menu").classList.remove("show");
+      }
+        
       document.addEventListener("click", function (event) {
-        const dropdown = document.querySelector(".toolbar-dropdown");
-    
-        if (!dropdown) return;
-    
-        if (!dropdown.contains(event.target)) {
-          closeHighlightMenu();
-        }
-      });
+          const highlightDropdown = document.querySelector("#highlight-menu")?.closest(".toolbar-dropdown");
+          const drawDropdown = document.querySelector("#draw-menu")?.closest(".toolbar-dropdown");
+        
+          if (highlightDropdown && !highlightDropdown.contains(event.target)) {
+            closeHighlightMenu();
+          }
+        
+          if (drawDropdown && !drawDropdown.contains(event.target)) {
+            closeDrawMenu();
+          }
+        });
 </script>
 </body>
 </html>
