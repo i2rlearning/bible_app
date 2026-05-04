@@ -27,7 +27,7 @@
             </div>
             <div class="column">
               <div class="align-group">
-                <label for="font-size-slider">Font size: </label>&nbsp;
+                <label for="font-size-slider">Zoom: </label>&nbsp;
                 <input type="range" id="font-size-slider" min="18" max="35" value="18">
               </div>
             </div>    
@@ -74,11 +74,19 @@
         </div>
         
         <span class="toolbar-separator">|</span>    
-        <!-- <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" data-drawing-tool="text" title="Text / Select">T</button>-->
-        <button onclick="setDrawingTool('circle')" data-drawing-tool="circle" title="Draw a circle">◯</button>
-        <button onclick="setDrawingTool('square')" data-drawing-tool="square" title="Draw a square">⬜</button>
-        <button onclick="setDrawingTool('freehand')" data-drawing-tool="freehand" title="Freehand Draw">✎</button>
-        
+        <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" data-drawing-tool="text" title="Text / Select">T</button>
+
+         <div class="toolbar-dropdown">
+          <button type="button" onclick="toggleHighlightMenu()">
+            Draw ▾
+          </button>  
+            <div id="highlight-menu" class="toolbar-dropdown-menu">  
+                <button onclick="setDrawingTool('circle')" data-drawing-tool="circle" title="Draw a circle">◯</button>
+                <button onclick="setDrawingTool('square')" data-drawing-tool="square" title="Draw a square">⬜</button>
+                <button onclick="setDrawingTool('freehand')" data-drawing-tool="freehand" title="Freehand Draw">✎</button>
+            </div>
+         </div>     
+            
         <span class="toolbar-separator">|</span>
         <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();" title="Clear Format">Clear</button>
       </div>
