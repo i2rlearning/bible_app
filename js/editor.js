@@ -67,3 +67,81 @@ toolbar.container.querySelector('button.ql-indent[value="-1"]')?.setAttribute('t
 toolbar.container.querySelector('button.ql-indent[value="+1"]')?.setAttribute('title', 'Indent');
 toolbar.container.querySelector('button.ql-script[value="sub"]')?.setAttribute('title', 'Subscript');
 toolbar.container.querySelector('button.ql-script[value="super"]')?.setAttribute('title', 'Superscript');
+
+// ----------------------------------------------------
+// Auth lock for editor tools
+// ----------------------------------------------------
+let editorToolsUnlocked = false;
+
+async function checkEditorAuth() {
+  try {
+    const response = await fetch("/api/me", {
+      method: "GET",
+      credentials: "include"
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.ok && result.user) {
+      unlockEditorTools();
+    } else {
+      lockEditorTools();
+    }
+  } catch (error) {
+    lockEditorTools();
+  }
+}
+
+function lockEditorTools() {
+  editorToolsUnlocked = false;
+
+  quill.disable();
+
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+  if (miniToolbar) {
+    miniToolbar.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
+      button.title = "Log in to use editor tools";
+    });
+  }
+
+  setDrawingTool(null);
+
+  let message = document.getElementById("editor-login-message");
+
+  if (!message) {
+    message = document.createElement("div");
+    message.id = "editor-login-message";
+    message.textContent = "Log in to use notes and editor tools.";
+
+    const editor = document.getElementById("editor");
+
+    if (editor) {
+      editor.parentNode.insertBefore(message, editor);
+    }
+  }
+}
+
+function unlockEditorTools() {
+  editorToolsUnlocked = true;
+
+  quill.enable();
+
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+  if (miniToolbar) {
+    miniToolbar.querySelectorAll("button").forEach((button) => {
+      button.disabled = false;
+      button.title = "";
+    });
+  }
+
+  const message = document.getElementById("editor-login-message");
+
+  if (message) {
+    message.remove();
+  }
+}
+
+checkEditorAuth();
