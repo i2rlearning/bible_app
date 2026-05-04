@@ -8,8 +8,11 @@ const app = express();
 app.use(express.json());
 
 // PostgreSQL connection pool
+const dbUrl = new URL(process.env.DATABASE_URL);
+dbUrl.searchParams.delete("sslmode");
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl.toString(),
   ssl: {
     rejectUnauthorized: false
   }
