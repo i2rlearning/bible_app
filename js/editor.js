@@ -95,7 +95,9 @@ async function checkEditorAuth() {
 function lockEditorTools() {
   editorToolsUnlocked = false;
 
-  quill.disable();
+  if (typeof quill !== "undefined") {
+    quill.disable();
+  }
 
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
@@ -106,7 +108,9 @@ function lockEditorTools() {
     });
   }
 
-  setDrawingTool(null);
+  if (typeof setDrawingTool === "function") {
+    setDrawingTool(null);
+  }
 
   let message = document.getElementById("editor-login-message");
 
@@ -126,7 +130,9 @@ function lockEditorTools() {
 function unlockEditorTools() {
   editorToolsUnlocked = true;
 
-  quill.enable();
+  if (typeof quill !== "undefined") {
+    quill.enable();
+  }
 
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
