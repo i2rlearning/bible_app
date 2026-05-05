@@ -87,6 +87,12 @@ async function checkEditorAuth() {
       if (typeof loadQuillNotes === "function") {
         loadQuillNotes();
       }
+
+      if (typeof loadMiniEditorPage === "function") {
+        setTimeout(() => {
+          loadMiniEditorPage();
+        }, 800);
+      }
     } else {
       lockEditorTools();
     }
@@ -305,3 +311,138 @@ if (typeof quill !== "undefined") {
 
 // Run auth check after all functions are loaded
 checkEditorAuth();
+
+// ----------------------------------------------------
+// Mini-editor save/load
+// ----------------------------------------------------
+let miniEditorSaveTimer = null;
+let miniEditorLoaded = false;
+
+function getMiniEditorState() {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText) return null;
+
+  return {
+    bibleTextHtml: bibleText.innerHTML,
+    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : ""
+  };
+}
+
+function applyMiniEditorState(miniEditorJson) {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText || !miniEditorJson) return;
+
+  if (miniEditorJson.bibleTextHtml) {
+    bibleText.innerHTML = miniEditorJson.bibleTextHtml;
+  }
+
+  if (annotationLayer && typeof miniEditorJson.annotationLayerHtml === "string") {
+    annotationLayer.innerHTML = miniEditorJson.annotationLayerHtml;
+  }
+}
+
+function getMiniEditorFlags(miniEditorJson) {
+  const bibleTextHtml = miniEditorJson?.bibleTextHtml || "";
+  const annotationLayerHtml = miniEditorJson?.annotationLayerHtml || "";
+
+  return {
+    hasHighlights: bibleTextHtml.includes("highlight-"),
+    hasDrawings: annotationLayerHtml.trim().length > 0,
+    hasTextFormats:
+      bibleTextHtml.includes("bible-bold") ||
+      bibleTextHtml.includes("underline") ||
+      bibleTextHtml.includes("strike")
+  };
+}
+
+async function loadMiniEditorPage() {
+  if (!editorToolsUnlocked) return;
+
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  try {
+    const response = await fetch(`/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
+      method: "GET",
+      credentials: "include"
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to load mini-editor page");
+    }
+
+    if (result.page && result.page.mini_editor_json) {
+      applyMiniEditorState(result.page.mini_editor_json);
+    }
+
+    miniEditorLoaded = true;
+  } catch (error) {
+    console.error("Load mini-editor page error:", error);
+    miniEditorLoaded = true;
+  }
+}
+
+async function saveMiniEditorPage() {
+  if (!editorToolsUnlocked) return;
+  if (!miniEditorLoaded) return;
+
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  const miniEditorJson = getMiniEditorState();
+
+  if (!miniEditorJson) return;
+
+  const flags = getMiniEditorFlags(miniEditorJson);
+
+  try {
+    const response = await fetch("/api/mini-editor-page", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        bibleVersionID: pageIdentity.bibleVersionID,
+        bibleChapterID: pageIdentity.bibleChapterID,
+        pageKey: pageIdentity.pageKey,
+        pageUrl: window.location.pathname + window.location.search,
+        bibleName: new URLSearchParams(window.location.search).get("name") || "",
+        bookChapterLabel: document.querySelector(".subheadings .column:nth-child(3)")?.textContent?.trim() || "",
+        miniEditorJson,
+        hasHighlights: flags.hasHighlights,
+        hasDrawings: flags.hasDrawings,
+        hasTextFormats: flags.hasTextFormats
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to save mini-editor page");
+    }
+
+    console.log("Mini-editor page saved");
+  } catch (error) {
+    console.error("Save mini-editor page error:", error);
+  }
+}
+
+function scheduleMiniEditorSave() {
+  if (!editorToolsUnlocked) return;
+  if (!miniEditorLoaded) return;
+
+  clearTimeout(miniEditorSaveTimer);
+
+  miniEditorSaveTimer = setTimeout(() => {
+    saveMiniEditorPage();
+  }, 1200);
+}
