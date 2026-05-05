@@ -376,12 +376,12 @@ body.editor-locked-state .freehand {
   display: none !important;
 }
 
-/************* Editor save status *************/
+/************* Editor save status in navbar *************/
 .editor-save-status {
   display: inline-block;
   margin-left: 10px;
-  font-size: 13px;
-  color: #666;
+  font-size: 15px;
+  color: #667;
   font-style: italic;
   font-weight: normal;
   vertical-align: middle;
@@ -413,7 +413,7 @@ body.editor-locked-state .freehand {
 }
 
 .subheader #login:disabled {
-  color: #666;
+  color: #667;
   background: #eee;
 }
 
