@@ -25,10 +25,39 @@ const quill = new Quill('#editor', {
 const toolbar = quill.getModule('toolbar');
 
 // ----------------------------------------------------
-// Formatting Logic
+// Save status in top navbar 
 // ----------------------------------------------------
-// We no longer manually run quill.format('size', '14px') here.
-// The CSS handles the 16px default automatically.
+function getEditorSaveStatusElement() {
+  let status = document.getElementById("editor-save-status");
+
+  if (!status) {
+    status = document.createElement("span");
+    status.id = "editor-save-status";
+    status.style.marginLeft = "8px";
+    status.style.fontSize = "14px";
+    status.style.color = "#666";
+    status.textContent = "";
+
+    const logoutButton = document.getElementById("logout");
+    const loginButton = document.getElementById("login");
+
+    if (logoutButton && logoutButton.parentNode) {
+      logoutButton.parentNode.insertBefore(status, logoutButton.nextSibling);
+    } else if (loginButton && loginButton.parentNode) {
+      loginButton.parentNode.insertBefore(status, loginButton.nextSibling);
+    }
+  }
+
+  return status;
+}
+
+function setEditorSaveStatus(message) {
+  const status = getEditorSaveStatusElement();
+
+  if (status) {
+    status.textContent = message || "";
+  }
+}
 
 // ----------------------------------------------------
 // Tooltips & UI
@@ -107,7 +136,8 @@ function lockEditorTools() {
   document.body.classList.add("editor-locked-state");
 
   if (typeof quill !== "undefined") {
-    quill.disable();
+    quill.enable();
+    quill.root.setAttribute("data-placeholder", "Notes...");
   }
 
   const miniToolbar = document.getElementById("bible-mini-toolbar");
@@ -134,19 +164,17 @@ function lockEditorTools() {
     setDrawingTool(null);
   }
 
-  let message = document.getElementById("editor-login-message");
+  if (typeof quill !== "undefined") {
+  quill.root.setAttribute("data-placeholder", "Log in to use notes and editor tools.");
+}
 
-  if (!message) {
-    message = document.createElement("div");
-    message.id = "editor-login-message";
-    message.textContent = "Log in to use notes and editor tools.";
+const message = document.getElementById("editor-login-message");
 
-    const editor = document.getElementById("editor");
+if (message) {
+  message.remove();
+}
 
-    if (editor) {
-      editor.parentNode.insertBefore(message, editor);
-    }
-  }
+setEditorSaveStatus("");
 }
 
 function unlockEditorTools() {
@@ -287,14 +315,18 @@ async function saveQuillNotes() {
     }
 
     console.log("Quill notes saved");
+    setEditorSaveStatus("Saved");
   } catch (error) {
     console.error("Save Quill notes error:", error);
+    setEditorSaveStatus("Save failed");
   }
 }
 
 function scheduleQuillNotesSave() {
   if (!editorToolsUnlocked) return;
   if (!quillNotesLoaded) return;
+
+  setEditorSaveStatus("Saving...");
 
   clearTimeout(quillSaveTimer);
 
@@ -441,6 +473,7 @@ async function saveMiniEditorPage() {
     }
 
     console.log("Mini-editor page saved");
+    setEditorSaveStatus("Saved");
   } catch (error) {
     console.error("Save mini-editor page error:", error);
   }
@@ -450,6 +483,8 @@ function scheduleMiniEditorSave() {
   if (!editorToolsUnlocked) return;
   if (!miniEditorLoaded) return;
   if (miniEditorApplyingState) return;
+
+  setEditorSaveStatus("Saving...");
 
   clearTimeout(miniEditorSaveTimer);
 
