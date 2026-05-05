@@ -388,6 +388,17 @@ body.editor-locked-state .freehand {
   line-height: 1;
 }
 
+.editor-save-status-saving {
+  color: #666;
+}
+
+.editor-save-status-saved {
+  color: #2f7d32;
+}
+
+.editor-save-status-failed {
+  color: #b00020;
+}
 /************* Auth buttons in header *************/
 #login,
 #logout {
