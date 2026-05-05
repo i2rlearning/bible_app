@@ -177,3 +177,14 @@ function unlockEditorTools() {
 }
 
 checkEditorAuth();
+
+function getCurrentBiblePageIdentity() {
+  const bibleVersionID = getParameterByName("version");
+  const bibleChapterID = getParameterByName("chapter");
+
+  return {
+    bibleVersionID,
+    bibleChapterID,
+    pageKey: `${bibleVersionID}::${bibleChapterID}`
+  };
+}
