@@ -268,6 +268,7 @@ async function saveQuillNotes() {
         bibleVersionID: pageIdentity.bibleVersionID,
         bibleChapterID: pageIdentity.bibleChapterID,
         pageKey: pageIdentity.pageKey,
+        pageUrl: window.location.pathname + window.location.search,
         quillDelta,
         plainText
       })
