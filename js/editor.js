@@ -49,11 +49,21 @@ function getEditorSaveStatusElement() {
   return status;
 }
 
+let editorSaveStatusClearTimer = null;
+
 function setEditorSaveStatus(message) {
   const status = getEditorSaveStatusElement();
 
-  if (status) {
-    status.textContent = message || "";
+  if (!status) return;
+
+  status.textContent = message || "";
+
+  clearTimeout(editorSaveStatusClearTimer);
+
+  if (message === "Saved") {
+    editorSaveStatusClearTimer = setTimeout(() => {
+      status.textContent = "";
+    }, 3000);
   }
 }
 
