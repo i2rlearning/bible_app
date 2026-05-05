@@ -118,9 +118,11 @@ async function checkEditorAuth() {
       }
 
       if (typeof loadMiniEditorPage === "function") {
-        setTimeout(() => {
-          loadMiniEditorPage();
-        }, 800);
+        waitForBibleTextContent().then((ready) => {
+          if (ready) {
+            loadMiniEditorPage();
+          }
+        });
       }
     } else {
       lockEditorTools();
@@ -136,10 +138,9 @@ function lockEditorTools() {
   document.body.classList.add("editor-locked-state");
 
   if (typeof quill !== "undefined") {
-    quill.enable();
-    quill.root.setAttribute("data-placeholder", "Notes...");
+    quill.disable();
+    quill.root.setAttribute("data-placeholder", "Log in to use notes and editor tools.");
   }
-
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
   if (miniToolbar) {
@@ -164,18 +165,14 @@ function lockEditorTools() {
     setDrawingTool(null);
   }
 
-  if (typeof quill !== "undefined") {
-  quill.root.setAttribute("data-placeholder", "Log in to use notes and editor tools.");
-}
+  const message = document.getElementById("editor-login-message");
 
-const message = document.getElementById("editor-login-message");
-
-if (message) {
-  message.remove();
-}
-
-setEditorSaveStatus("");
-}
+  if (message) {
+    message.remove();
+  }
+  
+  setEditorSaveStatus("");
+  }
 
 function unlockEditorTools() {
   editorToolsUnlocked = true;
@@ -184,8 +181,9 @@ function unlockEditorTools() {
 
   if (typeof quill !== "undefined") {
     quill.enable();
+    quill.root.setAttribute("data-placeholder", "Notes...");
   }
-
+  
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
   if (miniToolbar) {
@@ -341,8 +339,36 @@ if (typeof quill !== "undefined") {
   });
 }
 
-// Run auth check after all functions are loaded
-checkEditorAuth();
+function waitForBibleTextContent(maxWaitMs = 5000) {
+  return new Promise((resolve) => {
+    const bibleText = document.getElementById("bible-text");
+
+    if (!bibleText) {
+      resolve(false);
+      return;
+    }
+
+    if (bibleText.textContent.trim().length > 0) {
+      resolve(true);
+      return;
+    }
+
+    const startedAt = Date.now();
+
+    const interval = setInterval(() => {
+      if (bibleText.textContent.trim().length > 0) {
+        clearInterval(interval);
+        resolve(true);
+        return;
+      }
+
+      if (Date.now() - startedAt >= maxWaitMs) {
+        clearInterval(interval);
+        resolve(false);
+      }
+    }, 200);
+  });
+}
 
 // ----------------------------------------------------
 // Mini-editor save/load
@@ -476,6 +502,7 @@ async function saveMiniEditorPage() {
     setEditorSaveStatus("Saved");
   } catch (error) {
     console.error("Save mini-editor page error:", error);
+    setEditorSaveStatus("Save failed");    
   }
 }
 
@@ -521,3 +548,6 @@ function startMiniEditorObserver() {
     });
   }
 }
+
+// Run auth check after all functions are loaded
+checkEditorAuth();
