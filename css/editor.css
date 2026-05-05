@@ -375,3 +375,15 @@ body.editor-locked-state .freehand-group,
 body.editor-locked-state .freehand {
   display: none !important;
 }
+
+/************* Editor save status *************/
+.editor-save-status {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 13px;
+  color: #666;
+  font-style: italic;
+  font-weight: normal;
+  vertical-align: middle;
+  line-height: 1;
+}
