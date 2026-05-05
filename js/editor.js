@@ -113,9 +113,7 @@ function lockEditorTools() {
     miniToolbar.classList.add("editor-tools-locked");
 
     miniToolbar.querySelectorAll("button").forEach((button) => {
-      saveOriginalTitle(button);
       button.disabled = true;
-      button.title = "Log in to use editor tools";
     });
   }
 
@@ -125,9 +123,7 @@ function lockEditorTools() {
     quillToolbar.classList.add("editor-tools-locked");
 
     quillToolbar.querySelectorAll("button, select").forEach((control) => {
-      saveOriginalTitle(control);
       control.disabled = true;
-      control.title = "Log in to use notes";
     });
   }
 
