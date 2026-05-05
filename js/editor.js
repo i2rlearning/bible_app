@@ -317,6 +317,8 @@ checkEditorAuth();
 // ----------------------------------------------------
 let miniEditorSaveTimer = null;
 let miniEditorLoaded = false;
+let miniEditorApplyingState = false;
+let miniEditorObserver = null;
 
 function getMiniEditorState() {
   const bibleText = document.getElementById("bible-text");
@@ -336,6 +338,8 @@ function applyMiniEditorState(miniEditorJson) {
 
   if (!bibleText || !miniEditorJson) return;
 
+  miniEditorApplyingState = true;
+
   if (miniEditorJson.bibleTextHtml) {
     bibleText.innerHTML = miniEditorJson.bibleTextHtml;
   }
@@ -343,6 +347,10 @@ function applyMiniEditorState(miniEditorJson) {
   if (annotationLayer && typeof miniEditorJson.annotationLayerHtml === "string") {
     annotationLayer.innerHTML = miniEditorJson.annotationLayerHtml;
   }
+
+  setTimeout(() => {
+    miniEditorApplyingState = false;
+  }, 300);
 }
 
 function getMiniEditorFlags(miniEditorJson) {
@@ -383,9 +391,11 @@ async function loadMiniEditorPage() {
     }
 
     miniEditorLoaded = true;
+    startMiniEditorObserver();
   } catch (error) {
     console.error("Load mini-editor page error:", error);
     miniEditorLoaded = true;
+    startMiniEditorObserver();
   }
 }
 
@@ -439,10 +449,40 @@ async function saveMiniEditorPage() {
 function scheduleMiniEditorSave() {
   if (!editorToolsUnlocked) return;
   if (!miniEditorLoaded) return;
+  if (miniEditorApplyingState) return;
 
   clearTimeout(miniEditorSaveTimer);
 
   miniEditorSaveTimer = setTimeout(() => {
     saveMiniEditorPage();
   }, 1200);
+}
+
+function startMiniEditorObserver() {
+  if (miniEditorObserver) return;
+
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText) return;
+
+  miniEditorObserver = new MutationObserver(() => {
+    scheduleMiniEditorSave();
+  });
+
+  miniEditorObserver.observe(bibleText, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true
+  });
+
+  if (annotationLayer) {
+    miniEditorObserver.observe(annotationLayer, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true
+    });
+  }
 }
