@@ -1,150 +1,153 @@
-/* ==== Modal Overlay ==== */
-/* ==== Modal Overlay ==== */
+/* ==== Login Modal Overlay ==== */
 .modal {
-  display: none;               /* hidden by default */
+  display: none;
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background-color: rgba(0,0,0,0.4);
-  justify-content: center;     /* used when .is-open is present */
-  align-items: center;         /* used when .is-open is present */
-  overflow: auto;              /* keep if you want scroll for tall content */
+  background-color: rgba(0, 0, 0, 0.4);
+  justify-content: center;
+  align-items: center;
+  overflow: auto;
 }
 
-/* When open, show as flex so it centers */
 .modal.is-open {
   display: flex;
 }
 
-/* ==== Modal Content (The Login Box) ==== */
+/* ==== Login Box ==== */
 .modal-content {
-  background-color: #fff;
-  margin: 0;
-  padding: 16px;
-  border: 1px solid #888;
-  width: 300px;
-  border-radius: 4px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
   position: relative;
+  background-color: #fff;
+  width: 320px;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid #888;
+  border-radius: 4px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
 }
 
-
-.modal-input-container {
-  /* Targets the renamed container for form inputs (username, password, etc.) */
-  padding: 0; /* Ensures inputs align with the modal's 16px padding */
-}
-
-/* ==== Close (X) Button ==== */
-.close {
-  color: #000;
+/* ==== Close X ==== */
+.modal-close {
   position: absolute;
-  top: 20px;
-  right: 24px;
-  font-size: 32px;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: #111;
+  font-size: 24px;
   font-weight: bold;
   cursor: pointer;
-  z-index: 10;
+  line-height: 1;
 }
 
-/* ==== Labels, Inputs, Login Button (Unchanged for this issue) ==== */
+.modal-close:hover {
+  color: #b00020;
+}
+
+/* ==== Inputs ==== */
+.modal-input-container {
+  padding: 0;
+}
+
 .modal-content label {
+  display: block;
   font-weight: bold;
   margin-bottom: 4px;
-  display: block;
-  font-size: 1.1rem;
+  font-size: 14px;
 }
 
 .modal-content input[type="text"],
 .modal-content input[type="password"] {
   width: 100%;
-  padding: 12px;
-  margin-bottom: 18px;
+  padding: 10px;
+  margin-bottom: 14px;
   border: 1px solid #aaa;
   border-radius: 3px;
-  font-size: 1rem;
+  font-size: 14px;
   box-sizing: border-box;
 }
 
-.modal-content button[type="submit"] {
-  width: 100%;
-  background-color: #31ACFF;
-  color: #fff;
-  border: none;
-  border-radius: 3px;
-  padding: 14px 0;
-  font-size: 1.15rem;
-  font-weight: normal;
-  cursor: pointer;
-  text-align: center;
-  margin-bottom: 16px;
+/* ==== Password Show/Hide ==== */
+.password-field {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 14px;
 }
 
-.modal-content button[type="submit"]:hover {
+.password-field input {
+  flex: 1;
+  margin-bottom: 0 !important;
+}
+
+.show-password-btn {
+  width: auto;
+  min-width: 55px;
+  padding: 0 8px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  background: #f7f7f7;
+  color: #111;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.show-password-btn:hover {
+  background: #eee;
+}
+
+/* ==== Login / Cancel Buttons ==== */
+.login-button-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.login-button-row button {
+  flex: 1;
+  border: none;
+  border-radius: 3px;
+  padding: 11px 0;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.login-submit-btn {
+  background-color: #31ACFF;
+  color: #fff;
+}
+
+.login-submit-btn:hover {
   background-color: #3145FF;
 }
 
-/* ==== Checkbox and label (Unchanged for this issue) ==== */
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: bold;
-  margin-bottom: 0;
-  font-size: 1.1rem;
-}
-
-/* ==== Bottom row: Cancel Button Area ==== */
-.modal-container.bottom-row {
-  width: 100%; /* Spans the full width of the padded modal */
-  background-color: #f1f1f1;
-  display: flex;
-  justify-content: center; /* Centers the cancel button horizontally */
-  align-items: center;
-  padding: 8px 0; /* Add vertical padding */
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-/* Cancel button specifics (Unchanged) */
 .cancelbtn {
   background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 3px;
-  padding: 10px 24px;
-  font-size: 1rem;
+  color: #fff;
   font-weight: bold;
-  cursor: pointer;
-  width: auto;
-  text-align: center;
-  margin: 0;
 }
 
-/* ==== Auth Actions (Forgot Password/Create Account) ==== */
+.cancelbtn:hover {
+  background-color: #d9362b;
+}
+
+/* ==== Forgot Password / Create Account ==== */
 .auth-actions {
-  display: flex !important;
-  justify-content: space-evenly !important; 
-  align-items: center !important;   
-  width: 100%; /* Spans the full width of the padded modal */
-  margin-top: 0.5em; 
-  margin-left: 0; 
-  margin-right: 0; 
-  padding: 0; 
-  background: none;
-  font-size: 0.8rem;
-}
-
-.auth-actions a {
-  color: #6c2eb1 !important; 
-  text-decoration: underline;
-  font-size: 0.8rem;
-  text-align: center; 
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  font-size: 12px;
 }
 
 .auth-actions span {
-  font-size: 0.8rem;
-  text-align: center;
+  font-size: 12px;
+}
+
+.auth-actions a {
+  color: #6c2eb1;
+  text-decoration: underline;
+  font-size: 12px;
 }
