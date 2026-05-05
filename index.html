@@ -86,10 +86,11 @@
     
             <button
               type="button"
-              class="show-password-btn"
+              class="password-toggle-btn"
               data-password-target="loginPassword"
+              aria-label="Show password"
             >
-              Show
+              👁
             </button>
           </div>
     
@@ -140,10 +141,11 @@
     
             <button
               type="button"
-              class="show-password-btn"
+              class="password-toggle-btn"
               data-password-target="signupPassword"
+              aria-label="Show password"
             >
-              Show
+              👁
             </button>
           </div>
     
@@ -160,10 +162,11 @@
     
             <button
               type="button"
-              class="show-password-btn"
+              class="password-toggle-btn"
               data-password-target="signupPasswordRepeat"
+              aria-label="Show password"
             >
-              Show
+              👁
             </button>
           </div>
     
@@ -301,15 +304,19 @@
             toggleModal(elements.signupModal, true);
           }
     
-          if (target.classList && target.classList.contains("show-password-btn")) {
+          if (target.classList && target.classList.contains("password-toggle-btn")) {
             const passwordInputId = target.dataset.passwordTarget;
             const passwordInput = document.getElementById(passwordInputId);
-    
+          
             if (passwordInput) {
               const isPasswordHidden = passwordInput.type === "password";
-    
+          
               passwordInput.type = isPasswordHidden ? "text" : "password";
-              target.textContent = isPasswordHidden ? "Hide" : "Show";
+              target.textContent = isPasswordHidden ? "🙈" : "👁";
+              target.setAttribute(
+                "aria-label",
+                isPasswordHidden ? "Hide password" : "Show password"
+              );
             }
           }
     
