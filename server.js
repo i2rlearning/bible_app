@@ -381,6 +381,164 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
   }
 });
 
+// ----------------------------------------------------
+// Mini-editor page routes
+// ----------------------------------------------------
+app.get("/api/mini-editor-page", requireAuth, async (req, res) => {
+  try {
+    const { pageKey } = req.query;
+
+    if (!pageKey) {
+      return res.status(400).json({
+        ok: false,
+        message: "Missing pageKey"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        user_id,
+        bible_version_id,
+        bible_chapter_id,
+        page_key,
+        page_url,
+        bible_name,
+        book_chapter_label,
+        mini_editor_json,
+        has_highlights,
+        has_drawings,
+        has_text_formats,
+        created_at,
+        updated_at
+      FROM saved_mini_editor_pages
+      WHERE user_id = $1
+        AND page_key = $2
+      LIMIT 1
+      `,
+      [req.user.id, pageKey]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        ok: true,
+        page: null
+      });
+    }
+
+    return res.json({
+      ok: true,
+      page: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Get mini-editor page error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to load mini-editor page"
+    });
+  }
+});
+
+app.post("/api/mini-editor-page", requireAuth, async (req, res) => {
+  try {
+    const {
+      bibleVersionID,
+      bibleChapterID,
+      pageKey,
+      pageUrl,
+      bibleName,
+      bookChapterLabel,
+      miniEditorJson,
+      hasHighlights,
+      hasDrawings,
+      hasTextFormats
+    } = req.body;
+
+    if (!bibleVersionID || !bibleChapterID || !pageKey || !miniEditorJson) {
+      return res.status(400).json({
+        ok: false,
+        message: "Missing mini-editor page information"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO saved_mini_editor_pages (
+        user_id,
+        bible_version_id,
+        bible_chapter_id,
+        page_key,
+        page_url,
+        bible_name,
+        book_chapter_label,
+        mini_editor_json,
+        has_highlights,
+        has_drawings,
+        has_text_formats,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      ON CONFLICT (user_id, page_key)
+      DO UPDATE SET
+        bible_version_id = EXCLUDED.bible_version_id,
+        bible_chapter_id = EXCLUDED.bible_chapter_id,
+        page_url = EXCLUDED.page_url,
+        bible_name = EXCLUDED.bible_name,
+        book_chapter_label = EXCLUDED.book_chapter_label,
+        mini_editor_json = EXCLUDED.mini_editor_json,
+        has_highlights = EXCLUDED.has_highlights,
+        has_drawings = EXCLUDED.has_drawings,
+        has_text_formats = EXCLUDED.has_text_formats,
+        updated_at = NOW()
+      RETURNING
+        id,
+        user_id,
+        bible_version_id,
+        bible_chapter_id,
+        page_key,
+        page_url,
+        bible_name,
+        book_chapter_label,
+        mini_editor_json,
+        has_highlights,
+        has_drawings,
+        has_text_formats,
+        created_at,
+        updated_at
+      `,
+      [
+        req.user.id,
+        bibleVersionID,
+        bibleChapterID,
+        pageKey,
+        pageUrl || "",
+        bibleName || "",
+        bookChapterLabel || "",
+        miniEditorJson,
+        !!hasHighlights,
+        !!hasDrawings,
+        !!hasTextFormats
+      ]
+    );
+
+    return res.json({
+      ok: true,
+      message: "Mini-editor page saved",
+      page: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Save mini-editor page error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to save mini-editor page"
+    });
+  }
+});
+
 // Logout
 app.post("/api/logout", (req, res) => {
   res.clearCookie("auth_token", {
