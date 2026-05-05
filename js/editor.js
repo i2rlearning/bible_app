@@ -191,7 +191,7 @@ function lockEditorTools() {
     setDrawingTool(null);
   }
 
-    const message = document.getElementById("editor-login-message");
+  const message = document.getElementById("editor-login-message");
 
   if (message) {
     message.remove();
