@@ -92,6 +92,12 @@ async function checkEditorAuth() {
   }
 }
 
+function saveOriginalTitle(element) {
+  if (!element.dataset.originalTitle) {
+    element.dataset.originalTitle = element.title || "";
+  }
+}
+
 function lockEditorTools() {
   editorToolsUnlocked = false;
 
@@ -107,6 +113,7 @@ function lockEditorTools() {
     miniToolbar.classList.add("editor-tools-locked");
 
     miniToolbar.querySelectorAll("button").forEach((button) => {
+      saveOriginalTitle(button);
       button.disabled = true;
       button.title = "Log in to use editor tools";
     });
@@ -118,6 +125,7 @@ function lockEditorTools() {
     quillToolbar.classList.add("editor-tools-locked");
 
     quillToolbar.querySelectorAll("button, select").forEach((control) => {
+      saveOriginalTitle(control);
       control.disabled = true;
       control.title = "Log in to use notes";
     });
@@ -158,7 +166,7 @@ function unlockEditorTools() {
 
     miniToolbar.querySelectorAll("button").forEach((button) => {
       button.disabled = false;
-      button.title = "";
+      button.title = button.dataset.originalTitle || "";
     });
   }
 
@@ -169,7 +177,7 @@ function unlockEditorTools() {
 
     quillToolbar.querySelectorAll("button, select").forEach((control) => {
       control.disabled = false;
-      control.title = "";
+      control.title = control.dataset.originalTitle || "";
     });
   }
 
@@ -179,3 +187,5 @@ function unlockEditorTools() {
     message.remove();
   }
 }
+
+checkEditorAuth();
