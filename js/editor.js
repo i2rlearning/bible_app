@@ -300,8 +300,6 @@ function scheduleQuillNotesSave() {
 }
 
 if (typeof quill !== "undefined") {
-  loadQuillNotes();
-
   quill.on("text-change", function () {
     scheduleQuillNotesSave();
   });
