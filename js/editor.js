@@ -83,11 +83,15 @@ async function checkEditorAuth() {
     const result = await response.json();
 
     if (response.ok && result.ok && result.user) {
-      unlockEditorTools();
-    } else {
-      lockEditorTools();
-    }
-  } catch (error) {
+  unlockEditorTools();
+
+  if (typeof loadQuillNotes === "function") {
+    loadQuillNotes();
+  }
+  } else {
+    lockEditorTools();
+  }
+  catch (error) {
     lockEditorTools();
   }
 }
@@ -178,13 +182,127 @@ function unlockEditorTools() {
 
 checkEditorAuth();
 
+// ----------------------------------------------------
+// Quill notes save/load
+// ----------------------------------------------------
+let quillSaveTimer = null;
+let quillNotesLoaded = false;
+
 function getCurrentBiblePageIdentity() {
-  const bibleVersionID = getParameterByName("version");
-  const bibleChapterID = getParameterByName("chapter");
+  const urlParams = new URLSearchParams(window.location.search);
+
+  const bibleVersionID =
+    urlParams.get("version") ||
+    urlParams.get("bible") ||
+    urlParams.get("bibleId") ||
+    "";
+
+  const bibleChapterID =
+    urlParams.get("chapter") ||
+    urlParams.get("chapterId") ||
+    "";
+
+  if (!bibleVersionID || !bibleChapterID) {
+    console.warn("Missing Bible page identity", {
+      bibleVersionID,
+      bibleChapterID
+    });
+
+    return null;
+  }
 
   return {
     bibleVersionID,
     bibleChapterID,
     pageKey: `${bibleVersionID}::${bibleChapterID}`
   };
+}
+
+async function loadQuillNotes() {
+  if (typeof quill === "undefined") return;
+
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  try {
+    const response = await fetch(`/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
+      method: "GET",
+      credentials: "include"
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to load notes");
+    }
+
+    if (result.note && result.note.quill_delta_json) {
+      quill.setContents(result.note.quill_delta_json);
+    }
+
+    quillNotesLoaded = true;
+  } catch (error) {
+    console.error("Load Quill notes error:", error);
+    quillNotesLoaded = true;
+  }
+}
+
+async function saveQuillNotes() {
+  if (typeof quill === "undefined") return;
+  if (!editorToolsUnlocked) return;
+  if (!quillNotesLoaded) return;
+
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  try {
+    const quillDelta = quill.getContents();
+    const plainText = quill.getText().trim();
+
+    const response = await fetch("/api/quill-notes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        bibleVersionID: pageIdentity.bibleVersionID,
+        bibleChapterID: pageIdentity.bibleChapterID,
+        pageKey: pageIdentity.pageKey,
+        quillDelta,
+        plainText
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to save notes");
+    }
+
+    console.log("Quill notes saved");
+  } catch (error) {
+    console.error("Save Quill notes error:", error);
+  }
+}
+
+function scheduleQuillNotesSave() {
+  if (!editorToolsUnlocked) return;
+  if (!quillNotesLoaded) return;
+
+  clearTimeout(quillSaveTimer);
+
+  quillSaveTimer = setTimeout(() => {
+    saveQuillNotes();
+  }, 1200);
+}
+
+if (typeof quill !== "undefined") {
+  loadQuillNotes();
+
+  quill.on("text-change", function () {
+    scheduleQuillNotesSave();
+  });
 }
