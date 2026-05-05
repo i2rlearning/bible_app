@@ -1,28 +1,33 @@
+// ----------------------------------------------------
 // Quill font-size setup
-const Size = Quill.import('attributors/class/size');
-Size.whitelist = ['8px', '10px', '12px', '14px', '18px', '24px', '32px'];
+// ----------------------------------------------------
+const Size = Quill.import("attributors/class/size");
+
+Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
 Quill.register(Size, true);
 
 const toolbarOptions = [
-  [{ size: [false, '8px', '10px', '12px', '14px', '18px', '24px', '32px'] }],
-  ['bold', 'italic', 'underline', 'strike'],
+  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }],
+  ["bold", "italic", "underline", "strike"],
   [{ color: [] }, { background: [] }],
-  [{ list: 'ordered' }, { list: 'bullet' }, { list: 'check' }],
+  [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],
   [{ align: [] }],
-  [{ script: 'sub' }, { script: 'super' }],
-  [{ indent: '-1' }, { indent: '+1' }],
-  [{ direction: 'rtl' }],
-  ['link', 'image'],
-  ['clean']
+  [{ script: "sub" }, { script: "super" }],
+  [{ indent: "-1" }, { indent: "+1" }],
+  [{ direction: "rtl" }],
+  ["link", "image"],
+  ["clean"]
 ];
 
-const quill = new Quill('#editor', {
-  placeholder: 'Notes...',
-  theme: 'snow',
-  modules: { toolbar: toolbarOptions }
+const quill = new Quill("#editor", {
+  placeholder: "Notes...",
+  theme: "snow",
+  modules: {
+    toolbar: toolbarOptions
+  }
 });
 
-const toolbar = quill.getModule('toolbar');
+const toolbar = quill.getModule("toolbar");
 
 // ----------------------------------------------------
 // Save status in top navbar
@@ -85,42 +90,41 @@ function setEditorSaveStatus(message) {
     }, 3000);
   }
 }
+
 // ----------------------------------------------------
-// Tooltips & UI
+// Tooltips and UI
 // ----------------------------------------------------
-const sizeSelect = toolbar?.container.querySelector('select.ql-size');
+const sizeSelect = toolbar?.container.querySelector("select.ql-size");
 
 if (sizeSelect) {
-  sizeSelect.setAttribute('title', 'Change Font Size');
+  sizeSelect.setAttribute("title", "Change Font Size");
 }
 
-// Simple Tooltips
 const btnTitles = {
-  'ql-bold': 'Bold',
-  'ql-italic': 'Italic',
-  'ql-underline': 'Underline',
-  'ql-strike': 'Strikethrough',
-  'ql-link': 'Insert Link',
-  'ql-image': 'Insert Image',
-  'ql-direction': 'Text Direction',
-  'ql-clean': 'Clear Format'
+  "ql-bold": "Bold",
+  "ql-italic": "Italic",
+  "ql-underline": "Underline",
+  "ql-strike": "Strikethrough",
+  "ql-link": "Insert Link",
+  "ql-image": "Insert Image",
+  "ql-direction": "Text Direction",
+  "ql-clean": "Clear Format"
 };
 
 Object.keys(btnTitles).forEach((cls) => {
-  toolbar.container.querySelector(`button.${cls}`)?.setAttribute('title', btnTitles[cls]);
+  toolbar.container.querySelector(`button.${cls}`)?.setAttribute("title", btnTitles[cls]);
 });
 
-// Selectors - Align, Color, BG, Lists, Indent
-toolbar.container.querySelector('select.ql-align')?.parentElement.setAttribute('title', 'Align Text');
-toolbar.container.querySelector('.ql-picker.ql-color')?.setAttribute('title', 'Font Color');
-toolbar.container.querySelector('.ql-picker.ql-background')?.setAttribute('title', 'Background Color');
-toolbar.container.querySelector('button.ql-list[value="ordered"]')?.setAttribute('title', 'Ordered List');
-toolbar.container.querySelector('button.ql-list[value="bullet"]')?.setAttribute('title', 'Bullet List');
-toolbar.container.querySelector('button.ql-list[value="check"]')?.setAttribute('title', 'Checkbox List');
-toolbar.container.querySelector('button.ql-indent[value="-1"]')?.setAttribute('title', 'Outdent');
-toolbar.container.querySelector('button.ql-indent[value="+1"]')?.setAttribute('title', 'Indent');
-toolbar.container.querySelector('button.ql-script[value="sub"]')?.setAttribute('title', 'Subscript');
-toolbar.container.querySelector('button.ql-script[value="super"]')?.setAttribute('title', 'Superscript');
+toolbar.container.querySelector("select.ql-align")?.parentElement.setAttribute("title", "Align Text");
+toolbar.container.querySelector(".ql-picker.ql-color")?.setAttribute("title", "Font Color");
+toolbar.container.querySelector(".ql-picker.ql-background")?.setAttribute("title", "Background Color");
+toolbar.container.querySelector('button.ql-list[value="ordered"]')?.setAttribute("title", "Ordered List");
+toolbar.container.querySelector('button.ql-list[value="bullet"]')?.setAttribute("title", "Bullet List");
+toolbar.container.querySelector('button.ql-list[value="check"]')?.setAttribute("title", "Checkbox List");
+toolbar.container.querySelector('button.ql-indent[value="-1"]')?.setAttribute("title", "Outdent");
+toolbar.container.querySelector('button.ql-indent[value="+1"]')?.setAttribute("title", "Indent");
+toolbar.container.querySelector('button.ql-script[value="sub"]')?.setAttribute("title", "Subscript");
+toolbar.container.querySelector('button.ql-script[value="super"]')?.setAttribute("title", "Superscript");
 
 // ----------------------------------------------------
 // Auth lock for editor tools
@@ -167,6 +171,7 @@ function lockEditorTools() {
     quill.disable();
     quill.root.setAttribute("data-placeholder", "Log in to use notes and editor tools.");
   }
+
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
   if (miniToolbar) {
@@ -209,7 +214,7 @@ function unlockEditorTools() {
     quill.enable();
     quill.root.setAttribute("data-placeholder", "Notes...");
   }
-  
+
   const miniToolbar = document.getElementById("bible-mini-toolbar");
 
   if (miniToolbar) {
@@ -235,6 +240,8 @@ function unlockEditorTools() {
   if (message) {
     message.remove();
   }
+
+  setEditorSaveStatus("");
 }
 
 // ----------------------------------------------------
@@ -575,5 +582,7 @@ function startMiniEditorObserver() {
   }
 }
 
-// Run auth check after all functions are loaded
+// ----------------------------------------------------
+// Start editor auth check after all functions are loaded
+// ----------------------------------------------------
 checkEditorAuth();
