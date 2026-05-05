@@ -44,23 +44,18 @@
 }
 
 /************* Quill size dropdown labels *************/
-
-/* Main toolbar label when default size is selected */
 .ql-snow .ql-picker.ql-size .ql-picker-label::before {
   content: "16px" !important;
 }
 
-/* Main toolbar label after selecting a real size */
 .ql-snow .ql-picker.ql-size .ql-picker-label[data-value]::before {
   content: attr(data-value) !important;
 }
 
-/* Dropdown item for default size */
 .ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before {
   content: "16px" !important;
 }
 
-/* Dropdown items for real sizes */
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value]::before {
   content: attr(data-value) !important;
 }
@@ -98,8 +93,7 @@
   font-size: 32px !important;
 }
 
-
-/************* Mini-Editor *************/
+/************* Mini-editor toolbar *************/
 #bible-mini-toolbar {
   position: fixed;
   top: 35px;
@@ -109,23 +103,29 @@
   max-width: calc(100vw - 40px);
   z-index: 2500;
 
-  background: #000;
-  border: 1px solid #222;
-  padding: 6px 10px;
   display: inline-flex;
-  gap: 8px;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  gap: 6px;
+
+  background: #000;
+  border: 1px solid #222;
+  padding: 6px 8px;
   margin: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+#bible-mini-toolbar button,
+#bible-mini-toolbar select {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 14px;
 }
 
 #bible-mini-toolbar button {
   border: 1px solid #ddd;
   background: #fff;
-  padding: 4px 8px;
   cursor: pointer;
-  font-size: 14px;
 }
 
 #bible-mini-toolbar button:hover {
@@ -138,8 +138,17 @@
   border-color: #31ACFF;
 }
 
+#bible-mini-toolbar .toolbar-separator {
+  color: #777;
+  margin: 0 2px;
+}
+
+/************* Bible display area *************/
 #display-text {
   padding-top: 45px;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  max-height: none !important;
 }
 
 #bible-text {
@@ -147,6 +156,21 @@
   font-size: 18px;
   line-height: 1.7;
   user-select: text;
+}
+
+#bible-drawing-area {
+  position: relative;
+  cursor: text;
+  transform-origin: top left;
+}
+
+#bible-drawing-area.drawing-mode {
+  cursor: default;
+}
+
+#bible-drawing-area.drawing-mode,
+#bible-drawing-area.drawing-mode * {
+  user-select: none;
 }
 
 /************* User-added Bible text annotations *************/
@@ -190,21 +214,7 @@
   background-color: #ffd59e !important;
 }
 
-/************* Drawing layer for circles and squares *************/
-#bible-drawing-area {
-  position: relative;
-  cursor: text;
-}
-
-#bible-drawing-area.drawing-mode {
-  cursor: default;
-}
-
-#bible-drawing-area.drawing-mode,
-#bible-drawing-area.drawing-mode * {
-  user-select: none;
-}
-
+/************* Drawing layer *************/
 #bible-annotation-layer {
   position: absolute;
   inset: 0;
@@ -233,7 +243,7 @@
   stroke-width: 4;
 }
 
-/*  FREEHAND GROUP */
+/************* Freehand drawing *************/
 .freehand-group {
   fill: none;
   stroke: #c40000;
@@ -256,7 +266,7 @@
   stroke-width: 4;
 }
 
-/************* Highlight dropdown *************/
+/************* Toolbar dropdowns *************/
 .toolbar-dropdown {
   position: relative;
   display: inline-block;
@@ -272,7 +282,7 @@
   border: 1px solid #ddd;
   padding: 8px;
   min-width: auto;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .toolbar-dropdown-menu.show {
@@ -331,20 +341,6 @@
   padding: 4px 8px;
 }
 
-/* Used for zooming in/out text with drawings */
-#display-text {
-  padding-top: 45px;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  max-height: none !important;
-}
-
-#bible-drawing-area {
-  position: relative;
-  cursor: text;
-  transform-origin: top left;
-}
-
 /************* Locked editor state *************/
 .editor-tools-locked {
   opacity: 0.45;
@@ -362,18 +358,33 @@
   cursor: not-allowed !important;
 }
 
-/* Hide user-created Bible formatting while logged out */
 body.editor-locked-state .bible-user-format {
   background-color: transparent !important;
   text-decoration: none !important;
   font-weight: inherit !important;
 }
 
-/* Hide user-created drawing annotations while logged out */
 body.editor-locked-state .drawn-annotation,
 body.editor-locked-state .freehand-group,
 body.editor-locked-state .freehand {
   display: none !important;
+}
+
+/************* Logged-out Quill state *************/
+body.editor-locked-state .ql-editor {
+  background: rgba(255, 255, 255, 0.65);
+  color: #777;
+  cursor: not-allowed;
+}
+
+body.editor-locked-state .ql-editor.ql-blank::before {
+  color: #555;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+body.editor-locked-state .ql-toolbar {
+  opacity: 0.35;
 }
 
 /************* Editor save status in navbar *************/
@@ -399,16 +410,6 @@ body.editor-locked-state .freehand {
 .editor-save-status-failed {
   color: #b00020;
 }
-/************* Auth buttons in header *************/
-#login,
-#logout {
-  font-size: 13px;
-  padding: 3px 8px;
-  margin-left: 4px;
-  border: 1px solid #aaa;
-  border-radius: 4px;
-  background: #f7f7f7;
-  color:
 
 /************* Auth buttons in header *************/
 .subheader #login,
@@ -426,40 +427,4 @@ body.editor-locked-state .freehand {
 .subheader #login:disabled {
   color: #667;
   background: #eee;
-}
-
-/************* Logged-out editor state *************/
-body.editor-locked-state .ql-editor {
-  background: rgba(255, 255, 255, 0.65);
-  color: #777;
-  cursor: not-allowed;
-}
-
-body.editor-locked-state .ql-editor.ql-blank::before {
-  color: #555;
-  font-style: italic;
-  opacity: 0.9;
-}
-
-body.editor-locked-state .ql-toolbar {
-  opacity: 0.35;
-}
-
-/************* Mini-editor toolbar cleanup *************/
-#bible-mini-toolbar {
-  gap: 6px;
-  align-items: center;
-  padding: 6px 8px;
-}
-
-#bible-mini-toolbar button,
-#bible-mini-toolbar select {
-  min-height: 28px;
-  padding: 3px 8px;
-  font-size: 14px;
-}
-
-#bible-mini-toolbar .toolbar-separator {
-  color: #777;
-  margin: 0 2px;
 }
