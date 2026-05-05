@@ -25,7 +25,7 @@ const quill = new Quill('#editor', {
 const toolbar = quill.getModule('toolbar');
 
 // ----------------------------------------------------
-// Formatting Logic (CLEANED UP)
+// Formatting Logic
 // ----------------------------------------------------
 // We no longer manually run quill.format('size', '14px') here.
 // The CSS handles the 16px default automatically.
@@ -34,10 +34,9 @@ const toolbar = quill.getModule('toolbar');
 // Tooltips & UI
 // ----------------------------------------------------
 const sizeSelect = toolbar?.container.querySelector('select.ql-size');
+
 if (sizeSelect) {
   sizeSelect.setAttribute('title', 'Change Font Size');
-  // We do NOT dispatch a 'change' event here anymore.
-  // We let the picker sit at its default state.
 }
 
 // Simple Tooltips
@@ -52,11 +51,11 @@ const btnTitles = {
   'ql-clean': 'Clear Format'
 };
 
-Object.keys(btnTitles).forEach(cls => {
+Object.keys(btnTitles).forEach((cls) => {
   toolbar.container.querySelector(`button.${cls}`)?.setAttribute('title', btnTitles[cls]);
 });
 
-// Selectors (Align, Color, BG, Lists, Indent)
+// Selectors - Align, Color, BG, Lists, Indent
 toolbar.container.querySelector('select.ql-align')?.parentElement.setAttribute('title', 'Align Text');
 toolbar.container.querySelector('.ql-picker.ql-color')?.setAttribute('title', 'Font Color');
 toolbar.container.querySelector('.ql-picker.ql-background')?.setAttribute('title', 'Background Color');
@@ -83,15 +82,15 @@ async function checkEditorAuth() {
     const result = await response.json();
 
     if (response.ok && result.ok && result.user) {
-  unlockEditorTools();
+      unlockEditorTools();
 
-  if (typeof loadQuillNotes === "function") {
-    loadQuillNotes();
-  }
-  } else {
-    lockEditorTools();
-  }
-  catch (error) {
+      if (typeof loadQuillNotes === "function") {
+        loadQuillNotes();
+      }
+    } else {
+      lockEditorTools();
+    }
+  } catch (error) {
     lockEditorTools();
   }
 }
@@ -158,9 +157,9 @@ function unlockEditorTools() {
   if (miniToolbar) {
     miniToolbar.classList.remove("editor-tools-locked");
 
-   miniToolbar.querySelectorAll("button").forEach((button) => {
+    miniToolbar.querySelectorAll("button").forEach((button) => {
       button.disabled = false;
-   });
+    });
   }
 
   const quillToolbar = document.querySelector(".ql-toolbar");
@@ -179,8 +178,6 @@ function unlockEditorTools() {
     message.remove();
   }
 }
-
-checkEditorAuth();
 
 // ----------------------------------------------------
 // Quill notes save/load
@@ -304,3 +301,6 @@ if (typeof quill !== "undefined") {
     scheduleQuillNotesSave();
   });
 }
+
+// Run auth check after all functions are loaded
+checkEditorAuth();
