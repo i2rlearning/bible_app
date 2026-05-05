@@ -92,12 +92,6 @@ async function checkEditorAuth() {
   }
 }
 
-function saveOriginalTitle(element) {
-  if (!element.dataset.originalTitle) {
-    element.dataset.originalTitle = element.title || "";
-  }
-}
-
 function lockEditorTools() {
   editorToolsUnlocked = false;
 
@@ -160,10 +154,9 @@ function unlockEditorTools() {
   if (miniToolbar) {
     miniToolbar.classList.remove("editor-tools-locked");
 
-    miniToolbar.querySelectorAll("button").forEach((button) => {
+   miniToolbar.querySelectorAll("button").forEach((button) => {
       button.disabled = false;
-      button.title = button.dataset.originalTitle || "";
-    });
+   });
   }
 
   const quillToolbar = document.querySelector(".ql-toolbar");
@@ -173,7 +166,6 @@ function unlockEditorTools() {
 
     quillToolbar.querySelectorAll("button, select").forEach((control) => {
       control.disabled = false;
-      control.title = control.dataset.originalTitle || "";
     });
   }
 
