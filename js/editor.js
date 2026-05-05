@@ -25,7 +25,7 @@ const quill = new Quill('#editor', {
 const toolbar = quill.getModule('toolbar');
 
 // ----------------------------------------------------
-// Save status in top navbar 
+// Save status in top navbar
 // ----------------------------------------------------
 function getEditorSaveStatusElement() {
   let status = document.getElementById("editor-save-status");
@@ -510,7 +510,7 @@ async function saveMiniEditorPage() {
     setEditorSaveStatus("Saved");
   } catch (error) {
     console.error("Save mini-editor page error:", error);
-    setEditorSaveStatus("Save failed");    
+    setEditorSaveStatus("Save failed");
   }
 }
 
