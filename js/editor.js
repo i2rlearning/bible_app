@@ -58,15 +58,33 @@ function setEditorSaveStatus(message) {
 
   status.textContent = message || "";
 
+  status.classList.remove(
+    "editor-save-status-saving",
+    "editor-save-status-saved",
+    "editor-save-status-failed"
+  );
+
+  if (message === "Saving...") {
+    status.classList.add("editor-save-status-saving");
+  }
+
+  if (message === "Saved") {
+    status.classList.add("editor-save-status-saved");
+  }
+
+  if (message === "Save failed") {
+    status.classList.add("editor-save-status-failed");
+  }
+
   clearTimeout(editorSaveStatusClearTimer);
 
   if (message === "Saved") {
     editorSaveStatusClearTimer = setTimeout(() => {
       status.textContent = "";
+      status.classList.remove("editor-save-status-saved");
     }, 3000);
   }
 }
-
 // ----------------------------------------------------
 // Tooltips & UI
 // ----------------------------------------------------
