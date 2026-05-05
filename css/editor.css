@@ -433,3 +433,22 @@ body.editor-locked-state .ql-editor.ql-blank::before {
 body.editor-locked-state .ql-toolbar {
   opacity: 0.35;
 }
+
+/************* Mini-editor toolbar cleanup *************/
+#bible-mini-toolbar {
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+}
+
+#bible-mini-toolbar button,
+#bible-mini-toolbar select {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 14px;
+}
+
+#bible-mini-toolbar .toolbar-separator {
+  color: #777;
+  margin: 0 2px;
+}
