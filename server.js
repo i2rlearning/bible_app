@@ -309,6 +309,7 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
       bibleVersionID,
       bibleChapterID,
       pageKey,
+      pageUrl,
       quillDelta,
       plainText
     } = req.body;
@@ -327,16 +328,18 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
         bible_version_id,
         bible_chapter_id,
         page_key,
+        page_url,
         quill_delta_json,
         quill_plain_text,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
       ON CONFLICT (user_id, page_key)
       DO UPDATE SET
         bible_version_id = EXCLUDED.bible_version_id,
         bible_chapter_id = EXCLUDED.bible_chapter_id,
+        page_url = EXCLUDED.page_url,
         quill_delta_json = EXCLUDED.quill_delta_json,
         quill_plain_text = EXCLUDED.quill_plain_text,
         updated_at = NOW()
@@ -346,6 +349,7 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
         bible_version_id,
         bible_chapter_id,
         page_key,
+        page_url,
         quill_delta_json,
         quill_plain_text,
         created_at,
@@ -356,6 +360,7 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
         bibleVersionID,
         bibleChapterID,
         pageKey,
+        pageUrl || "",
         quillDelta,
         plainText || ""
       ]
