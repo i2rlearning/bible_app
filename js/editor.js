@@ -33,9 +33,7 @@ function getEditorSaveStatusElement() {
   if (!status) {
     status = document.createElement("span");
     status.id = "editor-save-status";
-    status.style.marginLeft = "8px";
-    status.style.fontSize = "14px";
-    status.style.color = "#666";
+    status.className = "editor-save-status";
     status.textContent = "";
 
     const logoutButton = document.getElementById("logout");
