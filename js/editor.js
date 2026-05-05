@@ -92,6 +92,35 @@ function setEditorSaveStatus(message) {
 }
 
 // ----------------------------------------------------
+// Page navigation state
+// ----------------------------------------------------
+let editorPageIsLeaving = false;
+
+window.addEventListener("beforeunload", () => {
+  editorPageIsLeaving = true;
+});
+
+window.addEventListener("pagehide", () => {
+  editorPageIsLeaving = true;
+});
+
+document.addEventListener(
+  "click",
+  (event) => {
+    const clickedElement = event.target;
+
+    if (!clickedElement || typeof clickedElement.closest !== "function") return;
+
+    const link = clickedElement.closest("a");
+
+    if (link && link.href) {
+      editorPageIsLeaving = true;
+    }
+  },
+  true
+);
+
+// ----------------------------------------------------
 // Tooltips and UI
 // ----------------------------------------------------
 const sizeSelect = toolbar?.container.querySelector("select.ql-size");
@@ -348,6 +377,10 @@ async function saveQuillNotes() {
     console.log("Quill notes saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
+    if (editorPageIsLeaving || document.visibilityState === "hidden") {
+      return;
+    }
+
     console.error("Save Quill notes error:", error);
     setEditorSaveStatus("Save failed");
   }
@@ -534,6 +567,10 @@ async function saveMiniEditorPage() {
     console.log("Mini-editor page saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
+    if (editorPageIsLeaving || document.visibilityState === "hidden") {
+      return;
+    }
+
     console.error("Save mini-editor page error:", error);
     setEditorSaveStatus("Save failed");
   }
