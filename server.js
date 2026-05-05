@@ -248,6 +248,134 @@ app.get("/api/me", requireAuth, (req, res) => {
   });
 });
 
+// ----------------------------------------------------
+// Quill notes routes
+// ----------------------------------------------------
+app.get("/api/quill-notes", requireAuth, async (req, res) => {
+  try {
+    const { pageKey } = req.query;
+
+    if (!pageKey) {
+      return res.status(400).json({
+        ok: false,
+        message: "Missing pageKey"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        user_id,
+        bible_version_id,
+        bible_chapter_id,
+        page_key,
+        quill_delta_json,
+        quill_plain_text,
+        created_at,
+        updated_at
+      FROM saved_quill_notes
+      WHERE user_id = $1
+        AND page_key = $2
+      LIMIT 1
+      `,
+      [req.user.id, pageKey]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        ok: true,
+        note: null
+      });
+    }
+
+    return res.json({
+      ok: true,
+      note: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Get quill notes error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to load notes"
+    });
+  }
+});
+
+app.post("/api/quill-notes", requireAuth, async (req, res) => {
+  try {
+    const {
+      bibleVersionID,
+      bibleChapterID,
+      pageKey,
+      quillDelta,
+      plainText
+    } = req.body;
+
+    if (!bibleVersionID || !bibleChapterID || !pageKey) {
+      return res.status(400).json({
+        ok: false,
+        message: "Missing Bible page information"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO saved_quill_notes (
+        user_id,
+        bible_version_id,
+        bible_chapter_id,
+        page_key,
+        quill_delta_json,
+        quill_plain_text,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      ON CONFLICT (user_id, page_key)
+      DO UPDATE SET
+        bible_version_id = EXCLUDED.bible_version_id,
+        bible_chapter_id = EXCLUDED.bible_chapter_id,
+        quill_delta_json = EXCLUDED.quill_delta_json,
+        quill_plain_text = EXCLUDED.quill_plain_text,
+        updated_at = NOW()
+      RETURNING
+        id,
+        user_id,
+        bible_version_id,
+        bible_chapter_id,
+        page_key,
+        quill_delta_json,
+        quill_plain_text,
+        created_at,
+        updated_at
+      `,
+      [
+        req.user.id,
+        bibleVersionID,
+        bibleChapterID,
+        pageKey,
+        quillDelta,
+        plainText || ""
+      ]
+    );
+
+    return res.json({
+      ok: true,
+      message: "Notes saved",
+      note: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Save quill notes error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to save notes"
+    });
+  }
+});
+
 // Logout
 app.post("/api/logout", (req, res) => {
   res.clearCookie("auth_token", {
