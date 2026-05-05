@@ -117,12 +117,14 @@ document.addEventListener("DOMContentLoaded", () => {
         signupForm.reset();
 
         const signupModal = document.getElementById("signupModal");
+
         if (signupModal) {
           signupModal.style.display = "none";
           signupModal.classList.remove("is-open");
         }
 
         const loginModal = document.getElementById("loginModal");
+
         if (loginModal) {
           loginModal.style.display = "block";
           loginModal.classList.add("is-open");
@@ -148,11 +150,10 @@ document.addEventListener("DOMContentLoaded", () => {
           remember
         });
 
-        //alert(result.message || "Logged in");
-
         loginForm.reset();
 
         const loginModal = document.getElementById("loginModal");
+
         if (loginModal) {
           loginModal.style.display = "none";
           loginModal.classList.remove("is-open");
@@ -163,6 +164,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (typeof unlockEditorTools === "function") {
           unlockEditorTools();
         }
+
+        window.location.reload();
       } catch (error) {
         alert(error.message);
       }
@@ -180,7 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
           lockEditorTools();
         }
 
-       window.location.reload();
+        window.location.reload();
       } catch (error) {
         alert(error.message);
       }
