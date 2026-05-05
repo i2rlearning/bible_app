@@ -398,3 +398,21 @@ body.editor-locked-state .freehand {
   border-radius: 4px;
   background: #f7f7f7;
   color:
+
+/************* Auth buttons in header *************/
+.subheader #login,
+.subheader #logout {
+  font-size: 13px;
+  padding: 3px 8px;
+  margin-left: 4px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  background: #f7f7f7;
+  color: #111;
+  line-height: 1.2;
+}
+
+.subheader #login:disabled {
+  color: #666;
+  background: #eee;
+}
