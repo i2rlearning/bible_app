@@ -74,7 +74,7 @@
       getBooks(bibleVersionID).then((bookList) => {
         bookHTML += `<ol>`;
         for (let book of bookList) {
-          bookHTML += `<li class="grid"><a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${book.name}" title=${book.name}> ${book.id} </a></li>`;
+          bookHTML += `<li class="grid"><a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${book.name}" title="${book.name}"> ${book.id} </a></li>`;
           }
         bookHTML += `</ol>`;
        
