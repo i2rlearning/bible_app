@@ -8,6 +8,7 @@
     <link href="css/signup.css" rel="stylesheet" />
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
 
     <title>Branch of Israel - Bible App</title>
   </head>
@@ -61,23 +62,20 @@
       <label for="loginPassword"><b>Password</b></label>
 
       <div class="password-field">
-        <input
-          id="loginPassword"
-          type="password"
-          placeholder="Enter Password"
-          name="psw"
-          required
-        >
-
-        <button
-          type="button"
-          class="password-toggle-btn"
-          data-password-target="loginPassword"
-          aria-label="Show password"
-        >
-          👁
-        </button>
-      </div>
+      <input
+        id="loginPassword"
+        type="password"
+        placeholder="Enter Password"
+        name="psw"
+        required
+      >
+    
+      <i
+        class="fa fa-eye toggle-password"
+        data-target="loginPassword"
+        aria-hidden="true"
+      ></i>
+    </div>
 
       <div class="login-button-row">
         <button type="submit" class="login-submit-btn">Login</button>
@@ -116,44 +114,38 @@
       <label for="signupPassword"><b>Password</b></label>
 
       <div class="password-field">
-        <input
-          id="signupPassword"
-          type="password"
-          placeholder="Enter Password"
-          name="psw"
-          required
-        >
-
-        <button
-          type="button"
-          class="password-toggle-btn"
-          data-password-target="signupPassword"
-          aria-label="Show password"
-        >
-          👁
-        </button>
-      </div>
+          <input
+            id="signupPassword"
+            type="password"
+            placeholder="Enter Password"
+            name="psw"
+            required
+          >
+        
+          <i
+            class="fa fa-eye toggle-password"
+            data-target="signupPassword"
+            aria-hidden="true"
+          ></i>
+        </div>
 
       <label for="signupPasswordRepeat"><b>Repeat Password</b></label>
 
       <div class="password-field">
-        <input
-          id="signupPasswordRepeat"
-          type="password"
-          placeholder="Repeat Password"
-          name="psw-repeat"
-          required
-        >
-
-        <button
-          type="button"
-          class="password-toggle-btn"
-          data-password-target="signupPasswordRepeat"
-          aria-label="Show password"
-        >
-          👁
-        </button>
-      </div>
+          <input
+            id="signupPasswordRepeat"
+            type="password"
+            placeholder="Repeat Password"
+            name="psw-repeat"
+            required
+          >
+        
+          <i
+            class="fa fa-eye toggle-password"
+            data-target="signupPasswordRepeat"
+            aria-hidden="true"
+          ></i>
+        </div>
 
       <p>
         By creating an account you agree to our
@@ -997,21 +989,19 @@
             toggleModal(elements.signupModal, true);
           }
     
-          if (target.classList && target.classList.contains("password-toggle-btn")) {
-            const passwordInputId = target.dataset.passwordTarget;
-            const passwordInput = document.getElementById(passwordInputId);
-    
-            if (passwordInput) {
-              const isPasswordHidden = passwordInput.type === "password";
-    
-              passwordInput.type = isPasswordHidden ? "text" : "password";
-              target.textContent = isPasswordHidden ? "🙈" : "👁";
-              target.setAttribute(
-                "aria-label",
-                isPasswordHidden ? "Hide password" : "Show password"
-              );
-            }
+          // Password show/hide toggle
+          if (target.classList && target.classList.contains("toggle-password")) {
+            const targetId = target.getAttribute("data-target");
+            const passwordInput = document.getElementById(targetId);
+        
+          if (passwordInput) {
+            const isPassword = passwordInput.getAttribute("type") === "password";
+        
+            passwordInput.setAttribute("type", isPassword ? "text" : "password");
+            target.classList.toggle("fa-eye");
+            target.classList.toggle("fa-eye-slash");
           }
+        }
     
           const isCloser = [
             "cancelLogin",
