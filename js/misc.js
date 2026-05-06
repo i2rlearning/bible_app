@@ -35,7 +35,6 @@
                                 } 
 
                                <!-- <br /><strong>Abbreviation:</strong> <span class="bible-version-abbr" title="${version.name}">${version.abbreviation}</span> -->
-                               <br /><strong>Abbreviation:</strong> <span class="bible-version-abbr" title="${version.name}"></span>
                               </p> 
                             </a>
                           </li>`;
