@@ -1,9 +1,25 @@
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.querySelector("#loginModal form");
   const signupForm = document.querySelector("#signupModal form");
+
   const loginButton = document.getElementById("login");
   const signupButton = document.getElementById("signup");
   const logoutButton = document.getElementById("logout");
+
+  const loginModal = document.getElementById("loginModal");
+  const signupModal = document.getElementById("signupModal");
+
+  function toggleModal(modal, show) {
+    if (!modal) return;
+
+    if (show) {
+      modal.style.display = "flex";
+      modal.classList.add("is-open");
+    } else {
+      modal.style.display = "none";
+      modal.classList.remove("is-open");
+    }
+  }
 
   function setLoggedInUI(user) {
     if (loginButton) {
@@ -97,6 +113,54 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+
+    if (!target) return;
+
+    if (target.id === "login") {
+      toggleModal(loginModal, true);
+    }
+
+    if (target.id === "signup") {
+      toggleModal(signupModal, true);
+    }
+
+    if (target.id === "openSignupFromLogin") {
+      event.preventDefault();
+      toggleModal(loginModal, false);
+      toggleModal(signupModal, true);
+    }
+
+    if (target.classList && target.classList.contains("toggle-password")) {
+      const targetId = target.getAttribute("data-target");
+      const passwordInput = document.getElementById(targetId);
+
+      if (passwordInput) {
+        const isPassword = passwordInput.getAttribute("type") === "password";
+
+        passwordInput.setAttribute("type", isPassword ? "text" : "password");
+        target.classList.toggle("fa-eye");
+        target.classList.toggle("fa-eye-slash");
+      }
+    }
+
+    const isCloser = [
+      "cancelLogin",
+      "closelogin",
+      "cancelSignupBtn",
+      "closeSignup"
+    ].includes(target.id);
+
+    const isBackgroundClick =
+      target === loginModal || target === signupModal;
+
+    if (isCloser || isBackgroundClick) {
+      toggleModal(loginModal, false);
+      toggleModal(signupModal, false);
+    }
+  });
+
   if (signupForm) {
     signupForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -116,19 +180,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         signupForm.reset();
 
-        const signupModal = document.getElementById("signupModal");
-
-        if (signupModal) {
-          signupModal.style.display = "none";
-          signupModal.classList.remove("is-open");
-        }
-
-        const loginModal = document.getElementById("loginModal");
-
-        if (loginModal) {
-          loginModal.style.display = "block";
-          loginModal.classList.add("is-open");
-        }
+        toggleModal(signupModal, false);
+        toggleModal(loginModal, true);
       } catch (error) {
         alert(error.message);
       }
@@ -141,24 +194,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const username = loginForm.querySelector('input[name="uname"]').value;
       const password = loginForm.querySelector('input[name="psw"]').value;
-      const remember = loginForm.querySelector('input[name="remember"]')?.checked || false;
 
       try {
         const result = await postJson("/api/login", {
           username,
           password,
-          remember
+          remember: false
         });
 
         loginForm.reset();
 
-        const loginModal = document.getElementById("loginModal");
-
-        if (loginModal) {
-          loginModal.style.display = "none";
-          loginModal.classList.remove("is-open");
-        }
-
+        toggleModal(loginModal, false);
         setLoggedInUI(result.user);
 
         if (typeof unlockEditorTools === "function") {
