@@ -77,23 +77,23 @@
 
 .password-field input {
   width: 100%;
-  padding-right: 38px !important;
+  padding-right: 36px !important;
   margin-bottom: 0 !important;
 }
 
-.password-toggle-btn {
+.toggle-password {
   position: absolute;
   top: 50%;
-  right: 8px;
+  right: 10px;
   transform: translateY(-50%);
-  border: none;
-  background: transparent;
+  color: #555;
   cursor: pointer;
   font-size: 15px;
-  padding: 2px;
-  line-height: 1;
 }
 
+.toggle-password:hover {
+  color: #111;
+}
 
 /* ==== Login / Cancel Buttons ==== */
 .login-button-row {
