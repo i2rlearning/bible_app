@@ -214,6 +214,65 @@
   background-color: #ffd59e !important;
 }
 
+/************* Bible font colors *************/
+.eb-container .bible-user-format.text-black {
+  color: #000000 !important;
+}
+
+.eb-container .bible-user-format.text-red {
+  color: #c40000 !important;
+}
+
+.eb-container .bible-user-format.text-blue {
+  color: #0066cc !important;
+}
+
+.eb-container .bible-user-format.text-green {
+  color: #2f7d32 !important;
+}
+
+.eb-container .bible-user-format.text-purple {
+  color: #6c2eb1 !important;
+}
+
+/************* Font color dropdown buttons *************/
+.toolbar-dropdown-menu .font-color-option {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #fff;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.toolbar-dropdown-menu .font-color-option:hover {
+  outline: 2px solid #555;
+}
+
+.font-color-option.text-black {
+  color: #000000 !important;
+}
+
+.font-color-option.text-red {
+  color: #c40000 !important;
+}
+
+.font-color-option.text-blue {
+  color: #0066cc !important;
+}
+
+.font-color-option.text-green {
+  color: #2f7d32 !important;
+}
+
+.font-color-option.text-purple {
+  color: #6c2eb1 !important;
+}
+
 /************* Drawing layer *************/
 #bible-annotation-layer {
   position: absolute;
