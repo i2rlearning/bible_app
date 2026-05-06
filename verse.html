@@ -943,7 +943,7 @@
         updateBibleZoomLayout();
       });
     
-      //********** Dropdown Buttons (draw and highlighter) **********//
+      //********** Dropdown Buttons (highlighter - font color - draw) **********//
       function toggleHighlightMenu() {
         document.getElementById("highlight-menu").classList.toggle("show");
       }
@@ -952,6 +952,14 @@
         document.getElementById("highlight-menu").classList.remove("show");
       }
 
+      function toggleFontColorMenu() {
+        document.getElementById("font-color-menu").classList.toggle("show");
+      }
+    
+      function closeFontColorMenu() {
+        document.getElementById("font-color-menu").classList.remove("show");
+      }
+        
       function toggleDrawMenu() {
           document.getElementById("draw-menu").classList.toggle("show");
       }
@@ -962,16 +970,21 @@
         
       document.addEventListener("click", function (event) {
           const highlightDropdown = document.querySelector("#highlight-menu")?.closest(".toolbar-dropdown");
+          const fontColorDropdown = document.querySelector("#font-color-menu")?.closest(".toolbar-dropdown");
           const drawDropdown = document.querySelector("#draw-menu")?.closest(".toolbar-dropdown");
         
           if (highlightDropdown && !highlightDropdown.contains(event.target)) {
             closeHighlightMenu();
           }
         
+          if (fontColorDropdown && !fontColorDropdown.contains(event.target)) {
+            closeFontColorMenu();
+          }
+        
           if (drawDropdown && !drawDropdown.contains(event.target)) {
             closeDrawMenu();
           }
-        });      
+      });     
 </script>
 </body>
 </html>
