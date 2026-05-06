@@ -953,72 +953,7 @@
           if (drawDropdown && !drawDropdown.contains(event.target)) {
             closeDrawMenu();
           }
-        });
-
-      // Login & Signup 
-      document.addEventListener("DOMContentLoaded", () => {
-        const elements = {
-          loginModal: document.getElementById("loginModal"),
-          signupModal: document.getElementById("signupModal")
-        };
-    
-        const toggleModal = (modal, show) => {
-          if (!modal) return;
-    
-          if (show) {
-            modal.style.display = "flex";
-            modal.classList.add("is-open");
-          } else {
-            modal.style.display = "none";
-            modal.classList.remove("is-open");
-          }
-        };
-    
-        document.addEventListener("click", (e) => {
-          const target = e.target;
-    
-          if (!target) return;
-    
-          if (target.id === "login") {
-            toggleModal(elements.loginModal, true);
-          }
-    
-          if (target.id === "openSignupFromLogin") {
-            e.preventDefault();
-            toggleModal(elements.loginModal, false);
-            toggleModal(elements.signupModal, true);
-          }
-    
-          // Password show/hide toggle
-          if (target.classList && target.classList.contains("toggle-password")) {
-            const targetId = target.getAttribute("data-target");
-            const passwordInput = document.getElementById(targetId);
-        
-          if (passwordInput) {
-            const isPassword = passwordInput.getAttribute("type") === "password";
-        
-            passwordInput.setAttribute("type", isPassword ? "text" : "password");
-            target.classList.toggle("fa-eye");
-            target.classList.toggle("fa-eye-slash");
-          }
-        }
-    
-          const isCloser = [
-            "cancelLogin",
-            "closelogin",
-            "cancelSignupBtn",
-            "closeSignup"
-          ].includes(target.id);
-    
-          const isBackgroundClick =
-            target === elements.loginModal || target === elements.signupModal;
-    
-          if (isCloser || isBackgroundClick) {
-            toggleModal(elements.loginModal, false);
-            toggleModal(elements.signupModal, false);
-          }
-        });
-      });
+        });      
 </script>
 </body>
 </html>
