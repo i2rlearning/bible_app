@@ -19,21 +19,23 @@
         const versions = sortedVersions[languageGroup];
 
         for (let version of versions) {
-          versionHTML += `<li><a href="book.html?version=${version.id}&name=${version.name}&abbr=${version.abbreviation}">
+          //versionHTML += `<li><a href="book.html?version=${version.id}&name=${version.name}&abbr=${version.abbreviation}">
+          versionHTML += `<li><a href="book.html?version=${version.id}&name=${version.name}">
                               <p>
                                 <span class="bible-version-name"> <strong>${
                                   version.name
                                 }</span></strong> 
 
-                               // ${
-                                //  version.description
-                                //    ? '<span class="bible-version-desc"><br /><strong>Description:</strong> ' +
-                                //      version.description +
-                                //      "</span>"
-                                //    : ""
-                               // } 
+                                ${
+                                  version.description
+                                    ? '<span class="bible-version-desc"><br /><strong>Description:</strong> ' +
+                                      version.description +
+                                      "</span>"
+                                    : ""
+                                } 
 
-                               <br /><strong>Abbreviation:</strong> <span class="bible-version-abbr" title="${version.name}">${version.abbreviation}</span> 
+                               <!-- <br /><strong>Abbreviation:</strong> <span class="bible-version-abbr" title="${version.name}">${version.abbreviation}</span> -->
+                               <br /><strong>Abbreviation:</strong> <span class="bible-version-abbr" title="${version.name}"></span>
                               </p> 
                             </a>
                           </li>`;
