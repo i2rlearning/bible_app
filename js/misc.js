@@ -19,8 +19,7 @@
         const versions = sortedVersions[languageGroup];
 
         for (let version of versions) {
-          //versionHTML += `<li><a href="book.html?version=${version.id}&name=${version.name}&abbr=${version.abbreviation}">
-          versionHTML += `<li><a href="book.html?version=${version.id}&name=${version.name}">
+          versionHTML += `<li><a href="book.html?version=${version.id}&name=${version.name}&abbr=${version.abbreviation}">
                               <p>
                                 <span class="bible-version-name"> <strong>${
                                   version.name
