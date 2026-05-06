@@ -561,8 +561,70 @@
         }
       });
 
-      // ******************* Mini-editor selection memory *********************
-        let savedBibleSelectionRange = null;
+      / ******************* Mini-editor selection memory *********************
+        let savedBibleSelectionOffsets = null;
+        
+        function getTextOffsetWithinElement(root, targetNode, targetOffset) {
+          let offset = 0;
+        
+          const walker = document.createTreeWalker(
+            root,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+        
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+        
+            if (node === targetNode) {
+              return offset + targetOffset;
+            }
+        
+            offset += node.nodeValue.length;
+          }
+        
+          return offset;
+        }
+        
+        function getRangeFromTextOffsets(root, startOffset, endOffset) {
+          const range = document.createRange();
+          let currentOffset = 0;
+        
+          const walker = document.createTreeWalker(
+            root,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+        
+          let startSet = false;
+          let endSet = false;
+        
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            const nodeLength = node.nodeValue.length;
+            const nodeStart = currentOffset;
+            const nodeEnd = currentOffset + nodeLength;
+        
+            if (!startSet && startOffset >= nodeStart && startOffset <= nodeEnd) {
+              range.setStart(node, startOffset - nodeStart);
+              startSet = true;
+            }
+        
+            if (!endSet && endOffset >= nodeStart && endOffset <= nodeEnd) {
+              range.setEnd(node, endOffset - nodeStart);
+              endSet = true;
+              break;
+            }
+        
+            currentOffset = nodeEnd;
+          }
+        
+          if (!startSet || !endSet) {
+            return null;
+          }
+        
+          return range;
+        }
         
         function saveBibleSelection() {
           const selection = window.getSelection();
@@ -574,27 +636,46 @@
         
           const range = selection.getRangeAt(0);
         
-          if (bibleText.contains(range.commonAncestorContainer)) {
-            savedBibleSelectionRange = range.cloneRange();
+          if (!bibleText.contains(range.commonAncestorContainer)) {
+            return;
           }
+        
+          savedBibleSelectionOffsets = {
+            start: getTextOffsetWithinElement(bibleText, range.startContainer, range.startOffset),
+            end: getTextOffsetWithinElement(bibleText, range.endContainer, range.endOffset)
+          };
         }
         
         function restoreBibleSelection() {
           const bibleText = document.getElementById("bible-text");
         
-          if (!savedBibleSelectionRange || !bibleText) {
+          if (!savedBibleSelectionOffsets || !bibleText) {
+            return false;
+          }
+        
+          const range = getRangeFromTextOffsets(
+            bibleText,
+            savedBibleSelectionOffsets.start,
+            savedBibleSelectionOffsets.end
+          );
+        
+          if (!range) {
             return false;
           }
         
           const selection = window.getSelection();
         
           selection.removeAllRanges();
-          selection.addRange(savedBibleSelectionRange);
+          selection.addRange(range);
         
           return true;
         }
         
-        document.addEventListener("selectionchange", saveBibleSelection);  
+        function rememberCurrentSelectionOffsets() {
+          saveBibleSelection();
+        }
+        
+        document.addEventListener("selectionchange", saveBibleSelection); 
     
       // ******************* Mini-editor text formatting *********************
       function applyBibleFormat(className) {
@@ -609,11 +690,11 @@
         
           if (!bibleText.contains(range.commonAncestorContainer)) return;
         
+          saveBibleSelection();
+        
           wrapSelectedTextNodes(range, className);
         
-          savedBibleSelectionRange = range.cloneRange();
-        
-          selection.removeAllRanges();
+          restoreBibleSelection();
         }
     
       function wrapSelectedTextNodes(range, className) {
@@ -683,6 +764,8 @@
         
           if (!bibleText.contains(range.commonAncestorContainer)) return;
         
+          saveBibleSelection();
+        
           const userFormatSpans = Array.from(
             bibleText.querySelectorAll(".bible-user-format")
           ).filter((span) => {
@@ -693,8 +776,7 @@
             unwrapElement(span);
           });
         
-          savedBibleSelectionRange = null;
-          selection.removeAllRanges();
+          restoreBibleSelection();
         }
     
       function unwrapElement(element) {
