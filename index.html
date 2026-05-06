@@ -227,9 +227,7 @@
           menuNav: document.getElementById("menuNav"),
           fontSizeSlider: document.getElementById("font-size-slider"),
           displayText: document.getElementById("bible-version-list"),
-          langInput: document.getElementById("langInput"),
-          loginModal: document.getElementById("loginModal"),
-          signupModal: document.getElementById("signupModal")
+          langInput: document.getElementById("langInput")
         };
     
         // 2. Side Navigation
@@ -270,71 +268,6 @@
             window.location.reload();
           });
         }
-    
-        // 5. Modal Management
-        const toggleModal = (modal, show) => {
-          if (!modal) return;
-        
-          if (show) {
-            modal.style.display = "flex";
-            modal.classList.add("is-open");
-          } else {
-            modal.style.display = "none";
-            modal.classList.remove("is-open");
-          }
-        };
-    
-        // 6. Global Click Listener
-        document.addEventListener("click", (e) => {
-          const target = e.target;
-    
-          if (!target) return;
-    
-          if (target.id === "login") {
-            toggleModal(elements.loginModal, true);
-          }
-    
-          if (target.id === "signup") {
-            toggleModal(elements.signupModal, true);
-          }
-    
-          if (target.id === "openSignupFromLogin") {
-            e.preventDefault();
-            toggleModal(elements.loginModal, false);
-            toggleModal(elements.signupModal, true);
-          }
-    
-          if (target.classList && target.classList.contains("password-toggle-btn")) {
-            const passwordInputId = target.dataset.passwordTarget;
-            const passwordInput = document.getElementById(passwordInputId);
-          
-            if (passwordInput) {
-              const isPasswordHidden = passwordInput.type === "password";
-          
-              passwordInput.type = isPasswordHidden ? "text" : "password";
-              target.textContent = isPasswordHidden ? "🙈" : "👁";
-              target.setAttribute(
-                "aria-label",
-                isPasswordHidden ? "Hide password" : "Show password"
-              );
-            }
-          }
-    
-          const isCloser = [
-            "cancelLogin",
-            "closelogin",
-            "cancelSignupBtn",
-            "closeSignup"
-          ].includes(target.id);
-    
-          const isBackgroundClick =
-            target === elements.loginModal || target === elements.signupModal;
-    
-          if (isCloser || isBackgroundClick) {
-            toggleModal(elements.loginModal, false);
-            toggleModal(elements.signupModal, false);
-          }
-        });
     
       });
     </script>
