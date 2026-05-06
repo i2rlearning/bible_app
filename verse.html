@@ -205,9 +205,9 @@
           <div id="font-color-menu" class="toolbar-dropdown-menu">
             <button type="button" class="font-color-option text-black" onclick="applyBibleFormat('text-black'); closeFontColorMenu();" title="Black">A</button>
             <button type="button" class="font-color-option text-red" onclick="applyBibleFormat('text-red'); closeFontColorMenu();" title="Red">A</button>
-            <button type="button" class="font-color-option text-blue" onclick="applyBibleFormat('text-blue'); closeFontColorMenu();" title="Blue">>A</button>
-            <button type="button" class="font-color-option text-green" onclick="applyBibleFormat('text-green'); closeFontColorMenu();" title="Green">>A</button>
-            <button type="button" class="font-color-option text-purple" onclick="applyBibleFormat('text-purple'); closeFontColorMenu();" title="Purple">>A</button>
+            <button type="button" class="font-color-option text-blue" onclick="applyBibleFormat('text-blue'); closeFontColorMenu();" title="Blue">A</button>
+            <button type="button" class="font-color-option text-green" onclick="applyBibleFormat('text-green'); closeFontColorMenu();" title="Green">A</button>
+            <button type="button" class="font-color-option text-purple" onclick="applyBibleFormat('text-purple'); closeFontColorMenu();" title="Purple">A</button>
           </div>
         </div>
           
@@ -560,22 +560,61 @@
           window.location.href = urlwonum + (currNum + 1);
         }
       });
+
+      // ******************* Mini-editor selection memory *********************
+        let savedBibleSelectionRange = null;
+        
+        function saveBibleSelection() {
+          const selection = window.getSelection();
+          const bibleText = document.getElementById("bible-text");
+        
+          if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+            return;
+          }
+        
+          const range = selection.getRangeAt(0);
+        
+          if (bibleText.contains(range.commonAncestorContainer)) {
+            savedBibleSelectionRange = range.cloneRange();
+          }
+        }
+        
+        function restoreBibleSelection() {
+          const bibleText = document.getElementById("bible-text");
+        
+          if (!savedBibleSelectionRange || !bibleText) {
+            return false;
+          }
+        
+          const selection = window.getSelection();
+        
+          selection.removeAllRanges();
+          selection.addRange(savedBibleSelectionRange);
+        
+          return true;
+        }
+        
+        document.addEventListener("selectionchange", saveBibleSelection);  
     
       // ******************* Mini-editor text formatting *********************
       function applyBibleFormat(className) {
-        const selection = window.getSelection();
-    
-        if (!selection.rangeCount || selection.isCollapsed) return;
-    
-        const range = selection.getRangeAt(0);
-        const bibleText = document.getElementById("bible-text");
-    
-        if (!bibleText.contains(range.commonAncestorContainer)) return;
-    
-        wrapSelectedTextNodes(range, className);
-    
-        selection.removeAllRanges();
-      }
+          restoreBibleSelection();
+        
+          const selection = window.getSelection();
+        
+          if (!selection.rangeCount || selection.isCollapsed) return;
+        
+          const range = selection.getRangeAt(0);
+          const bibleText = document.getElementById("bible-text");
+        
+          if (!bibleText.contains(range.commonAncestorContainer)) return;
+        
+          wrapSelectedTextNodes(range, className);
+        
+          savedBibleSelectionRange = range.cloneRange();
+        
+          selection.removeAllRanges();
+        }
     
       function wrapSelectedTextNodes(range, className) {
         const textNodes = [];
@@ -633,27 +672,30 @@
       }
     
       function clearBibleSelectionFormat() {
-        const selection = window.getSelection();
-    
-        if (!selection.rangeCount || selection.isCollapsed) return;
-    
-        const range = selection.getRangeAt(0);
-        const bibleText = document.getElementById("bible-text");
-    
-        if (!bibleText.contains(range.commonAncestorContainer)) return;
-    
-        const userFormatSpans = Array.from(
-          bibleText.querySelectorAll(".bible-user-format")
-        ).filter((span) => {
-          return range.intersectsNode(span);
-        });
-    
-        userFormatSpans.forEach((span) => {
-          unwrapElement(span);
-        });
-    
-        selection.removeAllRanges();
-      }
+          restoreBibleSelection();
+        
+          const selection = window.getSelection();
+        
+          if (!selection.rangeCount || selection.isCollapsed) return;
+        
+          const range = selection.getRangeAt(0);
+          const bibleText = document.getElementById("bible-text");
+        
+          if (!bibleText.contains(range.commonAncestorContainer)) return;
+        
+          const userFormatSpans = Array.from(
+            bibleText.querySelectorAll(".bible-user-format")
+          ).filter((span) => {
+            return range.intersectsNode(span);
+          });
+        
+          userFormatSpans.forEach((span) => {
+            unwrapElement(span);
+          });
+        
+          savedBibleSelectionRange = null;
+          selection.removeAllRanges();
+        }
     
       function unwrapElement(element) {
         const parent = element.parentNode;
@@ -942,7 +984,15 @@
         resizeAnnotationLayer();
         updateBibleZoomLayout();
       });
-    
+
+      const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+      if (miniToolbar) {
+          miniToolbar.addEventListener("mousedown", function (event) {
+            event.preventDefault();
+        });
+      }
+        
       //********** Dropdown Buttons (highlighter - font color - draw) **********//
       function toggleHighlightMenu() {
         document.getElementById("highlight-menu").classList.toggle("show");
