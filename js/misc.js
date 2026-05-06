@@ -25,13 +25,13 @@
                                   version.name
                                 }</span></strong> 
 
-                                ${
-                                  version.description
-                                    ? '<span class="bible-version-desc"><br /><strong>Description:</strong> ' +
-                                      version.description +
-                                      "</span>"
-                                    : ""
-                                } 
+                               // ${
+                                //  version.description
+                                //    ? '<span class="bible-version-desc"><br /><strong>Description:</strong> ' +
+                                //      version.description +
+                                //      "</span>"
+                                //    : ""
+                               // } 
 
                                <br /><strong>Abbreviation:</strong> <span class="bible-version-abbr" title="${version.name}">${version.abbreviation}</span> 
                               </p> 
