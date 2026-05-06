@@ -23,15 +23,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setLoggedInUI(user) {
     if (loginButton) {
-      loginButton.textContent = "Logged in";
+      loginButton.style.display = "none";
       loginButton.disabled = true;
       loginButton.title = user?.email || "Logged in";
     }
-
+  
     if (signupButton) {
       signupButton.style.display = "none";
     }
-
+  
     if (logoutButton) {
       logoutButton.style.display = "";
     }
@@ -39,15 +39,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setLoggedOutUI() {
     if (loginButton) {
+      loginButton.style.display = "";
       loginButton.textContent = "Login";
       loginButton.disabled = false;
       loginButton.title = "";
     }
-
+  
     if (signupButton) {
       signupButton.style.display = "none";
     }
-
+  
     if (logoutButton) {
       logoutButton.style.display = "none";
     }
