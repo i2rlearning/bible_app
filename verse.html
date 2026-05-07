@@ -543,63 +543,71 @@
       }
     
       // ******************* Left/Right Seals *********************
-      const imageLeft = document.getElementById("imgleft");
-      const imageRight = document.getElementById("imgright");
-      const currURL = window.location.href;
-      const lastchar = currURL.substring(currURL.length - 2);
-      const charpos = lastchar.indexOf(".");
-      let currNum = -1;
-      let urlwonum = "";
-    
-      switch (charpos) {
-        case 0:
-          currNum = parseInt(lastchar.substring(1, 2));
-          urlwonum = currURL.slice(0, currURL.length - 1);
-          break;
-    
-        case -1:
-          currNum = parseInt(lastchar);
-          urlwonum = currURL.slice(0, currURL.length - 2);
-          break;
-      }
-    
-      imageLeft.addEventListener("mouseover", function () {
-        if (currNum > 1) {
-          imageLeft.src = "./img/left_stamp_on.png";
-          imageLeft.style.cursor = "pointer";
-        } else {
-          imageLeft.style.cursor = "default";
+        const imageLeft = document.getElementById("imgleft");
+        const imageRight = document.getElementById("imgright");
+        
+        const chapterParts = bibleChapterID.split(".");
+        const currentBookId = chapterParts[0];
+        const currentChapterNumber = Number(chapterParts[1]);
+        const maxChapterNumber = Number(maxChapters);
+        
+        function buildChapterUrl(newChapterNumber) {
+          const url = new URL(window.location.href);
+        
+          url.searchParams.set("chapter", `${currentBookId}.${newChapterNumber}`);
+        
+          return url.pathname + url.search;
         }
-      });
-    
-      imageLeft.addEventListener("mouseout", function () {
-        imageLeft.src = "./img/orig_left_stamp.png";
-      });
-    
-      imageLeft.addEventListener("click", function () {
-        if (currNum > 1) {
-          window.location.href = urlwonum + (currNum - 1);
+        
+        function canGoPreviousChapter() {
+          return Number.isFinite(currentChapterNumber) && currentChapterNumber > 1;
         }
-      });
-    
-      imageRight.addEventListener("mouseover", function () {
-        if (currNum < maxChapters) {
-          imageRight.src = "./img/right_stamp_on.png";
-          imageRight.style.cursor = "pointer";
-        } else {
-          imageRight.style.cursor = "default";
+        
+        function canGoNextChapter() {
+          return (
+            Number.isFinite(currentChapterNumber) &&
+            Number.isFinite(maxChapterNumber) &&
+            currentChapterNumber < maxChapterNumber
+          );
         }
-      });
-    
-      imageRight.addEventListener("mouseout", function () {
-        imageRight.src = "./img/orig_right_stamp.png";
-      });
-    
-      imageRight.addEventListener("click", function () {
-        if (currNum < maxChapters) {
-          window.location.href = urlwonum + (currNum + 1);
-        }
-      });
+        
+        imageLeft.addEventListener("mouseover", function () {
+          if (canGoPreviousChapter()) {
+            imageLeft.src = "./img/left_stamp_on.png";
+            imageLeft.style.cursor = "pointer";
+          } else {
+            imageLeft.style.cursor = "default";
+          }
+        });
+        
+        imageLeft.addEventListener("mouseout", function () {
+          imageLeft.src = "./img/orig_left_stamp.png";
+        });
+        
+        imageLeft.addEventListener("click", function () {
+          if (canGoPreviousChapter()) {
+            window.location.href = buildChapterUrl(currentChapterNumber - 1);
+          }
+        });
+        
+        imageRight.addEventListener("mouseover", function () {
+          if (canGoNextChapter()) {
+            imageRight.src = "./img/right_stamp_on.png";
+            imageRight.style.cursor = "pointer";
+          } else {
+            imageRight.style.cursor = "default";
+          }
+        });
+        
+        imageRight.addEventListener("mouseout", function () {
+          imageRight.src = "./img/orig_right_stamp.png";
+        });
+        
+        imageRight.addEventListener("click", function () {
+          if (canGoNextChapter()) {
+            window.location.href = buildChapterUrl(currentChapterNumber + 1);
+          }
+        });
 
       // ******************* Mini-editor selection memory *********************
         let savedBibleSelectionOffsets = null;
