@@ -149,3 +149,70 @@
   text-decoration: underline;
   font-size: 12px;
 }
+
+/************* My Notes modal *************/
+.my-notes-content {
+  position: relative;
+  background: #fff;
+  width: min(900px, 92vw);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  border-radius: 6px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
+}
+
+.my-notes-content h2 {
+  margin: 0 0 14px 0;
+  font-size: 24px;
+}
+
+.my-notes-search {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.my-notes-status {
+  margin-bottom: 10px;
+  font-style: italic;
+  color: #666;
+}
+
+.my-notes-table-wrapper {
+  overflow-x: auto;
+}
+
+.my-notes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.my-notes-table th,
+.my-notes-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.my-notes-table th {
+  background: #f5f5f5;
+}
+
+.my-notes-table a {
+  color: #0066cc;
+  text-decoration: underline;
+}
+
+.overlay-content a.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
