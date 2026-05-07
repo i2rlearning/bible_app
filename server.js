@@ -387,7 +387,17 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
 app.get("/api/mini-editor-page", requireAuth, async (req, res) => {
   try {
     const { pageKey } = req.query;
-
+    function getBibleAbbrFromPageUrl(pageUrl) {
+      if (!pageUrl) return "";
+    
+      try {
+        const url = new URL(pageUrl, "https://example.com");
+        return url.searchParams.get("abbr") || "";
+      } catch (error) {
+        return "";
+      }
+    }
+    
     if (!pageKey) {
       return res.status(400).json({
         ok: false,
