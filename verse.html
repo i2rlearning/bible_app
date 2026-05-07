@@ -304,6 +304,7 @@
     </main>   
 
     <script src="js/my_key.js"></script>
+    <script src="js/menu.js"></script>
     <script src="js/auth.js"></script>
     <script src="https://cdn.scripture.api.bible/fums/fumsv2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script> <!-- Quill library -->
@@ -530,56 +531,8 @@
         if (!results[2]) return ``;
     
         return decodeURIComponent(results[2].replace(/\+/g, ` `));
-      }
-    
-      // ************* Menu **************
-      function openNav() {
-          const menuNav = document.getElementById("menuNav");
-          const menuToggle = document.getElementById("menuToggle");
-        
-          if (!menuNav) return;
-        
-          const isOpen = menuNav.style.width && menuNav.style.width !== "0px";
-        
-          if (isOpen) {
-            closeNav();
-            return;
-          }
-        
-          menuNav.style.width = "225px";
-        
-          if (menuToggle) {
-            menuToggle.classList.add("active-menu");
-          }
-        
-          const bookLink = sessionStorage.getItem("bookabbr");
-          const bookUrl = document.getElementById("bookurl");
-        
-          if (bookLink && bookUrl) {
-            bookUrl.setAttribute("href", bookLink);
-          }
-        
-          const chapterLink = sessionStorage.getItem("chapter");
-          const chapterUrl = document.getElementById("chapterurl");
-        
-          if (chapterLink && chapterUrl) {
-            chapterUrl.setAttribute("href", chapterLink);
-          }
-        }
-        
-        function closeNav() {
-          const menuNav = document.getElementById("menuNav");
-          const menuToggle = document.getElementById("menuToggle");
-        
-          if (menuNav) {
-            menuNav.style.width = "0px";
-          }
-        
-          if (menuToggle) {
-            menuToggle.classList.remove("active-menu");
-          }
-        }
-    
+      }    
+         
       // ******************* Left/Right Seals *********************
         const imageLeft = document.getElementById("imgleft");
         const imageRight = document.getElementById("imgright");
