@@ -251,16 +251,23 @@ async function loadMyNotes() {
 
   if (target.id === "openMyNotes") {
     event.preventDefault();
-
-  if (target.classList.contains("disabled")) {
-    toggleModal(loginModal, true);
-    return;
+  
+    if (target.classList.contains("disabled")) {
+      if (typeof closeNav === "function") {
+        closeNav();
+      }
+  
+      toggleModal(loginModal, true);
+      return;
+    }
+  
+    if (typeof closeNav === "function") {
+      closeNav();
+    }
+  
+    toggleModal(myNotesModal, true);
+    loadMyNotes();
   }
-
-  toggleModal(myNotesModal, true);
-  loadMyNotes();
-}
-
   if (target.classList && target.classList.contains("toggle-password")) {
     const targetId = target.getAttribute("data-target");
     const passwordInput = document.getElementById(targetId);
