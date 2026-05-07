@@ -539,6 +539,119 @@ app.post("/api/mini-editor-page", requireAuth, async (req, res) => {
   }
 });
 
+// ----------------------------------------------------
+// My Notes route
+// ----------------------------------------------------
+app.get("/api/my-notes", requireAuth, async (req, res) => {
+  try {
+    const quillResult = await pool.query(
+      `
+      SELECT
+        page_key,
+        bible_version_id,
+        bible_chapter_id,
+        page_url,
+        quill_plain_text,
+        updated_at
+      FROM saved_quill_notes
+      WHERE user_id = $1
+      `,
+      [req.user.id]
+    );
+
+    const miniEditorResult = await pool.query(
+      `
+      SELECT
+        page_key,
+        bible_version_id,
+        bible_chapter_id,
+        page_url,
+        bible_name,
+        book_chapter_label,
+        has_highlights,
+        has_drawings,
+        has_text_formats,
+        updated_at
+      FROM saved_mini_editor_pages
+      WHERE user_id = $1
+      `,
+      [req.user.id]
+    );
+
+    const notesByPageKey = new Map();
+
+    quillResult.rows.forEach((note) => {
+      notesByPageKey.set(note.page_key, {
+        pageKey: note.page_key,
+        bibleVersionID: note.bible_version_id,
+        bibleChapterID: note.bible_chapter_id,
+        bibleName: "",
+        bookChapterLabel: note.bible_chapter_id,
+        pageUrl: note.page_url,
+        hasQuillNotes: !!(note.quill_plain_text && note.quill_plain_text.trim()),
+        hasHighlights: false,
+        hasDrawings: false,
+        hasTextFormats: false,
+        preview: note.quill_plain_text || "",
+        updatedAt: note.updated_at
+      });
+    });
+
+    miniEditorResult.rows.forEach((page) => {
+      const existing = notesByPageKey.get(page.page_key);
+
+      if (existing) {
+        existing.bibleVersionID = existing.bibleVersionID || page.bible_version_id;
+        existing.bibleChapterID = existing.bibleChapterID || page.bible_chapter_id;
+        existing.bibleName = page.bible_name || existing.bibleName || "";
+        existing.bookChapterLabel =
+          page.book_chapter_label ||
+          existing.bookChapterLabel ||
+          page.bible_chapter_id;
+        existing.pageUrl = existing.pageUrl || page.page_url;
+        existing.hasHighlights = !!page.has_highlights;
+        existing.hasDrawings = !!page.has_drawings;
+        existing.hasTextFormats = !!page.has_text_formats;
+
+        if (new Date(page.updated_at) > new Date(existing.updatedAt)) {
+          existing.updatedAt = page.updated_at;
+        }
+      } else {
+        notesByPageKey.set(page.page_key, {
+          pageKey: page.page_key,
+          bibleVersionID: page.bible_version_id,
+          bibleChapterID: page.bible_chapter_id,
+          bibleName: page.bible_name || "",
+          bookChapterLabel: page.book_chapter_label || page.bible_chapter_id,
+          pageUrl: page.page_url,
+          hasQuillNotes: false,
+          hasHighlights: !!page.has_highlights,
+          hasDrawings: !!page.has_drawings,
+          hasTextFormats: !!page.has_text_formats,
+          preview: "",
+          updatedAt: page.updated_at
+        });
+      }
+    });
+
+    const notes = Array.from(notesByPageKey.values()).sort((a, b) => {
+      return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
+
+    res.json({
+      ok: true,
+      notes
+    });
+  } catch (error) {
+    console.error("Get my notes error:", error);
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to load my notes"
+    });
+  }
+});
+
 // Logout
 app.post("/api/logout", (req, res) => {
   res.clearCookie("auth_token", {
