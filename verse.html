@@ -43,79 +43,27 @@
       </div>
 
     <!-- ****** Login ****** -->
-<div id="loginModal" class="modal">
-  <form class="modal-content" action="/action_page.php">
-    <button type="button" id="closelogin" class="modal-close" title="Close Login">
-      &times;
-    </button>
-
-    <div class="modal-input-container">
-      <label for="loginUsername"><b>Username</b></label>
-      <input
-        id="loginUsername"
-        type="text"
-        placeholder="Enter Username"
-        name="uname"
-        required
-      >
-
-      <label for="loginPassword"><b>Password</b></label>
-
-      <div class="password-field">
-      <input
-        id="loginPassword"
-        type="password"
-        placeholder="Enter Password"
-        name="psw"
-        required
-      >
+    <div id="loginModal" class="modal">
+      <form class="modal-content" action="/action_page.php">
+        <button type="button" id="closelogin" class="modal-close" title="Close Login">
+          &times;
+        </button>
     
-      <i
-        class="fa fa-eye toggle-password"
-        data-target="loginPassword"
-        aria-hidden="true"
-      ></i>
-    </div>
-
-      <div class="login-button-row">
-        <button type="submit" class="login-submit-btn">Login</button>
-        <button type="button" id="cancelLogin" class="cancelbtn">Cancel</button>
-      </div>
-    </div>
-
-    <div class="auth-actions">
-      <span>Forgot <a href="#">password?</a></span>
-      <span>Create <a href="#" id="openSignupFromLogin">account</a></span>
-    </div>
-  </form>
-</div>
-
-<!-- ****** Signup Form ****** -->
-<div id="signupModal" class="signup-modal">
-  <form class="signup-form-content" action="/action_page.php">
-    <button type="button" id="closeSignup" class="modal-close" title="Close Signup">
-      &times;
-    </button>
-
-    <div class="acct-container">
-      <h1>Sign Up</h1>
-      <p>Please fill in this form to create an account.</p>
-      <hr>
-
-      <label for="signupEmail"><b>Email</b></label>
-      <input
-        id="signupEmail"
-        type="text"
-        placeholder="Enter Email"
-        name="email"
-        required
-      >
-
-      <label for="signupPassword"><b>Password</b></label>
-
-      <div class="password-field">
+        <div class="modal-input-container">
+          <label for="loginUsername"><b>Username</b></label>
           <input
-            id="signupPassword"
+            id="loginUsername"
+            type="text"
+            placeholder="Enter Username"
+            name="uname"
+            required
+          >
+    
+          <label for="loginPassword"><b>Password</b></label>
+    
+          <div class="password-field">
+          <input
+            id="loginPassword"
             type="password"
             placeholder="Enter Password"
             name="psw"
@@ -124,41 +72,132 @@
         
           <i
             class="fa fa-eye toggle-password"
-            data-target="signupPassword"
+            data-target="loginPassword"
             aria-hidden="true"
           ></i>
         </div>
-
-      <label for="signupPasswordRepeat"><b>Repeat Password</b></label>
-
-      <div class="password-field">
+    
+          <div class="login-button-row">
+            <button type="submit" class="login-submit-btn">Login</button>
+            <button type="button" id="cancelLogin" class="cancelbtn">Cancel</button>
+          </div>
+        </div>
+    
+        <div class="auth-actions">
+          <span>Forgot <a href="#">password?</a></span>
+          <span>Create <a href="#" id="openSignupFromLogin">account</a></span>
+        </div>
+      </form>
+    </div>
+    
+    <!-- ****** Signup Form ****** -->
+    <div id="signupModal" class="signup-modal">
+      <form class="signup-form-content" action="/action_page.php">
+        <button type="button" id="closeSignup" class="modal-close" title="Close Signup">
+          &times;
+        </button>
+    
+        <div class="acct-container">
+          <h1>Sign Up</h1>
+          <p>Please fill in this form to create an account.</p>
+          <hr>
+    
+          <label for="signupEmail"><b>Email</b></label>
           <input
-            id="signupPasswordRepeat"
-            type="password"
-            placeholder="Repeat Password"
-            name="psw-repeat"
+            id="signupEmail"
+            type="text"
+            placeholder="Enter Email"
+            name="email"
             required
           >
-        
-          <i
-            class="fa fa-eye toggle-password"
-            data-target="signupPasswordRepeat"
-            aria-hidden="true"
-          ></i>
+    
+          <label for="signupPassword"><b>Password</b></label>
+    
+          <div class="password-field">
+              <input
+                id="signupPassword"
+                type="password"
+                placeholder="Enter Password"
+                name="psw"
+                required
+              >
+            
+              <i
+                class="fa fa-eye toggle-password"
+                data-target="signupPassword"
+                aria-hidden="true"
+              ></i>
+            </div>
+    
+          <label for="signupPasswordRepeat"><b>Repeat Password</b></label>
+    
+          <div class="password-field">
+              <input
+                id="signupPasswordRepeat"
+                type="password"
+                placeholder="Repeat Password"
+                name="psw-repeat"
+                required
+              >
+            
+              <i
+                class="fa fa-eye toggle-password"
+                data-target="signupPasswordRepeat"
+                aria-hidden="true"
+              ></i>
+            </div>
+    
+          <p>
+            By creating an account you agree to our
+            <a href="#" style="color:dodgerblue">Terms & Privacy</a>.
+          </p>
+    
+          <div class="signup-button-row">
+            <button type="button" id="cancelSignupBtn" class="cancelbtn">Cancel</button>
+            <button type="submit" class="signupbtn">Sign Up</button>
+          </div>
         </div>
+      </form>
+    </div>  
 
-      <p>
-        By creating an account you agree to our
-        <a href="#" style="color:dodgerblue">Terms & Privacy</a>.
-      </p>
-
-      <div class="signup-button-row">
-        <button type="button" id="cancelSignupBtn" class="cancelbtn">Cancel</button>
-        <button type="submit" class="signupbtn">Sign Up</button>
+    <!-- ****** My Notes Modal ****** -->
+    <div id="myNotesModal" class="modal">
+      <div class="my-notes-content">
+        <button type="button" id="closeMyNotes" class="modal-close" title="Close My Notes">
+          &times;
+        </button>
+    
+        <h2>My Notes</h2>
+    
+        <input
+          type="text"
+          id="myNotesSearch"
+          placeholder="Search notes..."
+          class="my-notes-search"
+        >
+    
+        <div id="myNotesStatus" class="my-notes-status">
+          Loading...
+        </div>
+    
+        <div class="my-notes-table-wrapper">
+          <table class="my-notes-table">
+            <thead>
+              <tr>
+                <th>Bible</th>
+                <th>Book / Chapter</th>
+                <th>Saved Content</th>
+                <th>Preview</th>
+                <th>Updated</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody id="myNotesTableBody">
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </form>
-</div>  
       
     <header>
       <div id="menuNav" class="overlay">
@@ -168,6 +207,7 @@
           <a id="bookurl">Books</a>
           <a id="chapterurl">Chapter</a>
           <a href="./search.html">Search</a>
+          <a href="#" id="openMyNotes" class="disabled" aria-disabled="true">My Notes</a>  
           <a href="#">Preferences</a>
         </div>
       </div>
