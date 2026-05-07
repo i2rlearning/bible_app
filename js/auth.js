@@ -35,6 +35,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (logoutButton) {
       logoutButton.style.display = "";
     }
+
+    const myNotesLink = document.getElementById("openMyNotes");
+
+    if (myNotesLink) {
+      myNotesLink.classList.remove("disabled");
+      myNotesLink.setAttribute("aria-disabled", "false");
+    }
   }
 
   function setLoggedOutUI() {
@@ -51,6 +58,13 @@ document.addEventListener("DOMContentLoaded", () => {
   
     if (logoutButton) {
       logoutButton.style.display = "none";
+    }
+  
+    const myNotesLink = document.getElementById("openMyNotes");
+
+    if (myNotesLink) {
+      myNotesLink.classList.add("disabled");
+      myNotesLink.setAttribute("aria-disabled", "true");
     }
   }
 
@@ -115,52 +129,69 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   document.addEventListener("click", (event) => {
-    const target = event.target;
+  const target = event.target;
 
-    if (!target) return;
+  if (!target) return;
 
-    if (target.id === "login") {
+  const myNotesModal = document.getElementById("myNotesModal");
+
+  if (target.id === "login") {
+    toggleModal(loginModal, true);
+  }
+
+  if (target.id === "signup") {
+    toggleModal(signupModal, true);
+  }
+
+  if (target.id === "openSignupFromLogin") {
+    event.preventDefault();
+    toggleModal(loginModal, false);
+    toggleModal(signupModal, true);
+  }
+
+  if (target.id === "openMyNotes") {
+    event.preventDefault();
+
+    if (target.classList.contains("disabled")) {
       toggleModal(loginModal, true);
+      return;
     }
 
-    if (target.id === "signup") {
-      toggleModal(signupModal, true);
+    toggleModal(myNotesModal, true);
+  }
+
+  if (target.classList && target.classList.contains("toggle-password")) {
+    const targetId = target.getAttribute("data-target");
+    const passwordInput = document.getElementById(targetId);
+
+    if (passwordInput) {
+      const isPassword = passwordInput.getAttribute("type") === "password";
+
+      passwordInput.setAttribute("type", isPassword ? "text" : "password");
+      target.classList.toggle("fa-eye");
+      target.classList.toggle("fa-eye-slash");
     }
+  }
 
-    if (target.id === "openSignupFromLogin") {
-      event.preventDefault();
-      toggleModal(loginModal, false);
-      toggleModal(signupModal, true);
-    }
+  const isCloser = [
+    "cancelLogin",
+    "closelogin",
+    "cancelSignupBtn",
+    "closeSignup",
+    "closeMyNotes"
+  ].includes(target.id);
 
-    if (target.classList && target.classList.contains("toggle-password")) {
-      const targetId = target.getAttribute("data-target");
-      const passwordInput = document.getElementById(targetId);
+  const isBackgroundClick =
+    target === loginModal ||
+    target === signupModal ||
+    target === myNotesModal;
 
-      if (passwordInput) {
-        const isPassword = passwordInput.getAttribute("type") === "password";
-
-        passwordInput.setAttribute("type", isPassword ? "text" : "password");
-        target.classList.toggle("fa-eye");
-        target.classList.toggle("fa-eye-slash");
-      }
-    }
-
-    const isCloser = [
-      "cancelLogin",
-      "closelogin",
-      "cancelSignupBtn",
-      "closeSignup"
-    ].includes(target.id);
-
-    const isBackgroundClick =
-      target === loginModal || target === signupModal;
-
-    if (isCloser || isBackgroundClick) {
-      toggleModal(loginModal, false);
-      toggleModal(signupModal, false);
-    }
-  });
+  if (isCloser || isBackgroundClick) {
+    toggleModal(loginModal, false);
+    toggleModal(signupModal, false);
+    toggleModal(myNotesModal, false);
+  }
+});
 
   if (signupForm) {
     signupForm.addEventListener("submit", async (event) => {
