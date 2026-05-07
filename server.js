@@ -595,7 +595,7 @@ app.get("/api/my-notes", requireAuth, async (req, res) => {
         pageKey: note.page_key,
         bibleVersionID: note.bible_version_id,
         bibleChapterID: note.bible_chapter_id,
-        bibleName: "",
+        bibleName: "",bibleName: getBibleAbbrFromPageUrl(note.page_url),
         bookChapterLabel: note.bible_chapter_id,
         pageUrl: note.page_url,
         hasQuillNotes: !!(note.quill_plain_text && note.quill_plain_text.trim()),
@@ -613,7 +613,11 @@ app.get("/api/my-notes", requireAuth, async (req, res) => {
       if (existing) {
         existing.bibleVersionID = existing.bibleVersionID || page.bible_version_id;
         existing.bibleChapterID = existing.bibleChapterID || page.bible_chapter_id;
-        existing.bibleName = page.bible_name || existing.bibleName || "";
+        eexisting.bibleName =
+          getBibleAbbrFromPageUrl(page.page_url) ||
+          page.bible_name ||
+          existing.bibleName ||
+          "";
         existing.bookChapterLabel =
           page.book_chapter_label ||
           existing.bookChapterLabel ||
@@ -631,7 +635,7 @@ app.get("/api/my-notes", requireAuth, async (req, res) => {
           pageKey: page.page_key,
           bibleVersionID: page.bible_version_id,
           bibleChapterID: page.bible_chapter_id,
-          bibleName: page.bible_name || "",
+          bibleName: getBibleAbbrFromPageUrl(page.page_url) || page.bible_name || "",
           bookChapterLabel: page.book_chapter_label || page.bible_chapter_id,
           pageUrl: page.page_url,
           hasQuillNotes: false,
