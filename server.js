@@ -393,6 +393,40 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
   }
 });
 
+// DELETE DATA FIELDS THAT ARE EMPTY TO PREVENT DATA BLOAT
+app.delete("/api/quill-notes", requireAuth, async (req, res) => {
+  try {
+    const { pageKey } = req.query;
+
+    if (!pageKey) {
+      return res.status(400).json({
+        ok: false,
+        message: "Missing pageKey"
+      });
+    }
+
+    await pool.query(
+      `
+      DELETE FROM saved_quill_notes
+      WHERE user_id = $1
+        AND page_key = $2
+      `,
+      [req.user.id, pageKey]
+    );
+
+    return res.json({
+      ok: true,
+      message: "Quill notes deleted"
+    });
+  } catch (error) {
+    console.error("Delete quill notes error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to delete notes"
+    });
+  }
+});
 // ----------------------------------------------------
 // Mini-editor page routes
 // ----------------------------------------------------
@@ -453,6 +487,7 @@ app.get("/api/mini-editor-page", requireAuth, async (req, res) => {
   }
 });
 
+// DELETE DATA FIELDS THAT ARE EMPTY TO PREVENT DATA BLOAT
 app.post("/api/mini-editor-page", requireAuth, async (req, res) => {
   try {
     const {
@@ -547,6 +582,40 @@ app.post("/api/mini-editor-page", requireAuth, async (req, res) => {
     return res.status(500).json({
       ok: false,
       message: "Failed to save mini-editor page"
+    });
+  }
+});
+
+app.delete("/api/mini-editor-page", requireAuth, async (req, res) => {
+  try {
+    const { pageKey } = req.query;
+
+    if (!pageKey) {
+      return res.status(400).json({
+        ok: false,
+        message: "Missing pageKey"
+      });
+    }
+
+    await pool.query(
+      `
+      DELETE FROM saved_mini_editor_pages
+      WHERE user_id = $1
+        AND page_key = $2
+      `,
+      [req.user.id, pageKey]
+    );
+
+    return res.json({
+      ok: true,
+      message: "Mini-editor page deleted"
+    });
+  } catch (error) {
+    console.error("Delete mini-editor page error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to delete mini-editor page"
     });
   }
 });
