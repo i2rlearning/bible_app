@@ -549,7 +549,8 @@
         const chapterParts = bibleChapterID.split(".");
         const currentBookId = chapterParts[0];
         const currentChapterNumber = Number(chapterParts[1]);
-        const maxChapterNumber = Number(maxChapters);
+        
+        let maxChapterNumber = Number(sessionStorage.getItem("maxchapnum")) || null;
         
         function buildChapterUrl(newChapterNumber) {
           const url = new URL(window.location.href);
@@ -569,6 +570,71 @@
             Number.isFinite(maxChapterNumber) &&
             currentChapterNumber < maxChapterNumber
           );
+        }
+        
+        function updateArrowCursorStates() {
+          if (imageLeft) {
+            imageLeft.style.cursor = canGoPreviousChapter() ? "pointer" : "default";
+          }
+        
+          if (imageRight) {
+            imageRight.style.cursor = canGoNextChapter() ? "pointer" : "default";
+          }
+        }
+        
+        function loadMaxChapterNumberFromApi() {
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.withCredentials = false;
+        
+            xhr.addEventListener("readystatechange", function () {
+              if (this.readyState === this.DONE) {
+                try {
+                  const { data } = JSON.parse(this.responseText);
+        
+                  const numericChapterNumbers = data
+                    .map((chapter) => {
+                      const chapterIdParts = chapter.id.split(".");
+                      return Number(chapterIdParts[chapterIdParts.length - 1]);
+                    })
+                    .filter((chapterNumber) => Number.isFinite(chapterNumber));
+        
+                  const detectedMaxChapter = numericChapterNumbers.length
+                    ? Math.max(...numericChapterNumbers)
+                    : null;
+        
+                  resolve(detectedMaxChapter);
+                } catch (error) {
+                  reject(error);
+                }
+              }
+            });
+        
+            xhr.open(
+              "GET",
+              `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books/${currentBookId}/chapters`
+            );
+        
+            xhr.setRequestHeader("api-key", API_KEY);
+            xhr.onerror = () => reject(xhr.statusText);
+            xhr.send();
+          });
+        }
+        
+        async function initializeChapterArrows() {
+          if (!maxChapterNumber) {
+            try {
+              maxChapterNumber = await loadMaxChapterNumberFromApi();
+        
+              if (maxChapterNumber) {
+                sessionStorage.setItem("maxchapnum", String(maxChapterNumber));
+              }
+            } catch (error) {
+              console.error("Could not load max chapter number:", error);
+            }
+          }
+        
+          updateArrowCursorStates();
         }
         
         imageLeft.addEventListener("mouseover", function () {
@@ -606,8 +672,17 @@
         imageRight.addEventListener("click", function () {
           if (canGoNextChapter()) {
             window.location.href = buildChapterUrl(currentChapterNumber + 1);
+          } else {
+            console.warn("Cannot go next chapter", {
+              currentChapterNumber,
+              maxChapterNumber,
+              bibleChapterID,
+              currentBookId
+            });
           }
         });
+        
+        initializeChapterArrows();
 
       // ******************* Mini-editor selection memory *********************
         let savedBibleSelectionOffsets = null;
