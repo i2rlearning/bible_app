@@ -5,7 +5,116 @@
 /* --- Sliding parchment menu from left --- */
 .overlay {
   height: 100vh;
+  width: 0;:root {
+  --primary-blue: #1d44b8;
+}
+
+/* --- Sliding parchment menu from left --- */
+.overlay {
+  height: 60vh;
   width: 0;
+  position: fixed;
+  z-index: 100;
+  top: 22.55vh;
+  left: 115px;
+  background-image: url('../img/scrollpaper.png');
+  background-repeat: no-repeat;
+  background-size: 250px 60vh;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  transition: 0.65s;
+}
+
+.overlay-content {
+  position: relative;
+  height: 60vh;
+  width: 225px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  margin-top: 0;
+  top: -8px;
+}
+
+.overlay a {
+  text-decoration: none;
+  font-size: 30px;
+  color: black;
+  display: block;
+  transition: 0.3s;
+  font-family: Arima, sans-serif;
+}
+
+.overlay a:hover,
+.overlay a:focus {
+  color: white;
+}
+
+/* Hide old red X close button if it still exists somewhere */
+.overlay .closebtn {
+  display: none;
+}
+
+/* Menu Link States */
+a.disabled {
+  pointer-events: none;
+  color: darkgray;
+}
+
+a.current {
+  pointer-events: none;
+  color: white;
+}
+
+/* --- Version dropdown --- */
+.custom-combobox {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.language-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+}
+
+.language-label {
+  font-size: 25px;
+  font-weight: bold;
+  color: #555;
+  white-space: nowrap;
+  font-family: Arima, sans-serif;
+}
+
+#langInput {
+  min-width: 130px;
+  height: 34px;
+  background: #fff;
+  color: #222;
+  border: 1px solid #2f9ae0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 16px;
+  font-family: Arial, sans-serif;
+  cursor: pointer;
+}
+
+#langInput:focus {
+  outline: none;
+  border-color: #1f7fc2;
+  box-shadow: 0 0 0 2px rgba(47, 154, 224, 0.15);
+}
+
+/* --- Responsive Adjustments --- */
+@media screen and (max-height: 450px) {
+  .overlay a {
+    font-size: 20px;
+  }
+}
   position: fixed;
   z-index: 100;
   top: 22.55vh;
