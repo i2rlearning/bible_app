@@ -495,7 +495,7 @@ function applyMiniEditorState(miniEditorJson) {
   }, 300);
 }
 
-function function getMiniEditorFlags(miniEditorJson) {
+function getMiniEditorFlags(miniEditorJson) {
   const bibleTextHtml = miniEditorJson?.bibleTextHtml || "";
   const annotationLayerHtml = miniEditorJson?.annotationLayerHtml || "";
 
@@ -561,25 +561,25 @@ async function saveMiniEditorPage() {
 
   const flags = getMiniEditorFlags(miniEditorJson);
 
-  if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
-    const deleteResponse = await fetch(
-      `/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
-      {
-        method: "DELETE",
-        credentials: "include"
-      }
-    );
-  
-    if (!deleteResponse.ok) {
-      throw new Error("Failed to delete empty mini-editor page");
-    }
-  
-    console.log("Empty mini-editor page deleted");
-    setEditorSaveStatus("Saved");
-    return;
-  }
-
   try {
+    if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
+      const deleteResponse = await fetch(
+        `/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
+        {
+          method: "DELETE",
+          credentials: "include"
+        }
+      );
+
+      if (!deleteResponse.ok) {
+        throw new Error("Failed to delete empty mini-editor page");
+      }
+
+      console.log("Empty mini-editor page deleted");
+      setEditorSaveStatus("Saved");
+      return;
+    }
+
     const response = await fetch("/api/mini-editor-page", {
       method: "POST",
       headers: {
