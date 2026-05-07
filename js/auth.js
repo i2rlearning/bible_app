@@ -128,6 +128,106 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function formatSavedContent(note) {
+  const parts = [];
+
+  if (note.hasQuillNotes) {
+    parts.push("Notes");
+  }
+
+  if (note.hasHighlights) {
+    parts.push("Highlights");
+  }
+
+  if (note.hasDrawings) {
+    parts.push("Drawings");
+  }
+
+  if (note.hasTextFormats) {
+    parts.push("Text formatting");
+  }
+
+  return parts.length ? parts.join(" + ") : "Saved page";
+}
+
+function formatDate(value) {
+  if (!value) return "";
+
+  return new Date(value).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+}
+
+function renderMyNotes(notes) {
+  const tableBody = document.getElementById("myNotesTableBody");
+  const status = document.getElementById("myNotesStatus");
+
+  if (!tableBody || !status) return;
+
+  tableBody.innerHTML = "";
+
+  if (!notes.length) {
+    status.textContent = "No saved notes yet.";
+    return;
+  }
+
+  status.textContent = `${notes.length} saved page${notes.length === 1 ? "" : "s"}`;
+
+  notes.forEach((note) => {
+    const row = document.createElement("tr");
+
+    const preview = note.preview
+      ? note.preview.slice(0, 120)
+      : "";
+
+    row.innerHTML = `
+      <td>${note.bibleName || note.bibleVersionID || ""}</td>
+      <td>${note.bookChapterLabel || note.bibleChapterID || ""}</td>
+      <td>${formatSavedContent(note)}</td>
+      <td>${preview}</td>
+      <td>${formatDate(note.updatedAt)}</td>
+      <td>
+        ${
+          note.pageUrl
+            ? `<a href="${note.pageUrl}">Open</a>`
+            : ""
+        }
+      </td>
+    `;
+
+    tableBody.appendChild(row);
+  });
+}
+
+async function loadMyNotes() {
+  const status = document.getElementById("myNotesStatus");
+  const tableBody = document.getElementById("myNotesTableBody");
+
+  if (status) {
+    status.textContent = "Loading...";
+  }
+
+  if (tableBody) {
+    tableBody.innerHTML = "";
+  }
+
+  try {
+    const result = await getJson("/api/my-notes");
+
+    if (!result.ok) {
+      throw new Error(result.message || "Failed to load my notes");
+    }
+
+    renderMyNotes(result.notes || []);
+  } catch (error) {
+    if (status) {
+      status.textContent = error.message || "Failed to load my notes.";
+    }
+  }
+}
+  
   document.addEventListener("click", (event) => {
   const target = event.target;
 
@@ -152,13 +252,14 @@ document.addEventListener("DOMContentLoaded", () => {
   if (target.id === "openMyNotes") {
     event.preventDefault();
 
-    if (target.classList.contains("disabled")) {
-      toggleModal(loginModal, true);
-      return;
-    }
-
-    toggleModal(myNotesModal, true);
+  if (target.classList.contains("disabled")) {
+    toggleModal(loginModal, true);
+    return;
   }
+
+  toggleModal(myNotesModal, true);
+  loadMyNotes();
+}
 
   if (target.classList && target.classList.contains("toggle-password")) {
     const targetId = target.getAttribute("data-target");
