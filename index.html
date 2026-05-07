@@ -174,6 +174,45 @@
         </div>
       </form>
     </div> 
+
+    <!-- ****** My Notes Modal ****** -->
+    <div id="myNotesModal" class="modal">
+      <div class="my-notes-content">
+        <button type="button" id="closeMyNotes" class="modal-close" title="Close My Notes">
+          &times;
+        </button>
+    
+        <h2>My Notes</h2>
+    
+        <input
+          type="text"
+          id="myNotesSearch"
+          placeholder="Search notes..."
+          class="my-notes-search"
+        >
+    
+        <div id="myNotesStatus" class="my-notes-status">
+          Loading...
+        </div>
+    
+        <div class="my-notes-table-wrapper">
+          <table class="my-notes-table">
+            <thead>
+              <tr>
+                <th>Bible</th>
+                <th>Book / Chapter</th>
+                <th>Saved Content</th>
+                <th>Preview</th>
+                <th>Updated</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody id="myNotesTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     
     <header>
       <div id="menuNav" class="overlay">
@@ -183,7 +222,7 @@
           <a href="#" class="disabled">Books</a>
           <a href="#" class="disabled">Chapter</a>
           <a href="./search.html">Search</a>
-          <a href="#" id="openMyNotes" class="disabled">My Notes</a>
+          <a href="#" id="openMyNotes" class="disabled" aria-disabled="true">My Notes</a>
           <a href="#">Preferences</a>   
         </div>
       </div>
