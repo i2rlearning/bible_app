@@ -66,6 +66,18 @@ function requireAuth(req, res, next) {
   }
 }
 
+// Helper used by My Notes to extract Bible abbreviation from saved page URLs
+function getBibleAbbrFromPageUrl(pageUrl) {
+  if (!pageUrl) return "";
+
+  try {
+    const url = new URL(pageUrl, "https://example.com");
+    return url.searchParams.get("abbr") || "";
+  } catch (error) {
+    return "";
+  }
+}
+
 // Simple API test
 app.get("/api/health", (req, res) => {
   res.json({
@@ -387,17 +399,7 @@ app.post("/api/quill-notes", requireAuth, async (req, res) => {
 app.get("/api/mini-editor-page", requireAuth, async (req, res) => {
   try {
     const { pageKey } = req.query;
-    function getBibleAbbrFromPageUrl(pageUrl) {
-      if (!pageUrl) return "";
-    
-      try {
-        const url = new URL(pageUrl, "https://example.com");
-        return url.searchParams.get("abbr") || "";
-      } catch (error) {
-        return "";
-      }
-    }
-    
+
     if (!pageKey) {
       return res.status(400).json({
         ok: false,
@@ -595,7 +597,7 @@ app.get("/api/my-notes", requireAuth, async (req, res) => {
         pageKey: note.page_key,
         bibleVersionID: note.bible_version_id,
         bibleChapterID: note.bible_chapter_id,
-        bibleName: "",bibleName: getBibleAbbrFromPageUrl(note.page_url),
+        bibleName: getBibleAbbrFromPageUrl(note.page_url),
         bookChapterLabel: note.bible_chapter_id,
         pageUrl: note.page_url,
         hasQuillNotes: !!(note.quill_plain_text && note.quill_plain_text.trim()),
@@ -613,15 +615,18 @@ app.get("/api/my-notes", requireAuth, async (req, res) => {
       if (existing) {
         existing.bibleVersionID = existing.bibleVersionID || page.bible_version_id;
         existing.bibleChapterID = existing.bibleChapterID || page.bible_chapter_id;
-        eexisting.bibleName =
+
+        existing.bibleName =
           getBibleAbbrFromPageUrl(page.page_url) ||
           page.bible_name ||
           existing.bibleName ||
           "";
+
         existing.bookChapterLabel =
           page.book_chapter_label ||
           existing.bookChapterLabel ||
           page.bible_chapter_id;
+
         existing.pageUrl = existing.pageUrl || page.page_url;
         existing.hasHighlights = !!page.has_highlights;
         existing.hasDrawings = !!page.has_drawings;
