@@ -201,7 +201,6 @@
       
     <header>
       <div id="menuNav" class="overlay">
-        <a href="javascript:void(0)" class="closebtn" style="color:red" onclick="closeNav()">&times;</a>
         <div class="overlay-content">
           <a href="./index.html">Home</a>
           <a id="bookurl">Books</a>
@@ -529,18 +528,41 @@
     
       // ************* Menu **************
       function openNav() {
-        document.getElementById("menuNav").style.width = "225px";
-    
-        const bookLink = sessionStorage.getItem("bookabbr");
-        document.getElementById("bookurl").setAttribute("href", bookLink);
-    
-        const chapterLink = sessionStorage.getItem("chapter");
-        document.getElementById("chapterurl").setAttribute("href", chapterLink);
-      }
-    
-      function closeNav() {
-        document.getElementById("menuNav").style.width = "0px";
-      }
+          const menuNav = document.getElementById("menuNav");
+        
+          if (!menuNav) return;
+        
+          const isOpen = menuNav.style.width && menuNav.style.width !== "0px";
+        
+          if (isOpen) {
+            closeNav();
+            return;
+          }
+        
+          menuNav.style.width = "225px";
+        
+          const bookLink = sessionStorage.getItem("bookabbr");
+          const bookUrl = document.getElementById("bookurl");
+        
+          if (bookLink && bookUrl) {
+            bookUrl.setAttribute("href", bookLink);
+          }
+        
+          const chapterLink = sessionStorage.getItem("chapter");
+          const chapterUrl = document.getElementById("chapterurl");
+        
+          if (chapterLink && chapterUrl) {
+            chapterUrl.setAttribute("href", chapterLink);
+          }
+        }
+        
+        function closeNav() {
+          const menuNav = document.getElementById("menuNav");
+        
+          if (menuNav) {
+            menuNav.style.width = "0px";
+          }
+        }
     
       // ******************* Left/Right Seals *********************
         const imageLeft = document.getElementById("imgleft");
