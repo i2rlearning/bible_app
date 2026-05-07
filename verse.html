@@ -18,7 +18,13 @@
         <div class="container flex">
           <div class="subheadings">
             <div class="column">
-              <span id="menuToggle" class="menu-toggle" onclick="openNav()">&#9776;</span><!-- show foo foo bar --> 
+              <div class="hamburger">
+                  <button type="button" id="menuToggle" class="main-nav-toggle" onclick="openNav()" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </button>
+                </div>
             </div>
             <div class="column">
               <span class="tooltip"> <span id="bible"></span>
@@ -543,8 +549,7 @@
           menuNav.style.width = "225px";
         
           if (menuToggle) {
-            menuToggle.innerHTML = "&times;";
-            menuToggle.classList.add("menu-toggle-open");
+            menuToggle.classList.add("active-menu");
           }
         
           const bookLink = sessionStorage.getItem("bookabbr");
@@ -571,8 +576,7 @@
           }
         
           if (menuToggle) {
-            menuToggle.innerHTML = "&#9776;";
-            menuToggle.classList.remove("menu-toggle-open");
+            menuToggle.classList.remove("active-menu");
           }
         }
     
