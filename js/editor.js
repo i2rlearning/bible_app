@@ -352,6 +352,24 @@ async function saveQuillNotes() {
     const quillDelta = quill.getContents();
     const plainText = quill.getText().trim();
 
+    if (!plainText) {
+      const deleteResponse = await fetch(
+        `/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
+        {
+          method: "DELETE",
+          credentials: "include"
+        }
+      );
+    
+      if (!deleteResponse.ok) {
+        throw new Error("Failed to delete empty notes");
+      }
+    
+      console.log("Empty Quill notes deleted");
+      setEditorSaveStatus("Saved");
+      return;
+    }
+
     const response = await fetch("/api/quill-notes", {
       method: "POST",
       headers: {
@@ -477,7 +495,7 @@ function applyMiniEditorState(miniEditorJson) {
   }, 300);
 }
 
-function getMiniEditorFlags(miniEditorJson) {
+function function getMiniEditorFlags(miniEditorJson) {
   const bibleTextHtml = miniEditorJson?.bibleTextHtml || "";
   const annotationLayerHtml = miniEditorJson?.annotationLayerHtml || "";
 
@@ -485,9 +503,15 @@ function getMiniEditorFlags(miniEditorJson) {
     hasHighlights: bibleTextHtml.includes("highlight-"),
     hasDrawings: annotationLayerHtml.trim().length > 0,
     hasTextFormats:
-      bibleTextHtml.includes("bible-bold") ||
-      bibleTextHtml.includes("underline") ||
-      bibleTextHtml.includes("strike")
+      bibleTextHtml.includes("bible-user-format bold") ||
+      bibleTextHtml.includes("bible-user-format underline") ||
+      bibleTextHtml.includes("bible-user-format double-underline") ||
+      bibleTextHtml.includes("bible-user-format strike-through") ||
+      bibleTextHtml.includes("text-red") ||
+      bibleTextHtml.includes("text-blue") ||
+      bibleTextHtml.includes("text-green") ||
+      bibleTextHtml.includes("text-purple") ||
+      bibleTextHtml.includes("text-black")
   };
 }
 
@@ -536,6 +560,24 @@ async function saveMiniEditorPage() {
   if (!miniEditorJson) return;
 
   const flags = getMiniEditorFlags(miniEditorJson);
+
+  if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
+    const deleteResponse = await fetch(
+      `/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
+      {
+        method: "DELETE",
+        credentials: "include"
+      }
+    );
+  
+    if (!deleteResponse.ok) {
+      throw new Error("Failed to delete empty mini-editor page");
+    }
+  
+    console.log("Empty mini-editor page deleted");
+    setEditorSaveStatus("Saved");
+    return;
+  }
 
   try {
     const response = await fetch("/api/mini-editor-page", {
