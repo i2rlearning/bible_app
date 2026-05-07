@@ -18,7 +18,7 @@
         <div class="container flex">
           <div class="subheadings">
             <div class="column">
-              <span style="font-size:25px;cursor:pointer;" onclick="openNav()">&#9776;</span><!-- show foo foo bar --> 
+              <span id="menuToggle" class="menu-toggle" onclick="openNav()">&#9776;</span><!-- show foo foo bar --> 
             </div>
             <div class="column">
               <span class="tooltip"> <span id="bible"></span>
@@ -529,6 +529,7 @@
       // ************* Menu **************
       function openNav() {
           const menuNav = document.getElementById("menuNav");
+          const menuToggle = document.getElementById("menuToggle");
         
           if (!menuNav) return;
         
@@ -540,6 +541,11 @@
           }
         
           menuNav.style.width = "225px";
+        
+          if (menuToggle) {
+            menuToggle.innerHTML = "&times;";
+            menuToggle.classList.add("menu-toggle-open");
+          }
         
           const bookLink = sessionStorage.getItem("bookabbr");
           const bookUrl = document.getElementById("bookurl");
@@ -558,9 +564,15 @@
         
         function closeNav() {
           const menuNav = document.getElementById("menuNav");
+          const menuToggle = document.getElementById("menuToggle");
         
           if (menuNav) {
             menuNav.style.width = "0px";
+          }
+        
+          if (menuToggle) {
+            menuToggle.innerHTML = "&#9776;";
+            menuToggle.classList.remove("menu-toggle-open");
           }
         }
     
