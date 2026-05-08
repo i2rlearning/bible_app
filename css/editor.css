@@ -165,7 +165,7 @@
 }
 
 #bible-drawing-area.drawing-mode {
-  cursor: default;
+  cursor: crosshair;
 }
 
 #bible-drawing-area.drawing-mode,
