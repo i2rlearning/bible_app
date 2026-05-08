@@ -160,6 +160,35 @@ function formatDate(value) {
   });
 }
 
+//Search for MyNotes  
+let allMyNotes = [];
+
+function filterMyNotes(searchText) {
+  const searchValue = (searchText || "").toLowerCase().trim();
+
+  if (!searchValue) {
+    renderMyNotes(allMyNotes);
+    return;
+  }
+
+  const filteredNotes = allMyNotes.filter((note) => {
+    const searchableText = [
+      note.bibleName,
+      note.bibleVersionID,
+      note.bookChapterLabel,
+      note.bibleChapterID,
+      note.preview,
+      formatSavedContent(note)
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(searchValue);
+  });
+
+  renderMyNotes(filteredNotes);
+}
+  
 function renderMyNotes(notes) {
   const tableBody = document.getElementById("myNotesTableBody");
   const status = document.getElementById("myNotesStatus");
@@ -169,7 +198,7 @@ function renderMyNotes(notes) {
   tableBody.innerHTML = "";
 
   if (!notes.length) {
-    status.textContent = "No saved notes yet.";
+    status.textContent = allMyNotes.length ? "No matching notes found." : "No saved notes yet.";
     return;
   }
 
@@ -220,7 +249,18 @@ async function loadMyNotes() {
       throw new Error(result.message || "Failed to load my notes");
     }
 
-    renderMyNotes(result.notes || []);
+    allMyNotes = result.notes || [];
+    renderMyNotes(allMyNotes);
+
+    const searchInput = document.getElementById("myNotesSearch");
+
+    if (searchInput) {
+      searchInput.value = "";
+
+      searchInput.oninput = function () {
+        filterMyNotes(this.value);
+      };
+    }
   } catch (error) {
     if (status) {
       status.textContent = error.message || "Failed to load my notes.";
