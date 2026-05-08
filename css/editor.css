@@ -96,7 +96,7 @@
 /************* Mini-editor toolbar *************/
 #bible-mini-toolbar {
   position: fixed;
-  top: 35px;
+  top: 40px;
   left: 50%;
   transform: translateX(-50%);
   width: auto;
