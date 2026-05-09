@@ -337,7 +337,19 @@
       const maxChapters = sessionStorage.getItem("maxchapnum");
     
       let verseHTML = ``;
-    
+
+      const preloadedArrowImages = [
+          "./img/left_stamp_on.png",
+          "./img/right_stamp_on.png",
+          "./img/orig_left_stamp.png",
+          "./img/orig_right_stamp.png"
+        ];
+        
+        preloadedArrowImages.forEach((src) => {
+          const image = new Image();
+          image.src = src;
+        });  
+        
       if (!bibleVersionID || !bibleChapterID) {
         window.location.href = `./index.html`;
       }
