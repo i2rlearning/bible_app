@@ -9,6 +9,11 @@
   border: 1px solid black;
 }
 
+.ql-editor.ql-blank::before {
+  left: 16px !important;
+  right: 16px !important;
+}
+
 /* Bold fix */
 .ql-editor strong,
 .ql-editor b {
