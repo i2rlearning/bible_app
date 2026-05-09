@@ -1,17 +1,23 @@
 /************* Quill Editor *************/
-.ql-editor {
+/* 1. Style the outer shell to provide the border and background */
+.ql-container.ql-snow {
   font-size: 16px;
-  line-height: 1.6;
-  padding: 14px 16px !important;
-  min-height: 200px;
-  overflow-y: auto;
   background-color: white; 
-  border: 1px solid black;
+  border: 1px solid black !important;
+  min-height: 200px;
 }
 
+/* 2. Adjust the internal editor padding */
+.ql-editor {
+  line-height: 1.6;
+  padding: 14px 16px !important;
+}
+
+/* 3. Force the placeholder to respect your 16px horizontal padding */
 .ql-editor.ql-blank::before {
   left: 16px !important;
   right: 16px !important;
+  font-style: normal; /* Optional: makes it look more like typed text */
 }
 
 /* Bold fix */
