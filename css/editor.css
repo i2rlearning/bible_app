@@ -8,7 +8,7 @@
 
 .ql-editor {
   line-height: 1.6;
-  padding-left: 15px !important; /* Adjust this value to your liking */
+  padding-left: 10px !important; /* Adjust this value to your liking */
   padding-right: 15px !important;
   padding-top: 14px !important;
 }
