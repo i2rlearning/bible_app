@@ -1,15 +1,21 @@
 // ----------------------------------------------------
+// Quill Custom Icons Setup (Must be before toolbarOptions)
+// ----------------------------------------------------
+const icons = Quill.import('ui/icons');
+icons['timestamp'] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" cy="9" r="6"></circle><polyline class="ql-stroke" points="9 5 9 9 11 9"></polyline></svg>';
+
+// ----------------------------------------------------
 // Quill font-size setup
 // ----------------------------------------------------
 const Size = Quill.import("attributors/class/size");
-// Adds a simple clock icon to the 'timestamp' slot
-icons['timestamp'] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" cy="9" r="6"></circle><polyline class="ql-stroke" points="9 5 9 9 11 9"></polyline></svg>';
-
 Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
 Quill.register(Size, true);
 
+// ----------------------------------------------------
+// Toolbar Configuration
+// ----------------------------------------------------
 const toolbarOptions = [
-  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }],
+  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }, "timestamp"],
   ["bold", "italic", "underline", "strike"],
   [{ color: [] }, { background: [] }],
   [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],
@@ -18,9 +24,6 @@ const toolbarOptions = [
   [{ indent: "-1" }, { indent: "+1" }],
   [{ direction: "rtl" }],
   ["link", "image"],
-  const toolbarOptions = [
-  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }, "timestamp"],
-  ["bold", "italic", "underline", "strike"],
   ["clean"]
 ];
 
@@ -164,8 +167,8 @@ Object.keys(btnTitles).forEach((cls) => {
 });
 
 toolbar.container.querySelector("select.ql-align")?.parentElement.setAttribute("title", "Align Text");
-toolbar.container.querySelector(".ql-picker.ql-color")?.setAttribute("title", "Font Color");
-toolbar.container.querySelector(".ql-picker.ql-background")?.setAttribute("title", "Background Color");
+toolbar.container.querySelector(".ql-color")?.setAttribute("title", "Font Color");
+toolbar.container.querySelector(".ql-background")?.setAttribute("title", "Background Color");
 toolbar.container.querySelector('button.ql-list[value="ordered"]')?.setAttribute("title", "Ordered List");
 toolbar.container.querySelector('button.ql-list[value="bullet"]')?.setAttribute("title", "Bullet List");
 toolbar.container.querySelector('button.ql-list[value="check"]')?.setAttribute("title", "Checkbox List");
