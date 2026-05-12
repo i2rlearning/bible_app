@@ -29,6 +29,18 @@
   font-weight: inherit;
 }
 
+/* Fix for the link/image tooltip being cut off */
+.ql-snow .ql-tooltip {
+  margin-left: 10px; /* Moves it away from the left edge */
+  white-space: nowrap; 
+  left: 5px !important; /* Forces a minimum distance from the left */
+}
+
+/* Optional: Ensure it stays above other elements if needed */
+.ql-snow .ql-tooltip.ql-editing {
+  left: 15px !important;
+}
+
 /************* Quill size classes *************/
 .ql-editor .ql-size-8px {
   font-size: 8px;
