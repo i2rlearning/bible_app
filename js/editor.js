@@ -15,15 +15,17 @@ Quill.register(Size, true);
 // Toolbar Configuration
 // ----------------------------------------------------
 const toolbarOptions = [
+  // Group 1: Font Size
+  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }], 
   ["bold", "italic", "underline", "strike"],
   [{ color: [] }, { background: [] }],
-  [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],
+  [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],  
   [{ align: [] }],
   [{ script: "sub" }, { script: "super" }],
   [{ indent: "-1" }, { indent: "+1" }],
-  [{ direction: "rtl" }],
-  ["link", "image"],
-  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }, "timestamp"],
+  [{ direction: "rtl" }],  
+  ["link", "image"],  
+  ["timestamp"],   
   ["clean"]
 ];
 
