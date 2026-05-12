@@ -15,7 +15,6 @@ Quill.register(Size, true);
 // Toolbar Configuration
 // ----------------------------------------------------
 const toolbarOptions = [
-  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }, "timestamp"],
   ["bold", "italic", "underline", "strike"],
   [{ color: [] }, { background: [] }],
   [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],
@@ -24,6 +23,7 @@ const toolbarOptions = [
   [{ indent: "-1" }, { indent: "+1" }],
   [{ direction: "rtl" }],
   ["link", "image"],
+  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }, "timestamp"],
   ["clean"]
 ];
 
