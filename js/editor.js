@@ -50,6 +50,26 @@ const quill = new Quill("#editor", {
   }
 });
 
+// ----------------------------------------------------
+// Paste Guard: Block Large Image Pastes
+// ----------------------------------------------------
+quill.root.addEventListener('paste', (e) => {
+  const clipboardData = e.clipboardData || window.clipboardData;
+  const items = clipboardData.items;
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') !== -1) {
+      // Prevent the image from being pasted
+      e.preventDefault();
+      
+      // Alert the user
+      alert("Direct image pasting is disabled to prevent save errors. Please save the image to your computer and use the 'Insert Image' button in the toolbar to upload/link it.");
+      
+      return; // Stop processing once an image is found
+    }
+  }
+});
+
 const toolbar = quill.getModule("toolbar");
 
 // ----------------------------------------------------
