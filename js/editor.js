@@ -2,6 +2,8 @@
 // Quill font-size setup
 // ----------------------------------------------------
 const Size = Quill.import("attributors/class/size");
+// Adds a simple clock icon to the 'timestamp' slot
+icons['timestamp'] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" cy="9" r="6"></circle><polyline class="ql-stroke" points="9 5 9 9 11 9"></polyline></svg>';
 
 Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
 Quill.register(Size, true);
@@ -16,6 +18,9 @@ const toolbarOptions = [
   [{ indent: "-1" }, { indent: "+1" }],
   [{ direction: "rtl" }],
   ["link", "image"],
+  const toolbarOptions = [
+  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }, "timestamp"],
+  ["bold", "italic", "underline", "strike"],
   ["clean"]
 ];
 
@@ -23,7 +28,20 @@ const quill = new Quill("#editor", {
   placeholder: "Notes...",
   theme: "snow",
   modules: {
-    toolbar: toolbarOptions
+    toolbar: {
+      container: toolbarOptions,
+      handlers: {
+        'timestamp': function() {
+          const now = new Date();
+          const timestamp = now.toLocaleString();
+          const range = this.quill.getSelection();
+          if (range) {
+            this.quill.insertText(range.index, timestamp);
+            this.quill.setSelection(range.index + timestamp.length);
+          }
+        }
+      }
+    }
   }
 });
 
@@ -137,6 +155,7 @@ const btnTitles = {
   "ql-link": "Insert Link",
   "ql-image": "Insert Image",
   "ql-direction": "Text Direction",
+  "ql-timestamp": "Insert Timestamp",
   "ql-clean": "Clear Format"
 };
 
