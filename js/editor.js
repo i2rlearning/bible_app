@@ -51,25 +51,34 @@ const quill = new Quill("#editor", {
 });
 
 // ----------------------------------------------------
-// Paste Guard: Block Large Image Pastes
+// Paste Guard: Block Large Image Pastes & Clear Event
 // ----------------------------------------------------
 quill.root.addEventListener('paste', (e) => {
   const clipboardData = e.clipboardData || window.clipboardData;
-  const items = clipboardData.items;
+  if (!clipboardData) return;
 
+  const items = clipboardData.items;
+  let hasImage = false;
+
+  // Check if any part of the paste contains an image
   for (let i = 0; i < items.length; i++) {
     if (items[i].type.indexOf('image') !== -1) {
-      // Prevent the image from being pasted
-      e.preventDefault();
-      
-      // Alert the user
-      alert("Direct image pasting is disabled to prevent save errors. Please save the image to your computer and use the 'Insert Image' button in the toolbar to upload/link it.");
-      
-      return; // Stop processing once an image is found
+      hasImage = true;
+      break;
     }
   }
-});
 
+  if (hasImage) {
+    // 1. Stop the browser from pasting ANYTHING (text or image)
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 2. Alert the user
+    alert("Direct image pasting is disabled. Please save the image to your computer and use the 'Insert Image' button to insert it.");
+  }
+  // If there is NO image (just text), the code does nothing 
+  // and lets the standard paste happen naturally.
+}, true); // The "true" here ensures we catch the event before Quill does
 const toolbar = quill.getModule("toolbar");
 
 // ----------------------------------------------------
