@@ -79,6 +79,7 @@ quill.root.addEventListener('paste', (e) => {
   // If there is NO image (just text), the code does nothing 
   // and lets the standard paste happen naturally.
 }, true); // The "true" here ensures we catch the event before Quill does
+
 const toolbar = quill.getModule("toolbar");
 
 // ----------------------------------------------------
