@@ -520,7 +520,7 @@ body.editor-locked-state .ql-toolbar {
 }
 
 /* Icons in the My Notes page */
-.table-icon-link {
+.open-note-link {
     text-decoration: none;
     font-size: 24px;
     cursor: pointer;
