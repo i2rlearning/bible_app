@@ -740,6 +740,42 @@ app.get("/api/my-notes", requireAuth, async (req, res) => {
   }
 });
 
+// DELETE a full note entry (both Quill and Mini-Editor data)
+app.delete("/api/my-notes/:pageKey", requireAuth, async (req, res) => {
+  const { pageKey } = req.params;
+
+  try {
+    // Start a transaction to ensure both deletes happen together
+    await pool.query('BEGIN');
+
+    // 1. Delete from Quill notes
+    await pool.query(
+      "DELETE FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2",
+      [req.user.id, pageKey]
+    );
+
+    // 2. Delete from Mini-editor pages
+    await pool.query(
+      "DELETE FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2",
+      [req.user.id, pageKey]
+    );
+
+    await pool.query('COMMIT');
+
+    res.json({
+      ok: true,
+      message: "Note deleted successfully from all tables"
+    });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error("Delete full note error:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Failed to delete note"
+    });
+  }
+});
+
 // Logout
 app.post("/api/logout", (req, res) => {
   res.clearCookie("auth_token", {
