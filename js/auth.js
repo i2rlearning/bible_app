@@ -221,7 +221,9 @@ function renderMyNotes(notes) {
         ${note.pageUrl ? `<a href="${note.pageUrl}">Open</a>` : ""}
       </td>
       <td>
-        <a href="#" class="delete-note" data-id="${note.id}" style="color: #ff4d4d; font-weight: bold;">Delete</a>
+        <a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note" style="color: #ff4d4d; font-size: 1.1rem;">
+          <i class="fa-solid fa-trash-can"></i>
+        </a>
       </td>
     `;
 
@@ -235,17 +237,18 @@ async function deleteNote(id) {
   }
 
   try {
-    const result = await fetch(`/api/my-notes/${id}`, {
+    const response = await fetch(`/api/my-notes/${id}`, {
       method: "DELETE",
       credentials: "include"
     });
 
-    if (result.ok) {
-      // Refresh the list immediately after successful delete
+    // We must parse the JSON before checking result.ok
+    const result = await response.json(); 
+
+    if (response.ok) { // Check response.ok, not result.ok
       await loadMyNotes(); 
     } else {
-      const errorData = await result.json();
-      alert("Error: " + (errorData.message || "Could not delete note."));
+      alert("Error: " + (result.message || "Could not delete note."));
     }
   } catch (error) {
     alert("Delete failed: " + error.message);
