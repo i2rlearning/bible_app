@@ -102,6 +102,63 @@ document.addEventListener("DOMContentLoaded", () => {
     return result;
   }
 
+  // ==========================================
+  // NEW: 30-MINUTE INACTIVITY LOGIC
+  // ==========================================
+  let idleTimeout;
+  const THIRTY_MINUTES = 30 * 60 * 1000; 
+
+  function resetIdleTimer() {
+      clearTimeout(idleTimeout);
+      // Only set the timer if the user is actually logged in
+      // (We check if the logout button is visible to know they are logged in)
+      if (logoutButton && logoutButton.style.display !== "none") {
+          idleTimeout = setTimeout(executeLogout, THIRTY_MINUTES);
+      }
+  }
+
+  async function executeLogout() {
+      try {
+          // 1. Call your actual logout API so the server knows they are gone
+          await postJson("/api/logout");
+
+          // 2. Show the persistent modal
+          const overlay = document.createElement('div');
+          overlay.id = 'timeout-modal-overlay';
+          overlay.innerHTML = `
+              <div class="timeout-box">
+                  <h2 style="color: #ff4d4d; margin-top: 0;">Session Expired</h2>
+                  <p>You have been inactive for over 30 minutes.</p>
+                  <p>For your security, you have been logged out.</p>
+                  <button class="timeout-button" onclick="window.location.reload()">Login Again</button>
+              </div>
+          `;
+          document.body.appendChild(overlay);
+
+          // 3. Update UI locally
+          setLoggedOutUI();
+          if (typeof lockEditorTools === "function") lockEditorTools();
+          
+      } catch (error) {
+          console.error("Inactivity logout failed:", error);
+          window.location.reload(); // Fallback
+      }
+  }
+
+  // Activity Listeners
+  window.addEventListener('mousemove', resetIdleTimer);
+  window.addEventListener('keypress', resetIdleTimer);
+  window.addEventListener('mousedown', resetIdleTimer);
+  window.addEventListener('touchstart', resetIdleTimer);
+  window.addEventListener('click', resetIdleTimer);
+
+  // ==========================================
+  // INITIAL CHECK
+  // ==========================================
+  checkLoginStatus();
+  resetIdleTimer(); // Start the first 30-min countdown
+});
+  
   async function checkLoginStatus() {
     try {
       const result = await getJson("/api/me");
