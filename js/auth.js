@@ -130,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   <h2 style="color: #ff4d4d; margin-top: 0;">Session Expired</h2>
                   <p>You have been inactive for over 30 minutes.</p>
                   <p>For your security, you have been logged out.</p>
-                  <button class="timeout-button" onclick="window.location.reload()">Login Again</button>
+                  <button class="timeout-button" onclick="window.location.reload()">Close/button>
               </div>
           `;
           document.body.appendChild(overlay);
