@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
       logoutButton.style.display = "";
     }
 
-    const myNotesLink = document.getElementById("MyNotes");
+    const myNotesLink = document.getElementById("openMyNotes");
 
     if (myNotesLink) {
       myNotesLink.classList.remove("disabled");
