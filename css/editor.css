@@ -520,7 +520,7 @@ body.editor-locked-state .ql-toolbar {
 }
 
 /* Icons in the My Notes page */
-.open-note-link {
+.open-note {
     text-decoration: none;
     font-size: 24px;
     cursor: pointer;
@@ -534,13 +534,13 @@ body.editor-locked-state .ql-toolbar {
     transition: all 0.2s ease-in-out;
 }
 
-.open-note-link:hover {
+.open-note:hover {
     filter: grayscale(0%); /* Returns the door to its natural colors */
     opacity: 1;
     transform: scale(1.1);
 }
 
-.delete-note-link {
+.delete-note {
     text-decoration: none !important; 
     font-size: 30px;
     cursor: pointer;
@@ -554,7 +554,7 @@ body.editor-locked-state .ql-toolbar {
     transition: all 0.2s ease-in-out;
 }
 
-.delete-note-link:hover {
+.delete-note:hover {
     filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%); /* Forces it to bright red */
     opacity: 1;
     color: #ff4d4d; /* Fallback for standard characters */
