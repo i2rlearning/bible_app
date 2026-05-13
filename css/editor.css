@@ -560,3 +560,40 @@ body.editor-locked-state .ql-toolbar {
     color: #ff4d4d; /* Fallback for standard characters */
     transform: scale(1.1);
 }
+
+/* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 25 MINUTES  */
+#timeout-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85); 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000; 
+    backdrop-filter: blur(4px); 
+}
+
+/* The warning box styling */
+.timeout-box {
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    text-align: center;
+    border-top: 5px solid #ff4d4d; /* Matches your red trash can hover */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    font-family: sans-serif;
+}
+
+.timeout-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    margin-top: 20px;
+}
