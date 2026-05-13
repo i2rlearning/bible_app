@@ -540,8 +540,9 @@ body.editor-locked-state .ql-toolbar {
     transform: scale(1.1);
 }
 
-.delete-note-link { 
-    text-decoration: none;
+.delete-note-link {
+    text-decoration: none !important; 
+    border-bottom: none !important;   /* Just in case it's a border, not an underline */
     font-size: 28px;
     cursor: pointer;
     display: flex;
