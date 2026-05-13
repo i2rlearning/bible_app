@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
       logoutButton.style.display = "";
     }
 
-    const myNotesLink = document.getElementById("openMyNotes");
+    const myNotesLink = document.getElementById("MyNotes");
 
     if (myNotesLink) {
       myNotesLink.classList.remove("disabled");
@@ -218,11 +218,10 @@ function renderMyNotes(notes) {
       <td>${preview}</td>
       <td>${formatDate(note.updatedAt)}</td>
       <td>
-        ${
-          note.pageUrl
-            ? `<a href="${note.pageUrl}">Open</a>`
-            : ""
-        }
+        ${note.pageUrl ? `<a href="${note.pageUrl}">Open</a>` : ""}
+      </td>
+      <td>
+        <a href="#" class="delete-note" data-id="${note.id}" style="color: #ff4d4d; font-weight: bold;">Delete</a>
       </td>
     `;
 
@@ -230,6 +229,29 @@ function renderMyNotes(notes) {
   });
 }
 
+async function deleteNote(id) {
+  if (!confirm("Are you sure you want to delete this? This action cannot be undone.")) {
+    return;
+  }
+
+  try {
+    const result = await fetch(`/api/my-notes/${id}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+
+    if (result.ok) {
+      // Refresh the list immediately after successful delete
+      await loadMyNotes(); 
+    } else {
+      const errorData = await result.json();
+      alert("Error: " + (errorData.message || "Could not delete note."));
+    }
+  } catch (error) {
+    alert("Delete failed: " + error.message);
+  }
+}
+  
 async function loadMyNotes() {
   const status = document.getElementById("myNotesStatus");
   const tableBody = document.getElementById("myNotesTableBody");
@@ -289,6 +311,12 @@ async function loadMyNotes() {
     toggleModal(signupModal, true);
   }
 
+  if (target.classList.contains("delete-note")) {
+    event.preventDefault();
+    const noteId = target.getAttribute("data-id");
+    deleteNote(noteId);
+  }  
+    
   if (target.id === "openMyNotes") {
     event.preventDefault();
   
