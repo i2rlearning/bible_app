@@ -218,7 +218,7 @@ function renderMyNotes(notes) {
       <td>${preview}</td>
       <td>${formatDate(note.updatedAt)}</td>
       <td>
-        ${note.pageUrl ? `<a href="${note.pageUrl}" class="open-note-link">🚪</a>` : ""}
+        ${note.pageUrl ? `<a href="${note.pageUrl}" class="open-note">🚪</a>` : ""}
       </td>
       <td>
         <a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note">🗑</a>
