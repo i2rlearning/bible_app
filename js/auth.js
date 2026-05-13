@@ -155,7 +155,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================
   // INITIAL CHECK
   // ==========================================
-  checkLoginStatus();
   resetIdleTimer(); // Start the first 30-min countdown
   
   async function checkLoginStatus() {
