@@ -220,10 +220,8 @@ function renderMyNotes(notes) {
       <td>
         ${note.pageUrl ? `<a href="${note.pageUrl}">Open</a>` : ""}
       </td>
-      <td style="text-align: center;">
-        <a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note" style="color: #ff4d4d; font-size: 1.2rem;">
-          <i class="fa-solid fa-trash-can"></i>
-        </a>
+      <td>
+        <a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note" style="color: #ff4d4d; font-size: 1.2rem;">Delete</a>
       </td>
     `;
 
