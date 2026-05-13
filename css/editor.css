@@ -518,3 +518,45 @@ body.editor-locked-state .ql-toolbar {
   color: #667;
   background: #eee;
 }
+
+/* Icons in the My Notes page */
+.table-icon-link {
+    text-decoration: none;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 42px;
+    filter: grayscale(100%); /* greyed out */
+    opacity: 0.6;            /* Adds a slight faded look */
+    transition: all 0.2s ease-in-out;
+}
+
+.open-note-link:hover {
+    filter: grayscale(0%); /* Returns the door to its natural colors */
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.delete-note-link (
+    text-decoration: none;
+    font-size: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 42px;
+    filter: grayscale(100%); /* greyed out */
+    opacity: 0.6;            /* Adds a slight faded look */
+    transition: all 0.2s ease-in-out;
+}
+
+.delete-note-link:hover {
+    filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%); /* Forces it to bright red */
+    opacity: 1;
+    color: #ff4d4d; /* Fallback for standard characters */
+    transform: scale(1.1);
+}
