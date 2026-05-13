@@ -218,12 +218,11 @@ function renderMyNotes(notes) {
       <td>${preview}</td>
       <td>${formatDate(note.updatedAt)}</td>
       <td>
-        ${note.pageUrl ? `<a href="${note.pageUrl}" style="text-decoration: none; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; height: 42px;">🚪</a>` : ""}
-      </td>      
+        ${note.pageUrl ? `<a href="${note.pageUrl}" class="table-icon-link open-note-link">🚪</a>` : ""}
+      </td>
       <td>
-        <a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note" style="text-decoration: none; color: #ff4d4d; font-size: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">🗑
-        </a>
-      </td>>
+        <a href="#" class="table-icon-link delete-note-link" data-id="${note.pageKey}" title="Delete Note">🗑</a>
+      </td>
     `;
 
     tableBody.appendChild(row);
