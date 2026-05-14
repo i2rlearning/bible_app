@@ -568,3 +568,100 @@ body.editor-locked-state .ql-toolbar {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/************* Auth buttons in header of My Notes *************/
+.subheader #login,
+.subheader #logout {
+  font-size: 13px;
+  padding: 3px 8px;
+  margin-left: 4px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  background: #f7f7f7;
+  color: #111;
+  line-height: 1.2;
+}
+
+.subheader #login:disabled {
+  color: #667;
+  background: #eee;
+}
+
+/* Icons in the My Notes page */
+.open-note {
+    text-decoration: none;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 42px;
+    filter: grayscale(100%); /* greyed out */
+    opacity: 0.6;            /* Adds a slight faded look */
+    transition: all 0.2s ease-in-out;
+}
+
+.open-note:hover {
+    filter: grayscale(0%); /* Returns the door to its natural colors */
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.delete-note {
+    text-decoration: none !important; 
+    font-size: 30px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 42px;
+    filter: grayscale(100%);
+    opacity: 0.6;
+    transition: all 0.2s ease-in-out;
+}
+
+.delete-note:hover {
+    filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%); /* Forces it to bright red */
+    opacity: 1;
+    color: #ff4d4d; /* Fallback for standard characters */
+    transform: scale(1.1);
+}
+
+/* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 25 MINUTES  */
+#timeout-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85); 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000; 
+    backdrop-filter: blur(4px); 
+}
+
+/* The warning box styling */
+.timeout-box {
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    text-align: center;
+    border-top: 5px solid #ff4d4d; /* Matches your red trash can hover */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    font-family: sans-serif;
+}
+
+.timeout-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    margin-top: 20px;
+}
