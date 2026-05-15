@@ -291,7 +291,7 @@ app.get("/api/quill-notes", requireAuth, async (req, res) => {
         AND page_key = $2
       LIMIT 1
       `,
-      [req.user.id, pageKey]
+      [clerkUserId, pageKey]
     );
 
     if (result.rows.length === 0) {
@@ -463,7 +463,7 @@ app.get("/api/mini-editor-page", requireAuth, async (req, res) => {
         AND page_key = $2
       LIMIT 1
       `,
-      [req.user.id, pageKey]
+      [clerkUserId, pageKey]
     );
 
     if (result.rows.length === 0) {
