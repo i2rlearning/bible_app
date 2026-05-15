@@ -537,16 +537,39 @@ window.addEventListener('load', async function () {
     await Clerk.load();
     console.log('Clerk is loaded and ready!');
 
-    // 3. YOUR APP LOGIC (Works on both index.html and verse.html)
+// ==========================================
+    // 3. YOUR APP LOGIC 
+    // ==========================================
     if (Clerk.user) {
       console.log("User is signed in:", Clerk.user.id);
-      // Show your mini-editor or quill notes here
+      
+      // If you have a logout button, hook it up here:
+      const logoutBtn = document.getElementById('logout-btn'); // Make sure this matches your HTML ID
+      if (logoutBtn) {
+        logoutBtn.style.display = 'block';
+        logoutBtn.addEventListener('click', () => Clerk.signOut());
+      }
+      
+      // Hide your login button since you're already in
+      const loginBtn = document.getElementById('login-btn');
+      if (loginBtn) loginBtn.style.display = 'none';
+
     } else {
       console.log("No user signed in.");
-      // Show your login buttons here
-    }
 
-  } catch (error) {
-    console.error("Initialization error:", error);
-  }
-});
+      // Hook up your existing login button to open Clerk's modal
+      const loginBtn = document.getElementById('login-btn'); // Make sure this matches your HTML ID
+      if (loginBtn) {
+        loginBtn.style.display = 'block';
+        loginBtn.addEventListener('click', () => {
+          Clerk.openSignIn({
+            // Tells Clerk to close the modal after a successful login
+            afterSignInUrl: window.location.href 
+          });
+        });
+      }
+      
+      // Hide logout button if it exists
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) logoutBtn.style.display = 'none';
+    }
