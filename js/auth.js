@@ -1,6 +1,33 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const loginForm = document.querySelector("#loginModal form");
-  const signupForm = document.querySelector("#signupModal form");
+// =========================================================================
+// 1. DYNAMIC CLERK LOADER (Must use your frontend API source url)
+// =========================================================================
+const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
+
+function loadClerkScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Clerk) return resolve(); // Already loaded
+    const script = document.createElement('script');
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.setAttribute('data-clerk-publishable-key', CLERK_PUBLISHABLE_KEY);
+    // Standard frontend fallback script source url
+    script.src = `https://stirred-pony-14.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`;
+    
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Clerk'));
+    document.head.appendChild(script);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  // Wait for Clerk to load before doing any UI handling
+  try {
+    await loadClerkScript();
+    await Clerk.load();
+    console.log('Clerk is loaded and ready!');
+  } catch (e) {
+    console.error("Clerk failed to initialize:", e);
+  }
 
   const loginButton = document.getElementById("login");
   const signupButton = document.getElementById("signup");
@@ -11,7 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function toggleModal(modal, show) {
     if (!modal) return;
-
     if (show) {
       modal.style.display = "flex";
       modal.classList.add("is-open");
@@ -25,19 +51,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (loginButton) {
       loginButton.style.display = "none";
       loginButton.disabled = true;
-      loginButton.title = user?.email || "Logged in";
+      loginButton.title = user?.primaryEmailAddress?.emailAddress || "Logged in";
     }
-  
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-  
-    if (logoutButton) {
-      logoutButton.style.display = "";
-    }
+    if (signupButton) signupButton.style.display = "none";
+    if (logoutButton) logoutButton.style.display = "";
 
     const myNotesLink = document.getElementById("openMyNotes");
-
     if (myNotesLink) {
       myNotesLink.classList.remove("disabled");
       myNotesLink.setAttribute("aria-disabled", "false");
@@ -51,17 +70,10 @@ document.addEventListener("DOMContentLoaded", () => {
       loginButton.disabled = false;
       loginButton.title = "";
     }
-  
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-  
-    if (logoutButton) {
-      logoutButton.style.display = "none";
-    }
-  
-    const myNotesLink = document.getElementById("openMyNotes");
+    if (signupButton) signupButton.style.display = "none"; // Kept hidden since Clerk modal handles both signup/login together
+    if (logoutButton) logoutButton.style.display = "none";
 
+    const myNotesLink = document.getElementById("openMyNotes");
     if (myNotesLink) {
       myNotesLink.classList.add("disabled");
       myNotesLink.setAttribute("aria-disabled", "true");
@@ -69,430 +81,232 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function getJson(url) {
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include"
-    });
-
+    const response = await fetch(url, { method: "GET", credentials: "include" });
     const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Request failed");
-    }
-
+    if (!response.ok) throw new Error(result.message || "Request failed");
     return result;
   }
 
   async function postJson(url, data = {}) {
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify(data)
     });
-
     const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Request failed");
-    }
-
+    if (!response.ok) throw new Error(result.message || "Request failed");
     return result;
   }
 
   // ==========================================
-  // NEW: 30-MINUTE INACTIVITY LOGIC
+  // INACTIVITY LOGIC (Maintained)
   // ==========================================
   let idleTimeout;
-  const THIRTY_MINUTES =  30 * 60 * 1000; 
+  const THIRTY_MINUTES = 30 * 60 * 1000; 
 
   function resetIdleTimer() {
-      clearTimeout(idleTimeout);
-      // Only set the timer if the user is actually logged in
-      // (We check if the logout button is visible to know they are logged in)
-      if (logoutButton && logoutButton.style.display !== "none") {
-          idleTimeout = setTimeout(executeLogout, THIRTY_MINUTES);
-      }
+    clearTimeout(idleTimeout);
+    if (logoutButton && logoutButton.style.display !== "none") {
+        idleTimeout = setTimeout(executeLogout, THIRTY_MINUTES);
+    }
   }
 
   async function executeLogout() {
-      try {
-          // 1. Call your actual logout API so the server knows they are gone
-          await postJson("/api/logout");
-
-          // 2. Show the persistent modal
-          const overlay = document.createElement('div');
-          overlay.id = 'timeout-modal-overlay';
-          overlay.innerHTML = `
-              <div class="timeout-box">
-                  <h2 style="color: #ff4d4d; margin-top: 0;">Session Expired</h2>
-                  <p>You have been inactive for over 30 minutes.</p>
-                  <p>For your security, you have been logged out.</p>
-                  <button class="timeout-button" onclick="window.location.reload()">Close</button>
-              </div>
-          `;
-          document.body.appendChild(overlay);
-
-          // 3. Update UI locally
-          setLoggedOutUI();
-          if (typeof lockEditorTools === "function") lockEditorTools();
-          
-      } catch (error) {
-          console.error("Inactivity logout failed:", error);
-          window.location.reload(); // Fallback
-      }
+    try {
+        if (window.Clerk) await Clerk.signOut();
+        
+        const overlay = document.createElement('div');
+        overlay.id = 'timeout-modal-overlay';
+        overlay.innerHTML = `
+            <div class="timeout-box">
+                <h2 style="color: #ff4d4d; margin-top: 0;">Session Expired</h2>
+                <p>You have been inactive for over 30 minutes.</p>
+                <p>For your security, you have been logged out.</p>
+                <button class="timeout-button" onclick="window.location.reload()">Close</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        setLoggedOutUI();
+        if (typeof lockEditorTools === "function") lockEditorTools();
+    } catch (error) {
+        console.error("Inactivity logout failed:", error);
+        window.location.reload();
+    }
   }
 
-  // Activity Listeners
   window.addEventListener('mousemove', resetIdleTimer);
   window.addEventListener('keypress', resetIdleTimer);
   window.addEventListener('mousedown', resetIdleTimer);
   window.addEventListener('touchstart', resetIdleTimer);
   window.addEventListener('click', resetIdleTimer);
 
-  // ==========================================
-  // INITIAL CHECK
-  // ==========================================
-  resetIdleTimer(); // Start the first 30-min countdown
+  resetIdleTimer();
   
-  async function checkLoginStatus() {
-    try {
-      const result = await getJson("/api/me");
-
-      if (result.ok && result.user) {
-        setLoggedInUI(result.user);
-
-        if (typeof unlockEditorTools === "function") {
-          unlockEditorTools();
-        }
-      } else {
-        setLoggedOutUI();
-
-        if (typeof lockEditorTools === "function") {
-          lockEditorTools();
-        }
-      }
-    } catch (error) {
-      setLoggedOutUI();
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
-    }
-  }
-
-  function formatSavedContent(note) {
-  const parts = [];
-
-  if (note.hasQuillNotes) {
-    parts.push("Notes");
-  }
-
-  if (note.hasHighlights) {
-    parts.push("Highlights");
-  }
-
-  if (note.hasDrawings) {
-    parts.push("Drawings");
-  }
-
-  if (note.hasTextFormats) {
-    parts.push("Text formatting");
-  }
-
-  return parts.length ? parts.join(" + ") : "Saved page";
-}
-
-function formatDate(value) {
-  if (!value) return "";
-
-  return new Date(value).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
-}
-
-//Search for MyNotes  
-let allMyNotes = [];
-
-function filterMyNotes(searchText) {
-  const searchValue = (searchText || "").toLowerCase().trim();
-
-  if (!searchValue) {
-    renderMyNotes(allMyNotes);
-    return;
-  }
-
-  const filteredNotes = allMyNotes.filter((note) => {
-    const searchableText = [
-      note.bibleName,
-      note.bibleVersionID,
-      note.bookChapterLabel,
-      note.bibleChapterID,
-      note.preview,
-      formatSavedContent(note)
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return searchableText.includes(searchValue);
-  });
-
-  renderMyNotes(filteredNotes);
-}
-  
-function renderMyNotes(notes) {
-  const tableBody = document.getElementById("myNotesTableBody");
-  const status = document.getElementById("myNotesStatus");
-
-  if (!tableBody || !status) return;
-
-  tableBody.innerHTML = "";
-
-  if (!notes.length) {
-    status.textContent = allMyNotes.length ? "No matching notes found." : "No saved notes yet.";
-    return;
-  }
-
-  status.textContent = `${notes.length} saved page${notes.length === 1 ? "" : "s"}`;
-
-  notes.forEach((note) => {
-    const row = document.createElement("tr");
-
-    const preview = note.preview
-      ? note.preview.slice(0, 120)
-      : "";
-
-    row.innerHTML = `
-      <td>${note.bibleName || note.bibleVersionID || ""}</td>
-      <td>${note.bookChapterLabel || note.bibleChapterID || ""}</td>
-      <td>${formatSavedContent(note)}</td>
-      <td>${preview}</td>
-      <td>${formatDate(note.updatedAt)}</td>
-      <td>
-        ${note.pageUrl ? `<a href="${note.pageUrl}" class="open-note">🚪</a>` : ""}
-      </td>
-      <td>
-        <a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note">🗑</a>
-      </td>
-    `;
-
-    tableBody.appendChild(row);
-  });
-}
-
-async function deleteNote(id) {
-  if (!confirm("Are you sure you want to delete this? This action cannot be undone.")) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/my-notes/${id}`, {
-      method: "DELETE",
-      credentials: "include"
-    });
-
-    // We must parse the JSON before checking result.ok
-    const result = await response.json(); 
-
-    if (response.ok) { // Check response.ok, not result.ok
-      await loadMyNotes(); 
+  // ==========================================
+  // CLERK INTEGRATED LOGIN CHECK
+  // ==========================================
+  function checkLoginStatus() {
+    if (window.Clerk && Clerk.user) {
+      setLoggedInUI(Clerk.user);
+      if (typeof unlockEditorTools === "function") unlockEditorTools();
     } else {
-      alert("Error: " + (result.message || "Could not delete note."));
-    }
-  } catch (error) {
-    alert("Delete failed: " + error.message);
-  }
-}
-  
-async function loadMyNotes() {
-  const status = document.getElementById("myNotesStatus");
-  const tableBody = document.getElementById("myNotesTableBody");
-
-  if (status) {
-    status.textContent = "Loading...";
-  }
-
-  if (tableBody) {
-    tableBody.innerHTML = "";
-  }
-
-  try {
-    const result = await getJson("/api/my-notes");
-
-    if (!result.ok) {
-      throw new Error(result.message || "Failed to load my notes");
-    }
-
-    allMyNotes = result.notes || [];
-    renderMyNotes(allMyNotes);
-
-    const searchInput = document.getElementById("myNotesSearch");
-
-    if (searchInput) {
-      searchInput.value = "";
-
-      searchInput.oninput = function () {
-        filterMyNotes(this.value);
-      };
-    }
-  } catch (error) {
-    if (status) {
-      status.textContent = error.message || "Failed to load my notes.";
+      setLoggedOutUI();
+      if (typeof lockEditorTools === "function") lockEditorTools();
     }
   }
-}
-  
-  document.addEventListener("click", (event) => {
-  const target = event.target;
 
-  if (!target) return;
-
-  const myNotesModal = document.getElementById("myNotesModal");
-
-  if (target.id === "login") {
-    toggleModal(loginModal, true);
+  // Note Formatting Helpers
+  function formatSavedContent(note) {
+    const parts = [];
+    if (note.hasQuillNotes) parts.push("Notes");
+    if (note.hasHighlights) parts.push("Highlights");
+    if (note.hasDrawings) parts.push("Drawings");
+    if (note.hasTextFormats) parts.push("Text formatting");
+    return parts.length ? parts.join(" + ") : "Saved page";
   }
 
-  if (target.id === "signup") {
-    toggleModal(signupModal, true);
+  function formatDate(value) {
+    if (!value) return "";
+    return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
-  if (target.id === "openSignupFromLogin") {
-    event.preventDefault();
-    toggleModal(loginModal, false);
-    toggleModal(signupModal, true);
-  }
+  // Notes Search & Render (Maintained)
+  let allMyNotes = [];
 
-  if (target.classList.contains("delete-note")) {
-    event.preventDefault();
-    const noteId = target.getAttribute("data-id");
-    deleteNote(noteId);
-  }  
+  function filterMyNotes(searchText) {
+    const searchValue = (searchText || "").toLowerCase().trim();
+    if (!searchValue) { renderMyNotes(allMyNotes); return; }
+
+    const filteredNotes = allMyNotes.filter((note) => {
+      const searchableText = [
+        note.bibleName, note.bibleVersionID, note.bookChapterLabel,
+        note.bibleChapterID, note.preview, formatSavedContent(note)
+      ].join(" ").toLowerCase();
+      return searchableText.includes(searchValue);
+    });
+    renderMyNotes(filteredNotes);
+  }
     
-  if (target.id === "openMyNotes") {
-    event.preventDefault();
-  
-    if (target.classList.contains("disabled")) {
-      if (typeof closeNav === "function") {
-        closeNav();
-      }
-  
-      toggleModal(loginModal, true);
+  function renderMyNotes(notes) {
+    const tableBody = document.getElementById("myNotesTableBody");
+    const status = document.getElementById("myNotesStatus");
+    if (!tableBody || !status) return;
+
+    tableBody.innerHTML = "";
+    if (!notes.length) {
+      status.textContent = allMyNotes.length ? "No matching notes found." : "No saved notes yet.";
       return;
     }
-  
-    if (typeof closeNav === "function") {
-      closeNav();
-    }
-  
-    toggleModal(myNotesModal, true);
-    loadMyNotes();
-  }
-  if (target.classList && target.classList.contains("toggle-password")) {
-    const targetId = target.getAttribute("data-target");
-    const passwordInput = document.getElementById(targetId);
 
-    if (passwordInput) {
-      const isPassword = passwordInput.getAttribute("type") === "password";
-
-      passwordInput.setAttribute("type", isPassword ? "text" : "password");
-      target.classList.toggle("fa-eye");
-      target.classList.toggle("fa-eye-slash");
-    }
-  }
-
-  const isCloser = [
-    "cancelLogin",
-    "closelogin",
-    "cancelSignupBtn",
-    "closeSignup",
-    "closeMyNotes"
-  ].includes(target.id);
-
-  const isBackgroundClick =
-    target === loginModal ||
-    target === signupModal ||
-    target === myNotesModal;
-
-  if (isCloser || isBackgroundClick) {
-    toggleModal(loginModal, false);
-    toggleModal(signupModal, false);
-    toggleModal(myNotesModal, false);
-  }
-});
-
-  if (signupForm) {
-    signupForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-
-      const email = signupForm.querySelector('input[name="email"]').value;
-      const password = signupForm.querySelector('input[name="psw"]').value;
-      const passwordRepeat = signupForm.querySelector('input[name="psw-repeat"]').value;
-
-      try {
-        const result = await postJson("/api/signup", {
-          email,
-          password,
-          passwordRepeat
-        });
-
-        alert(result.message || "Account created. You can now log in.");
-
-        signupForm.reset();
-
-        toggleModal(signupModal, false);
-        toggleModal(loginModal, true);
-      } catch (error) {
-        alert(error.message);
-      }
+    status.textContent = `${notes.length} saved page${notes.length === 1 ? "" : "s"}`;
+    notes.forEach((note) => {
+      const row = document.createElement("tr");
+      const preview = note.preview ? note.preview.slice(0, 120) : "";
+      row.innerHTML = `
+        <td>${note.bibleName || note.bibleVersionID || ""}</td>
+        <td>${note.bookChapterLabel || note.bibleChapterID || ""}</td>
+        <td>${formatSavedContent(note)}</td>
+        <td>${preview}</td>
+        <td>${formatDate(note.updatedAt)}</td>
+        <td>${note.pageUrl ? `<a href="${note.pageUrl}" class="open-note">🚪</a>` : ""}</td>
+        <td><a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note">🗑</a></td>
+      `;
+      tableBody.appendChild(row);
     });
   }
 
-  if (loginForm) {
-    loginForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-
-      const username = loginForm.querySelector('input[name="uname"]').value;
-      const password = loginForm.querySelector('input[name="psw"]').value;
-
-      try {
-        const result = await postJson("/api/login", {
-          username,
-          password,
-          remember: false
-        });
-
-        loginForm.reset();
-
-        toggleModal(loginModal, false);
-        setLoggedInUI(result.user);
-
-        if (typeof unlockEditorTools === "function") {
-          unlockEditorTools();
-        }
-
-        window.location.reload();
-      } catch (error) {
-        alert(error.message);
-      }
-    });
+  async function deleteNote(id) {
+    if (!confirm("Are you sure you want to delete this? This action cannot be undone.")) return;
+    try {
+      const response = await fetch(`/api/my-notes/${id}`, { method: "DELETE", credentials: "include" });
+      const result = await response.json(); 
+      if (response.ok) { await loadMyNotes(); } 
+      else { alert("Error: " + (result.message || "Could not delete note.")); }
+    } catch (error) { alert("Delete failed: " + error.message); }
   }
+    
+  async function loadMyNotes() {
+    const status = document.getElementById("myNotesStatus");
+    const tableBody = document.getElementById("myNotesTableBody");
+    if (status) status.textContent = "Loading...";
+    if (tableBody) tableBody.innerHTML = "";
 
+    try {
+      const result = await getJson("/api/my-notes");
+      if (!result.ok) throw new Error(result.message || "Failed to load my notes");
+      allMyNotes = result.notes || [];
+      renderMyNotes(allMyNotes);
+
+      const searchInput = document.getElementById("myNotesSearch");
+      if (searchInput) {
+        searchInput.value = "";
+        searchInput.oninput = function () { filterMyNotes(this.value); };
+      }
+    } catch (error) {
+      if (status) status.textContent = error.message || "Failed to load my notes.";
+    }
+  }
+    
+  // ==========================================
+  // GLOBAL CLICK CAPTURE (Interventions for Clerk)
+  // ==========================================
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!target) return;
+
+    const myNotesModal = document.getElementById("myNotesModal");
+
+    // Intercept navbar click to load Clerk's popup modal
+    if (target.id === "login") {
+      if (window.Clerk) {
+        Clerk.openSignIn({ afterSignInUrl: window.location.href });
+      }
+      return;
+    }
+
+    if (target.id === "signup") {
+      if (window.Clerk) {
+        Clerk.openSignUp({ afterSignUpUrl: window.location.href });
+      }
+      return;
+    }
+
+    if (target.classList.contains("delete-note")) {
+      event.preventDefault();
+      const noteId = target.getAttribute("data-id");
+      deleteNote(noteId);
+    }    
+      
+    if (target.id === "openMyNotes") {
+      event.preventDefault();
+      if (target.classList.contains("disabled")) {
+        if (typeof closeNav === "function") closeNav();
+        if (window.Clerk) Clerk.openSignIn({ afterSignInUrl: window.location.href });
+        return;
+      }
+      if (typeof closeNav === "function") closeNav();
+      toggleModal(myNotesModal, true);
+      loadMyNotes();
+    }
+
+    const isCloser = ["closeMyNotes"].includes(target.id);
+    const isBackgroundClick = target === myNotesModal;
+
+    if (isCloser || isBackgroundClick) {
+      toggleModal(myNotesModal, false);
+    }
+  });
+
+  // ==========================================
+  // LOGOUT INTERACTION
+  // ==========================================
   if (logoutButton) {
     logoutButton.addEventListener("click", async () => {
       try {
-        await postJson("/api/logout");
-
+        if (window.Clerk) await Clerk.signOut();
         setLoggedOutUI();
-
-        if (typeof lockEditorTools === "function") {
-          lockEditorTools();
-        }
-
+        if (typeof lockEditorTools === "function") lockEditorTools();
         window.location.reload();
       } catch (error) {
         alert(error.message);
@@ -500,76 +314,6 @@ async function loadMyNotes() {
     });
   }
 
+  // Run initial state verification
   checkLoginStatus();
 });
-
-// ==========================================
-// CONFIGURATION
-// ==========================================
-const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
-
-// ==========================================
-// 1. DYNAMIC CLERK LOADER (Prevents Duplicity)
-// ==========================================
-function loadClerkScript() {
-  return new Promise((resolve, reject) => {
-    // Create the script tag dynamically
-    const script = document.createElement('script');
-    script.async = true;
-    script.crossOrigin = 'anonymous';
-    script.setAttribute('data-clerk-publishable-key', CLERK_PUBLISHABLE_KEY);
-    script.src = 'https://clerk.your-app.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js';
-    
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Clerk'));
-    
-    document.head.appendChild(script);
-  });
-}
-
-// ==========================================
-// 2. INITIALIZATION
-// ==========================================
-window.addEventListener('load', async function () {
-  try {
-    // Inject and wait for Clerk to load
-    await loadClerkScript();
-    await Clerk.load();
-    console.log('Clerk is loaded and ready!');
-
-// ==========================================
-    // 3. YOUR APP LOGIC 
-    // ==========================================
-    if (Clerk.user) {
-      console.log("User is signed in:", Clerk.user.id);
-      
-      // If you have a logout button, hook it up here:
-      const logoutBtn = document.getElementById('logout-btn'); // Make sure this matches your HTML ID
-      if (logoutBtn) {
-        logoutBtn.style.display = 'block';
-        logoutBtn.addEventListener('click', () => Clerk.signOut());
-      }
-      
-      // Hide your login button since you're already in
-      const loginBtn = document.getElementById('login-btn');
-      if (loginBtn) loginBtn.style.display = 'none';
-
-    } else {
-      console.log("No user signed in.");
-
-      // Hook up your existing login button to open Clerk's modal
-      const loginBtn = document.getElementById('login-btn'); // Make sure this matches your HTML ID
-      if (loginBtn) {
-        loginBtn.style.display = 'block';
-        loginBtn.addEventListener('click', () => {
-          Clerk.openSignIn({
-            // Tells Clerk to close the modal after a successful login
-            afterSignInUrl: window.location.href 
-          });
-        });
-      }
-      
-      // Hide logout button if it exists
-      const logoutBtn = document.getElementById('logout-btn');
-      if (logoutBtn) logoutBtn.style.display = 'none';
-    }
