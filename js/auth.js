@@ -1,5 +1,5 @@
 // =========================================================================
-// 1. DYNAMIC CLERK LOADER (Must use your frontend API source url)
+//  DYNAMIC CLERK LOADER (Must use your frontend API source url)
 // =========================================================================
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
 
