@@ -502,3 +502,51 @@ async function loadMyNotes() {
 
   checkLoginStatus();
 });
+
+// ==========================================
+// CONFIGURATION
+// ==========================================
+const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
+
+// ==========================================
+// 1. DYNAMIC CLERK LOADER (Prevents Duplicity)
+// ==========================================
+function loadClerkScript() {
+  return new Promise((resolve, reject) => {
+    // Create the script tag dynamically
+    const script = document.createElement('script');
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.setAttribute('data-clerk-publishable-key', CLERK_PUBLISHABLE_KEY);
+    script.src = 'https://clerk.your-app.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js';
+    
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Clerk'));
+    
+    document.head.appendChild(script);
+  });
+}
+
+// ==========================================
+// 2. INITIALIZATION
+// ==========================================
+window.addEventListener('load', async function () {
+  try {
+    // Inject and wait for Clerk to load
+    await loadClerkScript();
+    await Clerk.load();
+    console.log('Clerk is loaded and ready!');
+
+    // 3. YOUR APP LOGIC (Works on both index.html and verse.html)
+    if (Clerk.user) {
+      console.log("User is signed in:", Clerk.user.id);
+      // Show your mini-editor or quill notes here
+    } else {
+      console.log("No user signed in.");
+      // Show your login buttons here
+    }
+
+  } catch (error) {
+    console.error("Initialization error:", error);
+  }
+});
