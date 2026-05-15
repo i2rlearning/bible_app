@@ -80,20 +80,40 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  // UPDATED: Fetches token from Clerk and attaches it as a Bearer header
   async function getJson(url) {
-    const response = await fetch(url, { method: "GET", credentials: "include" });
+    let headers = { "Content-Type": "application/json" };
+    if (window.Clerk?.session) {
+      const token = await window.Clerk.session.getToken();
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { 
+      method: "GET", 
+      headers: headers,
+      credentials: "include" 
+    });
+    
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || "Request failed");
     return result;
   }
 
+  // UPDATED: Fetches token from Clerk and attaches it as a Bearer header
   async function postJson(url, data = {}) {
+    let headers = { "Content-Type": "application/json" };
+    if (window.Clerk?.session) {
+      const token = await window.Clerk.session.getToken();
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       credentials: "include",
       body: JSON.stringify(data)
     });
+    
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || "Request failed");
     return result;
@@ -216,10 +236,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  // UPDATED: Added token retrieval to the DELETE request
   async function deleteNote(id) {
     if (!confirm("Are you sure you want to delete this? This action cannot be undone.")) return;
     try {
-      const response = await fetch(`/api/my-notes/${id}`, { method: "DELETE", credentials: "include" });
+      let headers = { "Content-Type": "application/json" };
+      if (window.Clerk?.session) {
+        const token = await window.Clerk.session.getToken();
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`/api/my-notes/${id}`, { 
+        method: "DELETE", 
+        headers: headers,
+        credentials: "include" 
+      });
       const result = await response.json(); 
       if (response.ok) { await loadMyNotes(); } 
       else { alert("Error: " + (result.message || "Could not delete note.")); }
