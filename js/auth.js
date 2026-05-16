@@ -238,7 +238,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (target.id === "login") {
       if (window.Clerk) {
-        Clerk.openSignIn({ afterSignInUrl: window.location.href });
+        // Force a complete window reload on successful sign-in to break out of the modal loop
+        Clerk.openSignIn({ 
+          afterSignInUrl: "/",
+          forceRedirectUrl: "/"
+        });
       } else {
         alert("Sign-in is still initializing in the background. Please try again in a brief second.");
       }
