@@ -665,3 +665,17 @@ body.editor-locked-state .ql-toolbar {
     font-size: 18px;
     margin-top: 20px;
 }
+
+/* Force the login button to float above invisible layout panels */
+#login {
+    position: relative !important;
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Ensure the sticky header container doesn't get covered by hidden modal layers */
+#stickyHeader, header {
+    position: relative !important;
+    z-index: 99999 !important;
+}
