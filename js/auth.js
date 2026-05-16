@@ -294,7 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =========================================================================
-//  2. DYNAMIC, LAZY CLERK LOADER (Runs completely outside DOMContentLoaded)
+//  2. DYNAMIC, LAZY CLERK LOADER (Standard Global Asset Initialization)
 // =========================================================================
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
 
@@ -306,15 +306,26 @@ window.addEventListener("load", () => {
   script.crossOrigin = 'anonymous';
   script.setAttribute('data-clerk-publishable-key', CLERK_PUBLISHABLE_KEY);
   
-  // FIXED: Pointing to unpkg so the modal breaks out cleanly on success
+  // Pointing to unpkg ensures standard security context and no domain locking
   script.src = "https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js";
   
   script.onload = async () => {
     try {
-      await Clerk.load();
-      console.log('Clerk lazy-loaded successfully!');
-      if (typeof window.updateAuthUI === "function") {
-        window.updateAuthUI(Clerk.user);
+      // Step 1: Wait for the global Clerk package object to fully parse
+      if (window.Clerk) {
+        // Step 2: Manually initialize the universal package with your key configuration
+        await window.Clerk.load({
+          publishableKey: CLERK_PUBLISHABLE_KEY
+        });
+        
+        console.log('Clerk initialized and lazy-loaded successfully!');
+        
+        // Step 3: Run your existing UI layout updates
+        if (typeof window.updateAuthUI === "function") {
+          window.updateAuthUI(window.Clerk.user);
+        }
+      } else {
+        console.error("Clerk object was not found on the window frame.");
       }
     } catch (e) {
       console.error("Clerk frontend failed to attach inside container:", e);
