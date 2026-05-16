@@ -305,7 +305,7 @@ window.addEventListener("load", () => {
   script.async = true;
   script.crossOrigin = 'anonymous';
   script.setAttribute('data-clerk-publishable-key', CLERK_PUBLISHABLE_KEY);
-  script.src = `https://stirred-pony-14.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`;
+  script.src = "https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js";
   
   script.onload = async () => {
     try {
