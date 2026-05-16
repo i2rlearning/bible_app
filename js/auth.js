@@ -108,7 +108,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function executeLogout() {
     try {
-        if (window.Clerk) await Clerk.signOut();
+        const clerkObj = window.Clerk || window.clerk;
+        if (clerkObj) await clerkObj.signOut();
         
         const overlay = document.createElement('div');
         overlay.id = 'timeout-modal-overlay';
@@ -233,13 +234,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // GLOBAL CLICK CAPTURE
   // ==========================================
   document.addEventListener("click", (event) => {
+    // FIXED: Use .closest() to find the button even if an icon or inner text was clicked
+    const loginTarget = event.target.closest("#login");
+    const signupTarget = event.target.closest("#signup");
+    const myNotesTarget = event.target.closest("#openMyNotes");
     const target = event.target;
-    if (!target) return;
 
-    if (target.id === "login") {
-      if (window.Clerk) {
-        // Force a complete window reload on successful sign-in to break out of the modal loop
-        Clerk.openSignIn({ 
+    if (loginTarget) {
+      // FIXED: Look for either version of the global Clerk object context
+      const clerkObj = window.Clerk || window.clerk;
+      if (clerkObj) {
+        clerkObj.openSignIn({ 
           afterSignInUrl: "/",
           forceRedirectUrl: "/"
         });
@@ -249,9 +254,10 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (target.id === "signup") {
-      if (window.Clerk) {
-        Clerk.openSignUp({ afterSignUpUrl: window.location.href });
+    if (signupTarget) {
+      const clerkObj = window.Clerk || window.clerk;
+      if (clerkObj) {
+        clerkObj.openSignUp({ afterSignUpUrl: window.location.href });
       }
       return;
     }
@@ -262,11 +268,12 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteNote(noteId);
     }    
 
-    if (target.id === "openMyNotes") {
+    if (myNotesTarget) {
       event.preventDefault();
-      if (target.classList.contains("disabled")) {
+      if (myNotesTarget.classList.contains("disabled")) {
         if (typeof closeNav === "function") closeNav();
-        if (window.Clerk) Clerk.openSignIn({ afterSignInUrl: window.location.href });
+        const clerkObj = window.Clerk || window.clerk;
+        if (clerkObj) clerkObj.openSignIn({ afterSignInUrl: window.location.href });
         return;
       }
       if (typeof closeNav === "function") closeNav();
@@ -282,7 +289,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (logoutButton) {
     logoutButton.addEventListener("click", async () => {
       try {
-        if (window.Clerk) await Clerk.signOut();
+        const clerkObj = window.Clerk || window.clerk;
+        if (clerkObj) await clerkObj.signOut();
         setLoggedOutUI();
         if (typeof lockEditorTools === "function") lockEditorTools();
         window.location.reload();
@@ -306,23 +314,22 @@ window.addEventListener("load", () => {
   script.crossOrigin = 'anonymous';
   script.setAttribute('data-clerk-publishable-key', CLERK_PUBLISHABLE_KEY);
   
-  // Pointing to unpkg ensures standard security context and no domain locking
   script.src = "https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js";
   
   script.onload = async () => {
     try {
-      // Step 1: Wait for the global Clerk package object to fully parse
-      if (window.Clerk) {
-        // Step 2: Manually initialize the universal package with your key configuration
-        await window.Clerk.load({
+      // FIXED: Fallback handle checks for both script variations
+      const clerkObj = window.Clerk || window.clerk;
+      
+      if (clerkObj) {
+        await clerkObj.load({
           publishableKey: CLERK_PUBLISHABLE_KEY
         });
         
         console.log('Clerk initialized and lazy-loaded successfully!');
         
-        // Step 3: Run your existing UI layout updates
         if (typeof window.updateAuthUI === "function") {
-          window.updateAuthUI(window.Clerk.user);
+          window.updateAuthUI(clerkObj.user);
         }
       } else {
         console.error("Clerk object was not found on the window frame.");
