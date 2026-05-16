@@ -305,6 +305,8 @@ window.addEventListener("load", () => {
   script.async = true;
   script.crossOrigin = 'anonymous';
   script.setAttribute('data-clerk-publishable-key', CLERK_PUBLISHABLE_KEY);
+  
+  // FIXED: Pointing to unpkg so the modal breaks out cleanly on success
   script.src = "https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js";
   
   script.onload = async () => {
