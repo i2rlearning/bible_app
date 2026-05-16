@@ -72,7 +72,29 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // ==========================================
-  // INACTIVITY LOGIC
+  // BACKEND FETCH UTILITIES
+  // ==========================================
+  async function getJson(url) {
+    const response = await fetch(url, { method: "GET", credentials: "include" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Request failed");
+    return result;
+  }
+
+  async function postJson(url, data = {}) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(data)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Request failed");
+    return result;
+  }
+
+  // ==========================================
+  // INACTIVITY LOGIC (Maintained)
   // ==========================================
   let idleTimeout;
   const THIRTY_MINUTES = 30 * 60 * 1000; 
@@ -115,6 +137,99 @@ document.addEventListener("DOMContentLoaded", () => {
   resetIdleTimer();
 
   // ==========================================
+  // NOTES MANAGEMENT & RENDERING LOGIC
+  // ==========================================
+  let allMyNotes = [];
+
+  function formatSavedContent(note) {
+    const parts = [];
+    if (note.hasQuillNotes) parts.push("Notes");
+    if (note.hasHighlights) parts.push("Highlights");
+    if (note.hasDrawings) parts.push("Drawings");
+    if (note.hasTextFormats) parts.push("Text formatting");
+    return parts.length ? parts.join(" + ") : "Saved page";
+  }
+
+  function formatDate(value) {
+    if (!value) return "";
+    return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  function filterMyNotes(searchText) {
+    const searchValue = (searchText || "").toLowerCase().trim();
+    if (!searchValue) { renderMyNotes(allMyNotes); return; }
+
+    const filteredNotes = allMyNotes.filter((note) => {
+      const searchableText = [
+        note.bibleName, note.bibleVersionID, note.bookChapterLabel,
+        note.bibleChapterID, note.preview, formatSavedContent(note)
+      ].join(" ").toLowerCase();
+      return searchableText.includes(searchValue);
+    });
+    renderMyNotes(filteredNotes);
+  }
+    
+  function renderMyNotes(notes) {
+    const tableBody = document.getElementById("myNotesTableBody");
+    const status = document.getElementById("myNotesStatus");
+    if (!tableBody || !status) return;
+
+    tableBody.innerHTML = "";
+    if (!notes.length) {
+      status.textContent = allMyNotes.length ? "No matching notes found." : "No saved notes yet.";
+      return;
+    }
+
+    status.textContent = `${notes.length} saved page${notes.length === 1 ? "" : "s"}`;
+    notes.forEach((note) => {
+      const row = document.createElement("tr");
+      const preview = note.preview ? note.preview.slice(0, 120) : "";
+      row.innerHTML = `
+        <td>${note.bibleName || note.bibleVersionID || ""}</td>
+        <td>${note.bookChapterLabel || note.bibleChapterID || ""}</td>
+        <td>${formatSavedContent(note)}</td>
+        <td>${preview}</td>
+        <td>${formatDate(note.updatedAt)}</td>
+        <td>${note.pageUrl ? `<a href="${note.pageUrl}" class="open-note">🚪</a>` : ""}</td>
+        <td><a href="#" class="delete-note" data-id="${note.pageKey}" title="Delete Note">🗑</a></td>
+      `;
+      tableBody.appendChild(row);
+    });
+  }
+
+  async function deleteNote(id) {
+    if (!confirm("Are you sure you want to delete this? This action cannot be undone.")) return;
+    try {
+      const response = await fetch(`/api/my-notes/${id}`, { method: "DELETE", credentials: "include" });
+      const result = await response.json(); 
+      if (response.ok) { await loadMyNotes(); } 
+      else { alert("Error: " + (result.message || "Could not delete note.")); }
+    } catch (error) { alert("Delete failed: " + error.message); }
+  }
+    
+  async function loadMyNotes() {
+    const status = document.getElementById("myNotesStatus");
+    const tableBody = document.getElementById("myNotesTableBody");
+    if (status) status.textContent = "Loading...";
+    if (tableBody) tableBody.innerHTML = "";
+
+    try {
+      const result = await getJson("/api/my-notes");
+      if (!result.ok) throw new Error(result.message || "Failed to load my notes");
+      allMyNotes = result.notes || [];
+      renderMyNotes(allMyNotes);
+
+      const searchInput = document.getElementById("myNotesSearch");
+      if (searchInput) {
+        searchInput.value = "";
+        searchInput.oninput = function () { filterMyNotes(this.value); };
+      }
+    } catch (error) {
+      if (status) status.textContent = error.message || "Failed to load my notes.";
+    }
+  }
+
+  // ==========================================
   // GLOBAL CLICK CAPTURE
   // ==========================================
   document.addEventListener("click", (event) => {
@@ -125,7 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (window.Clerk) {
         Clerk.openSignIn({ afterSignInUrl: window.location.href });
       } else {
-        alert("Sign-in is still loading in the background. Please try again in a moment.");
+        alert("Sign-in is still initializing in the background. Please try again in a brief second.");
       }
       return;
     }
@@ -137,6 +252,12 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (target.classList.contains("delete-note")) {
+      event.preventDefault();
+      const noteId = target.getAttribute("data-id");
+      deleteNote(noteId);
+    }    
+
     if (target.id === "openMyNotes") {
       event.preventDefault();
       if (target.classList.contains("disabled")) {
@@ -146,7 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (typeof closeNav === "function") closeNav();
       toggleModal(myNotesModal, true);
-      // loadMyNotes() logic omitted here for brevity, keeping your existing logic intact
+      loadMyNotes();
     }
 
     if (["closeMyNotes", "myNotesModal"].includes(target.id) || target === myNotesModal) {
@@ -174,7 +295,7 @@ document.addEventListener("DOMContentLoaded", () => {
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
 
 window.addEventListener("load", () => {
-  console.log("Window fully loaded. Fetching Clerk script now...");
+  console.log("Window fully loaded. Fetching Clerk frontend script assets...");
   
   const script = document.createElement('script');
   script.async = true;
@@ -186,12 +307,11 @@ window.addEventListener("load", () => {
     try {
       await Clerk.load();
       console.log('Clerk lazy-loaded successfully!');
-      // Call the UI updater we exposed inside DOMContentLoaded
       if (typeof window.updateAuthUI === "function") {
         window.updateAuthUI(Clerk.user);
       }
     } catch (e) {
-      console.error("Clerk failed to load in background:", e);
+      console.error("Clerk frontend failed to attach inside container:", e);
     }
   };
 
