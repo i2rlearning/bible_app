@@ -408,21 +408,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Fallback direct listener for the login button
-  // This helps if another script interferes with delegated click handling
-  if (loginButton) {
-    loginButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      console.log("Direct login button listener fired");
-
-      openLogin();
-    });
-  } else {
-    console.warn("Login button with id='login' was not found on DOMContentLoaded");
-  }
-
   // Fallback direct listener for the signup button
   if (signupButton) {
     signupButton.addEventListener("click", (event) => {
