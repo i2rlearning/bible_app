@@ -92,10 +92,39 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
   
+    console.log("Clerk object:", clerkObj);
+    console.log("openSignIn:", typeof clerkObj.openSignIn);
+    console.log("redirectToSignIn:", typeof clerkObj.redirectToSignIn);
+    console.log("loaded:", clerkObj.loaded);
+    console.log("user:", clerkObj.user);
+  
     try {
-      window.location.href = "https://stored-pony-14.clerk.accounts.dev/sign-in";
+      if (typeof clerkObj.openSignIn === "function") {
+        clerkObj.openSignIn({
+          fallbackRedirectUrl: window.location.href,
+          forceRedirectUrl: window.location.href
+        });
+        return;
+      }
+  
+      if (typeof clerkObj.redirectToSignIn === "function") {
+        clerkObj.redirectToSignIn({
+          fallbackRedirectUrl: window.location.href
+        });
+        return;
+      }
+  
+      alert("Clerk loaded, but no sign-in method is available. Check console.");
     } catch (error) {
-      console.error("Failed to redirect to Clerk sign-in:", error);
+      console.error("Failed to open Clerk sign-in:", error);
+  
+      if (typeof clerkObj.redirectToSignIn === "function") {
+        clerkObj.redirectToSignIn({
+          fallbackRedirectUrl: window.location.href
+        });
+        return;
+      }
+  
       alert("Could not open sign-in. Check the browser console for details.");
     }
   }
@@ -511,7 +540,6 @@ window.addEventListener("load", () => {
   script.crossOrigin = "anonymous";
   script.setAttribute("data-clerk-publishable-key", CLERK_PUBLISHABLE_KEY);
 
-  // Important: use jsdelivr instead of unpkg here
   script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
 
   script.onload = async () => {
@@ -523,12 +551,17 @@ window.addEventListener("load", () => {
         return;
       }
 
-      await clerkObj.load();
+      await clerkObj.load({
+        signInUrl: "/sign-in",
+        signUpUrl: "/sign-up",
+        afterSignInUrl: "/",
+        afterSignUpUrl: "/"
+      });
 
       console.log("Clerk initialized and lazy-loaded successfully!");
-
+      console.log("Clerk loaded:", clerkObj.loaded);
       console.log("Clerk openSignIn:", typeof clerkObj.openSignIn);
-      console.log("Clerk mountSignIn:", typeof clerkObj.mountSignIn);
+      console.log("Clerk redirectToSignIn:", typeof clerkObj.redirectToSignIn);
 
       if (typeof window.updateAuthUI === "function") {
         window.updateAuthUI(clerkObj.user);
