@@ -82,25 +82,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
  function openLogin() {
-  console.log("Login button clicked");
-
-  const clerkObj = getClerkObject();
-
-  if (!clerkObj) {
-    alert("Sign-in is still loading. Please try again in a second.");
-    return;
+    console.log("Login button clicked");
+  
+    const clerkObj = getClerkObject();
+  
+    if (!clerkObj) {
+      window.location.href = "/sign-in?redirect=" + encodeURIComponent(window.location.href);
+      return;
+    }
+  
+    try {
+      clerkObj.openSignIn({
+        fallbackRedirectUrl: window.location.href,
+        forceRedirectUrl: window.location.href
+      });
+    } catch (error) {
+      console.error("Failed to open Clerk sign-in:", error);
+      window.location.href = "/sign-in?redirect=" + encodeURIComponent(window.location.href);
+    }
   }
-
-  try {
-    clerkObj.openSignIn({
-      fallbackRedirectUrl: window.location.href,
-      forceRedirectUrl: window.location.href
-    });
-  } catch (error) {
-    console.error("Failed to open Clerk sign-in:", error);
-    window.location.href = "/sign-in";
-  }
-}
 
   function openSignup() {
     console.log("Signup button clicked");
@@ -112,10 +112,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
   
+    const currentUrl = window.location.href;
+  
     try {
       clerkObj.openSignUp({
-        fallbackRedirectUrl: window.location.href,
-        forceRedirectUrl: window.location.href
+        routing: "hash",
+        fallbackRedirectUrl: currentUrl,
+        forceRedirectUrl: currentUrl,
+        signInUrl: "/sign-in",
+        signInFallbackRedirectUrl: currentUrl,
+        signInForceRedirectUrl: currentUrl
       });
     } catch (error) {
       console.error("Failed to open Clerk sign-up:", error);
