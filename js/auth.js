@@ -11,7 +11,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Default to a safe visual state immediately so the page looks right
   setLoggedOutUI();
-  if (typeof lockEditorTools === "function") lockEditorTools();
+
+  if (typeof lockEditorTools === "function") {
+    lockEditorTools();
+  }
 
   // ==========================================
   // UI & MODAL FUNCTIONS
@@ -35,10 +38,16 @@ document.addEventListener("DOMContentLoaded", () => {
       loginButton.title = user?.primaryEmailAddress?.emailAddress || "Logged in";
     }
 
-    if (signupButton) signupButton.style.display = "none";
-    if (logoutButton) logoutButton.style.display = "";
+    if (signupButton) {
+      signupButton.style.display = "none";
+    }
+
+    if (logoutButton) {
+      logoutButton.style.display = "";
+    }
 
     const myNotesLink = document.getElementById("openMyNotes");
+
     if (myNotesLink) {
       myNotesLink.classList.remove("disabled");
       myNotesLink.setAttribute("aria-disabled", "false");
@@ -53,10 +62,16 @@ document.addEventListener("DOMContentLoaded", () => {
       loginButton.title = "";
     }
 
-    if (signupButton) signupButton.style.display = "none";
-    if (logoutButton) logoutButton.style.display = "none";
+    if (signupButton) {
+      signupButton.style.display = "none";
+    }
+
+    if (logoutButton) {
+      logoutButton.style.display = "none";
+    }
 
     const myNotesLink = document.getElementById("openMyNotes");
+
     if (myNotesLink) {
       myNotesLink.classList.add("disabled");
       myNotesLink.setAttribute("aria-disabled", "true");
@@ -67,10 +82,16 @@ document.addEventListener("DOMContentLoaded", () => {
   window.updateAuthUI = function (clerkUser) {
     if (clerkUser) {
       setLoggedInUI(clerkUser);
-      if (typeof unlockEditorTools === "function") unlockEditorTools();
+
+      if (typeof unlockEditorTools === "function") {
+        unlockEditorTools();
+      }
     } else {
       setLoggedOutUI();
-      if (typeof lockEditorTools === "function") lockEditorTools();
+
+      if (typeof lockEditorTools === "function") {
+        lockEditorTools();
+      }
     }
   };
 
@@ -81,24 +102,24 @@ document.addEventListener("DOMContentLoaded", () => {
     return window.Clerk || window.clerk || null;
   }
 
- function openLogin() {
+  function openLogin() {
     console.log("Login button clicked");
-  
+
     const returnTo = window.location.href || "https://bible.branchofisrael.com/";
-  
+
     window.location.href =
       "/sign-in?redirect=" + encodeURIComponent(returnTo);
   }
 
   function openSignup() {
     console.log("Signup button clicked");
-  
+
     const returnTo = window.location.href || "https://bible.branchofisrael.com/";
-  
+
     window.location.href =
       "/sign-up?redirect=" + encodeURIComponent(returnTo);
   }
-  
+
   // ==========================================
   // BACKEND FETCH UTILITIES
   // ==========================================
@@ -198,14 +219,56 @@ document.addEventListener("DOMContentLoaded", () => {
   // NOTES MANAGEMENT & RENDERING LOGIC
   // ==========================================
   let allMyNotes = [];
+  let reloadPageAfterMyNotesClose = false;
+
+  function getCurrentBiblePageKeyForMyNotes() {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    const bibleVersionID =
+      urlParams.get("version") ||
+      urlParams.get("bible") ||
+      urlParams.get("bibleId") ||
+      "";
+
+    const bibleChapterID =
+      urlParams.get("chapter") ||
+      urlParams.get("chapterId") ||
+      "";
+
+    if (!bibleVersionID || !bibleChapterID) {
+      return "";
+    }
+
+    return `${bibleVersionID}::${bibleChapterID}`;
+  }
+
+  function closeMyNotesModalAndRefreshIfNeeded() {
+    toggleModal(myNotesModal, false);
+
+    if (reloadPageAfterMyNotesClose) {
+      reloadPageAfterMyNotesClose = false;
+      window.location.reload();
+    }
+  }
 
   function formatSavedContent(note) {
     const parts = [];
 
-    if (note.hasQuillNotes) parts.push("Notes");
-    if (note.hasHighlights) parts.push("Highlights");
-    if (note.hasDrawings) parts.push("Drawings");
-    if (note.hasTextFormats) parts.push("Text formatting");
+    if (note.hasQuillNotes) {
+      parts.push("Notes");
+    }
+
+    if (note.hasHighlights) {
+      parts.push("Highlights");
+    }
+
+    if (note.hasDrawings) {
+      parts.push("Drawings");
+    }
+
+    if (note.hasTextFormats) {
+      parts.push("Text formatting");
+    }
 
     return parts.length ? parts.join(" + ") : "Saved page";
   }
@@ -295,6 +358,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await response.json();
 
       if (response.ok) {
+        const currentPageKey = getCurrentBiblePageKeyForMyNotes();
+
+        if (currentPageKey && currentPageKey === id) {
+          reloadPageAfterMyNotesClose = true;
+        }
+
         await loadMyNotes();
       } else {
         alert("Error: " + (result.message || "Could not delete note."));
@@ -308,8 +377,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const status = document.getElementById("myNotesStatus");
     const tableBody = document.getElementById("myNotesTableBody");
 
-    if (status) status.textContent = "Loading...";
-    if (tableBody) tableBody.innerHTML = "";
+    if (status) {
+      status.textContent = "Loading...";
+    }
+
+    if (tableBody) {
+      tableBody.innerHTML = "";
+    }
 
     try {
       const result = await getJson("/api/my-notes");
@@ -322,6 +396,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderMyNotes(allMyNotes);
 
       const searchInput = document.getElementById("myNotesSearch");
+
       if (searchInput) {
         searchInput.value = "";
         searchInput.oninput = function () {
@@ -378,13 +453,19 @@ document.addEventListener("DOMContentLoaded", () => {
       event.stopPropagation();
 
       if (myNotesTarget.classList.contains("disabled")) {
-        if (typeof closeNav === "function") closeNav();
+        if (typeof closeNav === "function") {
+          closeNav();
+        }
+
         openLogin();
         return;
       }
 
-      if (typeof closeNav === "function") closeNav();
+      if (typeof closeNav === "function") {
+        closeNav();
+      }
 
+      reloadPageAfterMyNotesClose = false;
       toggleModal(myNotesModal, true);
       loadMyNotes();
 
@@ -395,7 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       event.stopPropagation();
 
-      toggleModal(myNotesModal, false);
+      closeMyNotesModalAndRefreshIfNeeded();
 
       return;
     }
@@ -404,11 +485,11 @@ document.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       event.stopPropagation();
 
-      toggleModal(myNotesModal, false);
+      closeMyNotesModalAndRefreshIfNeeded();
     }
   });
 
-  // Fallback direct listener for the signup button
+  // Fallback direct listener for the signup button only
   if (signupButton) {
     signupButton.addEventListener("click", (event) => {
       event.preventDefault();
