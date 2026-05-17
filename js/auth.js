@@ -523,20 +523,19 @@ window.addEventListener("load", async () => {
       return;
     }
 
-    await clerkObj.load();
+    aawait clerkObj.load();
 
     console.log("Clerk initialized successfully.");
-    console.log("openSignIn:", typeof clerkObj.openSignIn);
-    console.log("mountSignIn:", typeof clerkObj.mountSignIn);
-    console.log("user:", clerkObj.user);
-
-    if (typeof window.updateAuthUI === "function") {
-      window.updateAuthUI(clerkObj.user);
-    }
-  } catch (error) {
-    console.error("Failed to initialize Clerk:", error);
-  }
-});
+    console.log("Clerk user:", clerkObj.user);
+    console.log("Clerk session:", clerkObj.session);
+    
+    clerkObj.addListener(({ user }) => {
+      console.log("Clerk auth state changed. User:", user);
+    
+      if (typeof window.updateAuthUI === "function") {
+        window.updateAuthUI(user);
+      }
+    });
 
 function loadScriptOnce(id, src, attributes = {}) {
   return new Promise((resolve, reject) => {
