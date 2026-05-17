@@ -81,63 +81,16 @@ document.addEventListener("DOMContentLoaded", () => {
     return window.Clerk || window.clerk || null;
   }
 
-  function openLogin() {
+ function openLogin() {
     console.log("Login button clicked");
-  
-    const clerkObj = getClerkObject();
-  
-    if (!clerkObj) {
-      console.warn("Clerk is not ready yet");
-      alert("Sign-in is still initializing. Please try again in a second.");
-      return;
-    }
-  
-    try {
-      if (typeof clerkObj.openSignIn === "function") {
-        clerkObj.openSignIn({
-          fallbackRedirectUrl: window.location.href,
-          forceRedirectUrl: window.location.href
-        });
-        return;
-      }
-    } catch (error) {
-      console.warn("openSignIn failed, falling back to hosted Clerk page:", error);
-    }
-  
-    window.location.href =
-      "https://stored-pony-14.clerk.accounts.dev/sign-in?redirect_url=" +
-      encodeURIComponent(window.location.href);
+    window.location.href = "/sign-in";
   }
 
   function openSignup() {
     console.log("Signup button clicked");
-
-    const clerkObj = getClerkObject();
-
-    if (!clerkObj) {
-      console.warn("Clerk is not ready yet");
-      alert("Sign-up is still initializing. Please try again in a second.");
-      return;
-    }
-
-    if (typeof clerkObj.openSignUp !== "function") {
-      console.error("Clerk object exists, but openSignUp is not available:", clerkObj);
-      alert("Sign-up is not available yet. Please refresh the page and try again.");
-      return;
-    }
-
-    try {
-      clerkObj.openSignUp({
-        redirectUrl: window.location.href,
-        afterSignUpUrl: window.location.href,
-        forceRedirectUrl: window.location.href
-      });
-    } catch (error) {
-      console.error("Failed to open Clerk sign-up:", error);
-      alert("Could not open sign-up. Check the browser console for details.");
-    }
+    window.location.href = "/sign-up";
   }
-
+  
   // ==========================================
   // BACKEND FETCH UTILITIES
   // ==========================================
