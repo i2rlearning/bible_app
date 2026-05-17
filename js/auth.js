@@ -83,29 +83,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openLogin() {
     console.log("Login button clicked");
-
+  
     const clerkObj = getClerkObject();
-
+  
     if (!clerkObj) {
       console.warn("Clerk is not ready yet");
       alert("Sign-in is still initializing. Please try again in a second.");
       return;
     }
-
-    if (typeof clerkObj.openSignIn !== "function") {
-      console.error("Clerk object exists, but openSignIn is not available:", clerkObj);
-      alert("Sign-in is not available yet. Please refresh the page and try again.");
-      return;
-    }
-
+  
     try {
-      clerkObj.openSignIn({
-        redirectUrl: window.location.href,
-        afterSignInUrl: window.location.href,
-        forceRedirectUrl: window.location.href
-      });
+      window.location.href = "https://stored-pony-14.clerk.accounts.dev/sign-in";
     } catch (error) {
-      console.error("Failed to open Clerk sign-in:", error);
+      console.error("Failed to redirect to Clerk sign-in:", error);
       alert("Could not open sign-in. Check the browser console for details.");
     }
   }
