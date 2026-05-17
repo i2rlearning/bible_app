@@ -84,49 +84,19 @@ document.addEventListener("DOMContentLoaded", () => {
  function openLogin() {
     console.log("Login button clicked");
   
-    const clerkObj = getClerkObject();
+    const returnTo = window.location.href || "https://bible.branchofisrael.com/index.html";
   
-    if (!clerkObj) {
-      window.location.href = "/sign-in?redirect=" + encodeURIComponent(window.location.href);
-      return;
-    }
-  
-    try {
-      clerkObj.openSignIn({
-        fallbackRedirectUrl: window.location.href,
-        forceRedirectUrl: window.location.href
-      });
-    } catch (error) {
-      console.error("Failed to open Clerk sign-in:", error);
-      window.location.href = "/sign-in?redirect=" + encodeURIComponent(window.location.href);
-    }
+    window.location.href =
+      "/sign-in?redirect=" + encodeURIComponent(returnTo);
   }
 
   function openSignup() {
     console.log("Signup button clicked");
   
-    const clerkObj = getClerkObject();
+    const returnTo = window.location.href || "https://bible.branchofisrael.com/index.html";
   
-    if (!clerkObj) {
-      alert("Sign-up is still loading. Please try again in a second.");
-      return;
-    }
-  
-    const currentUrl = window.location.href;
-  
-    try {
-      clerkObj.openSignUp({
-        routing: "hash",
-        fallbackRedirectUrl: currentUrl,
-        forceRedirectUrl: currentUrl,
-        signInUrl: "/sign-in",
-        signInFallbackRedirectUrl: currentUrl,
-        signInForceRedirectUrl: currentUrl
-      });
-    } catch (error) {
-      console.error("Failed to open Clerk sign-up:", error);
-      window.location.href = "/sign-up";
-    }
+    window.location.href =
+      "/sign-up?redirect=" + encodeURIComponent(returnTo);
   }
   
   // ==========================================
