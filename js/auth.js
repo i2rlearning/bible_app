@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
  function openLogin() {
     console.log("Login button clicked");
   
-    const returnTo = window.location.href || "https://bible.branchofisrael.com/index.html";
+    const returnTo = window.location.href || "https://bible.branchofisrael.com/";
   
     window.location.href =
       "/sign-in?redirect=" + encodeURIComponent(returnTo);
@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function openSignup() {
     console.log("Signup button clicked");
   
-    const returnTo = window.location.href || "https://bible.branchofisrael.com/index.html";
+    const returnTo = window.location.href || "https://bible.branchofisrael.com/";
   
     window.location.href =
       "/sign-up?redirect=" + encodeURIComponent(returnTo);
@@ -447,32 +447,17 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =========================================================================
-//  2. DYNAMIC CLERK LOADER WITH UI BUNDLE
+//  2. SIMPLE CLERK LOADER - NO EMBEDDED POPUP
 // =========================================================================
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
 
-await loadScriptOnce(
-  "clerk-browser-script",
-  "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js",
-  {
-    "data-clerk-publishable-key": CLERK_PUBLISHABLE_KEY
-  }
-);
-
 window.addEventListener("load", async () => {
-  console.log("Window fully loaded. Loading Clerk UI bundle...");
+  console.log("Window fully loaded. Loading Clerk...");
 
   try {
     await loadScriptOnce(
-      "clerk-ui-bundle",
-      `https://${CLERK_DOMAIN}/npm/@clerk/ui@1/dist/ui.browser.js`
-    );
-
-    console.log("Clerk UI bundle loaded. Loading Clerk browser script...");
-
-    await loadScriptOnce(
       "clerk-browser-script",
-      `https://${CLERK_DOMAIN}/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`,
+      "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js",
       {
         "data-clerk-publishable-key": CLERK_PUBLISHABLE_KEY
       }
@@ -485,29 +470,22 @@ window.addEventListener("load", async () => {
       return;
     }
 
-    await clerkObj.load({
-      signInFallbackRedirectUrl: window.location.href,
-      signUpFallbackRedirectUrl: window.location.href,
-      signInForceRedirectUrl: window.location.href,
-      signUpForceRedirectUrl: window.location.href
-    });
+    await clerkObj.load();
 
-    console.log("Clerk initialized successfully.");
+    console.log("Clerk loaded.");
     console.log("Clerk user:", clerkObj.user);
     console.log("Clerk session:", clerkObj.session);
-    console.log("openSignIn:", typeof clerkObj.openSignIn);
-    console.log("openSignUp:", typeof clerkObj.openSignUp);
 
     clerkObj.addListener(({ user }) => {
       console.log("Clerk auth state changed. User:", user);
 
       if (typeof window.updateAuthUI === "function") {
-        window.updateAuthUI(user);
+        window.updateAuthUI(user || null);
       }
     });
 
     if (typeof window.updateAuthUI === "function") {
-      window.updateAuthUI(clerkObj.user);
+      window.updateAuthUI(clerkObj.user || null);
     }
   } catch (error) {
     console.error("Failed to initialize Clerk:", error);
