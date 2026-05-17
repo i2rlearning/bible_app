@@ -4,6 +4,13 @@ const { Pool } = require("pg");
 const { clerkMiddleware, requireAuth } = require("@clerk/express");
 require("dotenv").config();
 
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
 const app = express();
 
 app.use(express.json());
