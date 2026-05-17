@@ -521,7 +521,8 @@ window.addEventListener("load", () => {
   script.crossOrigin = "anonymous";
   script.setAttribute("data-clerk-publishable-key", CLERK_PUBLISHABLE_KEY);
 
-  script.src = "https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js";
+  // Important: use jsdelivr instead of unpkg here
+  script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
 
   script.onload = async () => {
     try {
@@ -532,11 +533,12 @@ window.addEventListener("load", () => {
         return;
       }
 
-      await clerkObj.load({
-        publishableKey: CLERK_PUBLISHABLE_KEY
-      });
+      await clerkObj.load();
 
       console.log("Clerk initialized and lazy-loaded successfully!");
+
+      console.log("Clerk openSignIn:", typeof clerkObj.openSignIn);
+      console.log("Clerk mountSignIn:", typeof clerkObj.mountSignIn);
 
       if (typeof window.updateAuthUI === "function") {
         window.updateAuthUI(clerkObj.user);
