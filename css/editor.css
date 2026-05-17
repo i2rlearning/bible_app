@@ -668,16 +668,15 @@ body.editor-locked-state .ql-toolbar {
 }
 
 /* Icons in the My Notes page */
-.open-note,
-.delete-note {
+.open-note {
   text-decoration: none !important;
+  font-size: 24px;
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  font-size: 20px;
+  width: 100%;
+  height: 42px;
   line-height: 1;
   filter: grayscale(100%);
   opacity: 0.65;
@@ -687,14 +686,29 @@ body.editor-locked-state .ql-toolbar {
 .open-note:hover {
   filter: grayscale(0%);
   opacity: 1;
-  transform: scale(1.12);
+  transform: scale(1.1);
+}
+
+.delete-note {
+  text-decoration: none !important;
+  font-size: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 42px;
+  line-height: 1;
+  filter: grayscale(100%);
+  opacity: 0.65;
+  transition: all 0.2s ease-in-out;
 }
 
 .delete-note:hover {
   filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%);
   opacity: 1;
   color: #ff4d4d;
-  transform: scale(1.12);
+  transform: scale(1.1);
 }
 
 /* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 25 MINUTES  */
