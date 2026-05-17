@@ -376,10 +376,17 @@ async function loadQuillNotes() {
       credentials: "include"
     });
 
-    const result = await response.json();
+    const responseText = await response.text();
 
+    let result = {};
+    try {
+      result = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      result = { message: responseText };
+    }
+    
     if (!response.ok) {
-      throw new Error(result.message || "Failed to load notes");
+      throw new Error(result.message || `Failed to save mini-editor page. Status: ${response.status}`);
     }
 
     if (result.note && result.note.quill_delta_json) {
@@ -440,10 +447,17 @@ async function saveQuillNotes() {
       })
     });
 
-    const result = await response.json();
+    const responseText = await response.text();
 
+    let result = {};
+    try {
+      result = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      result = { message: responseText };
+    }
+    
     if (!response.ok) {
-      throw new Error(result.message || "Failed to save notes");
+      throw new Error(result.message || `Failed to save Quill editor notes. Status: ${response.status}`);
     }
 
     console.log("Quill notes saved");
