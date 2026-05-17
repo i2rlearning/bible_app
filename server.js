@@ -4,12 +4,25 @@ const { Pool } = require("pg");
 const { clerkMiddleware, requireAuth } = require("@clerk/express");
 require("dotenv").config();
 
+const rawDatabaseUrl = process.env.DATABASE_URL;
+
+if (!rawDatabaseUrl) {
+  throw new Error("DATABASE_URL is not set");
+}
+
+const dbUrl = new URL(rawDatabaseUrl);
+dbUrl.searchParams.delete("sslmode");
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl.toString(),
   ssl: {
     rejectUnauthorized: false
   }
 });
+
+const app = express();
+
+app.use(express.json());
 
 const app = express();
 
