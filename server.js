@@ -24,14 +24,10 @@ const app = express();
 
 app.use(express.json());
 
-const app = express();
-
-app.use(express.json());
-
 // Initialize the global Clerk middleware wrapper
 app.use(clerkMiddleware({
-  publishableKey: "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ",
-  secretKey: "sk_test_OPFWYN5aNIhhlqscd3ymGTeTgDLlydApSNYqB2ZNgS"
+  publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+  secretKey: process.env.CLERK_SECRET_KEY
 }));
 
 // Helper used by My Notes to extract Bible abbreviation from saved page URLs
