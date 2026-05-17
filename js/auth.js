@@ -82,16 +82,20 @@ document.addEventListener("DOMContentLoaded", () => {
   window.updateAuthUI = function (clerkUser) {
     if (clerkUser) {
       setLoggedInUI(clerkUser);
-
+  
       if (typeof unlockEditorTools === "function") {
         unlockEditorTools();
       }
+  
+      resetIdleTimer();
     } else {
       setLoggedOutUI();
-
+  
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
       }
+  
+      clearTimeout(idleTimeout);
     }
   };
 
