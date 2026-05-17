@@ -52,6 +52,14 @@ app.get("/api/test-db", async (req, res) => {
   }
 });
 
+app.get("/sign-in", (req, res) => {
+  res.sendFile(path.join(__dirname, "sign-in.html"));
+});
+
+app.get("/sign-up", (req, res) => {
+  res.sendFile(path.join(__dirname, "sign-up.html"));
+});
+
 // Returns current user context back to your client-side auth handlers
 app.get("/api/me", requireAuth(), (req, res) => {
   res.json({
