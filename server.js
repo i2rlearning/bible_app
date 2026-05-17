@@ -22,7 +22,7 @@ const pool = new Pool({
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 // Initialize the global Clerk middleware wrapper
 app.use(clerkMiddleware({
