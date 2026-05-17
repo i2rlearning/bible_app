@@ -1,8 +1,8 @@
 // ----------------------------------------------------
 // Quill Custom Icons Setup (Must be before toolbarOptions)
 // ----------------------------------------------------
-const icons = Quill.import('ui/icons');
-icons['timestamp'] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" cy="9" r="6"></circle><polyline class="ql-stroke" points="9 5 9 9 11 9"></polyline></svg>';
+const icons = Quill.import("ui/icons");
+icons["timestamp"] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" cy="9" r="6"></circle><polyline class="ql-stroke" points="9 5 9 9 11 9"></polyline></svg>';
 
 // ----------------------------------------------------
 // Quill font-size setup
@@ -16,16 +16,16 @@ Quill.register(Size, true);
 // ----------------------------------------------------
 const toolbarOptions = [
   // Group 1: Font Size
-  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }], 
+  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }],
   ["bold", "italic", "underline", "strike"],
   [{ color: [] }, { background: [] }],
-  [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],  
+  [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],
   [{ align: [] }],
   [{ script: "sub" }, { script: "super" }],
   [{ indent: "-1" }, { indent: "+1" }],
-  [{ direction: "rtl" }],  
-  ["link", "image"],  
-  ["timestamp"],   
+  [{ direction: "rtl" }],
+  ["link", "image"],
+  ["timestamp"],
   ["clean"]
 ];
 
@@ -36,10 +36,11 @@ const quill = new Quill("#editor", {
     toolbar: {
       container: toolbarOptions,
       handlers: {
-        'timestamp': function() {
+        timestamp: function () {
           const now = new Date();
           const timestamp = now.toLocaleString();
           const range = this.quill.getSelection();
+
           if (range) {
             this.quill.insertText(range.index, timestamp);
             this.quill.setSelection(range.index + timestamp.length);
@@ -53,32 +54,37 @@ const quill = new Quill("#editor", {
 // ----------------------------------------------------
 // Paste Guard: Block Large Image Pastes & Clear Event
 // ----------------------------------------------------
-quill.root.addEventListener('paste', (e) => {
-  const clipboardData = e.clipboardData || window.clipboardData;
-  if (!clipboardData) return;
+quill.root.addEventListener(
+  "paste",
+  (e) => {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
 
-  const items = clipboardData.items;
-  let hasImage = false;
+    const items = clipboardData.items;
+    let hasImage = false;
 
-  // Check if any part of the paste contains an image
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].type.indexOf('image') !== -1) {
-      hasImage = true;
-      break;
+    // Check if any part of the paste contains an image
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        hasImage = true;
+        break;
+      }
     }
-  }
 
-  if (hasImage) {
-    // 1. Stop the browser from pasting ANYTHING (text or image)
-    e.preventDefault();
-    e.stopPropagation();
+    if (hasImage) {
+      // 1. Stop the browser from pasting ANYTHING (text or image)
+      e.preventDefault();
+      e.stopPropagation();
 
-    // 2. Alert the user
-    alert("Direct image pasting is disabled. Please save the image to your computer and use the 'Insert Image' button to insert it.");
-  }
-  // If there is NO image (just text), the code does nothing 
-  // and lets the standard paste happen naturally.
-}, true); // The "true" here ensures we catch the event before Quill does
+      // 2. Alert the user
+      alert("Direct image pasting is disabled. Please save the image to your computer and use the 'Insert Image' button to insert it.");
+    }
+
+    // If there is NO image (just text), the code does nothing
+    // and lets the standard paste happen naturally.
+  },
+  true
+); // The "true" here ensures we catch the event before Quill does
 
 const toolbar = quill.getModule("toolbar");
 
@@ -142,6 +148,22 @@ function setEditorSaveStatus(message) {
       status.classList.remove("editor-save-status-saved");
     }, 3000);
   }
+}
+
+// ----------------------------------------------------
+// Small helper for safer fetch response parsing
+// ----------------------------------------------------
+async function parseResponseSafely(response) {
+  const responseText = await response.text();
+
+  let result = {};
+  try {
+    result = responseText ? JSON.parse(responseText) : {};
+  } catch (parseError) {
+    result = { message: responseText };
+  }
+
+  return result;
 }
 
 // ----------------------------------------------------
@@ -376,17 +398,10 @@ async function loadQuillNotes() {
       credentials: "include"
     });
 
-    const responseText = await response.text();
+    const result = await parseResponseSafely(response);
 
-    let result = {};
-    try {
-      result = responseText ? JSON.parse(responseText) : {};
-    } catch (parseError) {
-      result = { message: responseText };
-    }
-    
     if (!response.ok) {
-      throw new Error(result.message || `Failed to save mini-editor page. Status: ${response.status}`);
+      throw new Error(result.message || `Failed to load Quill notes. Status: ${response.status}`);
     }
 
     if (result.note && result.note.quill_delta_json) {
@@ -421,11 +436,11 @@ async function saveQuillNotes() {
           credentials: "include"
         }
       );
-    
+
       if (!deleteResponse.ok) {
         throw new Error("Failed to delete empty notes");
       }
-    
+
       console.log("Empty Quill notes deleted");
       setEditorSaveStatus("Saved");
       return;
@@ -447,15 +462,8 @@ async function saveQuillNotes() {
       })
     });
 
-    const responseText = await response.text();
+    const result = await parseResponseSafely(response);
 
-    let result = {};
-    try {
-      result = responseText ? JSON.parse(responseText) : {};
-    } catch (parseError) {
-      result = { message: responseText };
-    }
-    
     if (!response.ok) {
       throw new Error(result.message || `Failed to save Quill editor notes. Status: ${response.status}`);
     }
@@ -596,10 +604,10 @@ async function loadMiniEditorPage() {
       credentials: "include"
     });
 
-    const result = await response.json();
+    const result = await parseResponseSafely(response);
 
     if (!response.ok) {
-      throw new Error(result.message || "Failed to load mini-editor page");
+      throw new Error(result.message || `Failed to load mini-editor page. Status: ${response.status}`);
     }
 
     if (result.page && result.page.mini_editor_json) {
@@ -668,10 +676,10 @@ async function saveMiniEditorPage() {
       })
     });
 
-    const result = await response.json();
+    const result = await parseResponseSafely(response);
 
     if (!response.ok) {
-      throw new Error(result.message || "Failed to save mini-editor page");
+      throw new Error(result.message || `Failed to save mini-editor page. Status: ${response.status}`);
     }
 
     console.log("Mini-editor page saved");
