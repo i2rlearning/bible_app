@@ -322,11 +322,18 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
 
     return res.json({ ok: true, message: "Mini-editor page saved", page: result.rows[0] });
   } catch (error) {
-    console.error("Save mini-editor page error:", error);
-    return res.status(500).json({ ok: false, message: "Failed to save mini-editor page" });
-  }
+      console.error("Save mini-editor page error:", error);
+    
+      return res.status(500).json({
+        ok: false,
+        message: "Failed to save mini-editor page",
+        error: error.message,
+        code: error.code || null,
+        detail: error.detail || null
+      });
+    }
 });
-
+  
 app.delete("/api/mini-editor-page", requireAuth(), async (req, res) => {
   try {
     const { pageKey } = req.query;
