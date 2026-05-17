@@ -8,10 +8,12 @@
   <p>Redirecting to sign in...</p>
 
   <script>
-    const redirectBack = encodeURIComponent("https://bible.branchofisrael.com/index.html");
+    const params = new URLSearchParams(window.location.search);
+    const redirectBack = params.get("redirect") || "https://bible.branchofisrael.com/index.html";
 
     window.location.href =
-      "https://stirred-pony-14.accounts.dev/sign-in?redirect_url=" + redirectBack;
+      "https://stirred-pony-14.accounts.dev/sign-in?redirect_url=" +
+      encodeURIComponent(redirectBack);
   </script>
 </body>
 </html>
