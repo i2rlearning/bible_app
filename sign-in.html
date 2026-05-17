@@ -9,11 +9,11 @@
 
   <script>
     const params = new URLSearchParams(window.location.search);
-
+  
     const redirectBack =
       params.get("redirect") ||
-      "https://bible.branchofisrael.com/index.html";
-
+      "https://bible.branchofisrael.com/";
+  
     window.location.href =
       "https://stirred-pony-14.accounts.dev/sign-in?redirect_url=" +
       encodeURIComponent(redirectBack);
