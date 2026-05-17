@@ -203,11 +203,7 @@
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script> <!-- Quill library -->
     <script src="js/editor.js" defer></script>
       
-    <script>
-      // NOT USED:
-      // <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js">
-      // <script src="https://code.jquery.com/jquery-3.5.1.min.js">
-    
+    <script>   
       const searchInput = document.querySelector(`#search-input`);
       const bibleSectionList = document.querySelector(`#section-list`);
       const chapterText = document.querySelector(`#chapter-text`);
@@ -439,100 +435,111 @@
       }    
          
       // ******************* Left/Right Seals *********************
-        const imageLeft = document.getElementById("imgleft");
-        const imageRight = document.getElementById("imgright");
-        
-        const chapterParts = bibleChapterID.split(".");
-        const currentBookId = chapterParts[0];
-        const currentChapterNumber = Number(chapterParts[1]);
-        
-        let maxChapterNumber = Number(sessionStorage.getItem("maxchapnum")) || null;
-        
-        function buildChapterUrl(newChapterNumber) {
-          const url = new URL(window.location.href);
-        
-          url.searchParams.set("chapter", `${currentBookId}.${newChapterNumber}`);
-        
-          return url.pathname + url.search;
+      const imageLeft = document.getElementById("imgleft");
+      const imageRight = document.getElementById("imgright");
+    
+      const chapterParts = bibleChapterID.split(".");
+      const currentBookId = chapterParts[0];
+      const currentChapterNumber = Number(chapterParts[1]);
+    
+      const maxChapterStorageKey = `maxchapnum:${bibleVersionID}:${currentBookId}`;
+    
+      let maxChapterNumber = Number(sessionStorage.getItem(maxChapterStorageKey)) || null;
+    
+      function buildChapterUrl(newChapterNumber) {
+        const url = new URL(window.location.href);
+    
+        url.searchParams.set("chapter", `${currentBookId}.${newChapterNumber}`);
+    
+        return url.pathname + url.search;
+      }
+    
+      function canGoPreviousChapter() {
+        return Number.isFinite(currentChapterNumber) && currentChapterNumber > 1;
+      }
+    
+      function canGoNextChapter() {
+        return (
+          Number.isFinite(currentChapterNumber) &&
+          Number.isFinite(maxChapterNumber) &&
+          currentChapterNumber < maxChapterNumber
+        );
+      }
+    
+      function updateArrowCursorStates() {
+        if (imageLeft) {
+          imageLeft.style.cursor = canGoPreviousChapter() ? "pointer" : "default";
         }
-        
-        function canGoPreviousChapter() {
-          return Number.isFinite(currentChapterNumber) && currentChapterNumber > 1;
+    
+        if (imageRight) {
+          imageRight.style.cursor = canGoNextChapter() ? "pointer" : "default";
         }
-        
-        function canGoNextChapter() {
-          return (
-            Number.isFinite(currentChapterNumber) &&
-            Number.isFinite(maxChapterNumber) &&
-            currentChapterNumber < maxChapterNumber
-          );
-        }
-        
-        function updateArrowCursorStates() {
-          if (imageLeft) {
-            imageLeft.style.cursor = canGoPreviousChapter() ? "pointer" : "default";
-          }
-        
-          if (imageRight) {
-            imageRight.style.cursor = canGoNextChapter() ? "pointer" : "default";
-          }
-        }
-        
-        function loadMaxChapterNumberFromApi() {
-          return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.withCredentials = false;
-        
-            xhr.addEventListener("readystatechange", function () {
-              if (this.readyState === this.DONE) {
-                try {
-                  const { data } = JSON.parse(this.responseText);
-        
-                  const numericChapterNumbers = data
-                    .map((chapter) => {
-                      const chapterIdParts = chapter.id.split(".");
-                      return Number(chapterIdParts[chapterIdParts.length - 1]);
-                    })
-                    .filter((chapterNumber) => Number.isFinite(chapterNumber));
-        
-                  const detectedMaxChapter = numericChapterNumbers.length
-                    ? Math.max(...numericChapterNumbers)
-                    : null;
-        
-                  resolve(detectedMaxChapter);
-                } catch (error) {
-                  reject(error);
-                }
+    
+        console.log("Arrow state:", {
+          bibleVersionID,
+          currentBookId,
+          currentChapterNumber,
+          maxChapterNumber,
+          canGoPrevious: canGoPreviousChapter(),
+          canGoNext: canGoNextChapter()
+        });
+      }
+    
+      function loadMaxChapterNumberFromApi() {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.withCredentials = false;
+    
+          xhr.addEventListener("readystatechange", function () {
+            if (this.readyState === this.DONE) {
+              try {
+                const { data } = JSON.parse(this.responseText);
+    
+                const numericChapterNumbers = data
+                  .map((chapter) => {
+                    const chapterIdParts = chapter.id.split(".");
+                    return Number(chapterIdParts[chapterIdParts.length - 1]);
+                  })
+                  .filter((chapterNumber) => Number.isFinite(chapterNumber));
+    
+                const detectedMaxChapter = numericChapterNumbers.length
+                  ? Math.max(...numericChapterNumbers)
+                  : null;
+    
+                resolve(detectedMaxChapter);
+              } catch (error) {
+                reject(error);
               }
-            });
-        
-            xhr.open(
-              "GET",
-              `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books/${currentBookId}/chapters`
-            );
-        
-            xhr.setRequestHeader("api-key", API_KEY);
-            xhr.onerror = () => reject(xhr.statusText);
-            xhr.send();
-          });
-        }
-        
-        async function initializeChapterArrows() {
-          if (!maxChapterNumber) {
-            try {
-              maxChapterNumber = await loadMaxChapterNumberFromApi();
-        
-              if (maxChapterNumber) {
-                sessionStorage.setItem("maxchapnum", String(maxChapterNumber));
-              }
-            } catch (error) {
-              console.error("Could not load max chapter number:", error);
             }
+          });
+    
+          xhr.open(
+            "GET",
+            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books/${currentBookId}/chapters`
+          );
+    
+          xhr.setRequestHeader("api-key", API_KEY);
+          xhr.onerror = () => reject(xhr.statusText);
+          xhr.send();
+        });
+      }
+    
+      async function initializeChapterArrows() {
+        try {
+          const detectedMaxChapter = await loadMaxChapterNumberFromApi();
+    
+          if (detectedMaxChapter) {
+            maxChapterNumber = detectedMaxChapter;
+            sessionStorage.setItem(maxChapterStorageKey, String(maxChapterNumber));
           }
-        
-          updateArrowCursorStates();
+        } catch (error) {
+          console.error("Could not load max chapter number:", error);
         }
-        
+    
+        updateArrowCursorStates();
+      }
+    
+      if (imageLeft) {
         imageLeft.addEventListener("mouseover", function () {
           if (canGoPreviousChapter()) {
             imageLeft.src = "./img/left_stamp_on.png";
@@ -541,17 +548,26 @@
             imageLeft.style.cursor = "default";
           }
         });
-        
+    
         imageLeft.addEventListener("mouseout", function () {
           imageLeft.src = "./img/orig_left_stamp.png";
         });
-        
+    
         imageLeft.addEventListener("click", function () {
           if (canGoPreviousChapter()) {
             window.location.href = buildChapterUrl(currentChapterNumber - 1);
+          } else {
+            console.warn("Cannot go previous chapter", {
+              currentChapterNumber,
+              maxChapterNumber,
+              bibleChapterID,
+              currentBookId
+            });
           }
         });
-        
+      }
+    
+      if (imageRight) {
         imageRight.addEventListener("mouseover", function () {
           if (canGoNextChapter()) {
             imageRight.src = "./img/right_stamp_on.png";
@@ -560,11 +576,11 @@
             imageRight.style.cursor = "default";
           }
         });
-        
+    
         imageRight.addEventListener("mouseout", function () {
           imageRight.src = "./img/orig_right_stamp.png";
         });
-        
+    
         imageRight.addEventListener("click", function () {
           if (canGoNextChapter()) {
             window.location.href = buildChapterUrl(currentChapterNumber + 1);
@@ -577,8 +593,9 @@
             });
           }
         });
-        
-        initializeChapterArrows();
+      }
+    
+      initializeChapterArrows();
 
       // ******************* Mini-editor selection memory *********************
         let savedBibleSelectionOffsets = null;
