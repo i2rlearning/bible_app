@@ -523,19 +523,34 @@ window.addEventListener("load", async () => {
       return;
     }
 
-    aawait clerkObj.load();
+    await clerkObj.load({
+      signInFallbackRedirectUrl: window.location.href,
+      signUpFallbackRedirectUrl: window.location.href,
+      signInForceRedirectUrl: window.location.href,
+      signUpForceRedirectUrl: window.location.href
+    });
 
     console.log("Clerk initialized successfully.");
     console.log("Clerk user:", clerkObj.user);
     console.log("Clerk session:", clerkObj.session);
-    
+    console.log("openSignIn:", typeof clerkObj.openSignIn);
+    console.log("openSignUp:", typeof clerkObj.openSignUp);
+
     clerkObj.addListener(({ user }) => {
       console.log("Clerk auth state changed. User:", user);
-    
+
       if (typeof window.updateAuthUI === "function") {
         window.updateAuthUI(user);
       }
     });
+
+    if (typeof window.updateAuthUI === "function") {
+      window.updateAuthUI(clerkObj.user);
+    }
+  } catch (error) {
+    console.error("Failed to initialize Clerk:", error);
+  }
+});
 
 function loadScriptOnce(id, src, attributes = {}) {
   return new Promise((resolve, reject) => {
