@@ -82,13 +82,45 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
  function openLogin() {
-    console.log("Login button clicked");
+  console.log("Login button clicked");
+
+  const clerkObj = getClerkObject();
+
+  if (!clerkObj) {
+    alert("Sign-in is still loading. Please try again in a second.");
+    return;
+  }
+
+  try {
+    clerkObj.openSignIn({
+      fallbackRedirectUrl: window.location.href,
+      forceRedirectUrl: window.location.href
+    });
+  } catch (error) {
+    console.error("Failed to open Clerk sign-in:", error);
     window.location.href = "/sign-in";
   }
+}
 
   function openSignup() {
     console.log("Signup button clicked");
-    window.location.href = "/sign-up";
+  
+    const clerkObj = getClerkObject();
+  
+    if (!clerkObj) {
+      alert("Sign-up is still loading. Please try again in a second.");
+      return;
+    }
+  
+    try {
+      clerkObj.openSignUp({
+        fallbackRedirectUrl: window.location.href,
+        forceRedirectUrl: window.location.href
+      });
+    } catch (error) {
+      console.error("Failed to open Clerk sign-up:", error);
+      window.location.href = "/sign-up";
+    }
   }
   
   // ==========================================
@@ -454,55 +486,74 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =========================================================================
-//  2. DYNAMIC, LAZY CLERK LOADER
+//  2. DYNAMIC CLERK LOADER WITH UI BUNDLE
 // =========================================================================
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
+const CLERK_DOMAIN = "stirred-pony-14.accounts.dev";
 
-window.addEventListener("load", () => {
-  console.log("Window fully loaded. Fetching Clerk frontend script assets...");
+window.addEventListener("load", async () => {
+  console.log("Window fully loaded. Loading Clerk UI bundle...");
 
-  const existingScript = document.querySelector("script[data-clerk-publishable-key]");
+  try {
+    await loadScriptOnce(
+      "clerk-ui-bundle",
+      `https://${CLERK_DOMAIN}/npm/@clerk/ui@1/dist/ui.browser.js`
+    );
 
-  if (existingScript) {
-    console.log("Clerk script already exists. Skipping duplicate load.");
-    return;
-  }
+    console.log("Clerk UI bundle loaded. Loading Clerk browser script...");
 
-  const script = document.createElement("script");
-  script.async = true;
-  script.crossOrigin = "anonymous";
-  script.setAttribute("data-clerk-publishable-key", CLERK_PUBLISHABLE_KEY);
-
-  script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
-
-  script.onload = async () => {
-    try {
-      const clerkObj = window.Clerk || window.clerk;
-
-      if (!clerkObj) {
-        console.error("Clerk object was not found on the window frame.");
-        return;
+    await loadScriptOnce(
+      "clerk-browser-script",
+      `https://${CLERK_DOMAIN}/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`,
+      {
+        "data-clerk-publishable-key": CLERK_PUBLISHABLE_KEY
       }
+    );
 
-      await clerkObj.load();
+    const clerkObj = window.Clerk || window.clerk;
 
-      console.log("Clerk initialized and lazy-loaded successfully!");
-      console.log("Clerk loaded:", clerkObj.loaded);
-      console.log("Clerk openSignIn:", typeof clerkObj.openSignIn);
-      console.log("Clerk redirectToSignIn:", typeof clerkObj.redirectToSignIn);
-
-      if (typeof window.updateAuthUI === "function") {
-        window.updateAuthUI(clerkObj.user);
-      }
-    } catch (error) {
-      console.error("Clerk frontend failed to attach inside container:", error);
+    if (!clerkObj) {
+      console.error("Clerk object was not found on the window.");
+      return;
     }
-  };
 
-  script.onerror = () => {
-    console.error("Failed to load Clerk frontend script.");
-    alert("Could not load sign-in service. Please check your internet connection or script settings.");
-  };
+    await clerkObj.load();
 
-  document.head.appendChild(script);
+    console.log("Clerk initialized successfully.");
+    console.log("openSignIn:", typeof clerkObj.openSignIn);
+    console.log("mountSignIn:", typeof clerkObj.mountSignIn);
+    console.log("user:", clerkObj.user);
+
+    if (typeof window.updateAuthUI === "function") {
+      window.updateAuthUI(clerkObj.user);
+    }
+  } catch (error) {
+    console.error("Failed to initialize Clerk:", error);
+  }
 });
+
+function loadScriptOnce(id, src, attributes = {}) {
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(id);
+
+    if (existing) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.async = true;
+    script.crossOrigin = "anonymous";
+
+    Object.entries(attributes).forEach(([key, value]) => {
+      script.setAttribute(key, value);
+    });
+
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+
+    document.head.appendChild(script);
+  });
+}
