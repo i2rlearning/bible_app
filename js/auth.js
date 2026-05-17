@@ -450,7 +450,14 @@ document.addEventListener("DOMContentLoaded", () => {
 //  2. DYNAMIC CLERK LOADER WITH UI BUNDLE
 // =========================================================================
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
-const CLERK_DOMAIN = "stirred-pony-14.accounts.dev";
+
+await loadScriptOnce(
+  "clerk-browser-script",
+  "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js",
+  {
+    "data-clerk-publishable-key": CLERK_PUBLISHABLE_KEY
+  }
+);
 
 window.addEventListener("load", async () => {
   console.log("Window fully loaded. Loading Clerk UI bundle...");
