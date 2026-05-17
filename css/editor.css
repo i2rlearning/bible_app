@@ -504,22 +504,56 @@ body.editor-locked-state .ql-toolbar {
 /************* My Notes modal *************/
 /******************************************/
 
+#myNotesModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+#myNotesModal.is-open {
+  display: flex;
+}
+
 .my-notes-content {
   position: relative;
   background: #fff;
-  width: min(900px, 92vw);
-  max-height: 80vh;
-  overflow: auto;
-  padding: 20px;
+  width: min(980px, 94vw);
+  max-height: 82vh;
+  overflow: hidden;
+  padding: 22px;
   border: 1px solid #888;
-  border-radius: 6px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .my-notes-content h2 {
   margin: 0 0 14px 0;
   font-size: 24px;
+  line-height: 1.2;
+}
+
+#closeMyNotes {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: #333;
+  z-index: 2;
+}
+
+#closeMyNotes:hover {
+  color: #b00020;
 }
 
 .my-notes-search {
@@ -529,22 +563,28 @@ body.editor-locked-state .ql-toolbar {
   border: 1px solid #aaa;
   border-radius: 4px;
   box-sizing: border-box;
+  font-size: 14px;
 }
 
 .my-notes-status {
   margin-bottom: 10px;
   font-style: italic;
   color: #666;
+  font-size: 14px;
 }
 
 .my-notes-table-wrapper {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: calc(82vh - 140px);
+  border: 1px solid #ddd;
 }
 
 .my-notes-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  table-layout: fixed;
+  font-size: 13px;
+  background: #fff;
 }
 
 .my-notes-table th,
@@ -553,10 +593,50 @@ body.editor-locked-state .ql-toolbar {
   padding: 8px;
   text-align: left;
   vertical-align: top;
+  line-height: 1.35;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .my-notes-table th {
   background: #f5f5f5;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.my-notes-table th:nth-child(1),
+.my-notes-table td:nth-child(1) {
+  width: 14%;
+}
+
+.my-notes-table th:nth-child(2),
+.my-notes-table td:nth-child(2) {
+  width: 12%;
+}
+
+.my-notes-table th:nth-child(3),
+.my-notes-table td:nth-child(3) {
+  width: 20%;
+}
+
+.my-notes-table th:nth-child(4),
+.my-notes-table td:nth-child(4) {
+  width: 32%;
+}
+
+.my-notes-table th:nth-child(5),
+.my-notes-table td:nth-child(5) {
+  width: 10%;
+}
+
+.my-notes-table th:nth-child(6),
+.my-notes-table td:nth-child(6),
+.my-notes-table th:nth-child(7),
+.my-notes-table td:nth-child(7) {
+  width: 6%;
+  text-align: center;
 }
 
 .my-notes-table a {
@@ -588,45 +668,33 @@ body.editor-locked-state .ql-toolbar {
 }
 
 /* Icons in the My Notes page */
-.open-note {
-    text-decoration: none;
-    font-size: 24px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 42px;
-    filter: grayscale(100%); /* greyed out */
-    opacity: 0.6;            /* Adds a slight faded look */
-    transition: all 0.2s ease-in-out;
+.open-note,
+.delete-note {
+  text-decoration: none !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 20px;
+  line-height: 1;
+  filter: grayscale(100%);
+  opacity: 0.65;
+  transition: all 0.2s ease-in-out;
 }
 
 .open-note:hover {
-    filter: grayscale(0%); /* Returns the door to its natural colors */
-    opacity: 1;
-    transform: scale(1.1);
-}
-
-.delete-note {
-    text-decoration: none !important; 
-    font-size: 30px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 42px;
-    filter: grayscale(100%);
-    opacity: 0.6;
-    transition: all 0.2s ease-in-out;
+  filter: grayscale(0%);
+  opacity: 1;
+  transform: scale(1.12);
 }
 
 .delete-note:hover {
-    filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%); /* Forces it to bright red */
-    opacity: 1;
-    color: #ff4d4d; /* Fallback for standard characters */
-    transform: scale(1.1);
+  filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%);
+  opacity: 1;
+  color: #ff4d4d;
+  transform: scale(1.12);
 }
 
 /* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 25 MINUTES  */
