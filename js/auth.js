@@ -92,12 +92,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
   
-    console.log("Clerk object:", clerkObj);
-    console.log("openSignIn:", typeof clerkObj.openSignIn);
-    console.log("redirectToSignIn:", typeof clerkObj.redirectToSignIn);
-    console.log("loaded:", clerkObj.loaded);
-    console.log("user:", clerkObj.user);
-  
     try {
       if (typeof clerkObj.openSignIn === "function") {
         clerkObj.openSignIn({
@@ -106,27 +100,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         return;
       }
-  
-      if (typeof clerkObj.redirectToSignIn === "function") {
-        clerkObj.redirectToSignIn({
-          fallbackRedirectUrl: window.location.href
-        });
-        return;
-      }
-  
-      alert("Clerk loaded, but no sign-in method is available. Check console.");
     } catch (error) {
-      console.error("Failed to open Clerk sign-in:", error);
-  
-      if (typeof clerkObj.redirectToSignIn === "function") {
-        clerkObj.redirectToSignIn({
-          fallbackRedirectUrl: window.location.href
-        });
-        return;
-      }
-  
-      alert("Could not open sign-in. Check the browser console for details.");
+      console.warn("openSignIn failed, falling back to hosted Clerk page:", error);
     }
+  
+    window.location.href =
+      "https://stored-pony-14.clerk.accounts.dev/sign-in?redirect_url=" +
+      encodeURIComponent(window.location.href);
   }
 
   function openSignup() {
@@ -551,12 +531,7 @@ window.addEventListener("load", () => {
         return;
       }
 
-      await clerkObj.load({
-        signInUrl: "/sign-in",
-        signUpUrl: "/sign-up",
-        afterSignInUrl: "/",
-        afterSignUpUrl: "/"
-      });
+      await clerkObj.load();
 
       console.log("Clerk initialized and lazy-loaded successfully!");
       console.log("Clerk loaded:", clerkObj.loaded);
