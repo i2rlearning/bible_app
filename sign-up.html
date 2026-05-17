@@ -1,33 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Sign In - Branch of Israel</title>
-
-  <script
-    async
-    crossorigin="anonymous"
-    data-clerk-publishable-key="pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ"
-    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js">
-  </script>
+  <title>Sign Up - Branch of Israel</title>
 </head>
 
 <body>
-  <div id="sign-in"></div>
+  <p>Redirecting to sign up...</p>
 
   <script>
-    window.addEventListener("load", async () => {
-      try {
-        await Clerk.load();
+    const redirectBack = encodeURIComponent("https://bible.branchofisrael.com/index.html");
 
-        Clerk.mountSignIn(document.getElementById("sign-in"), {
-          fallbackRedirectUrl: "/index.html",
-          forceRedirectUrl: "/index.html"
-        });
-      } catch (error) {
-        console.error("Failed to mount Clerk sign-in:", error);
-        document.body.innerHTML = "<p>Could not load sign-in. Please check the console.</p>";
-      }
-    });
+    window.location.href =
+      "https://stirred-pony-14.accounts.dev/sign-up?redirect_url=" + redirectBack;
   </script>
 </body>
 </html>
