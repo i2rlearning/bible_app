@@ -679,7 +679,16 @@ async function saveMiniEditorPage() {
     const result = await parseResponseSafely(response);
 
     if (!response.ok) {
-      throw new Error(result.message || `Failed to save mini-editor page. Status: ${response.status}`);
+      const detailedError = [
+        result.message,
+        result.error,
+        result.code ? `Code: ${result.code}` : "",
+        result.detail ? `Detail: ${result.detail}` : ""
+      ]
+        .filter(Boolean)
+        .join(" | ");
+    
+      throw new Error(detailedError || `Failed to save mini-editor page. Status: ${response.status}`);
     }
 
     console.log("Mini-editor page saved");
