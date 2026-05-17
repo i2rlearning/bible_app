@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign In - Branch of Israel</title>
+
+  <script
+    async
+    crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js">
+  </script>
+</head>
+
+<body>
+  <div id="sign-in"></div>
+
+  <script>
+    window.addEventListener("load", async () => {
+      try {
+        await Clerk.load();
+
+        Clerk.mountSignIn(document.getElementById("sign-in"), {
+          fallbackRedirectUrl: "/index.html",
+          forceRedirectUrl: "/index.html"
+        });
+      } catch (error) {
+        console.error("Failed to mount Clerk sign-in:", error);
+        document.body.innerHTML = "<p>Could not load sign-in. Please check the console.</p>";
+      }
+    });
+  </script>
+</body>
+</html>
