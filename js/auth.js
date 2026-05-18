@@ -78,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Expose these UI functions globally so the lazy-loaded Clerk script can call them later
+  // Expose this globally so the lazy-loaded Clerk script can call it later
   window.updateAuthUI = function (clerkUser) {
     if (clerkUser) {
       setLoggedInUI(clerkUser);
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
         unlockEditorTools();
       }
 
-      resetIdleTimer();
+      startInactivityWatcher();
     } else {
       setLoggedOutUI();
 
@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
         lockEditorTools();
       }
 
-      clearTimeout(idleTimeout);
+      stopInactivityWatcher();
       inactivityPromptOpen = false;
     }
   };
@@ -168,37 +168,56 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================
   // INACTIVITY LOGIC - OPTION A
   // ==========================================
-  let idleTimeout;
+  let lastActivityTime = Date.now();
+  let inactivityInterval = null;
   let inactivityPromptOpen = false;
 
-  // For testing:
-  // const INACTIVITY_LIMIT = 10 * 1000;
+  // For testing, use: 10 * 1000
+  // For production, use: 30 * 60 * 1000
+  const INACTIVITY_LIMIT = 30 * 60 * 1000;
 
-  // Production:
-  const INACTIVITY_LIMIT =  30 * 60 * 1000;
-
-  function resetIdleTimer() {
+  function markActivityAndResetTimer() {
     if (inactivityPromptOpen) return;
 
-    clearTimeout(idleTimeout);
+    lastActivityTime = Date.now();
+  }
 
-    if (logoutButton && logoutButton.style.display !== "none") {
-      idleTimeout = setTimeout(showInactivityPrompt, INACTIVITY_LIMIT);
-    }
+  function startInactivityWatcher() {
+    stopInactivityWatcher();
+
+    lastActivityTime = Date.now();
+
+    inactivityInterval = setInterval(() => {
+      if (inactivityPromptOpen) return;
+
+      const inactiveFor = Date.now() - lastActivityTime;
+
+      if (
+        logoutButton &&
+        logoutButton.style.display !== "none" &&
+        inactiveFor >= INACTIVITY_LIMIT
+      ) {
+        showInactivityPrompt();
+      }
+    }, 10 * 1000);
+  }
+
+  function stopInactivityWatcher() {
+    clearInterval(inactivityInterval);
+    inactivityInterval = null;
   }
 
   function showInactivityPrompt() {
     if (inactivityPromptOpen) return;
 
     inactivityPromptOpen = true;
-    clearTimeout(idleTimeout);
+    stopInactivityWatcher();
 
     const existingOverlay = document.getElementById("timeout-modal-overlay");
     if (existingOverlay) {
       existingOverlay.remove();
     }
 
-    // Pause editing while the prompt is open
     if (typeof lockEditorTools === "function") {
       lockEditorTools();
     }
@@ -231,7 +250,7 @@ document.addEventListener("DOMContentLoaded", () => {
           unlockEditorTools();
         }
 
-        resetIdleTimer();
+        startInactivityWatcher();
       });
     }
 
@@ -244,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function logoutFromInactivity() {
     try {
-      clearTimeout(idleTimeout);
+      stopInactivityWatcher();
 
       const clerkObj = getClerkObject();
 
@@ -265,17 +284,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function markActivityAndResetTimer() {
-    resetIdleTimer();
-  }
-
   window.addEventListener("mousemove", markActivityAndResetTimer);
   window.addEventListener("keypress", markActivityAndResetTimer);
   window.addEventListener("mousedown", markActivityAndResetTimer);
   window.addEventListener("touchstart", markActivityAndResetTimer);
   window.addEventListener("click", markActivityAndResetTimer);
-
-  resetIdleTimer();
 
   // ==========================================
   // NOTES MANAGEMENT & RENDERING LOGIC
@@ -563,6 +576,8 @@ document.addEventListener("DOMContentLoaded", () => {
       event.stopPropagation();
 
       try {
+        stopInactivityWatcher();
+
         const clerkObj = getClerkObject();
 
         if (clerkObj && typeof clerkObj.signOut === "function") {
