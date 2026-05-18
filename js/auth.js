@@ -174,7 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // For testing, use: 10 * 1000
   // For production, use: 30 * 60 * 1000
-  const INACTIVITY_LIMIT = 30 * 60 * 1000;
+  const INACTIVITY_LIMIT = 60 * 1000;
 
   function markActivityAndResetTimer() {
     if (inactivityPromptOpen) return;
