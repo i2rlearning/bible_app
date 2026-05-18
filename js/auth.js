@@ -181,12 +181,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function executeLogout() {
     try {
-      const clerkObj = getClerkObject();
-
-      if (clerkObj && typeof clerkObj.signOut === "function") {
-        await clerkObj.signOut();
+      clearTimeout(idleTimeout);
+  
+      // Prevent duplicate timeout overlays
+      if (document.getElementById("timeout-modal-overlay")) {
+        return;
       }
-
+  
+      // Lock the UI immediately
+      setLoggedOutUI();
+  
+      if (typeof lockEditorTools === "function") {
+        lockEditorTools();
+      }
+  
+      // Show the modal first so the user actually sees it
       const overlay = document.createElement("div");
       overlay.id = "timeout-modal-overlay";
       overlay.innerHTML = `
@@ -194,30 +203,35 @@ document.addEventListener("DOMContentLoaded", () => {
           <h2 style="color: #ff4d4d; margin-top: 0;">Session Expired</h2>
           <p>You have been inactive for over 30 minutes.</p>
           <p>For your security, you have been logged out.</p>
-          <button class="timeout-button" onclick="window.location.reload()">Close</button>
+          <button type="button" id="timeout-close-button" class="timeout-button">Close</button>
         </div>
       `;
-
+  
       document.body.appendChild(overlay);
-
-      setLoggedOutUI();
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
+  
+      // Now try to sign out from Clerk in the background
+      const clerkObj = getClerkObject();
+  
+      if (clerkObj && typeof clerkObj.signOut === "function") {
+        try {
+          await clerkObj.signOut();
+        } catch (signOutError) {
+          console.error("Clerk signOut failed:", signOutError);
+        }
+      }
+  
+      const closeButton = document.getElementById("timeout-close-button");
+  
+      if (closeButton) {
+        closeButton.addEventListener("click", () => {
+          window.location.reload();
+        });
       }
     } catch (error) {
       console.error("Inactivity logout failed:", error);
       window.location.reload();
     }
   }
-
-  window.addEventListener("mousemove", resetIdleTimer);
-  window.addEventListener("keypress", resetIdleTimer);
-  window.addEventListener("mousedown", resetIdleTimer);
-  window.addEventListener("touchstart", resetIdleTimer);
-  window.addEventListener("click", resetIdleTimer);
-
-  resetIdleTimer();
 
   // ==========================================
   // NOTES MANAGEMENT & RENDERING LOGIC
