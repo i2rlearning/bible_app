@@ -166,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.authGetJson = getJson;
 
   // ==========================================
-  // INACTIVITY LOGIC - OPTION A
+  // INACTIVITY LOGIC
   // ==========================================
   let lastActivityTime = Date.now();
   let inactivityInterval = null;
@@ -199,7 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ) {
         showInactivityPrompt();
       }
-    }, 10 * 1000);
+    }, inactivityInterval = setInterval(checkInactivityNow, 10 * 1000);
   }
 
   function stopInactivityWatcher() {
@@ -284,7 +284,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  window.addEventListener("mousemove", markActivityAndResetTimer);
+  function checkInactivityNow() {
+  if (inactivityPromptOpen) return;
+
+  const inactiveFor = Date.now() - lastActivityTime;
+
+  if (
+    logoutButton &&
+    logoutButton.style.display !== "none" &&
+    inactiveFor >= INACTIVITY_LIMIT
+  ) {
+    showInactivityPrompt();
+  }
+}
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      checkInactivityNow();
+    }
+  });
+  
+  window.addEventListener("focus", checkInactivityNow);
+  window.addEventListener("pageshow", checkInactivityNow);
+  
+  //window.addEventListener("mousemove", markActivityAndResetTimer);
   window.addEventListener("keypress", markActivityAndResetTimer);
   window.addEventListener("mousedown", markActivityAndResetTimer);
   window.addEventListener("touchstart", markActivityAndResetTimer);
