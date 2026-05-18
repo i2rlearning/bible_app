@@ -82,20 +82,21 @@ document.addEventListener("DOMContentLoaded", () => {
   window.updateAuthUI = function (clerkUser) {
     if (clerkUser) {
       setLoggedInUI(clerkUser);
-  
+
       if (typeof unlockEditorTools === "function") {
         unlockEditorTools();
       }
-  
+
       resetIdleTimer();
     } else {
       setLoggedOutUI();
-  
+
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
       }
-  
+
       clearTimeout(idleTimeout);
+      inactivityPromptOpen = false;
     }
   };
 
@@ -161,77 +162,120 @@ document.addEventListener("DOMContentLoaded", () => {
     return result;
   }
 
-  // Keep this available in case another script uses it later
   window.authPostJson = postJson;
   window.authGetJson = getJson;
 
   // ==========================================
-  // INACTIVITY LOGIC
+  // INACTIVITY LOGIC - OPTION A
   // ==========================================
   let idleTimeout;
-  const THIRTY_MINUTES = 10 * 1000;    //30 * 60 * 1000;
+  let inactivityPromptOpen = false;
+
+  // For testing:
+  // const INACTIVITY_LIMIT = 10 * 1000;
+
+  // Production:
+  const INACTIVITY_LIMIT =  10 * 1000;  //30 * 60 * 1000;
 
   function resetIdleTimer() {
+    if (inactivityPromptOpen) return;
+
     clearTimeout(idleTimeout);
 
     if (logoutButton && logoutButton.style.display !== "none") {
-      idleTimeout = setTimeout(executeLogout, THIRTY_MINUTES);
+      idleTimeout = setTimeout(showInactivityPrompt, INACTIVITY_LIMIT);
     }
   }
 
-  async function executeLogout() {
+  function showInactivityPrompt() {
+    if (inactivityPromptOpen) return;
+
+    inactivityPromptOpen = true;
+    clearTimeout(idleTimeout);
+
+    const existingOverlay = document.getElementById("timeout-modal-overlay");
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
+    // Pause editing while the prompt is open
+    if (typeof lockEditorTools === "function") {
+      lockEditorTools();
+    }
+
+    const overlay = document.createElement("div");
+    overlay.id = "timeout-modal-overlay";
+    overlay.innerHTML = `
+      <div class="timeout-box">
+        <h2 style="color: #ff4d4d; margin-top: 0;">Still there?</h2>
+        <p>You have been inactive for 30 minutes.</p>
+        <p>For your privacy, editing has been paused.</p>
+        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
+          <button type="button" id="timeout-continue-button" class="timeout-button">Continue Working</button>
+          <button type="button" id="timeout-logout-button" class="timeout-button">Log Out</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const continueButton = document.getElementById("timeout-continue-button");
+    const logoutButtonFromModal = document.getElementById("timeout-logout-button");
+
+    if (continueButton) {
+      continueButton.addEventListener("click", () => {
+        overlay.remove();
+        inactivityPromptOpen = false;
+
+        if (typeof unlockEditorTools === "function") {
+          unlockEditorTools();
+        }
+
+        resetIdleTimer();
+      });
+    }
+
+    if (logoutButtonFromModal) {
+      logoutButtonFromModal.addEventListener("click", async () => {
+        await logoutFromInactivity();
+      });
+    }
+  }
+
+  async function logoutFromInactivity() {
     try {
       clearTimeout(idleTimeout);
-  
-      // Prevent duplicate timeout overlays
-      if (document.getElementById("timeout-modal-overlay")) {
-        return;
+
+      const clerkObj = getClerkObject();
+
+      if (clerkObj && typeof clerkObj.signOut === "function") {
+        await clerkObj.signOut();
       }
-  
-      // Lock the UI immediately
+
       setLoggedOutUI();
-  
+
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
       }
-  
-      // Show the modal first so the user actually sees it
-      const overlay = document.createElement("div");
-      overlay.id = "timeout-modal-overlay";
-      overlay.innerHTML = `
-        <div class="timeout-box">
-          <h2 style="color: #ff4d4d; margin-top: 0;">Session Expired</h2>
-          <p>You have been inactive for over 30 minutes.</p>
-          <p>For your security, you have been logged out.</p>
-          <button type="button" id="timeout-close-button" class="timeout-button">Close</button>
-        </div>
-      `;
-  
-      document.body.appendChild(overlay);
-  
-      // Now try to sign out from Clerk in the background
-      const clerkObj = getClerkObject();
-  
-      if (clerkObj && typeof clerkObj.signOut === "function") {
-        try {
-          await clerkObj.signOut();
-        } catch (signOutError) {
-          console.error("Clerk signOut failed:", signOutError);
-        }
-      }
-  
-      const closeButton = document.getElementById("timeout-close-button");
-  
-      if (closeButton) {
-        closeButton.addEventListener("click", () => {
-          window.location.reload();
-        });
-      }
+
+      window.location.reload();
     } catch (error) {
       console.error("Inactivity logout failed:", error);
       window.location.reload();
     }
   }
+
+  function markActivityAndResetTimer() {
+    resetIdleTimer();
+  }
+
+  window.addEventListener("mousemove", markActivityAndResetTimer);
+  window.addEventListener("keypress", markActivityAndResetTimer);
+  window.addEventListener("mousedown", markActivityAndResetTimer);
+  window.addEventListener("touchstart", markActivityAndResetTimer);
+  window.addEventListener("click", markActivityAndResetTimer);
+
+  resetIdleTimer();
 
   // ==========================================
   // NOTES MANAGEMENT & RENDERING LOGIC
@@ -432,15 +476,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // GLOBAL CLICK CAPTURE
   // ==========================================
   document.addEventListener("click", (event) => {
-    console.log("Global click detected:", event.target);
-
     const loginTarget = event.target.closest("#login");
     const signupTarget = event.target.closest("#signup");
     const myNotesTarget = event.target.closest("#openMyNotes");
     const deleteNoteTarget = event.target.closest(".delete-note");
     const closeMyNotesTarget = event.target.closest("#closeMyNotes");
-
-    console.log("loginTarget:", loginTarget);
 
     if (loginTarget) {
       event.preventDefault();
@@ -512,8 +552,6 @@ document.addEventListener("DOMContentLoaded", () => {
     signupButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-
-      console.log("Direct signup button listener fired");
 
       openSignup();
     });
