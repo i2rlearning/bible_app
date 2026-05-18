@@ -169,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // INACTIVITY LOGIC
   // ==========================================
   let idleTimeout;
-  const THIRTY_MINUTES = 30 * 60 * 1000;
+  const THIRTY_MINUTES = 10 * 1000;    //30 * 60 * 1000;
 
   function resetIdleTimer() {
     clearTimeout(idleTimeout);
