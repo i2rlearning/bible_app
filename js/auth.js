@@ -196,13 +196,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startInactivityWatcher() {
-    stopInactivityWatcher();
-
+    if (inactivityInterval) {
+      return;
+    }
+  
     lastActivityTime = Date.now();
-
+  
     inactivityInterval = setInterval(checkInactivityNow, 10 * 1000);
   }
 
+  function restartInactivityWatcherAfterUserAction() {
+    stopInactivityWatcher();
+    lastActivityTime = Date.now();
+    inactivityInterval = setInterval(checkInactivityNow, 10 * 1000);
+  }
+  
   function stopInactivityWatcher() {
     clearInterval(inactivityInterval);
     inactivityInterval = null;
@@ -265,7 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
           unlockEditorTools();
         }
 
-        startInactivityWatcher();
+        restartInactivityWatcherAfterUserAction();
       });
     }
 
