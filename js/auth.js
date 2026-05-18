@@ -173,7 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let inactivityPromptOpen = false;
 
   // Testing:
-  const INACTIVITY_LIMIT = 60 * 1000;
+  const INACTIVITY_LIMIT = 30 * 60 * 1000;
 
   // Production:
   // const INACTIVITY_LIMIT = 30 * 60 * 1000;
