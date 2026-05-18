@@ -172,9 +172,22 @@ document.addEventListener("DOMContentLoaded", () => {
   let inactivityInterval = null;
   let inactivityPromptOpen = false;
 
-  // For testing, use: 10 * 1000
-  // For production, use: 30 * 60 * 1000
+  // Testing:
   const INACTIVITY_LIMIT = 60 * 1000;
+
+  // Production:
+  // const INACTIVITY_LIMIT = 30 * 60 * 1000;
+
+  function getInactivityLabel() {
+    const totalSeconds = Math.round(INACTIVITY_LIMIT / 1000);
+
+    if (totalSeconds < 60) {
+      return `${totalSeconds} second${totalSeconds === 1 ? "" : "s"}`;
+    }
+
+    const totalMinutes = Math.round(totalSeconds / 60);
+    return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"}`;
+  }
 
   function markActivityAndResetTimer() {
     if (inactivityPromptOpen) return;
@@ -187,24 +200,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
     lastActivityTime = Date.now();
 
-    inactivityInterval = setInterval(() => {
-      if (inactivityPromptOpen) return;
-
-      const inactiveFor = Date.now() - lastActivityTime;
-
-      if (
-        logoutButton &&
-        logoutButton.style.display !== "none" &&
-        inactiveFor >= INACTIVITY_LIMIT
-      ) {
-        showInactivityPrompt();
-      }
-    }, inactivityInterval = setInterval(checkInactivityNow, 10 * 1000);
+    inactivityInterval = setInterval(checkInactivityNow, 10 * 1000);
   }
 
   function stopInactivityWatcher() {
     clearInterval(inactivityInterval);
     inactivityInterval = null;
+  }
+
+  function checkInactivityNow() {
+    if (inactivityPromptOpen) return;
+
+    const inactiveFor = Date.now() - lastActivityTime;
+
+    if (
+      logoutButton &&
+      logoutButton.style.display !== "none" &&
+      inactiveFor >= INACTIVITY_LIMIT
+    ) {
+      showInactivityPrompt();
+    }
   }
 
   function showInactivityPrompt() {
@@ -227,7 +242,7 @@ document.addEventListener("DOMContentLoaded", () => {
     overlay.innerHTML = `
       <div class="timeout-box">
         <h2 style="color: #ff4d4d; margin-top: 0;">Still there?</h2>
-        <p>You have been inactive for 30 minutes.</p>
+        <p>You have been inactive for ${getInactivityLabel()}.</p>
         <p>For your privacy, editing has been paused.</p>
         <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
           <button type="button" id="timeout-continue-button" class="timeout-button">Continue Working</button>
@@ -284,34 +299,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function checkInactivityNow() {
-  if (inactivityPromptOpen) return;
-
-  const inactiveFor = Date.now() - lastActivityTime;
-
-  if (
-    logoutButton &&
-    logoutButton.style.display !== "none" &&
-    inactiveFor >= INACTIVITY_LIMIT
-  ) {
-    showInactivityPrompt();
-  }
-}
-
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       checkInactivityNow();
     }
   });
-  
+
   window.addEventListener("focus", checkInactivityNow);
   window.addEventListener("pageshow", checkInactivityNow);
-  
-  //window.addEventListener("mousemove", markActivityAndResetTimer);
+
+  // Mousemove is intentionally disabled because it can be noisy and keep the session alive.
+  // window.addEventListener("mousemove", markActivityAndResetTimer);
   window.addEventListener("keypress", markActivityAndResetTimer);
   window.addEventListener("mousedown", markActivityAndResetTimer);
   window.addEventListener("touchstart", markActivityAndResetTimer);
   window.addEventListener("click", markActivityAndResetTimer);
+  window.addEventListener("scroll", markActivityAndResetTimer, true);
 
   // ==========================================
   // NOTES MANAGEMENT & RENDERING LOGIC
