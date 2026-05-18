@@ -175,7 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // const INACTIVITY_LIMIT = 10 * 1000;
 
   // Production:
-  const INACTIVITY_LIMIT =  10 * 1000;  //30 * 60 * 1000;
+  const INACTIVITY_LIMIT =  30 * 60 * 1000;
 
   function resetIdleTimer() {
     if (inactivityPromptOpen) return;
