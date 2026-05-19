@@ -30,36 +30,45 @@ const toolbarOptions = [
   ["clean"]
 ];
 
-handlers: {
-  datestamp: function () {
-    const now = new Date();
+const quill = new Quill("#editor", {
+  placeholder: "Notes...",
+  theme: "snow",
+  modules: {
+    toolbar: {
+      container: toolbarOptions,
+      handlers: {
+        datestamp: function () {
+          const now = new Date();
 
-    const dateStamp = now.toLocaleDateString();
+          const dateStamp = now.toLocaleDateString();
 
-    const range = this.quill.getSelection(true);
+          const range = this.quill.getSelection(true);
 
-    if (range) {
-      this.quill.insertText(range.index, dateStamp);
-      this.quill.setSelection(range.index + dateStamp.length);
-    }
-  },
+          if (range) {
+            this.quill.insertText(range.index, dateStamp);
+            this.quill.setSelection(range.index + dateStamp.length);
+          }
+        },
 
-  timestamp: function () {
-    const now = new Date();
+        timestamp: function () {
+          const now = new Date();
 
-    const timeStamp = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+          const timeStamp = now.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
 
-    const range = this.quill.getSelection(true);
+          const range = this.quill.getSelection(true);
 
-    if (range) {
-      this.quill.insertText(range.index, timeStamp);
-      this.quill.setSelection(range.index + timeStamp.length);
+          if (range) {
+            this.quill.insertText(range.index, timeStamp);
+            this.quill.setSelection(range.index + timeStamp.length);
+          }
+        }
+      }
     }
   }
-}
+});
 
 // ----------------------------------------------------
 // Paste Guard: Block Large Image Pastes & Clear Event
