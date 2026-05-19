@@ -333,31 +333,32 @@
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.withCredentials = false;
-    
+      
           xhr.addEventListener(`readystatechange`, function() {
             if (this.readyState === this.DONE) {
               try {
                 const { data, meta } = JSON.parse(this.responseText);
-    
+      
                 if (meta && meta.fumsId) {
                   _BAPI.t(meta.fumsId);
                 }
-    
+      
                 resolve(data);
               } catch (error) {
                 reject(error);
               }
             }
           });
-    
+      
           const normalizedSearchText = normalizeBibleSearch(searchText);
           const encodedSearchText = encodeURIComponent(normalizedSearchText);
-    
-          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/search?query=${encodedSearchText}&offset=${offset}`);
+          const apiOffset = offset * 10;
+      
+          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/search?query=${encodedSearchText}&offset=${apiOffset}`);
           xhr.setRequestHeader(`api-key`, API_KEY);
-    
+      
           xhr.onerror = () => reject(xhr.statusText);
-    
+      
           xhr.send();
         });
       }
