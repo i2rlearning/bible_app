@@ -99,58 +99,54 @@
        */
       function search(searchText, offset = 0) {
         searchInput.value = searchText;
+      
         getResults(searchText, offset).then((data) => {
           let resultsHTML = ``;
-
-          if (data.verses) {
-            if (!data.verses[0]) {
-              searchNavTop.innerHTML = ``;
-              searchNavBottom.innerHTML = ``;
-              resultsHTML = `<div class="no-results">☹️ No results. Try another <a href="index.html">search or version</a></div>`;
-            } else {
-              const [searchNavHTML] = buildNav(offset, data.total, searchText);
-              //searchNavTop.innerHTML = topSearchNavHTML;
-              searchNavBottom.innerHTML = searchNavHTML;
-
-              resultsHTML += `<ul>`;
-              for (let verse of data.verses) {
-                resultsHTML += `<li>
-                  <h5>${verse.reference}</h5>
-                  <div class="text not-eb-container">${verse.text}</div>
-                  <a href="verse.html?version=${bibleVersionID}&abbr=${abbreviation}&chapter=${verse.chapterId}">view chapter</a>
-                </li>`;
-              }
-              resultsHTML += `</ul>`;
-            }
-          }
-
-          if (data.passages) {
+      
+          const hasVerses = data.verses && data.verses.length > 0;
+          const hasPassages = data.passages && data.passages.length > 0;
+      
+          if (!hasVerses && !hasPassages) {
             searchNavTop.innerHTML = ``;
             searchNavBottom.innerHTML = ``;
-            if (!data.passages[0]) {
-              resultsHTML = `<div class="no-results">☹️ No results. Try another <a href="index.html">search or version</a></div>`;
-            } else {
-              resultsHTML += `<ul>`;
-              for (let passage of data.passages) {
-                resultsHTML += `<li>
-                  <h5>${passage.reference}</h5>
-                  <div class="text eb-container">${passage.content}</div>
-                  <a href="verse.html?version=${bibleVersionID}&abbr=${abbreviation}&chapter=${passage.chapterIds[0]}">view chapter</a>
-                  <br>
-                </li>`;
-              }
-              resultsHTML += `</ul>`;
-            }
+            resultsHTML = `<div class="no-results">☹️ No results. Try another <a href="index.html">search or version</a></div>`;
+            resultsList.innerHTML = resultsHTML;
+            return;
           }
+      
+          if (hasVerses) {
+            const [searchNavHTML] = buildNav(offset, data.total, searchText);
+            searchNavBottom.innerHTML = searchNavHTML;
+      
+            resultsHTML += `<ul>`;
+            for (let verse of data.verses) {
+              resultsHTML += `<li>
+                <h5>${verse.reference}</h5>
+                <div class="text not-eb-container">${verse.text}</div>
+                <a href="verse.html?version=${bibleVersionID}&abbr=${abbreviation}&chapter=${verse.chapterId}">view chapter</a>
+              </li>`;
+            }
+            resultsHTML += `</ul>`;
+          }
+      
+          if (hasPassages) {
+            searchNavTop.innerHTML = ``;
+            searchNavBottom.innerHTML = ``;
+      
+            resultsHTML += `<ul>`;
+            for (let passage of data.passages) {
+              resultsHTML += `<li>
+                <h5>${passage.reference}</h5>
+                <div class="text eb-container">${passage.content}</div>
+                <a href="verse.html?version=${bibleVersionID}&abbr=${abbreviation}&chapter=${passage.chapterIds[0]}">view chapter</a>
+                <br>
+              </li>`;
+            }
+            resultsHTML += `</ul>`;
+          }
+      
           resultsList.innerHTML = resultsHTML;
         });
-      }
-
-      function normalizeBibleSearch(input) {
-        return input
-          .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
-          .replace(/\s+/g, " ")
-          .trim();
       }
       
       /**
