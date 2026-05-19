@@ -2,6 +2,7 @@
 // Quill Custom Icons Setup (Must be before toolbarOptions)
 // ----------------------------------------------------
 const icons = Quill.import("ui/icons");
+icons["datestamp"] = '<svg viewbox="0 0 18 18"><rect class="ql-stroke" x="3" y="4" width="12" height="11" rx="1"></rect><line class="ql-stroke" x1="3" y1="7" x2="15" y2="7"></line><line class="ql-stroke" x1="6" y1="2" x2="6" y2="5"></line><line class="ql-stroke" x1="12" y1="2" x2="12" y2="5"></line></svg>';
 icons["timestamp"] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" cy="9" r="6"></circle><polyline class="ql-stroke" points="9 5 9 9 11 9"></polyline></svg>';
 
 // ----------------------------------------------------
@@ -25,31 +26,40 @@ const toolbarOptions = [
   [{ indent: "-1" }, { indent: "+1" }],
   [{ direction: "rtl" }],
   ["link", "image"],
-  ["timestamp"],
+  ["datestamp", "timestamp"],
   ["clean"]
 ];
 
-const quill = new Quill("#editor", {
-  placeholder: "Notes...",
-  theme: "snow",
-  modules: {
-    toolbar: {
-      container: toolbarOptions,
-      handlers: {
-        timestamp: function () {
-          const now = new Date();
-          const timestamp = now.toLocaleString();
-          const range = this.quill.getSelection();
+handlers: {
+  datestamp: function () {
+    const now = new Date();
 
-          if (range) {
-            this.quill.insertText(range.index, timestamp);
-            this.quill.setSelection(range.index + timestamp.length);
-          }
-        }
-      }
+    const dateStamp = now.toLocaleDateString();
+
+    const range = this.quill.getSelection(true);
+
+    if (range) {
+      this.quill.insertText(range.index, dateStamp);
+      this.quill.setSelection(range.index + dateStamp.length);
+    }
+  },
+
+  timestamp: function () {
+    const now = new Date();
+
+    const timeStamp = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    const range = this.quill.getSelection(true);
+
+    if (range) {
+      this.quill.insertText(range.index, timeStamp);
+      this.quill.setSelection(range.index + timeStamp.length);
     }
   }
-});
+}
 
 // ----------------------------------------------------
 // Paste Guard: Block Large Image Pastes & Clear Event
@@ -212,7 +222,8 @@ const btnTitles = {
   "ql-link": "Insert Link",
   "ql-image": "Insert Image",
   "ql-direction": "Text Direction",
-  "ql-timestamp": "Insert Timestamp",
+  "ql-datestamp": "Insert Date",
+  "ql-timestamp": "Insert Time",
   "ql-clean": "Clear Format"
 };
 
