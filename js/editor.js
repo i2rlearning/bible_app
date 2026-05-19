@@ -40,7 +40,11 @@ const quill = new Quill("#editor", {
         datestamp: function () {
           const now = new Date();
 
-          const dateStamp = now.toLocaleDateString();
+          const dateStamp = now.toLocaleDateString([], {
+            month: "long",
+            day: "numeric",
+            year: "numeric"
+          });
 
           const range = this.quill.getSelection(true);
 
