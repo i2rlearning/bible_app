@@ -69,21 +69,28 @@
       const searchInput = document.querySelector(`#search-input`);
       const searchNavTop = document.querySelector(`#search-nav-top`);
       const searchNavBottom = document.querySelector(`#search-nav-bottom`);
+    
       const bibleVersionID = getParameterByName(`version`) || `06125adad2d5898a-01`;
       const abbreviation = getParameterByName(`abbr`) || 'ASV';
       const query = getParameterByName(`query`);
+    
+      let bibleBookOrder = [];
     
       if (query) {
         const normalizedQuery = normalizeBibleSearch(query);
     
         document.querySelector(`#viewing`).textContent = 'Searched: ' + normalizedQuery;
-        search(normalizedQuery);
+    
+        loadBibleBookOrder()
+          .then(() => {
+            search(normalizedQuery);
+          })
+          .catch((error) => {
+            console.error("Could not load Bible book order:", error);
+            search(normalizedQuery);
+          });
       }
     
-      /**
-       * Normalizes Bible search text.
-       * Converts special dash characters to a normal hyphen.
-       */
       function normalizeBibleSearch(input) {
         return input
           .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
@@ -91,9 +98,38 @@
           .trim();
       }
     
-      /**
-       * Loads page for new search
-       */
+      function loadBibleBookOrder() {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.withCredentials = false;
+    
+          xhr.addEventListener(`readystatechange`, function() {
+            if (this.readyState === this.DONE) {
+              try {
+                const { data } = JSON.parse(this.responseText);
+    
+                bibleBookOrder = data.map((book, index) => ({
+                  id: book.id,
+                  name: book.name,
+                  abbreviation: book.abbreviation,
+                  order: index
+                }));
+    
+                resolve(bibleBookOrder);
+              } catch (error) {
+                reject(error);
+              }
+            }
+          });
+    
+          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books`);
+          xhr.setRequestHeader(`api-key`, API_KEY);
+    
+          xhr.onerror = () => reject(xhr.statusText);
+          xhr.send();
+        });
+      }
+    
       function searchButton() {
         if (searchInput.value) {
           const normalizedQuery = normalizeBibleSearch(searchInput.value);
@@ -104,9 +140,6 @@
         }
       }
     
-      /**
-       * Loads search results into page
-       */
       function search(searchText, offset = 0) {
         searchInput.value = searchText;
     
@@ -115,6 +148,14 @@
     
           const hasVerses = data.verses && data.verses.length > 0;
           const hasPassages = data.passages && data.passages.length > 0;
+    
+          if (hasVerses) {
+            data.verses = sortBibleResults(data.verses);
+          }
+    
+          if (hasPassages) {
+            data.passages = sortBibleResults(data.passages);
+          }
     
           if (!hasVerses && !hasPassages) {
             searchNavTop.innerHTML = ``;
@@ -168,10 +209,58 @@
         });
       }
     
-      /**
-       * Builds navigation for search results
-       * @returns {string} HTML to include for navigation
-       */
+      function getBookOrderFromReference(reference) {
+        if (!reference || !bibleBookOrder.length) {
+          return 9999;
+        }
+    
+        const normalizedReference = reference.toLowerCase();
+    
+        const matchedBook = bibleBookOrder.find(book => {
+          const bookName = book.name ? book.name.toLowerCase() : "";
+          const bookAbbreviation = book.abbreviation ? book.abbreviation.toLowerCase() : "";
+    
+          return normalizedReference.startsWith(bookName + " ") ||
+                 normalizedReference.startsWith(bookName + ".") ||
+                 normalizedReference === bookName ||
+                 normalizedReference.startsWith(bookAbbreviation + " ") ||
+                 normalizedReference.startsWith(bookAbbreviation + ".") ||
+                 normalizedReference === bookAbbreviation;
+        });
+    
+        return matchedBook ? matchedBook.order : 9999;
+      }
+    
+      function getChapterNumber(reference) {
+        const match = reference.match(/\s(\d+):/);
+        return match ? parseInt(match[1], 10) : 0;
+      }
+    
+      function getVerseNumber(reference) {
+        const match = reference.match(/:(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      }
+    
+      function sortBibleResults(results) {
+        return results.sort((a, b) => {
+          const bookOrderA = getBookOrderFromReference(a.reference);
+          const bookOrderB = getBookOrderFromReference(b.reference);
+    
+          if (bookOrderA !== bookOrderB) {
+            return bookOrderA - bookOrderB;
+          }
+    
+          const chapterA = getChapterNumber(a.reference);
+          const chapterB = getChapterNumber(b.reference);
+    
+          if (chapterA !== chapterB) {
+            return chapterA - chapterB;
+          }
+    
+          return getVerseNumber(a.reference) - getVerseNumber(b.reference);
+        });
+      }
+    
       function buildNav(offset, total, searchText) {
         var searchResults = `<span>Results: <strong>${offset * 10 + 1}-${offset * 10 + 10 > total ? total : offset * 10 + 10}</strong> of <strong>${total}</strong></span>`;
     
@@ -202,10 +291,6 @@
         return [searchNavHTML];
       }
     
-      /**
-       * Gets verses/passages that match search term from API.Bible
-       * Supports multiple references separated by semicolons.
-       */
       function getResults(searchText, offset = 0) {
         const normalizedSearchText = normalizeBibleSearch(searchText);
     
@@ -277,11 +362,6 @@
         });
       }
     
-      /**
-       * Gets query parameter from URL based on name
-       * @param {string} name of query parameter
-       * @returns {string} value of query parameter
-       */
       function getParameterByName(name) {
         const url = window.location.href;
         name = name.replace(/[\[\]]/g, `\\$&`);
@@ -292,7 +372,6 @@
         return decodeURIComponent(results[2].replace(/\+/g, ` `));
       }
     
-      // ************* Side Menu **************
       function openNav() {
         document.getElementById("menuNav").style.width = "225px";
       }
@@ -300,7 +379,6 @@
       function closeNav() {
         document.getElementById("menuNav").style.width = "0px";
       }
-      // **************************************
     
       function clearSearch() {
         const resetURL = './search.html';
