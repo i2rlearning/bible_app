@@ -41,7 +41,7 @@ const quill = new Quill("#editor", {
           const now = new Date();
 
           const dateStamp = now.toLocaleDateString([], {
-            month: "long",
+            month: "short",
             day: "numeric",
             year: "numeric"
           });
