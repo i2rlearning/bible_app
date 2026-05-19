@@ -74,18 +74,23 @@
       const query = getParameterByName(`query`);
 
       if (query) {
-        document.querySelector(`#viewing`).innerHTML = 'Searched: ' + query;  
-        search(query);
+        const normalizedQuery = normalizeBibleSearch(query);
+      
+        document.querySelector(`#viewing`).textContent = 'Searched: ' + normalizedQuery;
+        search(normalizedQuery);
       }
 
       /**
        * Loads page for new search
        */
-      function searchButton(){
-        if (searchInput.value){
-        window.location.href = `./search.html?&version=${bibleVersionID}&abbr=${abbreviation}&query=${searchInput.value}`; }
-                else
-                  swal("Text Required!", "Please enter some text (ex. John 3:16-19 or wisdom)", "error");
+      function searchButton() {
+        if (searchInput.value) {
+          const normalizedQuery = normalizeBibleSearch(searchInput.value);
+      
+          window.location.href = `./search.html?&version=${bibleVersionID}&abbr=${abbreviation}&query=${encodeURIComponent(normalizedQuery)}`;
+        } else {
+          swal("Text Required!", "Please enter some text (ex. John 3:16-19 or wisdom)", "error");
+        }
       }
 
 
@@ -141,6 +146,13 @@
         });
       }
 
+      function normalizeBibleSearch(input) {
+        return input
+          .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      
       /**
        * Builds navigation for search results
        * @returns {string} HTML to include for navigation
@@ -188,21 +200,24 @@
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.withCredentials = false;
-
+      
           xhr.addEventListener(`readystatechange`, function() {
             if (this.readyState === this.DONE) {
               const {data, meta} = JSON.parse(this.responseText);
-
+      
               _BAPI.t(meta.fumsId);
               resolve(data);
             }
           });
-
-          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/search?query=${searchText}&offset=${offset}`);
+      
+          const normalizedSearchText = normalizeBibleSearch(searchText);
+          const encodedSearchText = encodeURIComponent(normalizedSearchText);
+      
+          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/search?query=${encodedSearchText}&offset=${offset}`);
           xhr.setRequestHeader(`api-key`, API_KEY);
-
+      
           xhr.onerror = () => reject(xhr.statusText);
-
+      
           xhr.send();
         });
       }
