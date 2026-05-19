@@ -79,10 +79,16 @@ body.basic_index .search-area {
 }
 
 .list-container.search-results-list li {
-  padding: 0 0 2.5rem;
-  border-bottom: 1px solid lightgray;
-  margin-bottom: 2.75rem;
+  padding: 0 0 0.5rem;
+  border-bottom: none;
+  margin-bottom: 0.75rem;
 }
+
+.list-container.search-results-list li > * {
+  line-height: 1.35rem;
+  margin-bottom: 0.15em;
+}
+
 .list-container.search-results-list li:after {
   content: "";
   display: table;
