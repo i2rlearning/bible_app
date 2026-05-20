@@ -307,7 +307,10 @@ body.basic_index #select-prompt, body.basic_verse-selected #select-prompt, body.
 .column {
   float: left;
   border-right: 2px solid lightgray;
-  padding: 3px 10px 0 10px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  height: 100%;
 }
 
 
