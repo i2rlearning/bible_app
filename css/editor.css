@@ -660,6 +660,22 @@ body.editor-locked-state .ql-toolbar {
   background: #f7f7f7;
   color: #111;
   line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subheader .subheadings {
+  display: flex;
+  align-items: center;
+}
+
+.subheader .column {
+  float: none;
+  display: flex;
+  align-items: center;
+  min-height: 45px;
+  padding: 0 10px;
 }
 
 .subheader #login:disabled {
