@@ -660,6 +660,8 @@ body.editor-locked-state .ql-toolbar {
   background: #f7f7f7;
   color: #111;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
 }
 
 .subheader #login:disabled {
