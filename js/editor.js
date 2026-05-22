@@ -606,6 +606,7 @@ function getMiniEditorFlags(miniEditorJson) {
       bibleTextHtml.includes("bible-user-format bold") ||
       bibleTextHtml.includes("bible-user-format underline") ||
       bibleTextHtml.includes("bible-user-format double-underline") ||
+      bibleTextHtml.includes("bible-user-format overline-underline") ||
       bibleTextHtml.includes("bible-user-format strike-through") ||
       bibleTextHtml.includes("text-red") ||
       bibleTextHtml.includes("text-blue") ||
