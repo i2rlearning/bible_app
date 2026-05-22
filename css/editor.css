@@ -220,6 +220,11 @@
   text-decoration-thickness: 2px;
 }
 
+.eb-container .bible-user-format.overline-underline {
+  text-decoration-line: overline underline !important;
+  text-decoration-thickness: 2px;
+}
+
 .eb-container .bible-user-format.strike-through {
   text-decoration-line: line-through !important;
 }
