@@ -251,8 +251,8 @@
 }
 
 /************* Bible font colors *************/
-.eb-container .bible-user-format.text-black {
-  color: #000000 !important;
+.eb-container .bible-user-format.text-grey {
+  color: #c2c2c2 !important;
 }
 
 .eb-container .bible-user-format.text-red {
