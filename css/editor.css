@@ -469,7 +469,7 @@ body.editor-locked-state .freehand {
 body.editor-locked-state .ql-editor {
   background: rgba(255, 255, 255, 0.65);
   color: #777;
-  cursor: not-allowed;
+  pointer-events: none;
 }
 
 body.editor-locked-state .ql-editor.ql-blank::before {
@@ -651,7 +651,7 @@ body.editor-locked-state .ql-toolbar {
 
 .overlay-content a.disabled {
   opacity: 0.45;
-  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /************* Auth buttons in header of My Notes *************/
@@ -753,7 +753,7 @@ body.editor-locked-state .ql-toolbar {
     padding: 40px;
     border-radius: 12px;
     text-align: center;
-    border-top: 5px solid #ff4d4d; /* Matches your red trash can hover */
+    border-top: 5px solid #ff4d4d; 
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     font-family: sans-serif;
 }
