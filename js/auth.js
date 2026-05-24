@@ -172,11 +172,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let inactivityInterval = null;
   let inactivityPromptOpen = false;
 
-  // Testing:
-  const INACTIVITY_LIMIT = 60 * 1000;
+  // Testing - 10 seconds:
+  //const INACTIVITY_LIMIT = 10 * 1000;
 
-  // Production:
-  // const INACTIVITY_LIMIT = 30 * 60 * 1000;
+  // Production - 30 minutes
+   const INACTIVITY_LIMIT = 30 * 60 * 1000;
 
   function getInactivityLabel() {
     const totalSeconds = Math.round(INACTIVITY_LIMIT / 1000);
