@@ -732,7 +732,7 @@ body.editor-locked-state .ql-toolbar {
   transform: scale(1.1);
 }
 
-/* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 25 MINUTES  */
+/* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 30 MINUTES  */
 #timeout-modal-overlay {
     position: fixed;
     top: 0;
