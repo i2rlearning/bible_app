@@ -4,9 +4,9 @@
                 'https://api.scripture.api.bible/v1/bibles?include-full-details=false';
 
       // Keep your existing check for the word 'language' just in case
-      if (selectVal === 'language') {
-          selectVal = 'https://api.scripture.api.bible/v1/bibles?include-full-details=false';
-      }
+      //if (selectVal === 'language') {
+      //    selectVal = 'https://api.scripture.api.bible/v1/bibles?include-full-details=false';
+      //}
       
       let versionHTML = ``;
  
