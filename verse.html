@@ -567,6 +567,45 @@
             });
           }
         });
+
+        let initialTouchX = null;
+        let initialTouchY = null;
+        
+        window.addEventListener("touchstart", function (event) {
+          if (event.touches.length === 1) { // single finger
+            initialTouchX = event.touches[0].clientX;
+            initialTouchY = event.touches[0].clientY;
+          }
+        }, { passive: true });
+        
+        window.addEventListener("touchend", function (event) {
+          if (initialTouchX === null || initialTouchY === null) return;
+        
+          const finalTouchX = event.changedTouches[0].clientX;
+          const finalTouchY = event.changedTouches[0].clientY;
+        
+          const diffX = finalTouchX - initialTouchX;
+          const diffY = finalTouchY - initialTouchY;
+        
+          // ignore vertical swipes
+          if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 30) { 
+            if (diffX > 0) {
+              // swipe right → go previous chapter
+              if (canGoPreviousChapter()) {
+                window.location.href = buildChapterUrl(currentChapterNumber - 1);
+              }
+            } else {
+              // swipe left → go next chapter
+              if (canGoNextChapter()) {
+                window.location.href = buildChapterUrl(currentChapterNumber + 1);
+              }
+            }
+          }
+        
+          // reset
+          initialTouchX = null;
+          initialTouchY = null;
+        });   
       }
     
       if (imageRight) {
