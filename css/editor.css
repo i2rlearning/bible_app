@@ -439,16 +439,26 @@
   padding: 4px 8px;
 }
 
-/************* Locked editor state *************/
+/* ==========================================================================
+   Locked Editor State Changes
+   ========================================================================== */
+
+/* Freeze the entire toolbar wrapper container to block clicks, hovers, and selections */
 .editor-tools-locked {
   opacity: 0.45;
+  pointer-events: none !important; /* Prevents clicks from triggering underlying elements */
+  user-select: none;
 }
 
+/* Force the cursor to stay as 'not-allowed' even when pointer events are muted */
+.editor-tools-locked,
+.editor-tools-locked *,
 .editor-tools-locked button,
 .editor-tools-locked select {
   cursor: not-allowed !important;
 }
 
+/* Redundant but kept for explicit safety against Quill custom drop-downs */
 .editor-tools-locked .ql-picker,
 .editor-tools-locked .ql-picker-label,
 .editor-tools-locked .ql-picker-options {
@@ -456,6 +466,9 @@
   cursor: not-allowed !important;
 }
 
+/* ==========================================================================
+   Content View Adjustments when Locked
+   ========================================================================== */
 body.editor-locked-state .bible-user-format {
   background-color: transparent !important;
   text-decoration: none !important;
