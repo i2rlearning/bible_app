@@ -287,12 +287,15 @@
   cursor: pointer;
 
   display: flex !important;
-  align-items: center;      /* vertically centers the content */
-  justify-content: center;  /* horizontally centers the content */
+  align-items: center !important;      /* vertical centering */
+  justify-content: center !important;  /* horizontal centering */
 
+  font-size: 14px !important;          /* ensure consistent font size */
+  line-height: 1 !important;           /* remove inherited line-height */
   padding: 0 !important;
-  text-align: center;
-  line-height: normal !important;
+  text-align: center !important;
+
+  box-sizing: border-box !important;   /* prevent extra offset from border/padding */
 }
 
 .toolbar-dropdown-menu .font-color-option:hover {
