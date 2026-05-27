@@ -1,23 +1,24 @@
 @import url("https://fonts.googleapis.com/css?family=Libre+Baskerville:400,700|Arima:400,500,700");
+
+/* ==========================================================================
+   1. Core Resets & Base Elements
+   ========================================================================== */
 html,
 body {
   margin: 0;
   padding: 0;
   background-image: url('../img/wedding-paper.jpg'); 
-  background-attachment:fixed;
-  background-repeat:no-repeat;
-  background-size:cover;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 html {
   box-sizing: border-box;
   font-size: 12.8px;
 }
-@media only screen and (min-width: 600px) {
-  html {
-    font-size: 16px;
-  }
-}
+
+/* Global Border-Box Reset */
 html *,
 html *:before,
 html *:after {
@@ -48,6 +49,9 @@ ul, ol {
   margin: 0;
 }
 
+/* ==========================================================================
+   2. Layout & Utility Classes
+   ========================================================================== */
 .hidden {
   display: none !important;
 }
@@ -65,20 +69,51 @@ ul, ol {
   margin: auto;
 }
 
-
-@media only screen and (min-width: 600px) {
-  .container {
-    max-width: calc(100vw - 400px); /* Screen width minus leftcol (200px) + rightcol (200px) */
-    padding: 0 20px;
-  }
-}
-.container *, .container *:before, .container *:after {
-  box-sizing: border-box;
-}
-
 .container .inside {
   background-color: white;
   text-align: center;
+}
+
+/* Row & Columns */
+.column {
+  float: left;
+  border-right: 2px solid lightgray;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.align-group {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.bottom-spacer {
+  padding-bottom: 30px;
+}
+
+/* ==========================================================================
+   3. Header & Navigation Components
+   ========================================================================== */
+#stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 3000;
 }
 
 header {
@@ -97,7 +132,7 @@ header:after {
   box-shadow: 0 2px 14px 0 rgba(0, 0, 0, 0.15);
 }
 
-header .container {
+header.container {
   display: flex;
   justify-content: left;
   align-items: center;
@@ -113,13 +148,12 @@ header .logo {
   margin-right: 50px;
   margin-bottom: .5rem;
   background: url("../img/logo.png") center no-repeat;
-  /*background-size: 125px auto;*/
 }
 
 header h1 {
   text-align: right;
-  /*background: #fff; - color behind logo */
 }
+
 header h1 a {
   font-family: "Libre Baskerville", serif;
   font-style: italic;
@@ -129,32 +163,25 @@ header h1 a {
   line-height: 2.75rem;
 }
 
+/* Subheader */
 .subheader {
   background: #F6FBFF;
-  background: rgba(246,251,255); /* 4th param is for opacity ex: 0.3 (30% opaque) */
- /* padding: .5rem 0;*/
+  background: rgba(246,251,255); 
   position: relative;
   text-align: center;
-  /*margin-bottom: 3.125rem;*/
 }
 
 .subheader .container {
   flex-wrap: wrap;
-  font-size: 1.75vw;  /* font for top heading */
+  font-size: 1.75vw;  
   line-height: 2.25rem;
   font-weight: 600;
-  /*text-align: center;*/
 }
-
-/*@media only screen and (max-width: 600px) {
-  .subheader .container  {
-    font-size: 8px;
-  }
-}*/
 
 .subheader .subheadings {
   margin-right: 2rem;
 }
+
 .subheader .subheadings h2 {
   font-size: 1rem;
   line-height: 1.3125;
@@ -162,6 +189,7 @@ header h1 a {
   text-transform: uppercase;
   margin-bottom: 0.375em;
 }
+
 .subheader .subheadings h3 {
   font-family: "Libre Baskerville", serif;
   font-size: 1.75rem;
@@ -169,37 +197,49 @@ header h1 a {
   font-weight: 700;
 }
 
+/* Breadcrumbs */
 .crumbs {
   flex: 1;
   margin-left: 1em;
 }
+
 .crumbs ul:after {
   content: "";
   display: table;
   clear: both;
 }
+
 .crumbs li {
   float: left;
 }
+
 .crumbs li:before {
   float: left;
   margin: 0 0.5em;
   content: " - ";
 }
+
 .crumbs li:first-child:before {
   display: none;
 }
+
 .crumbs a {
   float: left;
   border-bottom: solid 1px;
   color: #31ACFF;
   border-color: inherit;
 }
+
 .crumbs a:hover {
   border-color: transparent;
 }
 
-body.basic_index #select-prompt, body.basic_verse-selected #select-prompt, body.basic_section #select-prompt {
+/* ==========================================================================
+   4. Lists & Dynamic Data Views
+   ========================================================================== */
+body.basic_index #select-prompt, 
+body.basic_verse-selected #select-prompt, 
+body.basic_section #select-prompt {
   display: none;
 }
 
@@ -208,6 +248,7 @@ body.basic_index #select-prompt, body.basic_verse-selected #select-prompt, body.
   margin-bottom: 1em;
   font-weight: normal;
 }
+
 .list-heading span {
   display: inline-block;
   background: #31ACFF;
@@ -222,27 +263,36 @@ body.basic_index #select-prompt, body.basic_verse-selected #select-prompt, body.
 
 .list-container > ul,
 .list-container > ol {
-  margin-bottom: 3rem;   /* 4.375rem; */
+  margin-bottom: 3rem;   
 }
+
 .list-container li {
   font-size: 2rem;
   line-height: 1.5;
   padding: 0.25em 0;
 }
+
 .list-container li a:hover {
   color: #015d9b;
 }
 
-.list-container.bible-list li, .list-container.section-list li {
+.list-container.bible-list li, 
+.list-container.section-list li {
   font-size: 1.2rem;
   line-height: 1.5625rem;
   padding: 0.3em 0;
 }
-.list-container.bible-list li a, .list-container.section-list li a {
+
+.list-container.bible-list li a, 
+.list-container.section-list li a {
   display: flex;
   justify-content: left;
 }
-.list-container.bible-list li .bible-version-abbr, .list-container.bible-list li .section-id, .list-container.section-list li .bible-version-abbr, .list-container.section-list li .section-id {
+
+.list-container.bible-list li .bible-version-abbr, 
+.list-container.bible-list li .section-id, 
+.list-container.section-list li .bible-version-abbr, 
+.list-container.section-list li .section-id {
   display: inline-block;
   white-space: nowrap;
   font-weight: 700;
@@ -252,31 +302,24 @@ body.basic_index #select-prompt, body.basic_verse-selected #select-prompt, body.
   margin-right: 1.3em;
 }
 
-.list-container.bible-list li .bible-version-desc:before, .list-container.section-list li .bible-version-desc:before {
+.list-container.bible-list li .bible-version-desc:before, 
+.list-container.section-list li .bible-version-desc:before {
   content: "- ";
 }
 
-
+/* Numeric Lists */
 .list-container.numeric-list ol {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
 }
-@media only screen and (min-width: 600px) {
-  .list-container.numeric-list ol {
-    justify-content: left;
-  }
-}
+
 .list-container.numeric-list li {
   padding: 0;
   margin: 0 0.15em 0.3em;
 }
-@media only screen and (min-width: 600px) {
-  .list-container.numeric-list li {
-    margin: 0 0.3em 0.3em 0;
-  }
-}
+
 .list-container.numeric-list li a {
   display: inline-block;
   padding: 0 0.25em;
@@ -287,75 +330,32 @@ body.basic_index #select-prompt, body.basic_verse-selected #select-prompt, body.
   min-width: 3.75rem;
   text-align: center;
 }
+
 .list-container.numeric-list li a:hover {
   background: #31ACFF;
   color: #fff;
 }
 
-#stickyHeader {
-  position: sticky;
-  top: 0;
-  z-index: 3000;
-}
-
-/**** columns for subheader *****/
-* {
-  box-sizing: border-box;
-}
-
-/* Creates columns */
-.column {
-  float: left;
-  border-right: 2px solid lightgray;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  height: 100%;
-}
-
-
-/* Clear floats after the columns */
-.row:after {
-  content: "";
-  display: table;
-  clear: both;
-}
-/**** Column End *****/
-
-
-/**** Next-Prev buttons *****/
+/* ==========================================================================
+   5. Interactive Elements & Fixed Layouts
+   ========================================================================== */
 .right-button {
-position: fixed;
-top: 50%;
-right: 30px;
-width: 5vw;
-Height: auto;
+  position: fixed;
+  top: 50%;
+  right: 30px;
+  width: 5vw;
+  height: auto;
 }
 
 .left-button {
-position: fixed;
-top: 50%;
-left: 30px;
-width: 5vw;
-Height: auto;
+  position: fixed;
+  top: 50%;
+  left: 30px;
+  width: 5vw;
+  height: auto;
 }
 
-@media only screen and (max-width: 600px) {
-  .left-button {
-    display: none;
-  }
-}
-
-@media only screen and (max-width: 600px) {
-  .right-button {
-    display: none;
-  }
-}
-/*** Next-Prev buttons End*****/
-
-
-/*** Columns for scrolls with stamp overlayed  *****/
- .leftcol {
+.leftcol {
   position: fixed;
   height: 100%;
   width: 200px;
@@ -366,7 +366,7 @@ Height: auto;
   left: 0;
 }
 
- .rightcol {
+.rightcol {
   position: fixed;
   height: 100%;
   width: 200px;
@@ -377,66 +377,38 @@ Height: auto;
   right: -50px;
 }
 
-@media only screen and (max-width: 600px) {
-  .leftcol {
-    display: none;
-  }
+.saveButton {
+  position: relative;
+  top: -25px;
+  left: 15px;
 }
 
-@media only screen and (max-width: 600px) {
-  .rightcol {
-    display: none;
-  }
-}
-
-/***************************************/
-
-/* aligns two objects horiozontally (text and slider bar) */
-  .align-group {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-  }
-
-
-/* centers image */
- .center {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.bottom-spacer {
-  padding-bottom: 30px;
-}
-
-/* tooltip */
+/* Tooltips */
 .tooltip {
-    position: relative;
-    display: inline-block;
-    color: #006080;
+  position: relative;
+  display: inline-block;
+  color: #006080;
 }
 
 .tooltip .tooltiptext {
-    visibility: hidden;
-    position: absolute;
-    width: 150px;
-    background-color: #555;
-    color: #fff;
-    text-align: center;
-    font-size: 11px;
-    line-height: normal;
-    padding: 5px 5px 5px 5px;
-    border-radius: 6px;
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.3s;
+  visibility: hidden;
+  position: absolute;
+  width: 150px;
+  background-color: #555;
+  color: #fff;
+  text-align: center;
+  font-size: 11px;
+  line-height: normal;
+  padding: 5px;
+  border-radius: 6px;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s;
 }
 
 .tooltip:hover .tooltiptext {
-    visibility: visible;
-    opacity: 1;
+  visibility: visible;
+  opacity: 1;
 }
 
 .tooltip-bottom {
@@ -446,18 +418,43 @@ Height: auto;
 }
 
 .tooltip-bottom::after {
-    content: "";
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    margin-left: -5px;
-    border-width: 5px;
-    border-style: solid;
-    border-color: transparent transparent #555 transparent;
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent #555 transparent;
 }
 
-.saveButton {
-  position: relative;
-  top: -25px;
-  left: 15px;
+/* ==========================================================================
+   6. Media Queries (Responsiveness)
+   ========================================================================== */
+
+/* Tablet & Desktop Settings (600px and up) */
+@media only screen and (min-width: 600px) {
+  html {
+    font-size: 16px;
+  }
+  .container {
+    max-width: calc(100vw - 400px); 
+    padding: 0 20px;
+  }
+  .list-container.numeric-list ol {
+    justify-content: left;
+  }
+  .list-container.numeric-list li {
+    margin: 0 0.3em 0.3em 0;
+  }
+}
+
+/* Mobile Rules (600px and down) */
+@media only screen and (max-width: 600px) {
+  .left-button,
+  .right-button,
+  .leftcol,
+  .rightcol {
+    display: none;
+  }
 }
