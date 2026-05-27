@@ -1,7 +1,7 @@
 @import url("https://fonts.googleapis.com/css?family=Libre+Baskerville:400,700|Arima:400,500,700");
 
 /* ==========================================================================
-   1. Core Resets & Base Elements
+   Core Resets & Base Elements
    ========================================================================== */
 html,
 body {
@@ -50,7 +50,7 @@ ul, ol {
 }
 
 /* ==========================================================================
-   2. Layout & Utility Classes
+   Layout & Utility Classes
    ========================================================================== */
 .hidden {
   display: none !important;
@@ -108,7 +108,7 @@ ul, ol {
 }
 
 /* ==========================================================================
-   3. Header & Navigation Components
+   Header & Navigation Components
    ========================================================================== */
 #stickyHeader {
   position: sticky;
@@ -197,45 +197,8 @@ header h1 a {
   font-weight: 700;
 }
 
-/* Breadcrumbs */
-.crumbs {
-  flex: 1;
-  margin-left: 1em;
-}
-
-.crumbs ul:after {
-  content: "";
-  display: table;
-  clear: both;
-}
-
-.crumbs li {
-  float: left;
-}
-
-.crumbs li:before {
-  float: left;
-  margin: 0 0.5em;
-  content: " - ";
-}
-
-.crumbs li:first-child:before {
-  display: none;
-}
-
-.crumbs a {
-  float: left;
-  border-bottom: solid 1px;
-  color: #31ACFF;
-  border-color: inherit;
-}
-
-.crumbs a:hover {
-  border-color: transparent;
-}
-
 /* ==========================================================================
-   4. Lists & Dynamic Data Views
+   Lists & Dynamic Data Views
    ========================================================================== */
 body.basic_index #select-prompt, 
 body.basic_verse-selected #select-prompt, 
@@ -337,7 +300,7 @@ body.basic_section #select-prompt {
 }
 
 /* ==========================================================================
-   5. Interactive Elements & Fixed Layouts
+   Interactive Elements & Fixed Layouts
    ========================================================================== */
 .right-button {
   position: fixed;
@@ -429,7 +392,7 @@ body.basic_section #select-prompt {
 }
 
 /* ==========================================================================
-   6. Media Queries (Responsiveness)
+   Media Queries (Responsiveness)
    ========================================================================== */
 
 /* Tablet & Desktop Settings (600px and up) */
