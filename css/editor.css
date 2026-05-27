@@ -510,8 +510,6 @@ body.editor-locked-state .ql-toolbar {
 }
 
 /************* My Notes modal *************/
-/******************************************/
-
 #myNotesModal {
   display: none;
   position: fixed;
