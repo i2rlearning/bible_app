@@ -279,20 +279,20 @@
   width: 28px;
   height: 28px;
   min-width: 28px;
-  padding: 0;
   margin: 0;
   border: 1px solid #999;
   border-radius: 4px;
   background: #fff;
   font-weight: bold;
   cursor: pointer;
-  
-  display: block !important;
+
+  display: flex !important;
+  align-items: center;      /* vertically centers the content */
+  justify-content: center;  /* horizontally centers the content */
+
   padding: 0 !important;
-  line-height: 26px !important; 
-  text-align: center !important;
-  text-indent: 0 !important;
-  transform: none !important;
+  text-align: center;
+  line-height: normal !important;
 }
 
 .toolbar-dropdown-menu .font-color-option:hover {
