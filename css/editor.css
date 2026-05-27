@@ -286,10 +286,13 @@
   background: #fff;
   font-weight: bold;
   cursor: pointer;
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  
+  display: block !important;
+  padding: 0 !important;
+  line-height: 26px !important; 
+  text-align: center !important;
+  text-indent: 0 !important;
+  transform: none !important;
 }
 
 .toolbar-dropdown-menu .font-color-option:hover {
