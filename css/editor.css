@@ -127,7 +127,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: auto;
-  /*max-width: calc(100vw - 40px);*/
+  min-width: max-content; /* Prevents the toolbar container itself from collapsing narrower than its contents */
   z-index: 2500;
 
   display: inline-flex;
@@ -147,12 +147,15 @@
   min-height: 28px;
   padding: 3px 8px;
   font-size: 14px;
+  white-space: nowrap; /* CRITICAL: Prevents "Highlighter" or "Font Color" text from wrapping onto two lines */
 }
 
 #bible-mini-toolbar button {
   border: 1px solid #ddd;
   background: #fff;
   cursor: pointer;
+  display: inline-flex; /* Ensures text and any dropdown icons align perfectly */
+  align-items: center;
 }
 
 #bible-mini-toolbar button:hover {
