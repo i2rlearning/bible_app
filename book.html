@@ -12,8 +12,21 @@
         <div class="container flex">
             <div class="subheadings">
                 <div class="column">
-                    <span style="font-size:25px;cursor:pointer;" onclick="openNav()">&#9776;</span>
+                  <div class="hamburger">
+                      <button
+                      type="button"
+                      id="menuToggle"
+                      class="main-nav-toggle"
+                      aria-label="Toggle menu"
+                      aria-expanded="false"
+                    >
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </button>
+                  </div>
                 </div>
+                
                 <div class="column">
                     <span class="tooltip">
                         <span id="bibleabbr"></span>
@@ -22,6 +35,7 @@
                         </span>
                     </span>
                 </div>
+                
                 <div class="column">
                     <span style="color:lightgray;">Book & Chapter</span>
                 </div>
@@ -59,6 +73,7 @@
     </main>
 
     <script src="js/my_key.js"></script>
+    <script src="js/menu.js"></script>
    <script>
       const bibleBookList = document.querySelector(`#book-list`);
       const bibleVersionID = getParameterByName(`version`);
