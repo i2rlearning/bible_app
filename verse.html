@@ -1193,10 +1193,15 @@
       }
         
       document.addEventListener("click", function (event) {
+          const fontDropdown = document.querySelector("#font-menu")?.closest(".toolbar-dropdown");
           const highlightDropdown = document.querySelector("#highlight-menu")?.closest(".toolbar-dropdown");
           const fontColorDropdown = document.querySelector("#font-color-menu")?.closest(".toolbar-dropdown");
           const drawDropdown = document.querySelector("#draw-menu")?.closest(".toolbar-dropdown");
         
+          if (fontDropdown && !fontDropdown.contains(event.target)) {
+            closeHighlightMenu();
+          }
+          
           if (highlightDropdown && !highlightDropdown.contains(event.target)) {
             closeHighlightMenu();
           }
