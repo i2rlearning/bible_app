@@ -127,7 +127,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: auto;
-  max-width: calc(100vw - 40px);
+  /*max-width: calc(100vw - 40px);*/
   z-index: 2500;
 
   display: inline-flex;
