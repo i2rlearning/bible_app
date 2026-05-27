@@ -775,3 +775,44 @@ function startMiniEditorObserver() {
 // Start editor auth check after all functions are loaded
 // ----------------------------------------------------
 checkEditorAuth();
+
+// ---------- Dropdown toggle fix ----------
+const dropdownMenus = document.querySelectorAll('.toolbar-dropdown-menu');
+const dropdownButtons = document.querySelectorAll('.toolbar-dropdown > button');
+
+function closeAllMenus() {
+  dropdownMenus.forEach(menu => menu.classList.remove('show'));
+}
+
+function toggleMenu(menu) {
+  const isOpen = menu.classList.contains('show');
+  closeAllMenus();
+  if (!isOpen) menu.classList.add('show');
+}
+
+dropdownButtons.forEach(btn => {
+  btn.addEventListener('click', e => {
+    const menu = btn.nextElementSibling;
+    if (menu && menu.classList.contains('toolbar-dropdown-menu')) {
+      e.stopPropagation();
+      toggleMenu(menu);
+    }
+  });
+});
+
+// Close dropdowns when clicking outside
+document.body.addEventListener('click', () => closeAllMenus());
+
+// Optional: Escape key closes any open dropdown
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAllMenus(); });
+
+// ---------- Font-color option alignment fix ----------
+const fontColorOptions = document.querySelectorAll('.toolbar-dropdown-menu .font-color-option');
+fontColorOptions.forEach(option => {
+  option.style.display = 'flex';
+  option.style.alignItems = 'center';
+  option.style.justifyContent = 'center';
+  option.style.padding = '0';
+  option.style.lineHeight = '1';
+  option.style.boxSizing = 'border-box';
+});
