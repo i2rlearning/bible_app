@@ -286,6 +286,10 @@
   background: #fff;
   font-weight: bold;
   cursor: pointer;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .toolbar-dropdown-menu .font-color-option:hover {
