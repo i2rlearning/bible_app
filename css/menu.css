@@ -131,8 +131,8 @@ a.current {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .language-row {
