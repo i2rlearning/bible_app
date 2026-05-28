@@ -123,13 +123,16 @@ function getEditorSaveStatusElement() {
     status.className = "editor-save-status";
     status.textContent = "";
 
-    // Place in the top sticky header
     const stickyHeader = document.getElementById("stickyHeader");
-
     if (stickyHeader) {
-      stickyHeader.appendChild(status);
+      // find the column or element just before where you want it
+      const reference = stickyHeader.querySelector(".column:nth-child(4)"); // adjust number
+      if (reference && reference.parentNode) {
+        reference.parentNode.insertBefore(status, reference.nextSibling);
+      } else {
+        stickyHeader.appendChild(status);
+      }
     } else {
-      // fallback if stickyHeader not found
       document.body.appendChild(status);
     }
   }
