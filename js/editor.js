@@ -123,9 +123,10 @@ function getEditorSaveStatusElement() {
     status.className = "editor-save-status";
     status.textContent = "";
 
-    const stickyHeader = document.getElementById("stickyHeader");
-    if (stickyHeader) {
-      stickyHeader.appendChild(status); // append anywhere in the flex container
+    // Place inside the main flex container of stickyHeader
+    const flexContainer = document.querySelector("#stickyHeader .container.flex");
+    if (flexContainer) {
+      flexContainer.appendChild(status);  // append anywhere
     } else {
       document.body.appendChild(status);
     }
