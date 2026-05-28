@@ -130,6 +130,7 @@ a.current {
 .custom-combobox {
   display: inline-block;
   vertical-align: middle;
+  height: auto;
 }
 
 .language-row {
