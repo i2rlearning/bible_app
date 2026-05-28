@@ -123,14 +123,21 @@ function getEditorSaveStatusElement() {
     status.className = "editor-save-status";
     status.textContent = "";
 
-    // Place it directly in the Quill toolbar
-    const navbar = document.getElementById("top-navbar"); // adjust to your navbar's actual ID
-    if (navbar) {
-      navbar.appendChild(status);
-      status.style.marginLeft = "10px";
+    // Place in the top sticky header
+    const stickyHeader = document.getElementById("stickyHeader");
+
+    if (stickyHeader) {
+      stickyHeader.appendChild(status);
+
+      // Optional styling to float it to the right
+      status.style.marginLeft = "20px";
       status.style.color = "green";
       status.style.fontWeight = "bold";
+      status.style.fontStyle = "normal";
+      status.style.display = "inline-block";
+      status.style.verticalAlign = "middle";
     } else {
+      // fallback if stickyHeader not found
       document.body.appendChild(status);
     }
   }
