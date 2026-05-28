@@ -124,12 +124,15 @@ function getEditorSaveStatusElement() {
     status.textContent = "";
 
     const separator = document.getElementById("separator-bar"); 
-    const referenceButton = document.getElementById("logout") || document.getElementById("login");
-    
+    // const referenceButton = document.getElementById("logout") || document.getElementById("login");
+
     if (separator && separator.parentNode) {
       separator.parentNode.insertBefore(status, separator.nextSibling);       
-      status.style.marginLeft = "10px"; // adjust spacing as needed for Save position
+      status.style.marginLeft = "10px";  //Save distance from separator bar
+    } else {
+      document.body.appendChild(status);
     }
+  }
   return status;
 }
 
