@@ -129,8 +129,25 @@ a.current {
 /* --- Language dropdown --- */
 .custom-combobox {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start; 
   vertical-align: middle;
+}
+
+#langInput {
+  -webkit-appearance: none; /* Chrome/Safari */
+  -moz-appearance: none;    /* Firefox */
+  appearance: none;         /* modern browsers */
+  min-width: 130px;
+  height: 48px;             /* desired height */
+  padding: 8px 10px;        /* adjust vertical spacing */
+  background: #fff;
+  color: #222;
+  border: 1px solid #2f9ae0;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 16px;
+  font-family: Arial, sans-serif;
+  cursor: pointer;
 }
 
 .language-row {
@@ -146,20 +163,6 @@ a.current {
   color: #555;
   white-space: nowrap;
   font-family: Arima, sans-serif;
-}
-
-#langInput {
-  min-width: 130px;
-  height: 42px;
-  background: #fff;
-  color: #222;
-  border: 1px solid #2f9ae0;
-  border-radius: 4px;
-  padding: 6px 10px;
-  box-sizing: border-box;
-  font-size: 16px;
-  font-family: Arial, sans-serif;
-  cursor: pointer;
 }
 
 #langInput:focus {
