@@ -130,8 +130,10 @@ a.current {
 .custom-combobox {
   display: inline-flex;
   align-items: center;
-  height: 80% !important;               
+  /* height: 80% !important;                */
   vertical-align: middle;
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
 .language-row {
