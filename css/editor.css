@@ -510,15 +510,13 @@ body.editor-locked-state .ql-toolbar {
 
 /************* Editor save status in navbar *************/
 .editor-save-status {
-  /* display: inline-block; */
-  margin-left: auto;
-  font-size: 15px;         /* keep same size */
-  color: green;             /* bright color to notice */
-  font-style: normal;       /* remove italic for readability */
-  font-weight: bold;        /* make it stand out */
+  margin-left: auto;  /* pushes it to the far right in the flex container */
+  color: green;
+  font-weight: bold;
+  font-style: normal;
+  display: inline-block;
   vertical-align: middle;
- /* line-height: 1;
-  min-width: 50px; */
+  min-width: 50px;
 }
 
 .editor-save-status-saving {
