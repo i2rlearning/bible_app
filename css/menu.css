@@ -138,7 +138,7 @@ a.current {
   -moz-appearance: none;    /* Firefox */
   appearance: none;         /* modern browsers */
   min-width: 130px;
-  height: 48px;             /* desired height */
+  height: 24px;             /* desired height */
   padding: 8px 10px;        /* adjust vertical spacing */
   background: #fff;
   color: #222;
