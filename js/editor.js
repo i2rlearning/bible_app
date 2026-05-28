@@ -508,6 +508,7 @@ function scheduleQuillNotesSave() {
   if (!editorToolsUnlocked) return;
   if (!quillNotesLoaded) return;
 
+  alert("Saving...");
   setEditorSaveStatus("Saving...");
 
   clearTimeout(quillSaveTimer);
