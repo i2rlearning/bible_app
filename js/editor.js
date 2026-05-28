@@ -128,14 +128,6 @@ function getEditorSaveStatusElement() {
 
     if (stickyHeader) {
       stickyHeader.appendChild(status);
-
-      // Optional styling to float it to the right
-      status.style.marginLeft = "20px";
-      status.style.color = "green";
-      status.style.fontWeight = "bold";
-      status.style.fontStyle = "normal";
-     // status.style.display = "inline-block";
-      status.style.verticalAlign = "middle";
     } else {
       // fallback if stickyHeader not found
       document.body.appendChild(status);
