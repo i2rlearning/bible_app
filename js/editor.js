@@ -125,13 +125,7 @@ function getEditorSaveStatusElement() {
 
     const stickyHeader = document.getElementById("stickyHeader");
     if (stickyHeader) {
-      // find the column or element just before where you want it
-      const reference = stickyHeader.querySelector(".column:nth-child(5)"); // adjust number
-      if (reference && reference.parentNode) {
-        reference.parentNode.insertBefore(status, reference.nextSibling);
-      } else {
-        stickyHeader.appendChild(status);
-      }
+      stickyHeader.appendChild(status); // append anywhere in the flex container
     } else {
       document.body.appendChild(status);
     }
