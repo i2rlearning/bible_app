@@ -135,37 +135,36 @@ a.current {
 
 .language-row {
   display: flex;
-  align-items: center;        /* This is key */
-  gap: 8px;
-  height: 100%;               /* Make it fill the subheader height */
+  align-items: center;
+  gap: 6px;
+  width: auto;
 }
 
 .language-label {
-  font-size: 15px;            /* Reduced from 25px — too big */
-  font-weight: 600;
+  font-size: 25px;
+  font-weight: bold;
   color: #555;
   white-space: nowrap;
   font-family: Arima, sans-serif;
-  line-height: 1.2;
 }
 
 #langInput {
-  height: 32px;               /* Match your Login button height */
   min-width: 130px;
-  padding: 6px 10px;          /* Better vertical padding */
-  font-size: 14px;            /* Slightly smaller */
+  height: 34px;
   background: #fff;
-  border: 1px solid #2f9ae0;
-  border-radius: 6px;
   color: #222;
-  cursor: pointer;
+  border: 1px solid #2f9ae0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 16px;
   font-family: Arial, sans-serif;
+  cursor: pointer;
 }
 
 #langInput:focus {
   outline: none;
   border-color: #1f7fc2;
-  box-shadow: 0 0 0 3px rgba(47, 154, 224, 0.2);
+  box-shadow: 0 0 0 2px rgba(47, 154, 224, 0.15);
 }
 
 /* Optional: Make the dropdown arrow nicer */
