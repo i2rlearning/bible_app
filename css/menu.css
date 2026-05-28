@@ -135,36 +135,46 @@ a.current {
 
 .language-row {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
+  align-items: center;        /* This is key */
+  gap: 8px;
+  height: 100%;               /* Make it fill the subheader height */
 }
 
 .language-label {
-  font-size: 25px;
-  font-weight: bold;
+  font-size: 15px;            /* Reduced from 25px — too big */
+  font-weight: 600;
   color: #555;
   white-space: nowrap;
   font-family: Arima, sans-serif;
+  line-height: 1.2;
 }
 
 #langInput {
+  height: 32px;               /* Match your Login button height */
   min-width: 130px;
-  height: 34px;
+  padding: 6px 10px;          /* Better vertical padding */
+  font-size: 14px;            /* Slightly smaller */
   background: #fff;
-  color: #222;
   border: 1px solid #2f9ae0;
-  border-radius: 4px;
-  padding: 4px 10px;
-  font-size: 16px;
-  font-family: Arial, sans-serif;
+  border-radius: 6px;
+  color: #222;
   cursor: pointer;
+  font-family: Arial, sans-serif;
 }
 
 #langInput:focus {
   outline: none;
   border-color: #1f7fc2;
-  box-shadow: 0 0 0 2px rgba(47, 154, 224, 0.15);
+  box-shadow: 0 0 0 3px rgba(47, 154, 224, 0.2);
+}
+
+/* Optional: Make the dropdown arrow nicer */
+#langInput {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23333' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
 }
 
 /* --- Responsive Adjustments --- */
