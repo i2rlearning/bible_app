@@ -512,12 +512,13 @@ body.editor-locked-state .ql-toolbar {
 .editor-save-status {
   display: inline-block;
   margin-left: 10px;
-  font-size: 15px;
-  color: #667;
-  font-style: italic;
-  font-weight: normal;
+  font-size: 15px;         /* keep same size */
+  color: green;             /* bright color to notice */
+  font-style: normal;       /* remove italic for readability */
+  font-weight: bold;        /* make it stand out */
   vertical-align: middle;
   line-height: 1;
+  min-width: 50px;          /* ensures "Saved" fits without collapsing */
 }
 
 .editor-save-status-saving {
