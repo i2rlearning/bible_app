@@ -519,7 +519,6 @@ body.editor-locked-state .ql-toolbar {
   vertical-align: middle;
   line-height: 1;
   min-width: 50px;
-  z-index: 10000;
 }
 
 .editor-save-status-saving {
