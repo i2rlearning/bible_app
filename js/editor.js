@@ -123,16 +123,13 @@ function getEditorSaveStatusElement() {
     status.className = "editor-save-status";
     status.textContent = "";
 
-    const logoutButton = document.getElementById("logout");
-    const loginButton = document.getElementById("login");
-
-    if (logoutButton && logoutButton.parentNode) {
-      logoutButton.parentNode.insertBefore(status, logoutButton.nextSibling);
-    } else if (loginButton && loginButton.parentNode) {
-      loginButton.parentNode.insertBefore(status, loginButton.nextSibling);
+    const separator = document.getElementById("separator-bar"); 
+    const referenceButton = document.getElementById("logout") || document.getElementById("login");
+    
+    if (separator && separator.parentNode) {
+      separator.parentNode.insertBefore(status, separator.nextSibling);       
+      status.style.marginLeft = "10px"; // adjust spacing as needed for Save position
     }
-  }
-
   return status;
 }
 
