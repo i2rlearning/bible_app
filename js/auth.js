@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (loginButton) {
       loginButton.style.display = "none";
       loginButton.disabled = true;
-      loginButton.title = user?.primaryEmailAddress?.emailAddress || "Logged in";
+      //loginButton.title = user?.primaryEmailAddress?.emailAddress || "Logged in";
     }
 
     if (signupButton) {
