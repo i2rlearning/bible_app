@@ -110,10 +110,10 @@
   color: white;
 }
 
-/* Hide old red X close button if it still exists somewhere */
+/* Hide old red X close button if it still exists somewhere 
 .overlay .closebtn {
   display: none;
-}
+}*/
 
 /* --- Menu Link States --- */
 a.disabled {
