@@ -134,7 +134,7 @@ function getEditorSaveStatusElement() {
       status.style.color = "green";
       status.style.fontWeight = "bold";
       status.style.fontStyle = "normal";
-      status.style.display = "inline-block";
+     // status.style.display = "inline-block";
       status.style.verticalAlign = "middle";
     } else {
       // fallback if stickyHeader not found
