@@ -109,20 +109,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openLogin() {
     console.log("Login button clicked");
-
-    const returnTo = window.location.href || "https://bible.branchofisrael.com/";
-
-    window.location.href =
-      "/sign-in?redirect=" + encodeURIComponent(returnTo);
+    const returnTo = window.location.href;
+  
+    // Dynamically uses the current folder context instead of forcing the absolute domain root
+    window.location.href = "sign-in?redirect=" + encodeURIComponent(returnTo);
   }
-
+  
   function openSignup() {
     console.log("Signup button clicked");
-
-    const returnTo = window.location.href || "https://bible.branchofisrael.com/";
-
-    window.location.href =
-      "/sign-up?redirect=" + encodeURIComponent(returnTo);
+    const returnTo = window.location.href;
+  
+    window.location.href = "sign-up?redirect=" + encodeURIComponent(returnTo);
   }
 
   // ==========================================
