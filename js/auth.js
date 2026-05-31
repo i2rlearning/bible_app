@@ -111,15 +111,16 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Login button clicked");
     const returnTo = window.location.href;
   
-    // Dynamically uses the current folder context instead of forcing the absolute domain root
-    window.location.href = "sign-in?redirect=" + encodeURIComponent(returnTo);
+    // Add .html to the path
+    window.location.href = "sign-in.html?redirect=" + encodeURIComponent(returnTo);
   }
   
   function openSignup() {
     console.log("Signup button clicked");
     const returnTo = window.location.href;
   
-    window.location.href = "sign-up?redirect=" + encodeURIComponent(returnTo);
+    // Add .html to the path
+    window.location.href = "sign-up.html?redirect=" + encodeURIComponent(returnTo);
   }
 
   // ==========================================
