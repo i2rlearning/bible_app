@@ -166,10 +166,18 @@
        </button>
      
        <div id="draw-menu" class="toolbar-dropdown-menu">
-         <button type="button" onclick="setDrawingTool('circle'); closeDrawMenu();" data-drawing-tool="circle" title="Draw Circle">◯</button>
-         <button type="button" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Draw Square">⬜</button>
-         <button type="button" onclick="setDrawingTool('freehand'); closeDrawMenu();" data-drawing-tool="freehand" title="Freehand Draw">✎</button>
-       </div>
+          <button type="button" onclick="setDrawingTool('circle'); closeDrawMenu();" data-drawing-tool="circle" title="Draw Circle" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+          </button>
+        
+          <button type="button" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Draw Square" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          </button>
+        
+          <button type="button" onclick="setDrawingTool('freehand'); closeDrawMenu();" data-drawing-tool="freehand" title="Freehand Draw" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+        </div>
      </div>    
           
       <span class="toolbar-separator">|</span>
