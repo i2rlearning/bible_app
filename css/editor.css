@@ -322,6 +322,7 @@
   color: #6c2eb1 !important;
 }
 
+/* Appends the arrow to the end of the button */
 .dropdown-btn {
   display: inline-flex;
   align-items: center;
@@ -330,7 +331,6 @@
   cursor: pointer;
 }
 
-/* Appends the arrow to the end of the button */
 .dropdown-btn::after {
   content: "";
   display: inline-block;
@@ -340,6 +340,7 @@
   background-repeat: no-repeat;
   background-size: contain;
 }
+
 /************* Drawing layer *************/
 #bible-annotation-layer {
   position: absolute;
