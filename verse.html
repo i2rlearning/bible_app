@@ -324,8 +324,11 @@
       getChapterText(bibleChapterID)
           .then((content) => {
             document.getElementById("bible-text").innerHTML = content;
-            resizeAnnotationLayer();
-            updateBibleZoomLayout();
+        
+            requestAnimationFrame(() => {
+              resizeAnnotationLayer();
+              updateBibleZoomLayout();
+            });
           })
           .catch((error) => {
             console.error("Failed to load chapter text:", error);
