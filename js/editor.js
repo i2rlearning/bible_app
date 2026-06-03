@@ -589,6 +589,17 @@ function applyMiniEditorState(miniEditorJson) {
     annotationLayer.innerHTML = miniEditorJson.annotationLayerHtml;
   }
 
+  // Important: recalculate the drawing layer after saved text/drawings are restored
+  requestAnimationFrame(() => {
+    if (typeof resizeAnnotationLayer === "function") {
+      resizeAnnotationLayer();
+    }
+
+    if (typeof updateBibleZoomLayout === "function") {
+      updateBibleZoomLayout();
+    }
+  });
+
   setTimeout(() => {
     miniEditorApplyingState = false;
   }, 300);
