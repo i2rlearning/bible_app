@@ -667,6 +667,31 @@ function getClerkFrontendDomainFromKey(publishableKey) {
   return atob(publishableKey.split("_")[2]).slice(0, -1);
 }
 
+function loadScriptOnce(id, src, attributes = {}) {
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(id);
+
+    if (existing) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.async = true;
+
+    Object.entries(attributes).forEach(([key, value]) => {
+      script.setAttribute(key, value);
+    });
+
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+
+    document.head.appendChild(script);
+  });
+}
+
 window.addEventListener("load", async () => {
   console.log("Window fully loaded. Loading Clerk with UI...");
 
@@ -720,29 +745,4 @@ window.addEventListener("load", async () => {
   } catch (error) {
     console.error("Failed to initialize Clerk:", error);
   }
-
-//Clerk loader calls load script once  
-function loadScriptOnce(id, src, attributes = {}) {
-  return new Promise((resolve, reject) => {
-    const existing = document.getElementById(id);
-
-    if (existing) {
-      resolve();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = id;
-    script.src = src;
-    script.async = true;
-
-    Object.entries(attributes).forEach(([key, value]) => {
-      script.setAttribute(key, value);
-    });
-
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-
-    document.head.appendChild(script);
-  });
-}
+});
