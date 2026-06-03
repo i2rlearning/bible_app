@@ -107,62 +107,48 @@ document.addEventListener("DOMContentLoaded", () => {
     return window.Clerk || window.clerk || null;
   }
 
-  async function ensureClerkReady() {
+  async function openLogin() {
+  console.log("Login button clicked");
+
   const clerkObj = getClerkObject();
 
   if (!clerkObj) {
-    throw new Error("Clerk is not loaded yet. Please try again in a moment.");
+    alert("Clerk is still loading. Please try again in a moment.");
+    return;
   }
 
-  if (!clerkObj.loaded && typeof clerkObj.load === "function") {
-    await clerkObj.load();
+  if (typeof clerkObj.openSignIn === "function") {
+    clerkObj.openSignIn({
+      forceRedirectUrl: window.location.href,
+      signUpForceRedirectUrl: window.location.href,
+      oauthFlow: "popup"
+    });
+    return;
   }
 
-  return clerkObj;
-}
-
-async function openLogin() {
-  console.log("Login button clicked");
-
-  try {
-    const clerkObj = await ensureClerkReady();
-
-    if (typeof clerkObj.openSignIn === "function") {
-      clerkObj.openSignIn({
-        afterSignInUrl: window.location.href,
-        afterSignUpUrl: window.location.href
-      });
-      return;
-    }
-
-    // Fallback only if popup is not available
-    window.location.href = "sign-in.html?redirect=" + encodeURIComponent(window.location.href);
-  } catch (error) {
-    console.error("Could not open Clerk sign-in modal:", error);
-    alert(error.message || "Could not open login.");
-  }
+  window.location.href = "sign-in.html?redirect=" + encodeURIComponent(window.location.href);
 }
 
 async function openSignup() {
   console.log("Signup button clicked");
 
-  try {
-    const clerkObj = await ensureClerkReady();
+  const clerkObj = getClerkObject();
 
-    if (typeof clerkObj.openSignUp === "function") {
-      clerkObj.openSignUp({
-        afterSignInUrl: window.location.href,
-        afterSignUpUrl: window.location.href
-      });
-      return;
-    }
-
-    // Fallback only if popup is not available
-    window.location.href = "sign-up.html?redirect=" + encodeURIComponent(window.location.href);
-  } catch (error) {
-    console.error("Could not open Clerk sign-up modal:", error);
-    alert(error.message || "Could not open signup.");
+  if (!clerkObj) {
+    alert("Clerk is still loading. Please try again in a moment.");
+    return;
   }
+
+  if (typeof clerkObj.openSignUp === "function") {
+    clerkObj.openSignUp({
+      forceRedirectUrl: window.location.href,
+      signInForceRedirectUrl: window.location.href,
+      oauthFlow: "popup"
+    });
+    return;
+  }
+
+  window.location.href = "sign-up.html?redirect=" + encodeURIComponent(window.location.href);
 }
 
   // ==========================================
@@ -673,14 +659,28 @@ async function openSignup() {
 });
 
 // =========================================================================
-//  2. SIMPLE CLERK LOADER - NO EMBEDDED POPUP
+//  2. CLERK LOADER WITH UI COMPONENTS
 // =========================================================================
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
 
+function getClerkFrontendDomainFromKey(publishableKey) {
+  return atob(publishableKey.split("_")[2]).slice(0, -1);
+}
+
 window.addEventListener("load", async () => {
-  console.log("Window fully loaded. Loading Clerk...");
+  console.log("Window fully loaded. Loading Clerk with UI...");
 
   try {
+    const clerkDomain = getClerkFrontendDomainFromKey(CLERK_PUBLISHABLE_KEY);
+
+    await loadScriptOnce(
+      "clerk-ui-script",
+      `https://${clerkDomain}/npm/@clerk/ui@1/dist/ui.browser.js`,
+      {
+        crossorigin: "anonymous"
+      }
+    );
+
     await loadScriptOnce(
       "clerk-browser-script",
       "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js",
@@ -696,9 +696,13 @@ window.addEventListener("load", async () => {
       return;
     }
 
-    await clerkObj.load();
+    await clerkObj.load({
+      ui: {
+        ClerkUI: window.__internal_ClerkUICtor
+      }
+    });
 
-    console.log("Clerk loaded.");
+    console.log("Clerk loaded with UI components.");
     console.log("Clerk user:", clerkObj.user);
     console.log("Clerk session:", clerkObj.session);
 
@@ -716,8 +720,8 @@ window.addEventListener("load", async () => {
   } catch (error) {
     console.error("Failed to initialize Clerk:", error);
   }
-});
 
+//Clerk loader calls load script once  
 function loadScriptOnce(id, src, attributes = {}) {
   return new Promise((resolve, reject) => {
     const existing = document.getElementById(id);
@@ -731,13 +735,12 @@ function loadScriptOnce(id, src, attributes = {}) {
     script.id = id;
     script.src = src;
     script.async = true;
-    script.crossOrigin = "anonymous";
 
     Object.entries(attributes).forEach(([key, value]) => {
       script.setAttribute(key, value);
     });
 
-    script.onload = resolve;
+    script.onload = () => resolve();
     script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
 
     document.head.appendChild(script);
