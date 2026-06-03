@@ -321,11 +321,17 @@
       });
     
       // ******************* Load chapter text *********************
-      getChapterText(bibleChapterID).then((content) => {
-        document.getElementById("bible-text").innerHTML = content;
-        resizeAnnotationLayer();
-        updateBibleZoomLayout();
-      });
+      getChapterText(bibleChapterID)
+          .then((content) => {
+            document.getElementById("bible-text").innerHTML = content;
+            resizeAnnotationLayer();
+            updateBibleZoomLayout();
+          })
+          .catch((error) => {
+            console.error("Failed to load chapter text:", error);
+            document.getElementById("bible-text").innerHTML =
+              "<p>Could not load chapter text. Please try again later.</p>";
+          });
     
       /**
        * Gets verses from API.Bible
@@ -362,30 +368,49 @@
        * Gets chapter text from API.Bible
        */
       function getChapterText(bibleChapterID) {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.withCredentials = false;
-    
-          xhr.addEventListener(`readystatechange`, function () {
-            if (this.readyState === this.DONE) {
-              const { data, meta } = JSON.parse(this.responseText);
-    
-              _BAPI.t(meta.fumsId);
-              resolve(data.content);
-            }
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.withCredentials = false;
+        
+            xhr.addEventListener("readystatechange", function () {
+              if (this.readyState === this.DONE) {
+                try {
+                  if (this.status < 200 || this.status >= 300) {
+                    console.error("API.Bible chapter request failed:", this.status, this.responseText);
+                    reject(new Error(`API.Bible request failed with status ${this.status}`));
+                    return;
+                  }
+        
+                  const { data, meta } = JSON.parse(this.responseText);
+        
+                  if (meta && meta.fumsId && window._BAPI && typeof window._BAPI.t === "function") {
+                    try {
+                      window._BAPI.t(meta.fumsId);
+                    } catch (error) {
+                      console.warn("FUMS tracking failed:", error);
+                    }
+                  }
+        
+                  resolve(data.content);
+                } catch (error) {
+                  console.error("Could not parse/load chapter text:", error);
+                  reject(error);
+                }
+              }
+            });
+        
+            xhr.open(
+              "GET",
+              `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}`
+            );
+        
+            xhr.setRequestHeader("api-key", API_KEY);
+        
+            xhr.onerror = () => reject(new Error(xhr.statusText || "Network error"));
+        
+            xhr.send();
           });
-    
-          xhr.open(
-            `GET`,
-            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}`
-          );
-          xhr.setRequestHeader(`api-key`, API_KEY);
-    
-          xhr.onerror = () => reject(xhr.statusText);
-    
-          xhr.send();
-        });
-      }
+        }
     
       function getSections(bibleVersionID, bibleBookID) {
         return new Promise((resolve, reject) => {
