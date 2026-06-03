@@ -181,11 +181,16 @@
   max-height: none !important;
 }
 
-#bible-text {
-  padding: 20px;
+##bible-text {
+  padding: 20px 20px 8px 20px;
   font-size: 18px;
   line-height: 1.7;
   user-select: text;
+}
+
+#bible-text p:last-child,
+#bible-text div:last-child {
+  margin-bottom: 0 !important;
 }
 
 #bible-drawing-area {
