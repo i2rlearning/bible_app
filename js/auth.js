@@ -107,21 +107,63 @@ document.addEventListener("DOMContentLoaded", () => {
     return window.Clerk || window.clerk || null;
   }
 
-  function openLogin() {
-    console.log("Login button clicked");
-    const returnTo = window.location.href;
-  
-    // Add .html to the path
-    window.location.href = "sign-in.html?redirect=" + encodeURIComponent(returnTo);
+  async function ensureClerkReady() {
+  const clerkObj = getClerkObject();
+
+  if (!clerkObj) {
+    throw new Error("Clerk is not loaded yet. Please try again in a moment.");
   }
-  
-  function openSignup() {
-    console.log("Signup button clicked");
-    const returnTo = window.location.href;
-  
-    // Add .html to the path
-    window.location.href = "sign-up.html?redirect=" + encodeURIComponent(returnTo);
+
+  if (!clerkObj.loaded && typeof clerkObj.load === "function") {
+    await clerkObj.load();
   }
+
+  return clerkObj;
+}
+
+async function openLogin() {
+  console.log("Login button clicked");
+
+  try {
+    const clerkObj = await ensureClerkReady();
+
+    if (typeof clerkObj.openSignIn === "function") {
+      clerkObj.openSignIn({
+        afterSignInUrl: window.location.href,
+        afterSignUpUrl: window.location.href
+      });
+      return;
+    }
+
+    // Fallback only if popup is not available
+    window.location.href = "sign-in.html?redirect=" + encodeURIComponent(window.location.href);
+  } catch (error) {
+    console.error("Could not open Clerk sign-in modal:", error);
+    alert(error.message || "Could not open login.");
+  }
+}
+
+async function openSignup() {
+  console.log("Signup button clicked");
+
+  try {
+    const clerkObj = await ensureClerkReady();
+
+    if (typeof clerkObj.openSignUp === "function") {
+      clerkObj.openSignUp({
+        afterSignInUrl: window.location.href,
+        afterSignUpUrl: window.location.href
+      });
+      return;
+    }
+
+    // Fallback only if popup is not available
+    window.location.href = "sign-up.html?redirect=" + encodeURIComponent(window.location.href);
+  } catch (error) {
+    console.error("Could not open Clerk sign-up modal:", error);
+    alert(error.message || "Could not open signup.");
+  }
+}
 
   // ==========================================
   // BACKEND FETCH UTILITIES
