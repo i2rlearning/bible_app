@@ -554,6 +554,72 @@ function waitForBibleTextContent(maxWaitMs = 5000) {
 }
 
 // ----------------------------------------------------
+// Bible annotation layout helpers
+// ----------------------------------------------------
+function resizeAnnotationLayer() {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText || !annotationLayer) return;
+
+  const width = Math.ceil(bibleText.scrollWidth);
+  const height = Math.ceil(bibleText.scrollHeight);
+
+  annotationLayer.setAttribute("width", String(width));
+  annotationLayer.setAttribute("height", String(height));
+  annotationLayer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  annotationLayer.setAttribute("preserveAspectRatio", "none");
+
+  annotationLayer.style.width = `${width}px`;
+  annotationLayer.style.height = `${height}px`;
+}
+
+let bibleLayoutRefreshFrame = null;
+
+function refreshBibleAnnotationLayout() {
+  if (bibleLayoutRefreshFrame) {
+    cancelAnimationFrame(bibleLayoutRefreshFrame);
+  }
+
+  bibleLayoutRefreshFrame = requestAnimationFrame(() => {
+    resizeAnnotationLayer();
+
+    if (typeof updateBibleZoomLayout === "function") {
+      updateBibleZoomLayout();
+    }
+
+    bibleLayoutRefreshFrame = null;
+  });
+}
+
+let bibleLayoutObserverStarted = false;
+let bibleTextResizeObserver = null;
+
+function startBibleLayoutObservers() {
+  if (bibleLayoutObserverStarted) return;
+
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText) return;
+
+  bibleLayoutObserverStarted = true;
+
+  if (typeof ResizeObserver !== "undefined") {
+    bibleTextResizeObserver = new ResizeObserver(() => {
+      refreshBibleAnnotationLayout();
+    });
+
+    bibleTextResizeObserver.observe(bibleText);
+  }
+
+  window.addEventListener("resize", refreshBibleAnnotationLayout);
+
+  window.addEventListener("orientationchange", () => {
+    setTimeout(refreshBibleAnnotationLayout, 250);
+  });
+}
+
+// ----------------------------------------------------
 // Mini-editor save/load
 // ----------------------------------------------------
 let miniEditorSaveTimer = null;
@@ -591,12 +657,8 @@ function applyMiniEditorState(miniEditorJson) {
 
   // Important: recalculate the drawing layer after saved text/drawings are restored
   requestAnimationFrame(() => {
-    if (typeof resizeAnnotationLayer === "function") {
-      resizeAnnotationLayer();
-    }
-
-    if (typeof updateBibleZoomLayout === "function") {
-      updateBibleZoomLayout();
+    if (typeof refreshBibleAnnotationLayout === "function") {
+      refreshBibleAnnotationLayout();
     }
   });
 
@@ -650,10 +712,12 @@ async function loadMiniEditorPage() {
     }
 
     miniEditorLoaded = true;
+    startBibleLayoutObservers();
     startMiniEditorObserver();
   } catch (error) {
     console.error("Load mini-editor page error:", error);
     miniEditorLoaded = true;
+    startBibleLayoutObservers();
     startMiniEditorObserver();
   }
 }
