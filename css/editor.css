@@ -186,6 +186,7 @@
   font-size: 18px;
   line-height: 1.7;
   user-select: text;
+  box-sizing: border-box;
 }
 
 #bible-text p:last-child,
@@ -197,16 +198,21 @@
   position: relative;
   cursor: text;
   transform-origin: top left;
+  box-sizing: border-box;
 }
 
 #bible-drawing-area.drawing-mode {
   cursor: crosshair;
+  touch-action: none;
 }
 
 #bible-drawing-area.drawing-mode,
 #bible-drawing-area.drawing-mode * {
   user-select: none;
 }
+
+box-sizing: border-box;
+touch-action: none;
 
 /************* User-added Bible text annotations *************/
 .eb-container .bible-user-format.bold {
@@ -347,13 +353,14 @@
 }
 
 /************* Drawing layer *************/
+/************* Drawing layer *************/
 #bible-annotation-layer {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  left: 0;
+  top: 0;
   pointer-events: none;
   overflow: visible;
+  display: block;
 }
 
 .drawn-annotation {
