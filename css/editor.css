@@ -702,9 +702,6 @@ body.editor-locked-state .ql-toolbar {
 .overlay-content a.disabled {
   opacity: 0.45;
   pointer-events: none;
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translateY(0);
-  max-height: 60px;
 }
 
 /************* Auth buttons in header of My Notes *************/
