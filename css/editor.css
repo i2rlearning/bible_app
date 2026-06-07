@@ -211,6 +211,10 @@
   user-select: none;
 }
 
+#bible-drawing-area.drawing-mode #bible-annotation-layer {
+  pointer-events: auto;
+}
+
 /************* User-added Bible text annotations *************/
 .eb-container .bible-user-format.bold {
   font-weight: 900 !important;
