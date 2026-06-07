@@ -100,7 +100,7 @@ quill.root.addEventListener(
       e.stopPropagation();
 
       // 2. Alert the user
-      alert("Direct image pasting is disabled. Please save the image to your computer and use the 'Insert Image' button to insert it.");
+      alert("Direct image pasting is not allowed. Please save the image to your computer and use the 'Insert Image' button to insert it.");
     }
 
     // If there is NO image (just text), the code does nothing
