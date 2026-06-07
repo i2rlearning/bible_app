@@ -204,11 +204,15 @@
 #bible-drawing-area.drawing-mode {
   cursor: crosshair;
   touch-action: none;
+  overscroll-behavior: contain;
 }
 
 #bible-drawing-area.drawing-mode,
 #bible-drawing-area.drawing-mode * {
   user-select: none;
+  /* Safari browser*/
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 #bible-drawing-area.drawing-mode #bible-annotation-layer {
@@ -851,4 +855,16 @@ body.editor-locked-state .ql-toolbar {
 
 .timeout-button:hover {
   box-shadow:0 8px 16px 0 rgba(0,0,0,0.6);
+}
+
+/******************** RESPONSIVE ***********/
+@media (max-width: 768px) {
+  #bible-mini-toolbar {
+    width: calc(100vw - 16px);
+    min-width: 0;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    justify-content: flex-start;
+    box-sizing: border-box;
+  }
 }
