@@ -1242,10 +1242,29 @@ function clearDrawnAnnotations() {
   currentFreehandGroup = null;
 }
 
-drawingArea.addEventListener("mousedown", function (event) {
+function handleDrawingPointerDown(event) {
   if (!activeDrawingTool) return;
 
+  // Mouse should only draw with the main left button
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  // Do not allow a second finger or pointer while drawing
+  if (activePointerId !== null) {
+    return;
+  }
+
   event.preventDefault();
+
+  activePointerId = event.pointerId;
+  activePointerType = event.pointerType;
+
+  try {
+    drawingArea.setPointerCapture(event.pointerId);
+  } catch (error) {
+    console.warn("Could not capture pointer:", error);
+  }
 
   isDrawing = true;
   selectedDrawnAnnotation = null;
@@ -1253,6 +1272,84 @@ drawingArea.addEventListener("mousedown", function (event) {
   document.querySelectorAll(".drawn-annotation").forEach((shape) => {
     shape.classList.remove("selected-annotation");
   });
+
+  function handleDrawingPointerMove(event) {
+    if (!isDrawing || !currentShape) return;
+  
+    // Ignore other fingers or pointers
+    if (event.pointerId !== activePointerId) return;
+  
+    event.preventDefault();
+  
+    const point = getDrawingCoordinates(event);
+  
+    const currentX = point.x;
+    const currentY = point.y;
+  
+    const x = Math.min(startX, currentX);
+    const y = Math.min(startY, currentY);
+    const width = Math.abs(currentX - startX);
+    const height = Math.abs(currentY - startY);
+  
+    if (activeDrawingTool === "circle") {
+      currentShape.setAttribute("cx", x + width / 2);
+      currentShape.setAttribute("cy", y + height / 2);
+      currentShape.setAttribute("rx", width / 2);
+      currentShape.setAttribute("ry", height / 2);
+    }
+  
+    if (activeDrawingTool === "square") {
+      currentShape.setAttribute("x", x);
+      currentShape.setAttribute("y", y);
+      currentShape.setAttribute("width", width);
+      currentShape.setAttribute("height", height);
+    }
+  
+    if (activeDrawingTool === "freehand") {
+      freehandPoints.push(`L ${currentX} ${currentY}`);
+      currentShape.setAttribute("d", freehandPoints.join(" "));
+    }
+  }
+  
+  const point = getDrawingCoordinates(event);
+
+  startX = point.x;
+  startY = point.y;
+
+  if (activeDrawingTool === "circle") {
+    currentShape = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "ellipse"
+    );
+
+    currentShape.classList.add("drawn-annotation", "circle");
+    annotationLayer.appendChild(currentShape);
+  }
+
+  if (activeDrawingTool === "square") {
+    currentShape = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    );
+
+    currentShape.classList.add("drawn-annotation", "square");
+    annotationLayer.appendChild(currentShape);
+  }
+
+  if (activeDrawingTool === "freehand") {
+    freehandPoints = [`M ${startX} ${startY}`];
+
+    currentShape = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path"
+    );
+
+    currentShape.classList.add("freehand");
+    currentShape.setAttribute("d", freehandPoints.join(" "));
+
+    annotationLayer.appendChild(currentShape);
+  }
+}
 
   const rect = drawingArea.getBoundingClientRect();
 
@@ -1296,43 +1393,16 @@ drawingArea.addEventListener("mousedown", function (event) {
   }
 });
 
-drawingArea.addEventListener("mousemove", function (event) {
-  if (!isDrawing || !currentShape) return;
-
-  event.preventDefault();
-
-  const rect = drawingArea.getBoundingClientRect();
-
-  const currentX = (event.clientX - rect.left) / currentBibleZoom;
-  const currentY = (event.clientY - rect.top) / currentBibleZoom;
-
-  const x = Math.min(startX, currentX);
-  const y = Math.min(startY, currentY);
-  const width = Math.abs(currentX - startX);
-  const height = Math.abs(currentY - startY);
-
-  if (activeDrawingTool === "circle") {
-    currentShape.setAttribute("cx", x + width / 2);
-    currentShape.setAttribute("cy", y + height / 2);
-    currentShape.setAttribute("rx", width / 2);
-    currentShape.setAttribute("ry", height / 2);
-  }
-
-  if (activeDrawingTool === "square") {
-    currentShape.setAttribute("x", x);
-    currentShape.setAttribute("y", y);
-    currentShape.setAttribute("width", width);
-    currentShape.setAttribute("height", height);
-  }
-
-  if (activeDrawingTool === "freehand") {
-    freehandPoints.push(`L ${currentX} ${currentY}`);
-    currentShape.setAttribute("d", freehandPoints.join(" "));
-  }
-});
-
-function finishDrawingStroke() {
+function finishDrawingStroke(event) {
   if (!isDrawing) return;
+
+  if (
+    event &&
+    activePointerId !== null &&
+    event.pointerId !== activePointerId
+  ) {
+    return;
+  }
 
   if (activeDrawingTool === "freehand" && currentShape) {
     attachFreehandPathToGroup(currentShape);
@@ -1340,23 +1410,90 @@ function finishDrawingStroke() {
 
   isDrawing = false;
   currentShape = null;
+
+  if (
+    event &&
+    activePointerId !== null &&
+    drawingArea.hasPointerCapture(event.pointerId)
+  ) {
+    try {
+      drawingArea.releasePointerCapture(event.pointerId);
+    } catch (error) {
+      console.warn("Could not release pointer capture:", error);
+    }
+  }
+
+  activePointerId = null;
+  activePointerType = null;
 }
 
-drawingArea.addEventListener("mouseup", finishDrawingStroke);
-document.addEventListener("mouseup", finishDrawingStroke);
+drawingArea.addEventListener(
+  "pointerdown",
+  handleDrawingPointerDown
+);
 
-window.addEventListener("resize", function () {
-  resizeAnnotationLayer();
-  updateBibleZoomLayout();
+drawingArea.addEventListener(
+  "pointermove",
+  handleDrawingPointerMove
+);
+
+drawingArea.addEventListener(
+  "pointerup",
+  finishDrawingStroke
+);
+
+drawingArea.addEventListener(
+  "pointercancel",
+  cancelDrawingStroke
+);
+
+drawingArea.addEventListener("lostpointercapture", function (event) {
+  if (isDrawing && event.pointerId === activePointerId) {
+    finishDrawingStroke(event);
+  }
 });
+
+function cancelDrawingStroke(event) {
+  if (
+    activePointerId !== null &&
+    event.pointerId !== activePointerId
+  ) {
+    return;
+  }
+
+  if (currentShape) {
+    currentShape.remove();
+  }
+
+  isDrawing = false;
+  currentShape = null;
+  freehandPoints = [];
+
+  if (
+    activePointerId !== null &&
+    drawingArea.hasPointerCapture(event.pointerId)
+  ) {
+    try {
+      drawingArea.releasePointerCapture(event.pointerId);
+    } catch (error) {
+      console.warn("Could not release cancelled pointer:", error);
+    }
+  }
+
+  activePointerId = null;
+  activePointerType = null;
+}
 
 const miniToolbar = document.getElementById("bible-mini-toolbar");
 
 if (miniToolbar) {
-    miniToolbar.addEventListener("mousedown", function (event) {
-      event.preventDefault();
-  });
-}
+   miniToolbar.addEventListener("pointerdown", function (event) {
+  const control = event.target.closest("button, select");
+
+  if (!control) return;
+
+  rememberCurrentSelectionOffsets();
+});
   
 //********** Dropdown Buttons (highlighter - font color - draw) **********//
 function toggleHighlightMenu() {
