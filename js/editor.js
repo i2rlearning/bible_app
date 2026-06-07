@@ -827,166 +827,158 @@ function startMiniEditorObserver() {
   }
 }
 
+
 // ----------------------------------------------------
-// Start editor auth check after all functions are loaded
+// Mini-editor selection memory
 // ----------------------------------------------------
-checkEditorAuth();
+let savedBibleSelectionOffsets = null;
 
-// ******************* Mini-editor selection memory *********************
-  let savedBibleSelectionOffsets = null;
-  
-  function getTextOffsetWithinElement(root, targetNode, targetOffset) {
-    let offset = 0;
-  
-    const walker = document.createTreeWalker(
-      root,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-  
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-  
-      if (node === targetNode) {
-        return offset + targetOffset;
-      }
-  
-      offset += node.nodeValue.length;
-    }
-  
-    return offset;
-  }
-  
-  function getRangeFromTextOffsets(root, startOffset, endOffset) {
-    const range = document.createRange();
-    let currentOffset = 0;
-  
-    const walker = document.createTreeWalker(
-      root,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-  
-    let startSet = false;
-    let endSet = false;
-  
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      const nodeLength = node.nodeValue.length;
-      const nodeStart = currentOffset;
-      const nodeEnd = currentOffset + nodeLength;
-  
-      if (!startSet && startOffset >= nodeStart && startOffset <= nodeEnd) {
-        range.setStart(node, startOffset - nodeStart);
-        startSet = true;
-      }
-  
-      if (!endSet && endOffset >= nodeStart && endOffset <= nodeEnd) {
-        range.setEnd(node, endOffset - nodeStart);
-        endSet = true;
-        break;
-      }
-  
-      currentOffset = nodeEnd;
-    }
-  
-    if (!startSet || !endSet) {
-      return null;
-    }
-  
-    return range;
-  }
-  
-  function saveBibleSelection() {
-    const selection = window.getSelection();
-    const bibleText = document.getElementById("bible-text");
-  
-    if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
-      return;
-    }
-  
-    const range = selection.getRangeAt(0);
-  
-    if (!bibleText.contains(range.commonAncestorContainer)) {
-      return;
-    }
-  
-    savedBibleSelectionOffsets = {
-      start: getTextOffsetWithinElement(bibleText, range.startContainer, range.startOffset),
-      end: getTextOffsetWithinElement(bibleText, range.endContainer, range.endOffset)
-    };
-  }
-  
-  function restoreBibleSelection() {
-    const bibleText = document.getElementById("bible-text");
-  
-    if (!savedBibleSelectionOffsets || !bibleText) {
-      return false;
-    }
-  
-    const range = getRangeFromTextOffsets(
-      bibleText,
-      savedBibleSelectionOffsets.start,
-      savedBibleSelectionOffsets.end
-    );
-  
-    if (!range) {
-      return false;
-    }
-  
-    const selection = window.getSelection();
-  
-    selection.removeAllRanges();
-    selection.addRange(range);
-  
-    return true;
-  }
-  
-  function rememberCurrentSelectionOffsets() {
-    saveBibleSelection();
-  }
-  
-  document.addEventListener("selectionchange", saveBibleSelection); 
+function getTextOffsetWithinElement(root, targetNode, targetOffset) {
+  let offset = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 
-// ******************* Mini-editor text formatting *********************
-function applyBibleFormat(className) {
-    restoreBibleSelection();
-  
-    const selection = window.getSelection();
-  
-    if (!selection.rangeCount || selection.isCollapsed) return;
-  
-    const range = selection.getRangeAt(0);
-    const bibleText = document.getElementById("bible-text");
-  
-    if (!bibleText.contains(range.commonAncestorContainer)) return;
-  
-    saveBibleSelection();
-  
-    wrapSelectedTextNodes(range, className);
-  
-    restoreBibleSelection();
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+
+    if (node === targetNode) {
+      return offset + targetOffset;
+    }
+
+    offset += node.nodeValue.length;
   }
 
-function wrapSelectedTextNodes(range, className) {
-  const textNodes = [];
+  return offset;
+}
+
+function getRangeFromTextOffsets(root, startOffset, endOffset) {
+  const range = document.createRange();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+  let currentOffset = 0;
+  let startSet = false;
+  let endSet = false;
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const nodeLength = node.nodeValue.length;
+    const nodeStart = currentOffset;
+    const nodeEnd = currentOffset + nodeLength;
+
+    if (!startSet && startOffset >= nodeStart && startOffset <= nodeEnd) {
+      range.setStart(node, startOffset - nodeStart);
+      startSet = true;
+    }
+
+    if (!endSet && endOffset >= nodeStart && endOffset <= nodeEnd) {
+      range.setEnd(node, endOffset - nodeStart);
+      endSet = true;
+      break;
+    }
+
+    currentOffset = nodeEnd;
+  }
+
+  return startSet && endSet ? range : null;
+}
+
+function saveBibleSelection() {
+  const selection = window.getSelection();
   const bibleText = document.getElementById("bible-text");
 
+  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!bibleText.contains(range.commonAncestorContainer)) {
+    return;
+  }
+
+  savedBibleSelectionOffsets = {
+    start: getTextOffsetWithinElement(
+      bibleText,
+      range.startContainer,
+      range.startOffset
+    ),
+    end: getTextOffsetWithinElement(
+      bibleText,
+      range.endContainer,
+      range.endOffset
+    )
+  };
+}
+
+function restoreBibleSelection() {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!savedBibleSelectionOffsets || !bibleText) {
+    return false;
+  }
+
+  const range = getRangeFromTextOffsets(
+    bibleText,
+    savedBibleSelectionOffsets.start,
+    savedBibleSelectionOffsets.end
+  );
+
+  if (!range) {
+    return false;
+  }
+
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  return true;
+}
+
+function rememberCurrentSelectionOffsets() {
+  saveBibleSelection();
+}
+
+document.addEventListener("selectionchange", saveBibleSelection);
+
+// ----------------------------------------------------
+// Mini-editor text formatting
+// ----------------------------------------------------
+function applyBibleFormat(className) {
+  restoreBibleSelection();
+
+  const selection = window.getSelection();
+  const bibleText = document.getElementById("bible-text");
+
+  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!bibleText.contains(range.commonAncestorContainer)) {
+    return;
+  }
+
+  saveBibleSelection();
+  wrapSelectedTextNodes(range, className);
+  restoreBibleSelection();
+}
+
+function wrapSelectedTextNodes(range, className) {
+  const bibleText = document.getElementById("bible-text");
+  if (!bibleText) return;
+
+  const textNodes = [];
   const walker = document.createTreeWalker(
     bibleText,
     NodeFilter.SHOW_TEXT,
     {
       acceptNode(node) {
-        if (!node.nodeValue.trim()) {
-          return NodeFilter.FILTER_REJECT;
-        }
-
-        if (!range.intersectsNode(node)) {
+        if (!node.nodeValue.trim() || !range.intersectsNode(node)) {
           return NodeFilter.FILTER_REJECT;
         }
 
         return NodeFilter.FILTER_ACCEPT;
-      },
+      }
     }
   );
 
@@ -1019,39 +1011,37 @@ function wrapTextNodePart(textNode, range, className) {
 
   const span = document.createElement("span");
   span.classList.add("bible-user-format", className);
-
   selectedRange.surroundContents(span);
 }
 
 function clearBibleSelectionFormat() {
-    restoreBibleSelection();
-  
-    const selection = window.getSelection();
-  
-    if (!selection.rangeCount || selection.isCollapsed) return;
-  
-    const range = selection.getRangeAt(0);
-    const bibleText = document.getElementById("bible-text");
-  
-    if (!bibleText.contains(range.commonAncestorContainer)) return;
-  
-    saveBibleSelection();
-  
-    const userFormatSpans = Array.from(
-      bibleText.querySelectorAll(".bible-user-format")
-    ).filter((span) => {
-      return range.intersectsNode(span);
-    });
-  
-    userFormatSpans.forEach((span) => {
-      unwrapElement(span);
-    });
-  
-    restoreBibleSelection();
+  restoreBibleSelection();
+
+  const selection = window.getSelection();
+  const bibleText = document.getElementById("bible-text");
+
+  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+    return;
   }
+
+  const range = selection.getRangeAt(0);
+
+  if (!bibleText.contains(range.commonAncestorContainer)) {
+    return;
+  }
+
+  saveBibleSelection();
+
+  Array.from(bibleText.querySelectorAll(".bible-user-format"))
+    .filter((span) => range.intersectsNode(span))
+    .forEach(unwrapElement);
+
+  restoreBibleSelection();
+}
 
 function unwrapElement(element) {
   const parent = element.parentNode;
+  if (!parent) return;
 
   while (element.firstChild) {
     parent.insertBefore(element.firstChild, element);
@@ -1061,7 +1051,9 @@ function unwrapElement(element) {
   parent.normalize();
 }
 
-// ******************* Mini-editor drawing tools *********************
+// ----------------------------------------------------
+// Mini-editor drawing tools
+// ----------------------------------------------------
 let activeDrawingTool = null;
 let isDrawing = false;
 let startX = 0;
@@ -1069,37 +1061,49 @@ let startY = 0;
 let currentShape = null;
 let selectedDrawnAnnotation = null;
 let freehandPoints = [];
-
 let currentFreehandGroup = null;
 let freehandGroupCounter = 0;
-
 let activePointerId = null;
 let activePointerType = null;
 
 const FREEHAND_GROUP_TOUCH_PADDING = 10;
-
 const drawingArea = document.getElementById("bible-drawing-area");
 const annotationLayer = document.getElementById("bible-annotation-layer");
 
+function getCurrentBibleZoom() {
+  const zoom = Number(window.currentBibleZoom);
+  return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+}
+
 function getDrawingCoordinates(event) {
+  if (!drawingArea) {
+    return { x: 0, y: 0 };
+  }
+
   const rect = drawingArea.getBoundingClientRect();
+  const zoom = getCurrentBibleZoom();
 
   return {
-    x: (event.clientX - rect.left) / currentBibleZoom,
-    y: (event.clientY - rect.top) / currentBibleZoom
+    x: (event.clientX - rect.left) / zoom,
+    y: (event.clientY - rect.top) / zoom
   };
 }
 
 function resizeAnnotationLayer() {
   const bibleText = document.getElementById("bible-text");
-  const annotationLayer = document.getElementById("bible-annotation-layer");
+  const layer = document.getElementById("bible-annotation-layer");
 
-  if (!bibleText || !annotationLayer) return;
+  if (!bibleText || !layer) return;
 
-  annotationLayer.setAttribute("width", bibleText.scrollWidth);
-  annotationLayer.setAttribute("height", bibleText.scrollHeight);
-  annotationLayer.style.width = `${bibleText.scrollWidth}px`;
-  annotationLayer.style.height = `${bibleText.scrollHeight}px`;
+  const width = Math.ceil(bibleText.scrollWidth);
+  const height = Math.ceil(bibleText.scrollHeight);
+
+  layer.setAttribute("width", String(width));
+  layer.setAttribute("height", String(height));
+  layer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  layer.setAttribute("preserveAspectRatio", "none");
+  layer.style.width = `${width}px`;
+  layer.style.height = `${height}px`;
 }
 
 function getExpandedBBox(element, padding = 0) {
@@ -1111,7 +1115,7 @@ function getExpandedBBox(element, padding = 0) {
     width: box.width + padding * 2,
     height: box.height + padding * 2,
     right: box.x + box.width + padding,
-    bottom: box.y + box.height + padding,
+    bottom: box.y + box.height + padding
   };
 }
 
@@ -1125,6 +1129,8 @@ function boxesOverlap(a, b) {
 }
 
 function findTouchingFreehandGroups(path) {
+  if (!annotationLayer) return [];
+
   const pathBox = getExpandedBBox(path, FREEHAND_GROUP_TOUCH_PADDING);
 
   return Array.from(annotationLayer.querySelectorAll(".freehand-group")).filter(
@@ -1145,7 +1151,6 @@ function createFreehandGroup() {
 
   newGroup.classList.add("drawn-annotation", "freehand-group");
   newGroup.dataset.groupId = `freehand-${freehandGroupCounter++}`;
-
   annotationLayer.appendChild(newGroup);
 
   return newGroup;
@@ -1186,6 +1191,8 @@ function finalizeFreehandGroup() {
 }
 
 function setDrawingTool(tool) {
+  if (!drawingArea) return;
+
   if (activeDrawingTool === "freehand" && tool !== "freehand") {
     finalizeFreehandGroup();
   }
@@ -1199,58 +1206,48 @@ function setDrawingTool(tool) {
   if (tool) {
     drawingArea.classList.add("drawing-mode");
 
-    const activeButton = document.querySelector(`[data-drawing-tool="${tool}"]`);
-    if (activeButton) {
-      activeButton.classList.add("active-tool");
-    }
+    const activeButton = document.querySelector(
+      `[data-drawing-tool="${tool}"]`
+    );
+
+    activeButton?.classList.add("active-tool");
   } else {
     drawingArea.classList.remove("drawing-mode");
 
-    const textButton = document.querySelector('[data-drawing-tool="text"]');
-    if (textButton) {
-      textButton.classList.add("active-tool");
-    }
+    const textButton = document.querySelector(
+      '[data-drawing-tool="text"]'
+    );
+
+    textButton?.classList.add("active-tool");
   }
 }
 
-setDrawingTool(null);
-
-annotationLayer.addEventListener("click", function (event) {
-  const clickedAnnotation = event.target.closest(".drawn-annotation");
-
-  if (!clickedAnnotation) return;
-
-  selectedDrawnAnnotation = clickedAnnotation;
-
-  document.querySelectorAll(".drawn-annotation").forEach((shape) => {
-    shape.classList.remove("selected-annotation");
-  });
-
-  selectedDrawnAnnotation.classList.add("selected-annotation");
-});
+window.isBibleDrawingActive = function () {
+  return Boolean(activeDrawingTool);
+};
 
 function clearSelectedDrawnAnnotation() {
-  if (selectedDrawnAnnotation) {
-    selectedDrawnAnnotation.remove();
-    selectedDrawnAnnotation = null;
-  }
+  if (!selectedDrawnAnnotation) return;
+
+  selectedDrawnAnnotation.remove();
+  selectedDrawnAnnotation = null;
 }
 
 function clearDrawnAnnotations() {
+  if (!annotationLayer) return;
+
   annotationLayer.innerHTML = "";
   selectedDrawnAnnotation = null;
   currentFreehandGroup = null;
 }
 
 function handleDrawingPointerDown(event) {
-  if (!activeDrawingTool) return;
+  if (!activeDrawingTool || !drawingArea || !annotationLayer) return;
 
-  // Mouse should only draw with the main left button
   if (event.pointerType === "mouse" && event.button !== 0) {
     return;
   }
 
-  // Do not allow a second finger or pointer while drawing
   if (activePointerId !== null) {
     return;
   }
@@ -1273,46 +1270,7 @@ function handleDrawingPointerDown(event) {
     shape.classList.remove("selected-annotation");
   });
 
-  function handleDrawingPointerMove(event) {
-    if (!isDrawing || !currentShape) return;
-  
-    // Ignore other fingers or pointers
-    if (event.pointerId !== activePointerId) return;
-  
-    event.preventDefault();
-  
-    const point = getDrawingCoordinates(event);
-  
-    const currentX = point.x;
-    const currentY = point.y;
-  
-    const x = Math.min(startX, currentX);
-    const y = Math.min(startY, currentY);
-    const width = Math.abs(currentX - startX);
-    const height = Math.abs(currentY - startY);
-  
-    if (activeDrawingTool === "circle") {
-      currentShape.setAttribute("cx", x + width / 2);
-      currentShape.setAttribute("cy", y + height / 2);
-      currentShape.setAttribute("rx", width / 2);
-      currentShape.setAttribute("ry", height / 2);
-    }
-  
-    if (activeDrawingTool === "square") {
-      currentShape.setAttribute("x", x);
-      currentShape.setAttribute("y", y);
-      currentShape.setAttribute("width", width);
-      currentShape.setAttribute("height", height);
-    }
-  
-    if (activeDrawingTool === "freehand") {
-      freehandPoints.push(`L ${currentX} ${currentY}`);
-      currentShape.setAttribute("d", freehandPoints.join(" "));
-    }
-  }
-  
   const point = getDrawingCoordinates(event);
-
   startX = point.x;
   startY = point.y;
 
@@ -1321,77 +1279,76 @@ function handleDrawingPointerDown(event) {
       "http://www.w3.org/2000/svg",
       "ellipse"
     );
-
     currentShape.classList.add("drawn-annotation", "circle");
-    annotationLayer.appendChild(currentShape);
-  }
-
-  if (activeDrawingTool === "square") {
+  } else if (activeDrawingTool === "square") {
     currentShape = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "rect"
     );
-
     currentShape.classList.add("drawn-annotation", "square");
-    annotationLayer.appendChild(currentShape);
-  }
-
-  if (activeDrawingTool === "freehand") {
+  } else if (activeDrawingTool === "freehand") {
     freehandPoints = [`M ${startX} ${startY}`];
-
     currentShape = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "path"
     );
-
     currentShape.classList.add("freehand");
     currentShape.setAttribute("d", freehandPoints.join(" "));
+  }
 
+  if (currentShape) {
     annotationLayer.appendChild(currentShape);
   }
 }
 
-  const rect = drawingArea.getBoundingClientRect();
+function handleDrawingPointerMove(event) {
+  if (!isDrawing || !currentShape) return;
+  if (event.pointerId !== activePointerId) return;
 
-  startX = (event.clientX - rect.left) / currentBibleZoom;
-  startY = (event.clientY - rect.top) / currentBibleZoom;
+  event.preventDefault();
+
+  const point = getDrawingCoordinates(event);
+  const currentX = point.x;
+  const currentY = point.y;
+
+  const x = Math.min(startX, currentX);
+  const y = Math.min(startY, currentY);
+  const width = Math.abs(currentX - startX);
+  const height = Math.abs(currentY - startY);
 
   if (activeDrawingTool === "circle") {
-    currentShape = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "ellipse"
-    );
-
-    currentShape.classList.add("drawn-annotation", "circle");
-    annotationLayer.appendChild(currentShape);
-  }
-
-  if (activeDrawingTool === "square") {
-    currentShape = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "rect"
-    );
-
-    currentShape.classList.add("drawn-annotation", "square");
-    annotationLayer.appendChild(currentShape);
-  }
-
-  if (activeDrawingTool === "freehand") {
-    freehandPoints = [`M ${startX} ${startY}`];
-
-    currentShape = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "path"
-    );
-
-    currentShape.classList.add("freehand");
+    currentShape.setAttribute("cx", x + width / 2);
+    currentShape.setAttribute("cy", y + height / 2);
+    currentShape.setAttribute("rx", width / 2);
+    currentShape.setAttribute("ry", height / 2);
+  } else if (activeDrawingTool === "square") {
+    currentShape.setAttribute("x", x);
+    currentShape.setAttribute("y", y);
+    currentShape.setAttribute("width", width);
+    currentShape.setAttribute("height", height);
+  } else if (activeDrawingTool === "freehand") {
+    freehandPoints.push(`L ${currentX} ${currentY}`);
     currentShape.setAttribute("d", freehandPoints.join(" "));
-
-    // Temporarily place the path on the SVG layer.
-    // When the user releases the mouse, we attach it to the correct group.
-    annotationLayer.appendChild(currentShape);
   }
-});
+}
+
+function releaseActivePointer(event) {
+  if (
+    drawingArea &&
+    activePointerId !== null &&
+    event &&
+    drawingArea.hasPointerCapture(event.pointerId)
+  ) {
+    try {
+      drawingArea.releasePointerCapture(event.pointerId);
+    } catch (error) {
+      console.warn("Could not release pointer capture:", error);
+    }
+  }
+
+  activePointerId = null;
+  activePointerType = null;
+}
 
 function finishDrawingStroke(event) {
   if (!isDrawing) return;
@@ -1410,48 +1367,10 @@ function finishDrawingStroke(event) {
 
   isDrawing = false;
   currentShape = null;
+  freehandPoints = [];
 
-  if (
-    event &&
-    activePointerId !== null &&
-    drawingArea.hasPointerCapture(event.pointerId)
-  ) {
-    try {
-      drawingArea.releasePointerCapture(event.pointerId);
-    } catch (error) {
-      console.warn("Could not release pointer capture:", error);
-    }
-  }
-
-  activePointerId = null;
-  activePointerType = null;
+  releaseActivePointer(event);
 }
-
-drawingArea.addEventListener(
-  "pointerdown",
-  handleDrawingPointerDown
-);
-
-drawingArea.addEventListener(
-  "pointermove",
-  handleDrawingPointerMove
-);
-
-drawingArea.addEventListener(
-  "pointerup",
-  finishDrawingStroke
-);
-
-drawingArea.addEventListener(
-  "pointercancel",
-  cancelDrawingStroke
-);
-
-drawingArea.addEventListener("lostpointercapture", function (event) {
-  if (isDrawing && event.pointerId === activePointerId) {
-    finishDrawingStroke(event);
-  }
-});
 
 function cancelDrawingStroke(event) {
   if (
@@ -1461,93 +1380,137 @@ function cancelDrawingStroke(event) {
     return;
   }
 
-  if (currentShape) {
-    currentShape.remove();
-  }
+  currentShape?.remove();
 
   isDrawing = false;
   currentShape = null;
   freehandPoints = [];
 
-  if (
-    activePointerId !== null &&
-    drawingArea.hasPointerCapture(event.pointerId)
-  ) {
-    try {
-      drawingArea.releasePointerCapture(event.pointerId);
-    } catch (error) {
-      console.warn("Could not release cancelled pointer:", error);
-    }
-  }
-
-  activePointerId = null;
-  activePointerType = null;
+  releaseActivePointer(event);
 }
 
+if (drawingArea && annotationLayer) {
+  setDrawingTool(null);
+
+  annotationLayer.addEventListener("click", function (event) {
+    const clickedAnnotation = event.target.closest(".drawn-annotation");
+
+    if (!clickedAnnotation) return;
+
+    selectedDrawnAnnotation = clickedAnnotation;
+
+    document.querySelectorAll(".drawn-annotation").forEach((shape) => {
+      shape.classList.remove("selected-annotation");
+    });
+
+    selectedDrawnAnnotation.classList.add("selected-annotation");
+  });
+
+  drawingArea.addEventListener("pointerdown", handleDrawingPointerDown);
+  drawingArea.addEventListener("pointermove", handleDrawingPointerMove);
+  drawingArea.addEventListener("pointerup", finishDrawingStroke);
+  drawingArea.addEventListener("pointercancel", cancelDrawingStroke);
+
+  drawingArea.addEventListener("lostpointercapture", function (event) {
+    if (isDrawing && event.pointerId === activePointerId) {
+      finishDrawingStroke(event);
+    }
+  });
+}
+
+// ----------------------------------------------------
+// Mini-toolbar and dropdowns
+// ----------------------------------------------------
 const miniToolbar = document.getElementById("bible-mini-toolbar");
 
 if (miniToolbar) {
-   miniToolbar.addEventListener("pointerdown", function (event) {
-  const control = event.target.closest("button, select");
+  miniToolbar.addEventListener("pointerdown", function (event) {
+    const control = event.target.closest("button, select");
 
-  if (!control) return;
+    if (control) {
+      rememberCurrentSelectionOffsets();
+    }
+  });
+}
 
-  rememberCurrentSelectionOffsets();
-});
-  
-//********** Dropdown Buttons (highlighter - font color - draw) **********//
+function toggleMenu(id) {
+  document.getElementById(id)?.classList.toggle("show");
+}
+
+function closeMenu(id) {
+  document.getElementById(id)?.classList.remove("show");
+}
+
 function toggleHighlightMenu() {
-  document.getElementById("highlight-menu").classList.toggle("show");
+  toggleMenu("highlight-menu");
 }
 
 function closeHighlightMenu() {
-  document.getElementById("highlight-menu").classList.remove("show");
+  closeMenu("highlight-menu");
 }
 
 function toggleFontMenu() {
-  document.getElementById("font-menu").classList.toggle("show");
+  toggleMenu("font-menu");
 }
 
 function closeFontMenu() {
-  document.getElementById("font-menu").classList.remove("show");
+  closeMenu("font-menu");
 }
-  
+
 function toggleFontColorMenu() {
-  document.getElementById("font-color-menu").classList.toggle("show");
+  toggleMenu("font-color-menu");
 }
 
 function closeFontColorMenu() {
-  document.getElementById("font-color-menu").classList.remove("show");
+  closeMenu("font-color-menu");
 }
-  
+
 function toggleDrawMenu() {
-    document.getElementById("draw-menu").classList.toggle("show");
+  toggleMenu("draw-menu");
 }
 
 function closeDrawMenu() {
-    document.getElementById("draw-menu").classList.remove("show");
+  closeMenu("draw-menu");
 }
-  
-document.addEventListener("click", function (event) {
-    const fontDropdown = document.querySelector("#font-menu")?.closest(".toolbar-dropdown");
-    const highlightDropdown = document.querySelector("#highlight-menu")?.closest(".toolbar-dropdown");
-    const fontColorDropdown = document.querySelector("#font-color-menu")?.closest(".toolbar-dropdown");
-    const drawDropdown = document.querySelector("#draw-menu")?.closest(".toolbar-dropdown");
-  
-    if (fontDropdown && !fontDropdown.contains(event.target)) {
-      closeFontMenu();
-    }
-    
-    if (highlightDropdown && !highlightDropdown.contains(event.target)) {
-      closeHighlightMenu();
-    }
-  
-    if (fontColorDropdown && !fontColorDropdown.contains(event.target)) {
-      closeFontColorMenu();
-    }
-  
-    if (drawDropdown && !drawDropdown.contains(event.target)) {
-      closeDrawMenu();
-    }
-});    
 
+document.addEventListener("click", function (event) {
+  const menuIds = [
+    "font-menu",
+    "highlight-menu",
+    "font-color-menu",
+    "draw-menu"
+  ];
+
+  menuIds.forEach((menuId) => {
+    const menu = document.getElementById(menuId);
+    const dropdown = menu?.closest(".toolbar-dropdown");
+
+    if (dropdown && !dropdown.contains(event.target)) {
+      closeMenu(menuId);
+    }
+  });
+});
+
+// ----------------------------------------------------
+// Expose functions used by inline HTML onclick attributes
+// ----------------------------------------------------
+window.setDrawingTool = setDrawingTool;
+window.clearBibleSelectionFormat = clearBibleSelectionFormat;
+window.clearSelectedDrawnAnnotation = clearSelectedDrawnAnnotation;
+window.clearDrawnAnnotations = clearDrawnAnnotations;
+window.applyBibleFormat = applyBibleFormat;
+window.toggleHighlightMenu = toggleHighlightMenu;
+window.closeHighlightMenu = closeHighlightMenu;
+window.toggleFontMenu = toggleFontMenu;
+window.closeFontMenu = closeFontMenu;
+window.toggleFontColorMenu = toggleFontColorMenu;
+window.closeFontColorMenu = closeFontColorMenu;
+window.toggleDrawMenu = toggleDrawMenu;
+window.closeDrawMenu = closeDrawMenu;
+window.resizeAnnotationLayer = resizeAnnotationLayer;
+window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
+
+// ----------------------------------------------------
+// Start editor auth check after all functions are loaded
+// ----------------------------------------------------
+checkEditorAuth();
