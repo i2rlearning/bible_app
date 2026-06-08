@@ -199,7 +199,7 @@ const searchInput = document.querySelector(`#search-input`);
             xhr.open(
               "GET",
               //`https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}`
-              'https://rest.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}`
+              'https://rest.api.bible/v1/bibles/{bibleVersionID}/chapters/{bibleChapterID}`
             );
         
             xhr.setRequestHeader("api-key", API_KEY);
