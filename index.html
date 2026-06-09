@@ -150,7 +150,7 @@
     <script>
       document.addEventListener("DOMContentLoaded", () => {
     
-        // 1. Element Selectors
+        // Element Selectors
         const elements = {
           menuNav: document.getElementById("menuNav"),
           //fontSizeSlider: document.getElementById("font-size-slider"),
@@ -158,14 +158,14 @@
           langInput: document.getElementById("langInput")
         };
         
-        // 3. Font Resize Logic
+        // Font Resize Logic
         // elements.fontSizeSlider?.addEventListener("input", (e) => {
         //   if (elements.displayText) {
         //     elements.displayText.style.fontSize = `${e.target.value}px`;
         //   }
         // });
     
-        // 4. Language Selection
+        // Language Selection
         if (elements.langInput) {
           const savedApiUrl = localStorage.getItem("selectedBibleApi");
     
