@@ -872,3 +872,39 @@ body.editor-locked-state .ql-toolbar {
     box-sizing: border-box;
   }
 }
+
+/* ==========================================================================
+   Quill Blot Formatter Resizer Box Layout Corrective Context
+   ========================================================================== */
+.blot-formatter__wrapper {
+  position: absolute !important;
+  border: 1px dashed #007aff !important; /* System Accent Highlight Border */
+  background: rgba(0, 122, 255, 0.04) !important;
+  pointer-events: none !important;
+  z-index: 1050 !important;
+}
+
+.blot-formatter__handle {
+  position: absolute !important;
+  width: 10px !important;
+  height: 10px !important;
+  background-color: #007aff !important;
+  border: 1.5px solid #ffffff !important;
+  border-radius: 50% !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  pointer-events: auto !important;
+  cursor: nwse-resize !important;
+}
+
+/* Individual alignment handle position modifiers */
+.blot-formatter__handle:nth-child(1) { cursor: nwse-resize !important; }
+.blot-formatter__handle:nth-child(2) { cursor: nesw-resize !important; }
+.blot-formatter__handle:nth-child(3) { cursor: nwse-resize !important; }
+.blot-formatter__handle:nth-child(4) { cursor: nesw-resize !important; }
+
+/* Keep selection parameters clean when clicking items inside Quill */
+.ql-editor img {
+  cursor: pointer !important;
+  display: inline-block !important;
+  max-width: 100% !important;
+}
