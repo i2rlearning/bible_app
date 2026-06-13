@@ -14,6 +14,7 @@ const Size = Quill.import("attributors/class/size");
 Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
 Quill.register(Size, true);
 
+// Register the module directly with Quill
 Quill.register("modules/blotFormatter", BlotFormatter);
 
 // ----------------------------------------------------
@@ -38,7 +39,7 @@ const quill = new Quill("#editor", {
   placeholder: "Notes...",
   theme: "snow",
   modules: {
-    blotFormatter: {},
+    blotFormatter: {}, // Activate image resizing module
     toolbar: {
       container: toolbarOptions,
       handlers: {
@@ -727,7 +728,7 @@ async function saveMiniEditorPage() {
   try {
     if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
       const deleteResponse = await fetch(
-        `/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
+        `/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
         {
           method: "DELETE",
           credentials: "include"
@@ -1112,6 +1113,9 @@ function resizeAnnotationLayer() {
   layer.style.height = `${height}px`;
 }
 
+// ----------------------------------------------------
+// The rest of the drawing engine remains perfectly intact...
+// ----------------------------------------------------
 function getExpandedBBox(element, padding = 0) {
   const box = element.getBBox();
 
