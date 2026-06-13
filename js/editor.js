@@ -420,7 +420,7 @@ async function loadQuillNotes() {
   if (!pageIdentity) return;
 
   try {
-    const response = await fetch(`/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
+    const response = await fetch(`/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
       method: "GET",
       credentials: "include"
     });
@@ -695,7 +695,12 @@ async function loadMiniEditorPage() {
     }
 
     if (result.page && result.page.mini_editor_json) {
-      applyMiniEditorState(result.page.mini_editor_json);
+      const savedState =
+        typeof result.page.mini_editor_json === "string"
+          ? JSON.parse(result.page.mini_editor_json)
+          : result.page.mini_editor_json;
+    
+      applyMiniEditorState(savedState);
     }
 
     miniEditorLoaded = true;
