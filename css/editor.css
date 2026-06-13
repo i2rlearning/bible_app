@@ -248,6 +248,10 @@
   text-decoration-line: line-through !important;
 }
 
+.eb-container .bible-user-format.uppercase {
+  text-transform: uppercase;
+}
+
 /************* Bible highlight colors *************/
 .eb-container .bible-user-format.highlight-yellow {
   background-color: #fff59d !important;
