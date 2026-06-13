@@ -371,14 +371,8 @@ function unlockEditorTools() {
   }
 
   setEditorSaveStatus("");
-
-  waitForBibleTextContent().then((ready) => {
-    if (ready) {
-      startMiniEditorObserver();
-    }
-  });
-} 
-
+  }
+  
 // ----------------------------------------------------
 // Quill notes save/load
 // ----------------------------------------------------
@@ -1533,3 +1527,10 @@ window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
 // Start editor auth check after all functions are loaded
 // ----------------------------------------------------
 checkEditorAuth();
+
+// Run observer setup once content is ready
+waitForBibleTextContent().then((ready) => {
+  if (ready) {
+    startMiniEditorObserver();
+  }
+});
