@@ -806,14 +806,22 @@ function scheduleMiniEditorSave() {
 }
 
 function startMiniEditorObserver() {
-  if (miniEditorObserver) return;
-
   const bibleText = document.getElementById("bible-text");
   const annotationLayer = document.getElementById("bible-annotation-layer");
 
-  if (!bibleText) return;
+  if (!bibleText) {
+    console.warn("Mini-editor target elements missing. Retrying...");
+    return;
+  }
 
-  miniEditorObserver = new MutationObserver(() => {
+  // Disconnect any active duplicate instance
+  if (miniEditorObserver) {
+    miniEditorObserver.disconnect();
+  }
+
+  miniEditorObserver = new MutationObserver((mutations) => {
+    // Avoid triggering save if the change was programmatically applied via load
+    if (miniEditorApplyingState) return; 
     scheduleMiniEditorSave();
   });
 
@@ -832,8 +840,8 @@ function startMiniEditorObserver() {
       characterData: true
     });
   }
+  console.log("Mini-editor mutation observers attached successfully.");
 }
-
 
 // ----------------------------------------------------
 // Mini-editor selection memory
