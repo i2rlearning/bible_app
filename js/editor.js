@@ -341,7 +341,6 @@ function lockEditorTools() {
 
 function unlockEditorTools() {
   editorToolsUnlocked = true;
-
   document.body.classList.remove("editor-locked-state");
 
   if (typeof quill !== "undefined") {
@@ -376,6 +375,13 @@ function unlockEditorTools() {
   }
 
   setEditorSaveStatus("");
+}
+
+  waitForBibleTextContent().then((ready) => {
+    if (ready) {
+      startMiniEditorObserver();
+    }
+  });
 }
 
 // ----------------------------------------------------
