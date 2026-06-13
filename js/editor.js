@@ -1,20 +1,4 @@
-import Quill from 'quill';
-import BlotFormatter from 'quill-blot-formatter';
-
-// Register the module
-Quill.register('modules/blotFormatter', BlotFormatter);
-
-// Initialize Quill with the module enabled
-const quill = new Quill('#editor', {
-  theme: 'snow',
-  modules: {
-    toolbar: [
-      ['bold', 'italic'],
-      ['image']
-    ],
-    blotFormatter: {} // This activates the resizing handles
-  }
-});
+import BlotFormatter from "quill-blot-formatter";
 
 // ----------------------------------------------------
 // Quill Custom Icons Setup (Must be before toolbarOptions)
@@ -29,6 +13,8 @@ icons["timestamp"] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" 
 const Size = Quill.import("attributors/class/size");
 Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
 Quill.register(Size, true);
+
+Quill.register("modules/blotFormatter", BlotFormatter);
 
 // ----------------------------------------------------
 // Toolbar Configuration
@@ -52,6 +38,7 @@ const quill = new Quill("#editor", {
   placeholder: "Notes...",
   theme: "snow",
   modules: {
+    blotFormatter: {},
     toolbar: {
       container: toolbarOptions,
       handlers: {
