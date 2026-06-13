@@ -226,7 +226,8 @@ document.addEventListener(
 // ----------------------------------------------------
 // Tooltips and UI
 // ----------------------------------------------------
-const sizeSelect = toolbar?.container.querySelector("select.ql-size");
+
+const sizeSelect = toolbar?.container?.querySelector("select.ql-size");
 
 if (sizeSelect) {
   sizeSelect.setAttribute("title", "Change Font Size");
@@ -246,20 +247,20 @@ const btnTitles = {
 };
 
 Object.keys(btnTitles).forEach((cls) => {
-  toolbar.container.querySelector(`button.${cls}`)?.setAttribute("title", btnTitles[cls]);
+  toolbar?.container?.querySelector(`button.${cls}`)?.setAttribute("title", btnTitles[cls]);
 });
 
-toolbar.container.querySelector("select.ql-align")?.parentElement.setAttribute("title", "Align Text");
-toolbar.container.querySelector(".ql-color")?.setAttribute("title", "Font Color");
-toolbar.container.querySelector(".ql-background")?.setAttribute("title", "Background Color");
-toolbar.container.querySelector('button.ql-list[value="ordered"]')?.setAttribute("title", "Ordered List");
-toolbar.container.querySelector('button.ql-list[value="bullet"]')?.setAttribute("title", "Bullet List");
-toolbar.container.querySelector('button.ql-list[value="check"]')?.setAttribute("title", "Checkbox List");
-toolbar.container.querySelector('button.ql-indent[value="-1"]')?.setAttribute("title", "Outdent");
-toolbar.container.querySelector('button.ql-indent[value="+1"]')?.setAttribute("title", "Indent");
-toolbar.container.querySelector('button.ql-script[value="sub"]')?.setAttribute("title", "Subscript");
-toolbar.container.querySelector('button.ql-script[value="super"]')?.setAttribute("title", "Superscript");
-
+// AND ADD "?" TO THE REST OF THESE DOM LOOKUPS:
+toolbar?.container?.querySelector("select.ql-align")?.parentElement.setAttribute("title", "Align Text");
+toolbar?.container?.querySelector(".ql-color")?.setAttribute("title", "Font Color");
+toolbar?.container?.querySelector(".ql-background")?.setAttribute("title", "Background Color");
+toolbar?.container?.querySelector('button.ql-list[value="ordered"]')?.setAttribute("title", "Ordered List");
+toolbar?.container?.querySelector('button.ql-list[value="bullet"]')?.setAttribute("title", "Bullet List");
+toolbar?.container?.querySelector('button.ql-list[value="check"]')?.setAttribute("title", "Checkbox List");
+toolbar?.container?.querySelector('button.ql-indent[value="-1"]')?.setAttribute("title", "Outdent");
+toolbar?.container?.querySelector('button.ql-indent[value="+1"]')?.setAttribute("title", "Indent");
+toolbar?.container?.querySelector('button.ql-script[value="sub"]')?.setAttribute("title", "Subscript");
+toolbar?.container?.querySelector('button.ql-script[value="super"]')?.setAttribute("title", "Superscript");
 // ----------------------------------------------------
 // Auth lock for editor tools
 // ----------------------------------------------------
