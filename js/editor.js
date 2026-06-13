@@ -1,7 +1,6 @@
-import BlotFormatter from "https://cdn.jsdelivr.net/npm/quill-blot-formatter@1.0.5/+esm";
+import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2/dist/index.esm.js";
 
-// Register it only once right here
-Quill.register("modules/blotFormatter", BlotFormatter);
+Quill.register("modules/blotFormatter2", BlotFormatter2);
 
 // ----------------------------------------------------
 // Quill Custom Icons Setup (Must be before toolbarOptions)
@@ -38,8 +37,12 @@ const toolbarOptions = [
 const quill = new Quill("#editor", {
   placeholder: "Notes...",
   theme: "snow",
-  modules: {
-    blotFormatter: {}, // Activate image resizing module
+   modules: {
+    blotFormatter2: {
+      resize: {
+        useRelativeSize: false
+      }
+    },
     toolbar: {
       container: toolbarOptions,
       handlers: {
@@ -723,17 +726,18 @@ async function saveMiniEditorPage() {
   try {
     if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
       const deleteResponse = await fetch(
-        `/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
+        `/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
         {
           method: "DELETE",
           credentials: "include"
         }
       );
-
+    
       if (!deleteResponse.ok) {
-        throw new Error("Failed to delete empty mini-editor page");
+        const result = await parseResponseSafely(deleteResponse);
+        throw new Error(result.message || "Failed to delete empty mini-editor page");
       }
-
+    
       console.log("Empty mini-editor page deleted");
       setEditorSaveStatus("Saved");
       return;
