@@ -1,4 +1,4 @@
-import BlotFormatter from "quill-blot-formatter";
+import BlotFormatter from "https://cdn.jsdelivr.net/npm/quill-blot-formatter@1.0.5/+esm";
 
 // ----------------------------------------------------
 // Quill Custom Icons Setup (Must be before toolbarOptions)
