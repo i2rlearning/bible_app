@@ -1,3 +1,21 @@
+import Quill from 'quill';
+import BlotFormatter from 'quill-blot-formatter';
+
+// Register the module
+Quill.register('modules/blotFormatter', BlotFormatter);
+
+// Initialize Quill with the module enabled
+const quill = new Quill('#editor', {
+  theme: 'snow',
+  modules: {
+    toolbar: [
+      ['bold', 'italic'],
+      ['image']
+    ],
+    blotFormatter: {} // This activates the resizing handles
+  }
+});
+
 // ----------------------------------------------------
 // Quill Custom Icons Setup (Must be before toolbarOptions)
 // ----------------------------------------------------
