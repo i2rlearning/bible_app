@@ -1,5 +1,6 @@
-import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2/dist/index.esm.js";
+import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/+esm";
 
+// Register the Quill 2 compatible image resize/formatting module once
 Quill.register("modules/blotFormatter2", BlotFormatter2);
 
 // ----------------------------------------------------
@@ -37,12 +38,12 @@ const toolbarOptions = [
 const quill = new Quill("#editor", {
   placeholder: "Notes...",
   theme: "snow",
-   modules: {
+  modules: {
     blotFormatter2: {
       resize: {
         useRelativeSize: false
       }
-    },
+    }, // Activate image resizing module for Quill 2
     toolbar: {
       container: toolbarOptions,
       handlers: {
@@ -420,7 +421,7 @@ async function loadQuillNotes() {
   if (!pageIdentity) return;
 
   try {
-    const response = await fetch(`/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
+    const response = await fetch(`/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
       method: "GET",
       credentials: "include"
     });
@@ -662,11 +663,13 @@ function getMiniEditorFlags(miniEditorJson) {
     hasDrawings: annotationLayerHtml.trim().length > 0,
     hasTextFormats:
       bibleTextHtml.includes("bible-user-format bold") ||
+      bibleTextHtml.includes("bible-user-format italic") ||
       bibleTextHtml.includes("bible-user-format underline") ||
       bibleTextHtml.includes("bible-user-format double-underline") ||
       bibleTextHtml.includes("bible-user-format overline-underline") ||
       bibleTextHtml.includes("bible-user-format strike-through") ||
       bibleTextHtml.includes("bible-user-format uppercase") ||
+      bibleTextHtml.includes("text-grey") ||
       bibleTextHtml.includes("text-red") ||
       bibleTextHtml.includes("text-blue") ||
       bibleTextHtml.includes("text-green") ||
@@ -699,7 +702,7 @@ async function loadMiniEditorPage() {
         typeof result.page.mini_editor_json === "string"
           ? JSON.parse(result.page.mini_editor_json)
           : result.page.mini_editor_json;
-    
+
       applyMiniEditorState(savedState);
     }
 
@@ -737,12 +740,12 @@ async function saveMiniEditorPage() {
           credentials: "include"
         }
       );
-    
+
       if (!deleteResponse.ok) {
         const result = await parseResponseSafely(deleteResponse);
         throw new Error(result.message || "Failed to delete empty mini-editor page");
       }
-    
+
       console.log("Empty mini-editor page deleted");
       setEditorSaveStatus("Saved");
       return;
