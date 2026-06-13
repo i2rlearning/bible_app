@@ -1,6 +1,6 @@
 import BlotFormatter from "https://cdn.jsdelivr.net/npm/quill-blot-formatter@1.0.5/+esm";
 
-// Explicitly register the BlotFormatter module to the global Quill instance loaded by your HTML
+// Register it only once right here
 Quill.register("modules/blotFormatter", BlotFormatter);
 
 // ----------------------------------------------------
@@ -350,40 +350,34 @@ function unlockEditorTools() {
   }
 
   const miniToolbar = document.getElementById("bible-mini-toolbar");
-
   if (miniToolbar) {
     miniToolbar.classList.remove("editor-tools-locked");
-
     miniToolbar.querySelectorAll("button").forEach((button) => {
       button.disabled = false;
     });
   }
 
   const quillToolbar = document.querySelector(".ql-toolbar");
-
   if (quillToolbar) {
     quillToolbar.classList.remove("editor-tools-locked");
-
     quillToolbar.querySelectorAll("button, select").forEach((control) => {
       control.disabled = false;
     });
   }
 
   const message = document.getElementById("editor-login-message");
-
   if (message) {
     message.remove();
   }
 
   setEditorSaveStatus("");
-}
 
   waitForBibleTextContent().then((ready) => {
     if (ready) {
       startMiniEditorObserver();
     }
   });
-}
+} 
 
 // ----------------------------------------------------
 // Quill notes save/load
