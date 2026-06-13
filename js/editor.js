@@ -1,5 +1,8 @@
 import BlotFormatter from "https://cdn.jsdelivr.net/npm/quill-blot-formatter@1.0.5/+esm";
 
+// Explicitly register the BlotFormatter module to the global Quill instance loaded by your HTML
+Quill.register("modules/blotFormatter", BlotFormatter);
+
 // ----------------------------------------------------
 // Quill Custom Icons Setup (Must be before toolbarOptions)
 // ----------------------------------------------------
@@ -13,9 +16,6 @@ icons["timestamp"] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" 
 const Size = Quill.import("attributors/class/size");
 Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
 Quill.register(Size, true);
-
-// Register the module directly with Quill
-Quill.register("modules/blotFormatter", BlotFormatter);
 
 // ----------------------------------------------------
 // Toolbar Configuration
