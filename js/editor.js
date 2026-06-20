@@ -18,7 +18,7 @@ Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
 Quill.register(Size, true);
 
 // ----------------------------------------------------
-// Toolbar Configuration
+// Quill Toolbar Configuration
 // ----------------------------------------------------
 const toolbarOptions = [
   // Group 1: Font Size
