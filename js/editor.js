@@ -43,7 +43,7 @@ const quill = new Quill("#editor", {
       resize: {
         useRelativeSize: false
       }
-    }, // Activate image resizing module for Quill 2
+    }, // Activate image resizing module for Quill
     toolbar: {
       container: toolbarOptions,
       handlers: {
@@ -105,11 +105,10 @@ quill.root.addEventListener(
     }
 
     if (hasImage) {
-      // 1. Stop the browser from pasting ANYTHING (text or image)
+      // Stop the browser from pasting an image
       e.preventDefault();
       e.stopPropagation();
 
-      // 2. Alert the user
       alert("Direct image pasting is not allowed. Please save the image to your computer and use the 'Insert Image' button to insert it.");
     }
 
@@ -254,7 +253,6 @@ Object.keys(btnTitles).forEach((cls) => {
   toolbar?.container?.querySelector(`button.${cls}`)?.setAttribute("title", btnTitles[cls]);
 });
 
-// AND ADD "?" TO THE REST OF THESE DOM LOOKUPS:
 toolbar?.container?.querySelector("select.ql-align")?.parentElement.setAttribute("title", "Align Text");
 toolbar?.container?.querySelector(".ql-color")?.setAttribute("title", "Font Color");
 toolbar?.container?.querySelector(".ql-background")?.setAttribute("title", "Background Color");
@@ -265,6 +263,7 @@ toolbar?.container?.querySelector('button.ql-indent[value="-1"]')?.setAttribute(
 toolbar?.container?.querySelector('button.ql-indent[value="+1"]')?.setAttribute("title", "Indent");
 toolbar?.container?.querySelector('button.ql-script[value="sub"]')?.setAttribute("title", "Subscript");
 toolbar?.container?.querySelector('button.ql-script[value="super"]')?.setAttribute("title", "Superscript");
+
 // ----------------------------------------------------
 // Auth lock for editor tools
 // ----------------------------------------------------
