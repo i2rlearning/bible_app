@@ -34,7 +34,7 @@ const bibleBookName =
   bibleBookID ||
   "";
 
-const abbreviation =
+let abbreviation =
   urlParams.get("bibleAbbr") ||
   urlParams.get("abbr") ||
   "";
@@ -42,84 +42,131 @@ const abbreviation =
 initializeBibleIdentity();
 
 function normalizeCurrentVerseUrl() {
-  const currentUrl = new URL(window.location.href);
-
-  const needsNormalization =
-  currentUrl.searchParams.has("version") ||
-  currentUrl.searchParams.has("abbr") ||
-  currentUrl.searchParams.has("name") ||
-  !currentUrl.searchParams.has("bibleName");
-
-  if (
-    !needsNormalization ||
-    !bibleVersionID ||
-    !bibleChapterID
-  ) {
+  if (!bibleVersionID || !bibleChapterID) {
     return;
   }
 
-  const normalizedParams = new URLSearchParams();
+  const normalizedParams =
+    new URLSearchParams();
 
-  normalizedParams.set("bible", bibleVersionID);
+  normalizedParams.set(
+    "bible",
+    bibleVersionID
+  );
 
   if (abbreviation) {
-    normalizedParams.set("bibleAbbr", abbreviation);
+    normalizedParams.set(
+      "bibleAbbr",
+      abbreviation
+    );
   }
 
   if (bibleName) {
-    normalizedParams.set("bibleName", bibleName);
+    normalizedParams.set(
+      "bibleName",
+      bibleName
+    );
   }
 
   if (bibleBookID) {
-    normalizedParams.set("book", bibleBookID);
+    normalizedParams.set(
+      "book",
+      bibleBookID
+    );
   }
 
   if (bibleBookName) {
-    normalizedParams.set("bookName", bibleBookName);
+    normalizedParams.set(
+      "bookName",
+      bibleBookName
+    );
   }
 
-  normalizedParams.set("chapter", bibleChapterID);
-
-  window.history.replaceState(
-    {},
-    "",
-    `./verse.html?${normalizedParams.toString()}`
+  normalizedParams.set(
+    "chapter",
+    bibleChapterID
   );
+
+  const normalizedUrl =
+    `./verse.html?${normalizedParams.toString()}`;
+
+  const currentRelativeUrl =
+    `${window.location.pathname.split("/").pop()}${window.location.search}`;
+
+  const normalizedRelativeUrl =
+    normalizedUrl.replace("./", "");
+
+  if (
+    currentRelativeUrl !==
+    normalizedRelativeUrl
+  ) {
+    window.history.replaceState(
+      {},
+      "",
+      normalizedUrl
+    );
+  }
 }
 
 async function initializeBibleIdentity() {
-  /*
-   * New URLs may already contain the full Bible name.
-   * Old saved URLs usually do not.
-   */
-
-  if (!bibleName && bibleVersionID) {
-    try {
-      const bibleDetails =
-        await getBibleDetails(bibleVersionID);
-
-      bibleName =
-        bibleDetails.name ||
-        bibleDetails.nameLocal ||
-        abbreviation ||
-        bibleVersionID;
-
-      const bibleFullNameElement =
-        document.getElementById("biblefullname");
-
-      if (bibleFullNameElement) {
-        bibleFullNameElement.textContent =
-          bibleName;
-      }
-    } catch (error) {
-      console.error(
-        "Unable to retrieve the full Bible name:",
-        error
-      );
-    }
+  if (!bibleVersionID) {
+    return;
   }
 
-  normalizeCurrentVerseUrl();
+  try {
+    const bibleDetails =
+      await getBibleDetails(bibleVersionID);
+
+    /*
+     * The Bible ID is the source of truth.
+     * Always use the API details for the abbreviation and full name.
+     */
+
+    abbreviation =
+      bibleDetails.abbreviation ||
+      bibleDetails.abbreviationLocal ||
+      abbreviation ||
+      "";
+
+    bibleName =
+      bibleDetails.name ||
+      bibleDetails.nameLocal ||
+      abbreviation ||
+      bibleVersionID;
+
+    const bibleTitle =
+      document.getElementById("bible");
+
+    const bibleFullNameElement =
+      document.getElementById("biblefullname");
+
+    if (bibleTitle) {
+      bibleTitle.textContent =
+        abbreviation || "Bible";
+    }
+
+    if (bibleFullNameElement) {
+      bibleFullNameElement.textContent =
+        bibleName;
+    }
+
+    normalizeCurrentVerseUrl();
+
+    /*
+     * Rebuild menu URLs after the correct Bible identity
+     * has been received from the API.
+     */
+
+    configureVerseMenuLinks();
+  } catch (error) {
+    console.error(
+      "Unable to retrieve Bible identity:",
+      error
+    );
+
+    normalizeCurrentVerseUrl();
+    configureVerseMenuLinks();
+  }
 }
 
 function getBibleDetails(bibleId) {
@@ -204,26 +251,28 @@ const preloadedArrowImages = [
         });  
         
       if (!bibleVersionID) {
-  window.location.replace("./index.html");
-} else if (!bibleBookID) {
-  const bookPageParams = buildBibleParams();
-
-  window.location.replace(
-    `./book.html?${bookPageParams.toString()}`
-  );
-} else if (!bibleChapterID) {
-  const chapterPageParams = buildBibleParams();
-
-  chapterPageParams.set("book", bibleBookID);
-
-  if (bibleBookName) {
-    chapterPageParams.set("bookName", bibleBookName);
-  }
-
-  window.location.replace(
-    `./chapter.html?${chapterPageParams.toString()}`
-  );
-}
+        window.location.replace("./index.html");
+      } else if (!bibleBookID) {
+        const bookPageParams = buildBibleParams();
+      
+        window.location.replace(
+          `./book.html?${bookPageParams.toString()}`
+        );
+      } else if (!bibleChapterID) {
+        const chapterPageParams = buildBibleParams();
+      
+        chapterPageParams.set("book", bibleBookID);
+      
+        if (bibleBookName) {
+          chapterPageParams.set("bookName", bibleBookName);
+        }
+      
+        window.location.replace(
+          `./chapter.html?${chapterPageParams.toString()}`
+        );
+      } else {
+        initializeBibleIdentity();
+      }
 
 const chapterParts = bibleChapterID.split(".");
 const book = bibleBookID || chapterParts[0] || "";
@@ -248,8 +297,6 @@ if (bibleFullName) {
     abbreviation ||
     bibleVersionID;
 }
-
-configureVerseMenuLinks();
 
 function buildBibleParams() {
   const params = new URLSearchParams();
