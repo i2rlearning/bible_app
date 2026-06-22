@@ -442,8 +442,43 @@ async function openSignup() {
     });
 
     renderMyNotes(filteredNotes);
-  }
-
+    }
+  
+    function getNoteBibleLabel(note) {
+      if (note.bibleName) {
+        return note.bibleName;
+      }
+    
+      if (note.pageUrl) {
+        try {
+          const savedUrl = new URL(
+            note.pageUrl,
+            window.location.origin
+          );
+    
+          const savedParams =
+            savedUrl.searchParams;
+    
+          const abbreviation =
+            savedParams.get("bibleAbbr") ||
+            savedParams.get("abbr") ||
+            "";
+    
+          if (abbreviation) {
+            return abbreviation;
+          }
+        } catch (error) {
+          console.warn(
+            "Could not read saved note URL:",
+            note.pageUrl,
+            error
+          );
+        }
+      }
+    
+      return note.bibleVersionID || "";
+    }
+  
   function renderMyNotes(notes) {
     const tableBody = document.getElementById("myNotesTableBody");
     const status = document.getElementById("myNotesStatus");
@@ -464,7 +499,7 @@ async function openSignup() {
       const preview = note.preview ? note.preview.slice(0, 120) : "";
 
       row.innerHTML = `
-        <td>${note.bibleName || note.bibleVersionID || ""}</td>
+        <td>${getNoteBibleLabel(note)}</td>
         <td>${note.bookChapterLabel || note.bibleChapterID || ""}</td>
         <td>${formatSavedContent(note)}</td>
         <td>${preview}</td>
