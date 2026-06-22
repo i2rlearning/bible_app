@@ -274,18 +274,14 @@ function createBibleVersionItem(version) {
   const strongName =
   document.createElement("strong");
 
-name.className =
-  "bible-version-name";
-
-strongName.textContent =
-  version.abbreviation ||
-  version.name;
-
-name.appendChild(strongName);
-paragraph.appendChild(name);
-
-link.title =
-  version.name;
+  name.className =
+    "bible-version-name";
+  
+  strongName.textContent =
+    version.name;
+  
+  name.appendChild(strongName);
+  paragraph.appendChild(name);
   
   /*
    * The browser's native title tooltip displays the
