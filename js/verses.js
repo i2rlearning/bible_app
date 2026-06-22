@@ -3,18 +3,48 @@
 // Page-level Bible loading, zoom, chapter navigation, and swipe navigation.
 // Load this file before editor.js.
 
-const searchInput = document.querySelector(`#search-input`);
-      const bibleSectionList = document.querySelector(`#section-list`);
-      const chapterText = document.querySelector(`#chapter-text`);
-      const bibleVersionID = getParameterByName(`version`);
-      const bibleChapterID = getParameterByName(`chapter`);
-      const bibleName = getParameterByName(`name`);
-      const abbreviation = getParameterByName(`abbr`);
-      const maxChapters = sessionStorage.getItem("maxchapnum");
-    
-      let verseHTML = ``;
+const searchInput = document.querySelector("#search-input");
+const bibleSectionList = document.querySelector("#section-list");
+const chapterText = document.querySelector("#chapter-text");
 
-      const preloadedArrowImages = [
+const urlParams = new URLSearchParams(window.location.search);
+
+const bibleVersionID =
+  urlParams.get("bible") ||
+  urlParams.get("version") ||
+  "";
+
+const bibleChapterID =
+  urlParams.get("chapter") ||
+  "";
+
+const bibleBookID =
+  urlParams.get("book") ||
+  (bibleChapterID.includes(".")
+    ? bibleChapterID.split(".")[0]
+    : "");
+
+const bibleName =
+  urlParams.get("bibleName") ||
+  localStorage.getItem("selectedBibleName") ||
+  "";
+
+const bibleBookName =
+  urlParams.get("bookName") ||
+  urlParams.get("name") ||
+  bibleBookID ||
+  "";
+
+const abbreviation =
+  urlParams.get("bibleAbbr") ||
+  urlParams.get("abbr") ||
+  localStorage.getItem("selectedBibleAbbreviation") ||
+  localStorage.getItem("selectedBibleAbbr") ||
+  "";
+
+let verseHTML = "";
+
+const preloadedArrowImages = [
           "./img/left_stamp_on.png",
           "./img/right_stamp_on.png",
           "./img/orig_left_stamp.png",
@@ -26,33 +56,114 @@ const searchInput = document.querySelector(`#search-input`);
           image.src = src;
         });  
         
-      if (!bibleVersionID || !bibleChapterID) {
-        window.location.href = `./index.html`;
-      }
-    
-      const [book, chapter] = bibleChapterID.split(`.`);
-      const bibleHTML = `${abbreviation}`;
-      const bookChapHTML = `${bibleName} ${chapter}`;
-      const chapterHTML = `${chapter}`;
-    
-      const bibleTitle = document.getElementById("bible");
-      const bookChapTitle = document.getElementById("bookChap");
-    
-      if (bibleTitle) {
-        bibleTitle.innerHTML = bibleHTML;
-      }
-    
-      if (bookChapTitle) {
-        bookChapTitle.innerHTML = bookChapHTML;
-      }
-    
-      // Gets full book name for tooltip
-      const fbookname = sessionStorage.getItem("fullbookname");
-      const bibleFullName = document.getElementById("biblefullname");
-    
-      if (bibleFullName) {
-        bibleFullName.innerHTML = fbookname;
-      }
+      if (!bibleVersionID) {
+  window.location.replace("./index.html");
+} else if (!bibleBookID) {
+  const bookPageParams = buildBibleParams();
+
+  window.location.replace(
+    `./book.html?${bookPageParams.toString()}`
+  );
+} else if (!bibleChapterID) {
+  const chapterPageParams = buildBibleParams();
+
+  chapterPageParams.set("book", bibleBookID);
+
+  if (bibleBookName) {
+    chapterPageParams.set("bookName", bibleBookName);
+  }
+
+  window.location.replace(
+    `./chapter.html?${chapterPageParams.toString()}`
+  );
+}
+
+const chapterParts = bibleChapterID.split(".");
+const book = bibleBookID || chapterParts[0] || "";
+const chapter = chapterParts[chapterParts.length - 1] || "";
+
+const bibleTitle = document.getElementById("bible");
+const bookChapTitle = document.getElementById("bookChap");
+const bibleFullName = document.getElementById("biblefullname");
+
+if (bibleTitle) {
+  bibleTitle.textContent = abbreviation || "Bible";
+}
+
+if (bookChapTitle) {
+  bookChapTitle.textContent =
+    `${bibleBookName || book} ${chapter}`.trim();
+}
+
+if (bibleFullName) {
+  bibleFullName.textContent =
+    bibleName ||
+    abbreviation ||
+    bibleVersionID;
+}
+
+configureVerseMenuLinks();
+
+function buildBibleParams() {
+  const params = new URLSearchParams();
+
+  params.set("bible", bibleVersionID);
+
+  if (abbreviation) {
+    params.set("bibleAbbr", abbreviation);
+  }
+
+  if (bibleName) {
+    params.set("bibleName", bibleName);
+  }
+
+  return params;
+}
+
+function configureVerseMenuLinks() {
+  const homeLink = document.querySelector(
+    '.overlay-content a[href="./index.html"]'
+  );
+
+  const bookLink = document.getElementById("bookurl");
+  const chapterLink = document.getElementById("chapterurl");
+
+  const searchLink = document.querySelector(
+    '.overlay-content a[href="./search.html"]'
+  );
+
+  const bibleParams = buildBibleParams();
+
+  if (homeLink) {
+    homeLink.href =
+      `./index.html?${bibleParams.toString()}`;
+  }
+
+  if (bookLink) {
+    bookLink.href =
+      `./book.html?${bibleParams.toString()}`;
+  }
+
+  if (chapterLink) {
+    const chapterParams =
+      new URLSearchParams(bibleParams);
+
+    chapterParams.set("book", bibleBookID);
+
+    if (bibleBookName) {
+      chapterParams.set("bookName", bibleBookName);
+    }
+
+    chapterLink.href =
+      `./chapter.html?${chapterParams.toString()}`;
+  }
+
+  if (searchLink) {
+    searchLink.href =
+      `./search.html?${bibleParams.toString()}`;
+  }
+}
+
     
       // ******************* Bible zoom state *********************
       const fontSizeSlider = document.getElementById("font-size-slider");
@@ -258,24 +369,16 @@ const searchInput = document.querySelector(`#search-input`);
       }
     
       function getParameterByName(name) {
-        const url = window.location.href;
-        name = name.replace(/[\[\]]/g, `\\$&`);
-    
-        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`);
-        const results = regex.exec(url);
-    
-        if (!results) return null;
-        if (!results[2]) return ``;
-    
-        return decodeURIComponent(results[2].replace(/\+/g, ` `));
-      }    
+  return new URLSearchParams(
+    window.location.search
+  ).get(name);
+}    
          
       // ******************* Left/Right Seals *********************
       const imageLeft = document.getElementById("imgleft");
       const imageRight = document.getElementById("imgright");
     
-      const chapterParts = bibleChapterID.split(".");
-      const currentBookId = chapterParts[0];
+      const currentBookId = bibleBookID || chapterParts[0];
       const currentChapterNumber = Number(chapterParts[1]);
     
       const maxChapterStorageKey = `maxchapnum:${bibleVersionID}:${currentBookId}`;
@@ -284,10 +387,33 @@ const searchInput = document.querySelector(`#search-input`);
     
       function buildChapterUrl(newChapterNumber) {
         const url = new URL(window.location.href);
-    
-        url.searchParams.set("chapter", `${currentBookId}.${newChapterNumber}`);
-    
-        return url.pathname + url.search;
+
+        url.searchParams.delete("version");
+        url.searchParams.delete("abbr");
+        url.searchParams.delete("name");
+
+        url.searchParams.set("bible", bibleVersionID);
+
+        if (abbreviation) {
+          url.searchParams.set("bibleAbbr", abbreviation);
+        }
+
+        if (bibleName) {
+          url.searchParams.set("bibleName", bibleName);
+        }
+
+        url.searchParams.set("book", currentBookId);
+
+        if (bibleBookName) {
+          url.searchParams.set("bookName", bibleBookName);
+        }
+
+        url.searchParams.set(
+          "chapter",
+          `${currentBookId}.${newChapterNumber}`
+        );
+
+        return `${url.pathname}?${url.searchParams.toString()}`;
       }
     
       function canGoPreviousChapter() {
