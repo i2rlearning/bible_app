@@ -1,95 +1,170 @@
+```html
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <link href="css/menu.css" rel="stylesheet" />
-    <link href="css/bible-main.css" rel="stylesheet" />
-    <link href="css/editor.css" rel="stylesheet" /> <!-- for my notes only -->
-    
-    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+    <meta charset="UTF-8">
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    >
+
+    <link href="css/menu.css" rel="stylesheet">
+    <link href="css/bible-main.css" rel="stylesheet">
+    <link href="css/editor.css" rel="stylesheet">
+
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="/img/favicon.ico"
+    >
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    >
+
     <title>Branch of Israel - Bible App</title>
   </head>
 
-  <!-- *********************** Header Sticky Menu ***********************  -->
   <body class="index">
-      <div class="subheader" id="stickyHeader">
-        <div class="container flex">
-          <div class="subheadings">
-      
-            <div class="column">
-              <div class="hamburger">
-                  <button
-                  type="button"
-                  id="menuToggle"
-                  class="main-nav-toggle"
-                  aria-label="Toggle menu"
-                  aria-expanded="false"
-                >
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </button>
-              </div>
+
+    <!-- **************** Header Sticky Menu **************** -->
+
+    <div class="subheader" id="stickyHeader">
+      <div class="container flex">
+        <div class="subheadings">
+
+          <div class="column">
+            <div class="hamburger">
+              <button
+                type="button"
+                id="menuToggle"
+                class="main-nav-toggle"
+                aria-label="Toggle menu"
+                aria-expanded="false"
+              >
+                <span></span>
+                <span></span>
+                <span></span>
+              </button>
             </div>
-      
-            <div class="column">
-              <span style="color:lightgray;">Bible</span>
-            </div>
-      
-            <div class="column">
-              <span style="color:lightgray;">Book & Chapter</span>
-            </div>
-      
-            <div class="column">
-              <div class="custom-combobox language-row">
-                <label for="langInput" class="language-label">Language:</label>
-                <select id="langInput">
-                  <option value="https://api.scripture.api.bible/v1/bibles?include-full-details=false" selected>
-                    All
-                  </option>
-                  <!--<option value="https://api.scripture.api.bible/v1/bibles?language=eng&include-full-details=false">--> 
-                  <option value="https://rest.api.bible/v1/bibles?language=eng&include-full-details=false">                                
-                    English
-                  </option>
-                  <option value="https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false">
-                    Greek
-                  </option>
-                  <option value="https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=false">
-                    Hebrew
-                  </option>
-                </select>
-              </div>
-            </div>
-      
-            <div class="column">
-              <button type="button" id="login">Login</button>
-              <button type="button" id="logout" style="display:none;">Logout</button>
-            </div>
-      
           </div>
+
+          <!-- Current Bible -->
+          <div class="column">
+            <span
+              id="currentBible"
+              class="header-selection unavailable"
+              title="Select a Bible"
+            >
+              Bible
+            </span>
+          </div>
+
+          <!-- Current Book and Chapter -->
+          <div class="column">
+            <span
+              id="currentBookChapter"
+              class="header-selection unavailable"
+              title="Select a book and chapter"
+            >
+              Book &amp; Chapter
+            </span>
+          </div>
+
+          <!-- Language Filter -->
+          <div class="column">
+            <div class="custom-combobox language-row">
+              <label
+                for="langInput"
+                class="language-label"
+              >
+                Language:
+              </label>
+
+              <select id="langInput">
+                <option
+                  value="https://api.scripture.api.bible/v1/bibles?include-full-details=false"
+                  selected
+                >
+                  All
+                </option>
+
+                <option
+                  value="https://rest.api.bible/v1/bibles?language=eng&include-full-details=false"
+                >
+                  English
+                </option>
+
+                <option
+                  value="https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false"
+                >
+                  Greek
+                </option>
+
+                <option
+                  value="https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=false"
+                >
+                  Hebrew
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Login / Logout -->
+          <div class="column">
+            <button type="button" id="login">
+              Login
+            </button>
+
+            <button
+              type="button"
+              id="logout"
+              style="display: none;"
+            >
+              Logout
+            </button>
+          </div>
+
         </div>
       </div>
+    </div>
 
-    <!-- ****** My Notes Modal ****** -->
-    <div id="myNotesModal" class="modal" style="display:none;">
+    <!-- **************** My Notes Modal **************** -->
+
+    <div
+      id="myNotesModal"
+      class="modal"
+      style="display: none;"
+    >
       <div class="my-notes-content">
-        <button type="button" id="closeMyNotes" class="modal-close" title="Close My Notes">
+
+        <button
+          type="button"
+          id="closeMyNotes"
+          class="modal-close"
+          title="Close My Notes"
+        >
           &times;
         </button>
-    
+
         <h2>My Notes</h2>
-    
+
         <input
           type="text"
           id="myNotesSearch"
           placeholder="Search notes..."
           class="my-notes-search"
         >
-    
-        <div id="myNotesStatus" class="my-notes-status">
+
+        <div
+          id="myNotesStatus"
+          class="my-notes-status"
+        >
           Loading...
         </div>
-    
+
         <div class="my-notes-table-wrapper">
           <table class="my-notes-table">
             <thead>
@@ -103,45 +178,103 @@
                 <th>Delete</th>
               </tr>
             </thead>
+
             <tbody id="myNotesTableBody">
             </tbody>
           </table>
         </div>
+
       </div>
     </div>
-    
+
+    <!-- **************** Overlay Menu **************** -->
+
     <header>
-      <div id="menuNav" class="overlay">        
+      <div id="menuNav" class="overlay">
         <div class="overlay-content">
-          <a href="#" class="current">Home</a>
-          <a href="#" class="disabled">Books</a>
-          <a href="#" class="disabled">Chapter</a>
-          <a href="./search.html">Search</a>
-          <a href="#" id="openMyNotes" class="disabled" aria-disabled="true">My Notes</a>
-          <!--<a href="#">Preferences</a>-->   
+
+          <a
+            id="homeMenuLink"
+            href="./index.html"
+            class="current"
+          >
+            Home
+          </a>
+
+          <a
+            id="booksMenuLink"
+            href="#"
+            class="disabled"
+            aria-disabled="true"
+          >
+            Books
+          </a>
+
+          <a
+            id="chapterMenuLink"
+            href="#"
+            class="disabled"
+            aria-disabled="true"
+          >
+            Chapter
+          </a>
+
+          <a
+            id="searchMenuLink"
+            href="./search.html"
+          >
+            Search
+          </a>
+
+          <a
+            href="#"
+            id="openMyNotes"
+            class="disabled"
+            aria-disabled="true"
+          >
+            My Notes
+          </a>
+
         </div>
       </div>
-    </header>   
+    </header>
 
-<main class="container" style="font-size: 18px;">
-    <div id="bible-version-list">
-        </div>
-    
-    <div class="leftcol">
-        <a id="prevURL">
-            <img id="imgleft" class="left-button" src="./img/orig_left_stamp.png" />
+    <!-- **************** Main Content **************** -->
+
+    <main
+      class="container"
+      style="font-size: 18px;"
+    >
+      <div id="bible-version-list">
+      </div>
+
+      <div class="leftcol">
+        <a id="prevURL" href="#">
+          <img
+            id="imgleft"
+            class="left-button"
+            src="./img/orig_left_stamp.png"
+            alt="Previous page"
+          >
         </a>
-    </div>
+      </div>
 
-    <div class="rightcol">
-        <a id="nextURL">
-            <img id="imgright" class="right-button" src="./img/orig_right_stamp.png" />
+      <div class="rightcol">
+        <a id="nextURL" href="#">
+          <img
+            id="imgright"
+            class="right-button"
+            src="./img/orig_right_stamp.png"
+            alt="Next page"
+          >
         </a>
-    </div>
+      </div>
 
-    <div class="bottom-spacer"></div>
-</main>    
-    
+      <div class="bottom-spacer"></div>
+    </main>
+
+    <!-- Existing JavaScript Files -->
+
     <script src="js/my_key.js"></script>
     <script src="js/menu.js"></script>
     <script src="js/auth.js"></script>
@@ -149,42 +282,388 @@
 
     <script>
       document.addEventListener("DOMContentLoaded", () => {
-    
-        // Element Selectors
         const elements = {
           menuNav: document.getElementById("menuNav"),
-          //fontSizeSlider: document.getElementById("font-size-slider"),
           displayText: document.getElementById("bible-version-list"),
-          langInput: document.getElementById("langInput")
+          langInput: document.getElementById("langInput"),
+
+          currentBible: document.getElementById("currentBible"),
+          currentBookChapter:
+            document.getElementById("currentBookChapter"),
+
+          homeMenuLink:
+            document.getElementById("homeMenuLink"),
+
+          booksMenuLink:
+            document.getElementById("booksMenuLink"),
+
+          chapterMenuLink:
+            document.getElementById("chapterMenuLink"),
+
+          searchMenuLink:
+            document.getElementById("searchMenuLink")
         };
-        
-        // Font Resize Logic
-        // elements.fontSizeSlider?.addEventListener("input", (e) => {
-        //   if (elements.displayText) {
-        //     elements.displayText.style.fontSize = `${e.target.value}px`;
-        //   }
-        // });
-    
-        // Language Selection
-        if (elements.langInput) {
-          const savedApiUrl = localStorage.getItem("selectedBibleApi");
-    
-          if (savedApiUrl) {
-            elements.langInput.value = savedApiUrl;
+
+        /*
+         * URL state
+         *
+         * index.html may contain:
+         *
+         * index.html?bible=BIBLE_ID
+         *
+         * Book and chapter are intentionally ignored on this page.
+         */
+
+        const urlParams = new URLSearchParams(
+          window.location.search
+        );
+
+        const selectedBibleId =
+          urlParams.get("bible") || "";
+
+        /*
+         * Bible information may temporarily come from localStorage
+         * until misc.js has been updated to put the Bible name and
+         * abbreviation into the URL or reload them through the API.
+         */
+
+        const selectedBibleAbbreviation =
+          urlParams.get("bibleAbbr") ||
+          localStorage.getItem("selectedBibleAbbreviation") ||
+          localStorage.getItem("selectedBibleAbbr") ||
+          "";
+
+        const selectedBibleName =
+          localStorage.getItem("selectedBibleName") ||
+          "";
+
+        /*
+         * Build a page URL using only known values.
+         *
+         * Empty values are not added.
+         */
+
+        function buildUrl(page, state = {}) {
+          const params = new URLSearchParams();
+
+          if (state.bible) {
+            params.set("bible", state.bible);
           }
-    
-          elements.langInput.addEventListener("change", function () {
-            const selectedUrl = this.value;
-            const selectedName = this.options[this.selectedIndex].text.trim();
-    
-            localStorage.setItem("selectedBibleApi", selectedUrl);
-            localStorage.setItem("selectedBibleName", selectedName);
-    
-            window.location.reload();
-          });
+
+          const queryString = params.toString();
+
+          if (!queryString) {
+            return page;
+          }
+
+          return `${page}?${queryString}`;
         }
-    
+
+        /*
+         * Disable a menu link safely.
+         */
+
+        function disableLink(link) {
+          if (!link) {
+            return;
+          }
+
+          link.href = "#";
+          link.classList.add("disabled");
+          link.setAttribute("aria-disabled", "true");
+          link.setAttribute("tabindex", "-1");
+        }
+
+        /*
+         * Enable a menu link.
+         */
+
+        function enableLink(link, href) {
+          if (!link) {
+            return;
+          }
+
+          link.href = href;
+          link.classList.remove("disabled");
+          link.removeAttribute("aria-disabled");
+          link.removeAttribute("tabindex");
+        }
+
+        /*
+         * Prevent disabled menu links from navigating.
+         */
+
+        document.addEventListener("click", (event) => {
+          const disabledLink =
+            event.target.closest("a.disabled");
+
+          if (!disabledLink) {
+            return;
+          }
+
+          event.preventDefault();
+        });
+
+        /*
+         * Configure navigation for index.html.
+         *
+         * Home:
+         * Keeps the currently selected Bible.
+         *
+         * Books:
+         * Becomes available when a Bible is known.
+         *
+         * Chapter:
+         * Remains unavailable because index.html does not know
+         * which book has been selected.
+         */
+
+        enableLink(
+          elements.homeMenuLink,
+          buildUrl("./index.html", {
+            bible: selectedBibleId
+          })
+        );
+
+        if (selectedBibleId) {
+          enableLink(
+            elements.booksMenuLink,
+            buildUrl("./book.html", {
+              bible: selectedBibleId
+            })
+          );
+        } else {
+          disableLink(elements.booksMenuLink);
+        }
+
+        disableLink(elements.chapterMenuLink);
+
+        /*
+         * Preserve the selected Bible when opening Search.
+         */
+
+        enableLink(
+          elements.searchMenuLink,
+          buildUrl("./search.html", {
+            bible: selectedBibleId
+          })
+        );
+
+        /*
+         * Display selected Bible in the sticky header.
+         *
+         * bibleAbbr is used for display only.
+         * bible is the API Bible ID.
+         */
+
+        if (selectedBibleId && elements.currentBible) {
+          const displayAbbreviation =
+            selectedBibleAbbreviation ||
+            "Bible";
+
+          elements.currentBible.textContent =
+            displayAbbreviation;
+
+          elements.currentBible.title =
+            selectedBibleName ||
+            selectedBibleAbbreviation ||
+            selectedBibleId;
+
+          elements.currentBible.classList.remove(
+            "unavailable"
+          );
+        }
+
+        /*
+         * No book or chapter should be shown on index.html.
+         */
+
+        if (elements.currentBookChapter) {
+          elements.currentBookChapter.textContent =
+            "Book & Chapter";
+
+          elements.currentBookChapter.title =
+            "Select a Bible first";
+        }
+
+        /*
+         * Language selection
+         *
+         * This remains in localStorage because the language is a
+         * filter preference and is not part of the Bible-reading
+         * navigation state.
+         */
+
+        if (elements.langInput) {
+          const savedApiUrl =
+            localStorage.getItem("selectedBibleApi");
+
+          if (savedApiUrl) {
+            const matchingOption = Array.from(
+              elements.langInput.options
+            ).find((option) => {
+              return option.value === savedApiUrl;
+            });
+
+            if (matchingOption) {
+              elements.langInput.value = savedApiUrl;
+            }
+          }
+
+          elements.langInput.addEventListener(
+            "change",
+            function () {
+              const selectedUrl = this.value;
+
+              const selectedLanguageName =
+                this.options[
+                  this.selectedIndex
+                ].text.trim();
+
+              localStorage.setItem(
+                "selectedBibleApi",
+                selectedUrl
+              );
+
+              localStorage.setItem(
+                "selectedLanguageName",
+                selectedLanguageName
+              );
+
+              /*
+               * Changing the language invalidates the current Bible,
+               * because that Bible may not exist in the new API list.
+               */
+
+              const cleanUrl = new URL(
+                window.location.href
+              );
+
+              cleanUrl.searchParams.delete("bible");
+              cleanUrl.searchParams.delete("bibleAbbr");
+
+              localStorage.removeItem(
+                "selectedBibleId"
+              );
+
+              localStorage.removeItem(
+                "selectedBibleAbbreviation"
+              );
+
+              localStorage.removeItem(
+                "selectedBibleAbbr"
+              );
+
+              localStorage.removeItem(
+                "selectedBibleName"
+              );
+
+              window.location.assign(
+                cleanUrl.toString()
+              );
+            }
+          );
+        }
+
+        /*
+         * Make the URL helper available to misc.js.
+         *
+         * misc.js should call:
+         *
+         * window.BibleNavigation.selectBible({
+         *   id: bible.id,
+         *   abbreviation: bible.abbreviation,
+         *   name: bible.name
+         * });
+         *
+         * when the user selects a Bible.
+         */
+
+        window.BibleNavigation = {
+          getState() {
+            return {
+              bible: selectedBibleId
+            };
+          },
+
+          buildUrl,
+
+          selectBible(bible) {
+            if (!bible || !bible.id) {
+              console.error(
+                "A Bible ID is required."
+              );
+
+              return;
+            }
+
+            const abbreviation =
+              bible.abbreviation ||
+              bible.abbreviationLocal ||
+              "";
+
+            const fullName =
+              bible.name ||
+              bible.nameLocal ||
+              abbreviation ||
+              bible.id;
+
+            /*
+             * localStorage is retained only as a temporary cache for
+             * display labels and backward compatibility.
+             *
+             * The Bible ID in the URL is the navigation source of truth.
+             */
+
+            localStorage.setItem(
+              "selectedBibleId",
+              bible.id
+            );
+
+            localStorage.setItem(
+              "selectedBibleAbbreviation",
+              abbreviation
+            );
+
+            localStorage.setItem(
+              "selectedBibleAbbr",
+              abbreviation
+            );
+
+            localStorage.setItem(
+              "selectedBibleName",
+              fullName
+            );
+
+            const destinationParams =
+              new URLSearchParams();
+
+            destinationParams.set(
+              "bible",
+              bible.id
+            );
+
+            /*
+             * The abbreviation is included so book.html can display
+             * it immediately while API information is loading.
+             *
+             * It is display information, not the API identifier.
+             */
+
+            if (abbreviation) {
+              destinationParams.set(
+                "bibleAbbr",
+                abbreviation
+              );
+            }
+
+            window.location.assign(
+              `./book.html?${destinationParams.toString()}`
+            );
+          }
+        };
       });
     </script>
   </body>
 </html>
+```
