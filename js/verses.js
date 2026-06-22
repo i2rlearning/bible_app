@@ -24,7 +24,7 @@ const bibleBookID =
     ? bibleChapterID.split(".")[0]
     : "");
 
-const bibleName =
+let bibleName =
   urlParams.get("bibleName") ||
   "";
 
@@ -41,17 +41,22 @@ const abbreviation =
   localStorage.getItem("selectedBibleAbbr") ||
   "";
 
-normalizeCurrentVerseUrl();
+initializeBibleIdentity();
 
 function normalizeCurrentVerseUrl() {
   const currentUrl = new URL(window.location.href);
 
-  const usesOldParameters =
-    currentUrl.searchParams.has("version") ||
-    currentUrl.searchParams.has("abbr") ||
-    currentUrl.searchParams.has("name");
+  const needsNormalization =
+  currentUrl.searchParams.has("version") ||
+  currentUrl.searchParams.has("abbr") ||
+  currentUrl.searchParams.has("name") ||
+  !currentUrl.searchParams.has("bibleName");
 
-  if (!usesOldParameters || !bibleVersionID || !bibleChapterID) {
+  if (
+    !needsNormalization ||
+    !bibleVersionID ||
+    !bibleChapterID
+  ) {
     return;
   }
 
@@ -82,6 +87,108 @@ function normalizeCurrentVerseUrl() {
     "",
     `./verse.html?${normalizedParams.toString()}`
   );
+}
+
+async function initializeBibleIdentity() {
+  /*
+   * New URLs may already contain the full Bible name.
+   * Old saved URLs usually do not.
+   */
+
+  if (!bibleName && bibleVersionID) {
+    try {
+      const bibleDetails =
+        await getBibleDetails(bibleVersionID);
+
+      bibleName =
+        bibleDetails.name ||
+        bibleDetails.nameLocal ||
+        abbreviation ||
+        bibleVersionID;
+
+      const bibleFullNameElement =
+        document.getElementById("biblefullname");
+
+      if (bibleFullNameElement) {
+        bibleFullNameElement.textContent =
+          bibleName;
+      }
+    } catch (error) {
+      console.error(
+        "Unable to retrieve the full Bible name:",
+        error
+      );
+    }
+  }
+
+  normalizeCurrentVerseUrl();
+}
+
+function getBibleDetails(bibleId) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.withCredentials = false;
+
+    xhr.addEventListener(
+      "readystatechange",
+      function () {
+        if (
+          this.readyState !==
+          XMLHttpRequest.DONE
+        ) {
+          return;
+        }
+
+        if (
+          this.status < 200 ||
+          this.status >= 300
+        ) {
+          reject(
+            new Error(
+              `Bible details request failed with status ${this.status}.`
+            )
+          );
+
+          return;
+        }
+
+        try {
+          const response =
+            JSON.parse(this.responseText);
+
+          resolve(response.data || {});
+        } catch (error) {
+          reject(error);
+        }
+      }
+    );
+
+    xhr.addEventListener(
+      "error",
+      () => {
+        reject(
+          new Error(
+            "A network error occurred while loading Bible details."
+          )
+        );
+      }
+    );
+
+    xhr.open(
+      "GET",
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
+        bibleId
+      )}`
+    );
+
+    xhr.setRequestHeader(
+      "api-key",
+      API_KEY
+    );
+
+    xhr.send();
+  });
 }
 
 let verseHTML = "";
