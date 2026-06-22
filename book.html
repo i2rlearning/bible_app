@@ -117,12 +117,8 @@
       //************ subheader content ***********
       document.getElementById("biblefullname").textContent = fullbiblename || "";
       document.getElementById("bibleabbr").textContent = abbreviation || "";
-    
-      //set current book url for next 2 screens
-      sessionStorage.setItem("bookabbr", window.location.href);
-      sessionStorage.setItem("fullbookname", fullbiblename); //used for tooltip only in the next 2 screen
-      
-       //************ subheader content ***********
+         
+      //************ subheader content ***********
       function getBooks(bibleVersionID) {
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
