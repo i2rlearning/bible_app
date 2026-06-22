@@ -39,8 +39,6 @@ let abbreviation =
   urlParams.get("abbr") ||
   "";
 
-initializeBibleIdentity();
-
 function normalizeCurrentVerseUrl() {
   if (!bibleVersionID || !bibleChapterID) {
     return;
