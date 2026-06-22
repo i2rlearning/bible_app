@@ -657,6 +657,13 @@
               );
             }
 
+            if (fullName) {
+              destinationParams.set(
+                "bibleName",
+                fullName
+              );
+            }
+            
             window.location.assign(
               `./book.html?${destinationParams.toString()}`
             );
