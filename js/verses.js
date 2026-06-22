@@ -26,7 +26,6 @@ const bibleBookID =
 
 const bibleName =
   urlParams.get("bibleName") ||
-  localStorage.getItem("selectedBibleName") ||
   "";
 
 const bibleBookName =
@@ -41,6 +40,49 @@ const abbreviation =
   localStorage.getItem("selectedBibleAbbreviation") ||
   localStorage.getItem("selectedBibleAbbr") ||
   "";
+
+normalizeCurrentVerseUrl();
+
+function normalizeCurrentVerseUrl() {
+  const currentUrl = new URL(window.location.href);
+
+  const usesOldParameters =
+    currentUrl.searchParams.has("version") ||
+    currentUrl.searchParams.has("abbr") ||
+    currentUrl.searchParams.has("name");
+
+  if (!usesOldParameters || !bibleVersionID || !bibleChapterID) {
+    return;
+  }
+
+  const normalizedParams = new URLSearchParams();
+
+  normalizedParams.set("bible", bibleVersionID);
+
+  if (abbreviation) {
+    normalizedParams.set("bibleAbbr", abbreviation);
+  }
+
+  if (bibleName) {
+    normalizedParams.set("bibleName", bibleName);
+  }
+
+  if (bibleBookID) {
+    normalizedParams.set("book", bibleBookID);
+  }
+
+  if (bibleBookName) {
+    normalizedParams.set("bookName", bibleBookName);
+  }
+
+  normalizedParams.set("chapter", bibleChapterID);
+
+  window.history.replaceState(
+    {},
+    "",
+    `./verse.html?${normalizedParams.toString()}`
+  );
+}
 
 let verseHTML = "";
 
