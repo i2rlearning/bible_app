@@ -272,17 +272,21 @@ function createBibleVersionItem(version) {
     document.createElement("span");
 
   const strongName =
-    document.createElement("strong");
+  document.createElement("strong");
 
-  name.className =
-    "bible-version-name";
+name.className =
+  "bible-version-name";
 
-  strongName.textContent =
-    version.name;
+strongName.textContent =
+  version.abbreviation ||
+  version.name;
 
-  name.appendChild(strongName);
-  paragraph.appendChild(name);
+name.appendChild(strongName);
+paragraph.appendChild(name);
 
+link.title =
+  version.name;
+  
   /*
    * The browser's native title tooltip displays the
    * Bible's full name when hovering over the link.
