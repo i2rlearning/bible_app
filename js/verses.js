@@ -37,8 +37,6 @@ const bibleBookName =
 const abbreviation =
   urlParams.get("bibleAbbr") ||
   urlParams.get("abbr") ||
-  localStorage.getItem("selectedBibleAbbreviation") ||
-  localStorage.getItem("selectedBibleAbbr") ||
   "";
 
 initializeBibleIdentity();
