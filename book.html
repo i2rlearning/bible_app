@@ -46,7 +46,7 @@
     <header>
         <div id="menuNav" class="overlay">
             <div class="overlay-content">
-                <a href="./index.html">Home</a>
+                <a href="./">Home</a>
                 <a href="#" class="current">Books</a>
                 <a id="sticky" href="#" class="disabled">Chapter</a>
                 <a href="./search.html">Search</a>
@@ -82,7 +82,7 @@
       let bookHTML = ``;
 
       if (!bibleVersionID) {
-        window.location.href = `./index.html`;
+        window.location.href = `./`;
       }
 
       getBooks(bibleVersionID).then((bookList) => {
