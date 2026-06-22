@@ -1,4 +1,3 @@
-```javascript
 /*
  * misc.js
  *
