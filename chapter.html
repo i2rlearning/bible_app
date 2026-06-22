@@ -41,7 +41,7 @@
     <header>
       <div id="menuNav" class="overlay">
         <div class="overlay-content">
-          <a href="./index.html">Home</a>
+          <a href="./">Home</a>
           <a id="bookurl">Books</a>
           <a href="#" class="current">Chapter</a>
           <a href="./search.html">Search</a>
@@ -95,7 +95,7 @@
         "";
     
       if (!bibleVersionID) {
-        window.location.replace("./index.html");
+        window.location.replace("./");
       } else if (!bibleBookID) {
         const bookParams = new URLSearchParams();
     
@@ -169,7 +169,7 @@
       function updateMenuLinks() {
         const homeLink =
           document.querySelector(
-            '.overlay-content a[href="./index.html"]'
+            '.overlay-content a[href="./"]'
           );
     
         const bookLink =
@@ -204,7 +204,7 @@
     
         if (homeLink) {
           homeLink.href =
-            `./index.html?${bibleParams.toString()}`;
+            `./?${bibleParams.toString()}`;
         }
     
         if (bookLink) {
