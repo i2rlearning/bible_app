@@ -761,7 +761,8 @@ async function saveMiniEditorPage() {
         bibleChapterID: pageIdentity.bibleChapterID,
         pageKey: pageIdentity.pageKey,
         pageUrl: window.location.pathname + window.location.search,
-        bibleName: new URLSearchParams(window.location.search).get("abbr") || "",
+        bibleName: new URLSearchParams(window.location.search).get("bibleAbbr") ||
+          new URLSearchParams(window.location.search).get("abbr") || "",
         bookChapterLabel: document.querySelector(".subheadings .column:nth-child(3)")?.textContent?.trim() || "",
         miniEditorJson,
         hasHighlights: flags.hasHighlights,
