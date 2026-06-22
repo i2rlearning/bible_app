@@ -75,9 +75,9 @@
     <script src="js/menu.js" defer></script>
    <script>
       const bibleBookList = document.querySelector(`#book-list`);
-      const bibleVersionID = getParameterByName(`version`);
-      const fullbiblename = getParameterByName(`name`);
-      const abbreviation = getParameterByName(`abbr`);
+      const bibleVersionID = getParameterByName("bible") || getParameterByName("version");
+      const fullbiblename =  getParameterByName("bibleName") || getParameterByName("name");    
+      const abbreviation = getParameterByName("bibleAbbr") || getParameterByName("abbr");
 
       let bookHTML = ``;
 
@@ -88,8 +88,26 @@
       getBooks(bibleVersionID).then((bookList) => {
         bookHTML += `<ol>`;
         for (let book of bookList) {
-          bookHTML += `<li class="grid"><a href="chapter.html?version=${bibleVersionID}&abbr=${abbreviation}&book=${book.id}&name=${book.name}" title="${book.name}"> ${book.id} </a></li>`;
+          const chapterParams = new URLSearchParams({
+              bible: bibleVersionID,
+              bibleAbbr: abbreviation || "",
+              bibleName: fullbiblename || "",
+              book: book.id,
+              bookName: book.name
+            });
+            
+            bookHTML += `
+              <li class="grid">
+                <a
+                  href="./chapter.html?${chapterParams.toString()}"
+                  title="${book.name}"
+                >
+                  ${book.id}
+                </a>
+              </li>
+            `;
           }
+          
         bookHTML += `</ol>`;
        
         bibleBookList.innerHTML = bookHTML;
@@ -97,10 +115,9 @@
       });
 
       //************ subheader content ***********
-      biblefullname.innerHTML = fullbiblename;
-      bibleabbr.innerHTML = abbreviation;  //tootlip for abbreviaion
-      
-
+      document.getElementById("biblefullname").textContent = fullbiblename || "";
+      document.getElementById("bibleabbr").textContent = abbreviation || "";
+    
       //set current book url for next 2 screens
       sessionStorage.setItem("bookabbr", window.location.href);
       sessionStorage.setItem("fullbookname", fullbiblename); //used for tooltip only in the next 2 screen
