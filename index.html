@@ -455,19 +455,13 @@
          * bible is the API Bible ID.
          */
 
-        if (selectedBibleId && elements.currentBible) {
-          const displayAbbreviation =
-            selectedBibleAbbreviation ||
-            "Bible";
-
+        if (elements.currentBible) {
           elements.currentBible.textContent =
-            displayAbbreviation;
-
+            "Bible";
+        
           elements.currentBible.title =
-            selectedBibleName ||
-            selectedBibleAbbreviation ||
-            selectedBibleId;
-
+            "Select a Bible version";
+        
           elements.currentBible.classList.remove(
             "unavailable"
           );
