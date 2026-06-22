@@ -1,119 +1,163 @@
+"use strict";
+
 // ----------------------------------------------------
 // Global parchment menu behavior
 // ----------------------------------------------------
+
 (function () {
   function getMenuElements() {
     return {
-      menuNav: document.getElementById("menuNav"),
-      menuToggle: document.getElementById("menuToggle"),
-      bookUrl: document.getElementById("bookurl"),
-      chapterUrl: document.getElementById("chapterurl")
+      menuNav:
+        document.getElementById("menuNav"),
+
+      menuToggle:
+        document.getElementById("menuToggle")
     };
   }
 
   function setMenuToggleState(isOpen) {
-    const { menuToggle } = getMenuElements();
+    const { menuToggle } =
+      getMenuElements();
 
-    if (!menuToggle) return;
+    if (!menuToggle) {
+      return;
+    }
 
     if (isOpen) {
-      menuToggle.classList.add("active-menu");
-      menuToggle.setAttribute("aria-expanded", "true");
+      menuToggle.classList.add(
+        "active-menu"
+      );
+
+      menuToggle.setAttribute(
+        "aria-expanded",
+        "true"
+      );
     } else {
-      menuToggle.classList.remove("active-menu");
-      menuToggle.setAttribute("aria-expanded", "false");
+      menuToggle.classList.remove(
+        "active-menu"
+      );
+
+      menuToggle.setAttribute(
+        "aria-expanded",
+        "false"
+      );
     }
   }
 
-  function updateMenuLinks() {
-    const { bookUrl, chapterUrl } = getMenuElements();
-
-    const bookLink = sessionStorage.getItem("bookabbr");
-    const chapterLink = sessionStorage.getItem("chapter");
-
-    if (bookUrl) {
-      if (bookLink) {
-        bookUrl.setAttribute("href", bookLink);
-        bookUrl.classList.remove("disabled");
-        bookUrl.setAttribute("aria-disabled", "false");
-      } else {
-        bookUrl.setAttribute("href", "#");
-        bookUrl.classList.add("disabled");
-        bookUrl.setAttribute("aria-disabled", "true");
-      }
-    }
-
-    if (chapterUrl) {
-      if (chapterLink) {
-        chapterUrl.setAttribute("href", chapterLink);
-        chapterUrl.classList.remove("disabled");
-        chapterUrl.setAttribute("aria-disabled", "false");
-      } else {
-        chapterUrl.setAttribute("href", "#");
-        chapterUrl.classList.add("disabled");
-        chapterUrl.setAttribute("aria-disabled", "true");
-      }
-    }
-  }
+  /*
+   * menu.js must not create or restore navigation URLs.
+   *
+   * Each page creates its own links using the current URL:
+   *
+   * index.html  - Bible only
+   * book.html   - Bible only
+   * chapter.html - Bible and book
+   * verse.html  - Bible, book and chapter
+   *
+   * This prevents old sessionStorage values from replacing
+   * the current page state.
+   */
 
   window.openNav = function () {
-    const { menuNav } = getMenuElements();
+    const { menuNav } =
+      getMenuElements();
 
-    if (!menuNav) return;
+    if (!menuNav) {
+      return;
+    }
 
-    const isOpen = menuNav.style.width && menuNav.style.width !== "0px";
+    const isOpen =
+      menuNav.style.width &&
+      menuNav.style.width !== "0px";
 
     if (isOpen) {
       window.closeNav();
       return;
     }
 
-    updateMenuLinks();
+    menuNav.style.width =
+      "225px";
 
-    menuNav.style.width = "225px";
     setMenuToggleState(true);
   };
 
   window.closeNav = function () {
-    const { menuNav } = getMenuElements();
+    const { menuNav } =
+      getMenuElements();
 
     if (menuNav) {
-      menuNav.style.width = "0px";
+      menuNav.style.width =
+        "0px";
     }
 
     setMenuToggleState(false);
   };
 
   window.toggleNav = function () {
-    window.openNav();
-  };
+    const { menuNav } =
+      getMenuElements();
 
-  document.addEventListener("DOMContentLoaded", () => {
-    const { menuToggle } = getMenuElements();
-
-    updateMenuLinks();
-    setMenuToggleState(false);
-
-    if (menuToggle) {
-      menuToggle.addEventListener("click", (event) => {
-        event.preventDefault();
-        window.toggleNav();
-      });
+    if (!menuNav) {
+      return;
     }
 
-    document.addEventListener("click", (event) => {
-      const target = event.target;
+    const isOpen =
+      menuNav.style.width &&
+      menuNav.style.width !== "0px";
 
-      if (!target || typeof target.closest !== "function") return;
+    if (isOpen) {
+      window.closeNav();
+    } else {
+      window.openNav();
+    }
+  };
 
-      const disabledMenuLink = target.closest(".overlay-content a.disabled");
+  document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+      const { menuToggle } =
+        getMenuElements();
 
-      if (
-        disabledMenuLink &&
-        disabledMenuLink.id !== "openMyNotes"
-      ) {
-        event.preventDefault();
+      setMenuToggleState(false);
+
+      if (menuToggle) {
+        menuToggle.addEventListener(
+          "click",
+          (event) => {
+            event.preventDefault();
+            window.toggleNav();
+          }
+        );
       }
-    });
-  });
+
+      document.addEventListener(
+        "click",
+        (event) => {
+          const target =
+            event.target;
+
+          if (
+            !target ||
+            typeof target.closest !==
+              "function"
+          ) {
+            return;
+          }
+
+          const disabledMenuLink =
+            target.closest(
+              ".overlay-content a.disabled"
+            );
+
+          if (
+            disabledMenuLink &&
+            disabledMenuLink.id !==
+              "openMyNotes"
+          ) {
+            event.preventDefault();
+          }
+        }
+      );
+    }
+  );
 })();
