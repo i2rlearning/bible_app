@@ -70,163 +70,397 @@
     <script src="js/my_key.js"></script>
     <script src="js/menu.js" defer></script> 
     <script>
-      const bibleChapterList = document.querySelector(`#chapter-list`);
-      const bibleVersionID = getParameterByName(`version`);
-      const bibleBookID = getParameterByName(`book`);
-      const abbreviation = getParameterByName(`abbr`);
-      const bibleName = getParameterByName(`name`);
-      const bibleSectionList = document.querySelector(`#section-list`);
-
-      let chapterHTML = ``;
-      
-      if (!bibleVersionID || !bibleBookID) {
-        window.location.href = `./index.html`;
+      const bibleChapterList =
+        document.getElementById("chapter-list");
+    
+      const bibleVersionID =
+        getParameterByName("bible") ||
+        getParameterByName("version");
+    
+      const bibleBookID =
+        getParameterByName("book");
+    
+      const abbreviation =
+        getParameterByName("bibleAbbr") ||
+        getParameterByName("abbr") ||
+        "";
+    
+      const fullBibleName =
+        getParameterByName("bibleName") ||
+        localStorage.getItem("selectedBibleName") ||
+        "";
+    
+      const bibleBookName =
+        getParameterByName("bookName") ||
+        getParameterByName("name") ||
+        "";
+    
+      if (!bibleVersionID) {
+        window.location.replace("./index.html");
+      } else if (!bibleBookID) {
+        const bookParams = new URLSearchParams();
+    
+        bookParams.set("bible", bibleVersionID);
+    
+        if (abbreviation) {
+          bookParams.set("bibleAbbr", abbreviation);
+        }
+    
+        if (fullBibleName) {
+          bookParams.set("bibleName", fullBibleName);
+        }
+    
+        window.location.replace(
+          `./book.html?${bookParams.toString()}`
+        );
+      } else {
+        initializeChapterPage();
       }
-      
-      getChapters(bibleVersionID, bibleBookID).then((chapterList) => {
-        chapterHTML += `<ol>`;
-        for (let chapter of chapterList) {
-          chapterHTML += `<li class="grid"><a class="grid-link" href="verse.html?version=${bibleVersionID}&name=${bibleName}&abbr=${abbreviation}&chapter=${chapter.id}"> ${chapter.number} </a></li>`;
-        }
-
-        chapterHTML += `</ol>`;
-        bibleChapterList.innerHTML = chapterHTML;
-        var last = chapterHTML.substring(chapterHTML.length - 17);
-
-        //sets max chapters - used for arrows in verse.html
-        sessionStorage.setItem("maxchapnum", last.slice(0, 2));
-      });
-
-      getSections(bibleVersionID, bibleBookID).then((sectionList) => {
-        if (sectionList) {
-          sectionHTML += `<ol>`;
-          for (let section of sectionList) {
-            sectionHTML += `<li class="section"><a href="section.html?version=${bibleVersionID}&abbr=${abbreviation}&section=${section.id}"><abbr class="section-id">${section.id}</abbr><span class="bible-version-name"> ${section.title} </span></a></li>`;
-          }
-          sectionHTML += `</ol>`;
-        } else {
-          sectionHTML += `<div>There are no sections for this version and chapter.</div>`;
-        }
-        bibleSectionList.innerHTML = sectionHTML;
-      });
-      
-      //************ subheader content ***********
-      const bibleHTML = `${abbreviation}`; 
-      const bookNameHTML  = `${bibleName}`;
-      
-      bible.innerHTML = bibleHTML;
-      bookName.innerHTML = bookNameHTML;
-
-      //sets chapter url for next screen
-      sessionStorage.setItem("chapter", window.location.href);
-
-      //gets fullbookname for tooltip
-      var fbookname = sessionStorage.getItem("fullbookname");
-      document.getElementById("biblefullname").innerHTML = fbookname; 
-
-      //************ subheader content ***********
-      //document.querySelector(`#viewing`).innerHTML = `${bibleBookID}`;
-      //const breadcrumbsHTML = `
-          <!-- <a href="book.html?version=${bibleVersionID}&abbr=${abbreviation}&name=${bibleName}" -->
-          //${abbreviation} / ${bibleName}`;
-     //breadcrumbs.innerHTML = breadcrumbsHTML;
-      //window.prompt(breadcrumbsHTML);
-
-      function getChapters(bibleVersionID, bibleBookID) {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.withCredentials = false;
-      
-          xhr.addEventListener(`readystatechange`, function () {
-            if (this.readyState === this.DONE) {
-              const { data } = JSON.parse(this.responseText);
-              const chapters = data.map(({ number, id }) => {
-                return { number, id };
-              });
-
-              resolve(chapters);
-            }
-          });
-      
-          xhr.open(
-            `GET`,
-            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books/${bibleBookID}/chapters`
+    
+      async function initializeChapterPage() {
+        updateHeader();
+        updateMenuLinks();
+    
+        try {
+          const chapterList = await getChapters(
+            bibleVersionID,
+            bibleBookID
           );
-          xhr.setRequestHeader(`api-key`, API_KEY);
-          xhr.onerror = () => reject(xhr.statusText);
-          xhr.send();
-        });
-      }
-
-      function getSections(bibleVersionID, bibleBookID) {
-        return new Promise((resolve, reject) => {book
-          const xhr = new XMLHttpRequest();
-          xhr.withCredentials = false;
-          xhr.addEventListener(`readystatechange`, function () {
-            if (this.readyState === this.DONE) {
-              const { data } = JSON.parse(this.responseText);
-              const sections = data
-                ? data.map(({ title, id }) => {
-                    return { title, id };
-                  })
-                : null;
-              
-              resolve(sections);
-            }
-          });
-  
-      xhr.open(
-        `GET`,
-        `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books/${bibleBookID}/sections`
-      );
-      xhr.setRequestHeader(`api-key`, API_KEY);
-      xhr.onerror = () => reject(xhr.statusText);
-      xhr.send();
-    });
-  }
-      
-      function getParameterByName(name) {
-        const url = window.location.href;
-        name = name.replace(/[\[\]]/g, `\\$&`);
-        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`),
-          results = regex.exec(url);
-        if (!results) return null;
-        if (!results[2]) return ``;
-        return decodeURIComponent(results[2].replace(/\+/g, ` `));
-      }
-      
-
-      // ****************  STICKY HEADER  ****************
-      // When the user scrolls the page, execute myFunction
-      window.onscroll = function() {myFunction()};
-
-      // Get the header
-      var header = document.getElementById("stickyHeader");
-
-      // Get the offset position of the navbar
-      var sticky = header.offsetTop;
-
-      // Add the sticky class to the header when you reach its scroll position. Remove "sticky" when you leave the scroll position
-      function myFunction() {
-        if (window.pageYOffset > sticky) {
-          header.classList.add("sticky");
-        } else {
-          header.classList.remove("sticky");
+    
+          renderChapters(chapterList);
+        } catch (error) {
+          console.error(
+            "Unable to load chapters:",
+            error
+          );
+    
+          bibleChapterList.textContent =
+            "Unable to load chapters.";
         }
-      } 
-
-      // ************* Menu **************
-      function openNav() {
-        document.getElementById("menuNav").style.width = "225px";
-
-        //inserts book.html url into the <a> tag for the menu
-        var bookLink = sessionStorage.getItem("bookabbr");
-        document.getElementById("bookurl").setAttribute("href",bookLink);  
       }
-
+    
+      function updateHeader() {
+        const bibleElement =
+          document.getElementById("bible");
+    
+        const bibleFullNameElement =
+          document.getElementById("biblefullname");
+    
+        const bookNameElement =
+          document.getElementById("bookName");
+    
+        if (bibleElement) {
+          bibleElement.textContent =
+            abbreviation || "Bible";
+        }
+    
+        if (bibleFullNameElement) {
+          bibleFullNameElement.textContent =
+            fullBibleName ||
+            abbreviation ||
+            bibleVersionID;
+        }
+    
+        if (bookNameElement) {
+          bookNameElement.textContent =
+            bibleBookName || bibleBookID;
+        }
+      }
+    
+      function updateMenuLinks() {
+        const homeLink =
+          document.querySelector(
+            '.overlay-content a[href="./index.html"]'
+          );
+    
+        const bookLink =
+          document.getElementById("bookurl");
+    
+        const searchLink =
+          document.querySelector(
+            '.overlay-content a[href="./search.html"]'
+          );
+    
+        const bibleParams =
+          new URLSearchParams();
+    
+        bibleParams.set(
+          "bible",
+          bibleVersionID
+        );
+    
+        if (abbreviation) {
+          bibleParams.set(
+            "bibleAbbr",
+            abbreviation
+          );
+        }
+    
+        if (fullBibleName) {
+          bibleParams.set(
+            "bibleName",
+            fullBibleName
+          );
+        }
+    
+        if (homeLink) {
+          homeLink.href =
+            `./index.html?${bibleParams.toString()}`;
+        }
+    
+        if (bookLink) {
+          bookLink.href =
+            `./book.html?${bibleParams.toString()}`;
+        }
+    
+        if (searchLink) {
+          searchLink.href =
+            `./search.html?${bibleParams.toString()}`;
+        }
+      }
+    
+      function renderChapters(chapterList) {
+        bibleChapterList.innerHTML = "";
+    
+        const list =
+          document.createElement("ol");
+    
+        for (const chapter of chapterList) {
+          const listItem =
+            document.createElement("li");
+    
+          listItem.className =
+            "grid";
+    
+          const link =
+            document.createElement("a");
+    
+          link.className =
+            "grid-link";
+    
+          link.textContent =
+            chapter.number;
+    
+          const verseParams =
+            new URLSearchParams();
+    
+          verseParams.set(
+            "bible",
+            bibleVersionID
+          );
+    
+          if (abbreviation) {
+            verseParams.set(
+              "bibleAbbr",
+              abbreviation
+            );
+          }
+    
+          if (fullBibleName) {
+            verseParams.set(
+              "bibleName",
+              fullBibleName
+            );
+          }
+    
+          verseParams.set(
+            "book",
+            bibleBookID
+          );
+    
+          if (bibleBookName) {
+            verseParams.set(
+              "bookName",
+              bibleBookName
+            );
+          }
+    
+          verseParams.set(
+            "chapter",
+            chapter.id
+          );
+    
+          link.href =
+            `./verse.html?${verseParams.toString()}`;
+    
+          listItem.appendChild(link);
+          list.appendChild(listItem);
+        }
+    
+        bibleChapterList.appendChild(list);
+    
+        if (chapterList.length > 0) {
+          sessionStorage.setItem(
+            "maxchapnum",
+            String(
+              chapterList[
+                chapterList.length - 1
+              ].number
+            )
+          );
+        }
+      }
+    
+      function getChapters(
+        bibleId,
+        bookId
+      ) {
+        return new Promise(
+          (resolve, reject) => {
+            const xhr =
+              new XMLHttpRequest();
+    
+            xhr.withCredentials =
+              false;
+    
+            xhr.addEventListener(
+              "readystatechange",
+              function () {
+                if (
+                  this.readyState !==
+                  XMLHttpRequest.DONE
+                ) {
+                  return;
+                }
+    
+                if (
+                  this.status < 200 ||
+                  this.status >= 300
+                ) {
+                  reject(
+                    new Error(
+                      `Chapter request failed with status ${this.status}.`
+                    )
+                  );
+    
+                  return;
+                }
+    
+                try {
+                  const response =
+                    JSON.parse(
+                      this.responseText
+                    );
+    
+                  const chapters =
+                    Array.isArray(
+                      response.data
+                    )
+                      ? response.data.map(
+                          ({
+                            number,
+                            id
+                          }) => {
+                            return {
+                              number,
+                              id
+                            };
+                          }
+                        )
+                      : [];
+    
+                  resolve(chapters);
+                } catch (error) {
+                  reject(error);
+                }
+              }
+            );
+    
+            xhr.addEventListener(
+              "error",
+              () => {
+                reject(
+                  new Error(
+                    "A network error occurred while loading chapters."
+                  )
+                );
+              }
+            );
+    
+            xhr.open(
+              "GET",
+              `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
+                bibleId
+              )}/books/${encodeURIComponent(
+                bookId
+              )}/chapters`
+            );
+    
+            xhr.setRequestHeader(
+              "api-key",
+              API_KEY
+            );
+    
+            xhr.send();
+          }
+        );
+      }
+    
+      function getParameterByName(
+        name
+      ) {
+        return new URLSearchParams(
+          window.location.search
+        ).get(name);
+      }
+    
+      window.onscroll =
+        function () {
+          handleStickyHeader();
+        };
+    
+      const header =
+        document.getElementById(
+          "stickyHeader"
+        );
+    
+      const sticky =
+        header
+          ? header.offsetTop
+          : 0;
+    
+      function handleStickyHeader() {
+        if (!header) {
+          return;
+        }
+    
+        if (
+          window.pageYOffset >
+          sticky
+        ) {
+          header.classList.add(
+            "sticky"
+          );
+        } else {
+          header.classList.remove(
+            "sticky"
+          );
+        }
+      }
+    
+      function openNav() {
+        const menu =
+          document.getElementById(
+            "menuNav"
+          );
+    
+        if (menu) {
+          menu.style.width =
+            "225px";
+        }
+      }
+    
       function closeNav() {
-        document.getElementById("menuNav").style.width = "0px";
-      }  
+        const menu =
+          document.getElementById(
+            "menuNav"
+          );
+    
+        if (menu) {
+          menu.style.width =
+            "0px";
+        }
+      }
     </script>
   </body>
 </html>
