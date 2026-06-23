@@ -25,6 +25,7 @@
       <div class="subheader" id="stickyHeader">
         <div class="container flex">
           <div class="subheadings">
+            <!-- Mamburger menu -->
             <div class="column">
               <div class="hamburger">
                   <button
@@ -40,21 +41,35 @@
                   </button>
                 </div>
             </div>
+            <!-- Dropdown to change Bible -->  
             <div class="column">
-              <span class="tooltip"> <span id="bible"></span>
-                  <span class="tooltiptext  tooltip-bottom"><span id="biblefullname"></span></span>
-              </span>
+              <label for="bible-select">Bible</label>
+              <select id="bible-select">
+                <option value="">Loading Bibles...</option>
+              </select>
             </div>
+            
             <div class="column">
-              <span id="bookChap"></span>
+              <label for="book-select">Book</label>
+              <select id="book-select" disabled>
+                <option value="">Loading Books...</option>
+              </select>
             </div>
+            
+            <div class="column">
+              <label for="chapter-select">Chapter</label>
+              <select id="chapter-select" disabled>
+                <option value="">Loading Chapters...</option>
+              </select>
+            </div>
+            <!-- Zoom for container -->
             <div class="column">
               <div class="align-group">
                 <label for="font-size-slider">Zoom: </label>&nbsp;
                 <input type="range" id="font-size-slider" min="18" max="35" value="18">
               </div>
             </div>    
-
+            <!-- Login/Logout -->
             <div class="column">
               <button type="button" id="login">Login</button>
               <button type="button" id="logout" style="display:none;">Logout</button>
