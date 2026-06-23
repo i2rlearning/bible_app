@@ -295,10 +295,137 @@ async function loadBookDropdownOptions(
       "Unable to load Book dropdown:",
       error
     );
-
+    
+    if (currentBookExists) {
+      await loadChapterDropdownOptions(
+        selectedBibleId,
+        bibleBookID
+      );
+    } else {
+      resetDropdown(
+        chapterSelect,
+        "Select a book first",
+        true
+      );
+    }
+    
     resetDropdown(
       bookSelect,
       "Unable to load Books",
+      true
+    );
+  }
+}
+
+async function loadChapterDropdownOptions(
+  selectedBibleId =
+    bibleVersionID,
+  selectedBookId =
+    bookSelect?.value ||
+    bibleBookID
+) {
+  if (
+    !chapterSelect ||
+    !selectedBibleId ||
+    !selectedBookId
+  ) {
+    resetDropdown(
+      chapterSelect,
+      "Select a book first",
+      true
+    );
+
+    return;
+  }
+
+  resetDropdown(
+    chapterSelect,
+    "Loading Chapters...",
+    true
+  );
+
+  try {
+    const response = await fetch(
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
+        selectedBibleId
+      )}/books/${encodeURIComponent(
+        selectedBookId
+      )}/chapters`,
+      {
+        headers: {
+          "api-key": API_KEY
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Chapter list request failed with status ${response.status}.`
+      );
+    }
+
+    const result =
+      await response.json();
+
+    const chapters =
+      Array.isArray(result.data)
+        ? result.data
+        : [];
+
+    chapterSelect.innerHTML = "";
+
+    const placeholder =
+      document.createElement("option");
+
+    placeholder.value = "";
+    placeholder.textContent =
+      "Select a Chapter...";
+
+    chapterSelect.appendChild(
+      placeholder
+    );
+
+    for (const chapterItem of chapters) {
+      const option =
+        document.createElement("option");
+
+      option.value =
+        chapterItem.id;
+
+      option.textContent =
+        chapterItem.number ||
+        chapterItem.id.split(".").pop() ||
+        chapterItem.id;
+
+      chapterSelect.appendChild(option);
+    }
+
+    const currentChapterExists =
+      selectedBibleId === bibleVersionID &&
+      selectedBookId === bibleBookID &&
+      chapters.some(
+        (chapterItem) =>
+          chapterItem.id === bibleChapterID
+      );
+
+    if (currentChapterExists) {
+      chapterSelect.value =
+        bibleChapterID;
+    } else {
+      chapterSelect.value = "";
+    }
+
+    chapterSelect.disabled =
+      chapters.length === 0;
+  } catch (error) {
+    console.error(
+      "Unable to load Chapter dropdown:",
+      error
+    );
+
+    resetDropdown(
+      chapterSelect,
+      "Unable to load Chapters",
       true
     );
   }
