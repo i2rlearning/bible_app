@@ -495,6 +495,72 @@ function navigateToSelectedBible() {
   );
 }
 
+function navigateToSelectedChapter() {
+  const selectedBookId =
+    bookSelect?.value || "";
+
+  const selectedChapterId =
+    chapterSelect?.value || "";
+
+  if (
+    !selectedBookId ||
+    !selectedChapterId
+  ) {
+    return;
+  }
+
+  const selectedBookName =
+    bookSelect.options[
+      bookSelect.selectedIndex
+    ]?.textContent?.trim() ||
+    selectedBookId;
+
+  const url =
+    new URL(window.location.href);
+
+  url.searchParams.delete("version");
+  url.searchParams.delete("abbr");
+  url.searchParams.delete("name");
+
+  url.searchParams.set(
+    "bible",
+    bibleVersionID
+  );
+
+  if (abbreviation) {
+    url.searchParams.set(
+      "bibleAbbr",
+      abbreviation
+    );
+  }
+
+  if (bibleName) {
+    url.searchParams.set(
+      "bibleName",
+      bibleName
+    );
+  }
+
+  url.searchParams.set(
+    "book",
+    selectedBookId
+  );
+
+  url.searchParams.set(
+    "bookName",
+    selectedBookName
+  );
+
+  url.searchParams.set(
+    "chapter",
+    selectedChapterId
+  );
+
+  window.location.assign(
+    url.toString()
+  );
+}
+
 function initializeLanguageAndBibleDropdowns() {
   if (
     languageSelect &&
@@ -548,6 +614,13 @@ bookSelect?.addEventListener(
       bibleVersionID,
       bookSelect.value
     );
+  }
+);
+
+chapterSelect?.addEventListener(
+  "change",
+  () => {
+    navigateToSelectedChapter();
   }
 );
 
