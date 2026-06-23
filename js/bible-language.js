@@ -1,4 +1,3 @@
-```javascript
 "use strict";
 
 window.BibleLanguage = {
@@ -130,4 +129,3 @@ window.BibleLanguage = {
     );
   }
 };
-```
