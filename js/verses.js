@@ -369,20 +369,20 @@ function initializeLanguageAndBibleDropdowns() {
     window.BibleLanguage.setupSelect(
       languageSelect,
       {
-        onChange({ apiUrl }) {
-          loadBibleDropdownOptions(
+        async onChange({ apiUrl }) {
+          await loadBibleDropdownOptions(
             apiUrl
           );
 
           resetDropdown(
             bookSelect,
-            "Select a Bible first",
+            "Current page unchanged",
             true
           );
 
           resetDropdown(
             chapterSelect,
-            "Select a book first",
+            "Current page unchanged",
             true
           );
         }
@@ -391,12 +391,13 @@ function initializeLanguageAndBibleDropdowns() {
   }
 
   loadBibleDropdownOptions().then(
-  () => {
-    loadBookDropdownOptions(
-      bibleVersionID
-    );
-  }
-);
+    () => {
+      loadBookDropdownOptions(
+        bibleVersionID
+      );
+    }
+  );
+}
 
 bibleSelect?.addEventListener(
   "change",
