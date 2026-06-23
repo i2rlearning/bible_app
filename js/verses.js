@@ -7,9 +7,12 @@ const searchInput = document.querySelector("#search-input");
 const bibleSectionList = document.querySelector("#section-list");
 const chapterText = document.querySelector("#chapter-text");
 
+const languageSelect = document.getElementById("language-select");
 const bibleSelect = document.getElementById("bible-select");
 const bookSelect = document.getElementById("book-select");
 const chapterSelect = document.getElementById("chapter-select");
+
+let availableBibles = [];
 
 const urlParams = new URLSearchParams(window.location.search);
 
@@ -43,121 +46,200 @@ let abbreviation =
   urlParams.get("abbr") ||
   "";
 
-  function resetDropdown(
-    selectElement,
-    message,
-    disabled = true
-  ) {
-    if (!selectElement) {
-      return;
-    }
-  
-    selectElement.innerHTML = "";
-  
-    const option =
-      document.createElement("option");
-  
-    option.value = "";
-    option.textContent = message;
-  
-    selectElement.appendChild(option);
-    selectElement.disabled = disabled;
+function resetDropdown(
+  selectElement,
+  message,
+  disabled = true
+) {
+  if (!selectElement) {
+    return;
   }
 
-  function fillDropdown(
-    selectElement,
-    items,
-    selectedValue,
-    getValue,
-    getLabel
-  ) {
-    if (!selectElement) {
-      return;
-    }
-  
-    selectElement.innerHTML = "";
-  
-    for (const item of items) {
-      const option =
-        document.createElement("option");
-  
-      option.value =
-        getValue(item);
-  
-      option.textContent =
-        getLabel(item);
-  
-      selectElement.appendChild(option);
-    }
-  
-    selectElement.value =
-      selectedValue || "";
-  
-    selectElement.disabled =
-      items.length === 0;
+  selectElement.innerHTML = "";
+
+  const option =
+    document.createElement("option");
+
+  option.value = "";
+  option.textContent = message;
+
+  selectElement.appendChild(option);
+  selectElement.disabled = disabled;
+}
+
+async function loadBibleDropdownOptions(
+  apiUrl =
+    window.BibleLanguage
+      ?.getSelectedApiUrl()
+) {
+  if (!bibleSelect || !apiUrl) {
+    return;
   }
 
-  async function loadBibleDropdownOptions() {
-    if (!bibleSelect) {
-      return;
-    }
-  
-    resetDropdown(
-      bibleSelect,
-      "Loading Bibles...",
-      true
-    );
-  
-    try {
-      const response = await fetch(
-        "https://api.scripture.api.bible/v1/bibles?include-full-details=false",
-        {
-          headers: {
-            "api-key": API_KEY
-          }
+  resetDropdown(
+    bibleSelect,
+    "Loading Bibles...",
+    true
+  );
+
+  try {
+    const response = await fetch(
+      apiUrl,
+      {
+        headers: {
+          "api-key": API_KEY
         }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Bible list request failed with status ${response.status}.`
       );
-  
-      if (!response.ok) {
-        throw new Error(
-          `Bible list request failed with status ${response.status}.`
+    }
+
+    const result =
+      await response.json();
+
+    availableBibles =
+      Array.isArray(result.data)
+        ? result.data
+        : [];
+
+    availableBibles.sort(
+      (a, b) => {
+        const labelA =
+          a.abbreviation ||
+          a.abbreviationLocal ||
+          a.name ||
+          "";
+
+        const labelB =
+          b.abbreviation ||
+          b.abbreviationLocal ||
+          b.name ||
+          "";
+
+        return labelA.localeCompare(
+          labelB
         );
       }
-  
-      const result = await response.json();
-  
-      const bibles =
-        Array.isArray(result.data)
-          ? result.data
-          : [];
-  
-      fillDropdown(
-        bibleSelect,
-        bibles,
-        bibleVersionID,
-        (bible) => bible.id,
-        (bible) =>
-          bible.abbreviation ||
-          bible.abbreviationLocal ||
-          bible.name ||
-          bible.nameLocal ||
-          bible.id
-      );
-    } catch (error) {
-      console.error(
-        "Unable to load Bible dropdown:",
-        error
-      );
-  
-      resetDropdown(
-        bibleSelect,
-        "Unable to load Bibles",
-        true
-      );
+    );
+
+    bibleSelect.innerHTML = "";
+
+    for (const bible of availableBibles) {
+      const option =
+        document.createElement("option");
+
+      option.value =
+        bible.id;
+
+      option.textContent =
+        bible.abbreviation ||
+        bible.abbreviationLocal ||
+        bible.name ||
+        bible.nameLocal ||
+        bible.id;
+
+      option.title =
+        bible.description ||
+        bible.descriptionLocal ||
+        bible.name ||
+        bible.nameLocal ||
+        "";
+
+      bibleSelect.appendChild(option);
     }
+
+    const currentBibleExists =
+      availableBibles.some(
+        (bible) =>
+          bible.id === bibleVersionID
+      );
+
+    if (currentBibleExists) {
+      bibleSelect.value =
+        bibleVersionID;
+    }
+
+    bibleSelect.disabled =
+      availableBibles.length === 0;
+
+    updateBibleSelectDescription();
+  } catch (error) {
+    console.error(
+      "Unable to load Bible dropdown:",
+      error
+    );
+
+    resetDropdown(
+      bibleSelect,
+      "Unable to load Bibles",
+      true
+    );
+  }
+}
+
+function updateBibleSelectDescription() {
+  if (!bibleSelect) {
+    return;
   }
 
-  function normalizeCurrentVerseUrl() {
+  const selectedBible =
+    availableBibles.find(
+      (bible) =>
+        bible.id === bibleSelect.value
+    );
+
+  bibleSelect.title =
+    selectedBible?.description ||
+    selectedBible?.descriptionLocal ||
+    selectedBible?.name ||
+    selectedBible?.nameLocal ||
+    "";
+}
+
+function initializeLanguageAndBibleDropdowns() {
+  if (
+    languageSelect &&
+    window.BibleLanguage
+  ) {
+    window.BibleLanguage.setupSelect(
+      languageSelect,
+      {
+        onChange({ apiUrl }) {
+          loadBibleDropdownOptions(
+            apiUrl
+          );
+
+          resetDropdown(
+            bookSelect,
+            "Select a Bible first",
+            true
+          );
+
+          resetDropdown(
+            chapterSelect,
+            "Select a book first",
+            true
+          );
+        }
+      }
+    );
+  }
+
+  loadBibleDropdownOptions();
+}
+
+bibleSelect?.addEventListener(
+  "change",
+  () => {
+    updateBibleSelectDescription();
+  }
+);
+
+function normalizeCurrentVerseUrl() {
     if (!bibleVersionID || !bibleChapterID) {
       return;
   }
@@ -388,7 +470,7 @@ const preloadedArrowImages = [
         );
       } else {
         initializeBibleIdentity();
-        loadBibleDropdownOptions();
+        initializeLanguageAndBibleDropdowns();
       }
 
 const chapterParts = bibleChapterID.split(".");
