@@ -290,12 +290,7 @@ async function loadBookDropdownOptions(
 
     bookSelect.disabled =
       books.length === 0;
-  } catch (error) {
-    console.error(
-      "Unable to load Book dropdown:",
-      error
-    );
-    
+
     if (currentBookExists) {
       await loadChapterDropdownOptions(
         selectedBibleId,
@@ -308,10 +303,21 @@ async function loadBookDropdownOptions(
         true
       );
     }
-    
+  } catch (error) {
+    console.error(
+      "Unable to load Book dropdown:",
+      error
+    );
+
     resetDropdown(
       bookSelect,
       "Unable to load Books",
+      true
+    );
+
+    resetDropdown(
+      chapterSelect,
+      "Unable to load Chapters",
       true
     );
   }
@@ -397,7 +403,9 @@ async function loadChapterDropdownOptions(
         chapterItem.id.split(".").pop() ||
         chapterItem.id;
 
-      chapterSelect.appendChild(option);
+      chapterSelect.appendChild(
+        option
+      );
     }
 
     const currentChapterExists =
@@ -405,15 +413,14 @@ async function loadChapterDropdownOptions(
       selectedBookId === bibleBookID &&
       chapters.some(
         (chapterItem) =>
-          chapterItem.id === bibleChapterID
+          chapterItem.id ===
+          bibleChapterID
       );
 
-    if (currentChapterExists) {
-      chapterSelect.value =
-        bibleChapterID;
-    } else {
-      chapterSelect.value = "";
-    }
+    chapterSelect.value =
+      currentChapterExists
+        ? bibleChapterID
+        : "";
 
     chapterSelect.disabled =
       chapters.length === 0;
@@ -531,6 +538,16 @@ bibleSelect?.addEventListener(
   () => {
     updateBibleSelectDescription();
     navigateToSelectedBible();
+  }
+);
+
+bookSelect?.addEventListener(
+  "change",
+  async () => {
+    await loadChapterDropdownOptions(
+      bibleVersionID,
+      bookSelect.value
+    );
   }
 );
 
