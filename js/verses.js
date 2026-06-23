@@ -97,6 +97,66 @@ let abbreviation =
       items.length === 0;
   }
 
+  async function loadBibleDropdownOptions() {
+    if (!bibleSelect) {
+      return;
+    }
+  
+    resetDropdown(
+      bibleSelect,
+      "Loading Bibles...",
+      true
+    );
+  
+    try {
+      const response = await fetch(
+        "https://api.scripture.api.bible/v1/bibles?include-full-details=false",
+        {
+          headers: {
+            "api-key": API_KEY
+          }
+        }
+      );
+  
+      if (!response.ok) {
+        throw new Error(
+          `Bible list request failed with status ${response.status}.`
+        );
+      }
+  
+      const result = await response.json();
+  
+      const bibles =
+        Array.isArray(result.data)
+          ? result.data
+          : [];
+  
+      fillDropdown(
+        bibleSelect,
+        bibles,
+        bibleVersionID,
+        (bible) => bible.id,
+        (bible) =>
+          bible.abbreviation ||
+          bible.abbreviationLocal ||
+          bible.name ||
+          bible.nameLocal ||
+          bible.id
+      );
+    } catch (error) {
+      console.error(
+        "Unable to load Bible dropdown:",
+        error
+      );
+  
+      resetDropdown(
+        bibleSelect,
+        "Unable to load Bibles",
+        true
+      );
+    }
+  }
+
   function normalizeCurrentVerseUrl() {
     if (!bibleVersionID || !bibleChapterID) {
       return;
@@ -307,7 +367,7 @@ const preloadedArrowImages = [
         });  
         
       if (!bibleVersionID) {
-        window.location.replace("./index.html");
+        window.location.replace("./");
       } else if (!bibleBookID) {
         const bookPageParams = buildBibleParams();
       
@@ -328,6 +388,7 @@ const preloadedArrowImages = [
         );
       } else {
         initializeBibleIdentity();
+        loadBibleDropdownOptions();
       }
 
 const chapterParts = bibleChapterID.split(".");
