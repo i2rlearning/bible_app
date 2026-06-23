@@ -200,6 +200,167 @@ function updateBibleSelectDescription() {
     "";
 }
 
+async function loadBookDropdownOptions(
+  selectedBibleId =
+    bibleVersionID
+) {
+  if (!bookSelect || !selectedBibleId) {
+    return;
+  }
+
+  resetDropdown(
+    bookSelect,
+    "Loading Books...",
+    true
+  );
+
+  resetDropdown(
+    chapterSelect,
+    "Loading Chapters...",
+    true
+  );
+
+  try {
+    const response = await fetch(
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
+        selectedBibleId
+      )}/books`,
+      {
+        headers: {
+          "api-key": API_KEY
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Book list request failed with status ${response.status}.`
+      );
+    }
+
+    const result =
+      await response.json();
+
+    const books =
+      Array.isArray(result.data)
+        ? result.data
+        : [];
+
+    bookSelect.innerHTML = "";
+
+    const placeholder =
+      document.createElement("option");
+
+    placeholder.value = "";
+    placeholder.textContent =
+      "Select a Book...";
+
+    bookSelect.appendChild(
+      placeholder
+    );
+
+    for (const bookItem of books) {
+      const option =
+        document.createElement("option");
+
+      option.value =
+        bookItem.id;
+
+      option.textContent =
+        bookItem.name ||
+        bookItem.nameLong ||
+        bookItem.abbreviation ||
+        bookItem.id;
+
+      bookSelect.appendChild(option);
+    }
+
+    const currentBookExists =
+      books.some(
+        (bookItem) =>
+          bookItem.id === bibleBookID
+      );
+
+    if (currentBookExists) {
+      bookSelect.value =
+        bibleBookID;
+    } else {
+      bookSelect.value = "";
+    }
+
+    bookSelect.disabled =
+      books.length === 0;
+  } catch (error) {
+    console.error(
+      "Unable to load Book dropdown:",
+      error
+    );
+
+    resetDropdown(
+      bookSelect,
+      "Unable to load Books",
+      true
+    );
+  }
+}
+
+function navigateToSelectedBible() {
+  if (!bibleSelect?.value) {
+    return;
+  }
+
+  const selectedBible =
+    availableBibles.find(
+      (bible) =>
+        bible.id === bibleSelect.value
+    );
+
+  if (!selectedBible) {
+    return;
+  }
+
+  const url =
+    new URL(window.location.href);
+
+  url.searchParams.delete("version");
+  url.searchParams.delete("abbr");
+  url.searchParams.delete("name");
+
+  url.searchParams.set(
+    "bible",
+    selectedBible.id
+  );
+
+  const selectedAbbreviation =
+    selectedBible.abbreviation ||
+    selectedBible.abbreviationLocal ||
+    selectedBible.name ||
+    selectedBible.id;
+
+  const selectedFullName =
+    selectedBible.name ||
+    selectedBible.nameLocal ||
+    selectedAbbreviation;
+
+  url.searchParams.set(
+    "bibleAbbr",
+    selectedAbbreviation
+  );
+
+  url.searchParams.set(
+    "bibleName",
+    selectedFullName
+  );
+
+  /*
+   * Book, bookName and chapter remain untouched.
+   */
+
+  window.location.assign(
+    url.toString()
+  );
+}
+
 function initializeLanguageAndBibleDropdowns() {
   if (
     languageSelect &&
@@ -229,13 +390,19 @@ function initializeLanguageAndBibleDropdowns() {
     );
   }
 
-  loadBibleDropdownOptions();
-}
+  loadBibleDropdownOptions().then(
+  () => {
+    loadBookDropdownOptions(
+      bibleVersionID
+    );
+  }
+);
 
 bibleSelect?.addEventListener(
   "change",
   () => {
     updateBibleSelectDescription();
+    navigateToSelectedBible();
   }
 );
 
