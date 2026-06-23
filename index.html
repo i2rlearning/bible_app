@@ -297,22 +297,6 @@
           urlParams.get("bible") || "";
 
         /*
-         * Bible information may temporarily come from localStorage
-         * until misc.js has been updated to put the Bible name and
-         * abbreviation into the URL or reload them through the API.
-         */
-
-        const selectedBibleAbbreviation =
-          urlParams.get("bibleAbbr") ||
-          localStorage.getItem("selectedBibleAbbreviation") ||
-          localStorage.getItem("selectedBibleAbbr") ||
-          "";
-
-        const selectedBibleName =
-          localStorage.getItem("selectedBibleName") ||
-          "";
-
-        /*
          * Build a page URL using only known values.
          *
          * Empty values are not added.
@@ -456,80 +440,60 @@
         }
 
         /*
-         * Language selection
+         * Shared language selection
          *
-         * This remains in localStorage because the language is a
-         * filter preference and is not part of the Bible-reading
-         * navigation state.
+         * bible-language.js owns the language options and stores the
+         * selected API URL and language name in localStorage.
          */
 
-        if (elements.langInput) {
-          const savedApiUrl =
-            localStorage.getItem("selectedBibleApi");
+        if (
+          elements.langInput &&
+          window.BibleLanguage
+        ) {
+          window.BibleLanguage.setupSelect(
+            elements.langInput,
+            {
+              onChange() {
+                /*
+                 * Changing language invalidates the selected Bible,
+                 * because that Bible may not exist in the new list.
+                 */
 
-          if (savedApiUrl) {
-            const matchingOption = Array.from(
-              elements.langInput.options
-            ).find((option) => {
-              return option.value === savedApiUrl;
-            });
+                const cleanUrl =
+                  new URL(window.location.href);
 
-            if (matchingOption) {
-              elements.langInput.value = savedApiUrl;
-            }
-          }
+                cleanUrl.searchParams.delete(
+                  "bible"
+                );
 
-          elements.langInput.addEventListener(
-            "change",
-            function () {
-              const selectedUrl = this.value;
+                cleanUrl.searchParams.delete(
+                  "bibleAbbr"
+                );
 
-              const selectedLanguageName =
-                this.options[
-                  this.selectedIndex
-                ].text.trim();
+                cleanUrl.searchParams.delete(
+                  "bibleName"
+                );
 
-              localStorage.setItem(
-                "selectedBibleApi",
-                selectedUrl
-              );
+                localStorage.removeItem(
+                  "selectedBibleId"
+                );
 
-              localStorage.setItem(
-                "selectedLanguageName",
-                selectedLanguageName
-              );
+                localStorage.removeItem(
+                  "selectedBibleAbbreviation"
+                );
 
-              /*
-               * Changing the language invalidates the current Bible,
-               * because that Bible may not exist in the new API list.
-               */
+                localStorage.removeItem(
+                  "selectedBibleAbbr"
+                );
 
-              const cleanUrl = new URL(
-                window.location.href
-              );
+                localStorage.removeItem(
+                  "selectedBibleName"
+                );
 
-              cleanUrl.searchParams.delete("bible");
-              cleanUrl.searchParams.delete("bibleAbbr");
-
-              localStorage.removeItem(
-                "selectedBibleId"
-              );
-
-              localStorage.removeItem(
-                "selectedBibleAbbreviation"
-              );
-
-              localStorage.removeItem(
-                "selectedBibleAbbr"
-              );
-
-              localStorage.removeItem(
-                "selectedBibleName"
-              );
-
-              window.location.assign(
-                cleanUrl.toString()
-              );
+                window.location.assign(
+                  cleanUrl.toString()
+                );
+              }
             }
           );
         }
