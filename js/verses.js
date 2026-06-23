@@ -7,6 +7,10 @@ const searchInput = document.querySelector("#search-input");
 const bibleSectionList = document.querySelector("#section-list");
 const chapterText = document.querySelector("#chapter-text");
 
+const bibleSelect = document.getElementById("bible-select");
+const bookSelect = document.getElementById("book-select");
+const chapterSelect = document.getElementById("chapter-select");
+
 const urlParams = new URLSearchParams(window.location.search);
 
 const bibleVersionID =
@@ -39,9 +43,63 @@ let abbreviation =
   urlParams.get("abbr") ||
   "";
 
-function normalizeCurrentVerseUrl() {
-  if (!bibleVersionID || !bibleChapterID) {
-    return;
+  function resetDropdown(
+    selectElement,
+    message,
+    disabled = true
+  ) {
+    if (!selectElement) {
+      return;
+    }
+  
+    selectElement.innerHTML = "";
+  
+    const option =
+      document.createElement("option");
+  
+    option.value = "";
+    option.textContent = message;
+  
+    selectElement.appendChild(option);
+    selectElement.disabled = disabled;
+  }
+
+  function fillDropdown(
+    selectElement,
+    items,
+    selectedValue,
+    getValue,
+    getLabel
+  ) {
+    if (!selectElement) {
+      return;
+    }
+  
+    selectElement.innerHTML = "";
+  
+    for (const item of items) {
+      const option =
+        document.createElement("option");
+  
+      option.value =
+        getValue(item);
+  
+      option.textContent =
+        getLabel(item);
+  
+      selectElement.appendChild(option);
+    }
+  
+    selectElement.value =
+      selectedValue || "";
+  
+    selectElement.disabled =
+      items.length === 0;
+  }
+
+  function normalizeCurrentVerseUrl() {
+    if (!bibleVersionID || !bibleChapterID) {
+      return;
   }
 
   const normalizedParams =
