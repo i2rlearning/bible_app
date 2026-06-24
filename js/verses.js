@@ -72,7 +72,11 @@ async function loadBibleDropdownOptions(
     window.BibleLanguage
       ?.getSelectedApiUrl()
 ) {
-  if (!bibleSelect || !apiUrl) {
+  if (
+    !bibleSelect ||
+    !apiUrl ||
+    !window.BibleSelector
+  ) {
     return;
   }
 
@@ -83,89 +87,28 @@ async function loadBibleDropdownOptions(
   );
 
   try {
-    const response = await fetch(
-      apiUrl,
-      {
-        headers: {
-          "api-key": API_KEY
-        }
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Bible list request failed with status ${response.status}.`
-      );
-    }
-
-    const result =
-      await response.json();
-
     availableBibles =
-      Array.isArray(result.data)
-        ? result.data
-        : [];
-
-    availableBibles.sort(
-      (a, b) => {
-        const labelA =
-          a.abbreviation ||
-          a.abbreviationLocal ||
-          a.name ||
-          "";
-
-        const labelB =
-          b.abbreviation ||
-          b.abbreviationLocal ||
-          b.name ||
-          "";
-
-        return labelA.localeCompare(
-          labelB
-        );
-      }
-    );
+      await window.BibleSelector.loadBibles(
+        apiUrl
+      );
 
     bibleSelect.innerHTML = "";
 
     for (const bible of availableBibles) {
       const option =
         document.createElement("option");
-    
+
       option.value =
         bible.id;
-    
-      const bibleTitle =
-        bible.name ||
-        bible.nameLocal ||
-        bible.abbreviation ||
-        bible.abbreviationLocal ||
-        bible.id;
-    
-      const bibleDescription =
-        bible.description ||
-        bible.descriptionLocal ||
-        "";
-    
+
       option.textContent =
-        bible.abbreviation ||
-        bible.abbreviationLocal ||
-        bible.name ||
-        bible.nameLocal ||
-        bible.id;
-    
-      const normalizedTitle =
-        bibleTitle.trim().toLowerCase();
-    
-      const normalizedDescription =
-        bibleDescription.trim().toLowerCase();
-    
+        window.BibleSelector
+          .getBibleAbbreviation(bible);
+
       option.title =
-        bibleDescription &&
-        normalizedDescription !== normalizedTitle
-          ? `${bibleTitle} (${bibleDescription})`
-          : bibleTitle;
-    
+        window.BibleSelector
+          .getBibleTooltip(bible);
+
       bibleSelect.appendChild(option);
     }
 
@@ -209,34 +152,12 @@ function updateBibleSelectDescription() {
         bible.id === bibleSelect.value
     );
 
-  if (!selectedBible) {
-    bibleSelect.title = "";
-    return;
-  }
-
-  const bibleTitle =
-    selectedBible.name ||
-    selectedBible.nameLocal ||
-    selectedBible.abbreviation ||
-    selectedBible.abbreviationLocal ||
-    selectedBible.id;
-
-  const bibleDescription =
-    selectedBible.description ||
-    selectedBible.descriptionLocal ||
-    "";
-
-  const normalizedTitle =
-    bibleTitle.trim().toLowerCase();
-
-  const normalizedDescription =
-    bibleDescription.trim().toLowerCase();
-
   bibleSelect.title =
-    bibleDescription &&
-    normalizedDescription !== normalizedTitle
-      ? `${bibleTitle} (${bibleDescription})`
-      : bibleTitle;
+    selectedBible &&
+    window.BibleSelector
+      ? window.BibleSelector
+          .getBibleTooltip(selectedBible)
+      : "";
 }
 
 async function loadBookDropdownOptions(
