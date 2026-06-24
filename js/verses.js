@@ -131,24 +131,32 @@ async function loadBibleDropdownOptions(
     for (const bible of availableBibles) {
       const option =
         document.createElement("option");
-
+    
       option.value =
         bible.id;
-
-      option.textContent =
+    
+      const bibleTitle =
+        bible.name ||
+        bible.nameLocal ||
         bible.abbreviation ||
         bible.abbreviationLocal ||
-        bible.name ||
-        bible.nameLocal ||
         bible.id;
-
-      option.title =
+    
+      const bibleDescription =
         bible.description ||
         bible.descriptionLocal ||
-        bible.name ||
-        bible.nameLocal ||
         "";
-
+    
+      option.textContent =
+        bibleDescription &&
+        bibleDescription !== bibleTitle
+          ? `${bibleTitle} (${bibleDescription})`
+          : bibleTitle;
+    
+      option.title =
+        bibleDescription ||
+        bibleTitle;
+    
       bibleSelect.appendChild(option);
     }
 
