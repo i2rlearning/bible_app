@@ -154,9 +154,15 @@ async function loadBibleDropdownOptions(
         bible.nameLocal ||
         bible.id;
     
+      const normalizedTitle =
+        bibleTitle.trim().toLowerCase();
+    
+      const normalizedDescription =
+        bibleDescription.trim().toLowerCase();
+    
       option.title =
         bibleDescription &&
-        bibleDescription !== bibleTitle
+        normalizedDescription !== normalizedTitle
           ? `${bibleTitle} (${bibleDescription})`
           : bibleTitle;
     
