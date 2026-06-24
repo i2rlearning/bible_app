@@ -302,10 +302,28 @@ window.BibleSelector = (() => {
         )}/chapters`
       );
 
-    const chapters =
-      Array.isArray(result.data)
-        ? result.data
-        : [];
+  const chapters =
+    Array.isArray(result.data)
+      ? result.data.filter(
+          (chapter) => {
+            const chapterId =
+              String(chapter.id || "")
+                .trim()
+                .toLowerCase();
+  
+            const chapterNumber =
+              String(chapter.number || "")
+                .trim()
+                .toLowerCase();
+  
+            return (
+              chapterId !== "intro" &&
+              chapterNumber !== "intro" &&
+              !chapterId.endsWith(".intro")
+            );
+          }
+        )
+      : [];
 
     cache.chaptersByBibleAndBook.set(
       cacheKey,
