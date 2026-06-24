@@ -1076,163 +1076,232 @@ function configureVerseMenuLinks() {
       // ******************* Left/Right Seals *********************
       const imageLeft = document.getElementById("imgleft");
       const imageRight = document.getElementById("imgright");
-    
-      const currentBookId = bibleBookID || chapterParts[0];
-      const currentChapterNumber = Number(chapterParts[1]);
-    
-      const maxChapterStorageKey = `maxchapnum:${bibleVersionID}:${currentBookId}`;
-    
-      let maxChapterNumber = Number(sessionStorage.getItem(maxChapterStorageKey)) || null;
-    
-      function buildChapterUrl(newChapterNumber) {
-        const url = new URL(window.location.href);
+
+      const currentBookId =
+        bibleBookID ||
+        chapterParts[0] ||
+        "";
+
+      let chapterNavigationState = {
+        chapters: [],
+        currentIndex: -1,
+        previousChapter: null,
+        nextChapter: null,
+        firstChapter: null,
+        lastChapter: null
+      };
+
+      function buildChapterUrl(chapterId) {
+        const url =
+          new URL(window.location.href);
 
         url.searchParams.delete("version");
         url.searchParams.delete("abbr");
         url.searchParams.delete("name");
 
-        url.searchParams.set("bible", bibleVersionID);
+        url.searchParams.set(
+          "bible",
+          bibleVersionID
+        );
 
         if (abbreviation) {
-          url.searchParams.set("bibleAbbr", abbreviation);
+          url.searchParams.set(
+            "bibleAbbr",
+            abbreviation
+          );
         }
 
         if (bibleName) {
-          url.searchParams.set("bibleName", bibleName);
+          url.searchParams.set(
+            "bibleName",
+            bibleName
+          );
         }
 
-        url.searchParams.set("book", currentBookId);
+        url.searchParams.set(
+          "book",
+          currentBookId
+        );
 
         if (bibleBookName) {
-          url.searchParams.set("bookName", bibleBookName);
+          url.searchParams.set(
+            "bookName",
+            bibleBookName
+          );
         }
 
         url.searchParams.set(
           "chapter",
-          `${currentBookId}.${newChapterNumber}`
+          chapterId
         );
 
         return `${url.pathname}?${url.searchParams.toString()}`;
       }
-    
+
       function canGoPreviousChapter() {
-        return Number.isFinite(currentChapterNumber) && currentChapterNumber > 1;
-      }
-    
-      function canGoNextChapter() {
-        return (
-          Number.isFinite(currentChapterNumber) &&
-          Number.isFinite(maxChapterNumber) &&
-          currentChapterNumber < maxChapterNumber
+        return Boolean(
+          chapterNavigationState.previousChapter
         );
       }
-    
+
+      function canGoNextChapter() {
+        return Boolean(
+          chapterNavigationState.nextChapter
+        );
+      }
+
+      function goToPreviousChapter() {
+        const previousChapter =
+          chapterNavigationState.previousChapter;
+
+        if (!previousChapter) {
+          return;
+        }
+
+        window.location.href =
+          buildChapterUrl(
+            previousChapter.id
+          );
+      }
+
+      function goToNextChapter() {
+        const nextChapter =
+          chapterNavigationState.nextChapter;
+
+        if (!nextChapter) {
+          return;
+        }
+
+        window.location.href =
+          buildChapterUrl(
+            nextChapter.id
+          );
+      }
+
       function updateArrowCursorStates() {
         if (imageLeft) {
-          imageLeft.style.cursor = canGoPreviousChapter() ? "pointer" : "default";
+          imageLeft.style.cursor =
+            canGoPreviousChapter()
+              ? "pointer"
+              : "default";
         }
-    
+
         if (imageRight) {
-          imageRight.style.cursor = canGoNextChapter() ? "pointer" : "default";
+          imageRight.style.cursor =
+            canGoNextChapter()
+              ? "pointer"
+              : "default";
         }
-    
-        console.log("Arrow state:", {
-          bibleVersionID,
-          currentBookId,
-          currentChapterNumber,
-          maxChapterNumber,
-          canGoPrevious: canGoPreviousChapter(),
-          canGoNext: canGoNextChapter()
-        });
       }
-    
-      function loadMaxChapterNumberFromApi() {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.withCredentials = false;
-    
-          xhr.addEventListener("readystatechange", function () {
-            if (this.readyState === this.DONE) {
-              try {
-                const { data } = JSON.parse(this.responseText);
-    
-                const numericChapterNumbers = data
-                  .map((chapter) => {
-                    const chapterIdParts = chapter.id.split(".");
-                    return Number(chapterIdParts[chapterIdParts.length - 1]);
-                  })
-                  .filter((chapterNumber) => Number.isFinite(chapterNumber));
-    
-                const detectedMaxChapter = numericChapterNumbers.length
-                  ? Math.max(...numericChapterNumbers)
-                  : null;
-    
-                resolve(detectedMaxChapter);
-              } catch (error) {
-                reject(error);
-              }
-            }
-          });
-    
-          xhr.open(
-            "GET",
-            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books/${currentBookId}/chapters`
-          );
-    
-          xhr.setRequestHeader("api-key", API_KEY);
-          xhr.onerror = () => reject(xhr.statusText);
-          xhr.send();
-        });
-      }
-    
+
       async function initializeChapterArrows() {
-        try {
-          const detectedMaxChapter = await loadMaxChapterNumberFromApi();
-    
-          if (detectedMaxChapter) {
-            maxChapterNumber = detectedMaxChapter;
-            sessionStorage.setItem(maxChapterStorageKey, String(maxChapterNumber));
-          }
-        } catch (error) {
-          console.error("Could not load max chapter number:", error);
+        if (
+          !window.BibleSelector ||
+          !bibleVersionID ||
+          !currentBookId ||
+          !bibleChapterID
+        ) {
+          updateArrowCursorStates();
+          return;
         }
-    
+
+        try {
+          const chapters =
+            await window.BibleSelector.loadChapters(
+              bibleVersionID,
+              currentBookId
+            );
+
+          chapterNavigationState =
+            window.BibleSelector.getChapterState(
+              chapters,
+              bibleChapterID
+            );
+        } catch (error) {
+          console.error(
+            "Could not initialize chapter navigation:",
+            error
+          );
+        }
+
         updateArrowCursorStates();
       }
-    
-      if (imageLeft) {
-        imageLeft.addEventListener("mouseover", function () {
-          if (canGoPreviousChapter()) {
-            imageLeft.src = "./img/left_stamp_on.png";
-            imageLeft.style.cursor = "pointer";
-          } else {
-            imageLeft.style.cursor = "default";
-          }
-        });
-    
-        imageLeft.addEventListener("mouseout", function () {
-          imageLeft.src = "./img/orig_left_stamp.png";
-        });
-    
-        imageLeft.addEventListener("click", function () {
-          if (canGoPreviousChapter()) {
-            window.location.href = buildChapterUrl(currentChapterNumber - 1);
-          } else {
-            console.warn("Cannot go previous chapter", {
-              currentChapterNumber,
-              maxChapterNumber,
-              bibleChapterID,
-              currentBookId
-            });
-          }
-        });
 
-        let initialTouchX = null;
-        let initialTouchY = null;
-        
-        window.addEventListener("touchstart", function (event) {
+      if (imageLeft) {
+        imageLeft.addEventListener(
+          "mouseover",
+          function () {
+            if (canGoPreviousChapter()) {
+              imageLeft.src =
+                "./img/left_stamp_on.png";
+
+              imageLeft.style.cursor =
+                "pointer";
+            } else {
+              imageLeft.style.cursor =
+                "default";
+            }
+          }
+        );
+
+        imageLeft.addEventListener(
+          "mouseout",
+          function () {
+            imageLeft.src =
+              "./img/orig_left_stamp.png";
+          }
+        );
+
+        imageLeft.addEventListener(
+          "click",
+          function () {
+            goToPreviousChapter();
+          }
+        );
+      }
+
+      if (imageRight) {
+        imageRight.addEventListener(
+          "mouseover",
+          function () {
+            if (canGoNextChapter()) {
+              imageRight.src =
+                "./img/right_stamp_on.png";
+
+              imageRight.style.cursor =
+                "pointer";
+            } else {
+              imageRight.style.cursor =
+                "default";
+            }
+          }
+        );
+
+        imageRight.addEventListener(
+          "mouseout",
+          function () {
+            imageRight.src =
+              "./img/orig_right_stamp.png";
+          }
+        );
+
+        imageRight.addEventListener(
+          "click",
+          function () {
+            goToNextChapter();
+          }
+        );
+      }
+
+      let initialTouchX = null;
+      let initialTouchY = null;
+
+      window.addEventListener(
+        "touchstart",
+        function (event) {
           if (
-            typeof window.isBibleDrawingActive === "function" &&
+            typeof window.isBibleDrawingActive ===
+              "function" &&
             window.isBibleDrawingActive()
           ) {
             initialTouchX = null;
@@ -1241,14 +1310,24 @@ function configureVerseMenuLinks() {
           }
 
           if (event.touches.length === 1) {
-            initialTouchX = event.touches[0].clientX;
-            initialTouchY = event.touches[0].clientY;
+            initialTouchX =
+              event.touches[0].clientX;
+
+            initialTouchY =
+              event.touches[0].clientY;
           }
-        }, { passive: true });
-        
-        window.addEventListener("touchend", function (event) {
+        },
+        {
+          passive: true
+        }
+      );
+
+      window.addEventListener(
+        "touchend",
+        function (event) {
           if (
-            typeof window.isBibleDrawingActive === "function" &&
+            typeof window.isBibleDrawingActive ===
+              "function" &&
             window.isBibleDrawingActive()
           ) {
             initialTouchX = null;
@@ -1256,61 +1335,41 @@ function configureVerseMenuLinks() {
             return;
           }
 
-          if (initialTouchX === null || initialTouchY === null) return;
-        
-          const finalTouchX = event.changedTouches[0].clientX;
-          const finalTouchY = event.changedTouches[0].clientY;
-        
-          const diffX = finalTouchX - initialTouchX;
-          const diffY = finalTouchY - initialTouchY;
-        
-          // ignore vertical swipes
-          if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 30) { 
+          if (
+            initialTouchX === null ||
+            initialTouchY === null ||
+            !event.changedTouches.length
+          ) {
+            return;
+          }
+
+          const finalTouchX =
+            event.changedTouches[0].clientX;
+
+          const finalTouchY =
+            event.changedTouches[0].clientY;
+
+          const diffX =
+            finalTouchX - initialTouchX;
+
+          const diffY =
+            finalTouchY - initialTouchY;
+
+          if (
+            Math.abs(diffX) >
+              Math.abs(diffY) &&
+            Math.abs(diffX) > 30
+          ) {
             if (diffX > 0) {
-              // swipe right → go previous chapter
-              if (canGoPreviousChapter()) {
-                window.location.href = buildChapterUrl(currentChapterNumber - 1);
-              }
+              goToPreviousChapter();
             } else {
-              // swipe left → go next chapter
-              if (canGoNextChapter()) {
-                window.location.href = buildChapterUrl(currentChapterNumber + 1);
-              }
+              goToNextChapter();
             }
           }
-        
-          // reset
+
           initialTouchX = null;
           initialTouchY = null;
-        });   
-      }
-    
-      if (imageRight) {
-        imageRight.addEventListener("mouseover", function () {
-          if (canGoNextChapter()) {
-            imageRight.src = "./img/right_stamp_on.png";
-            imageRight.style.cursor = "pointer";
-          } else {
-            imageRight.style.cursor = "default";
-          }
-        });
-    
-        imageRight.addEventListener("mouseout", function () {
-          imageRight.src = "./img/orig_right_stamp.png";
-        });
-    
-        imageRight.addEventListener("click", function () {
-          if (canGoNextChapter()) {
-            window.location.href = buildChapterUrl(currentChapterNumber + 1);
-          } else {
-            console.warn("Cannot go next chapter", {
-              currentChapterNumber,
-              maxChapterNumber,
-              bibleChapterID,
-              currentBookId
-            });
-          }
-        });
-      }
-    
+        }
+      );
+
       initializeChapterArrows();
