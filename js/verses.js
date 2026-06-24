@@ -160,6 +160,111 @@ function updateBibleSelectDescription() {
       : "";
 }
 
+async function loadBookDropdownOptions(
+  selectedBibleId =
+    bibleVersionID
+) {
+  if (
+    !bookSelect ||
+    !selectedBibleId ||
+    !window.BibleSelector
+  ) {
+    return;
+  }
+
+  resetDropdown(
+    bookSelect,
+    "Loading Books...",
+    true
+  );
+
+  resetDropdown(
+    chapterSelect,
+    "Loading Chapters...",
+    true
+  );
+
+  try {
+    const books =
+      await window.BibleSelector.loadBooks(
+        selectedBibleId
+      );
+
+    bookSelect.innerHTML = "";
+
+    const placeholder =
+      document.createElement("option");
+
+    placeholder.value = "";
+    placeholder.textContent =
+      "Select a Book...";
+
+    bookSelect.appendChild(
+      placeholder
+    );
+
+    for (const bookItem of books) {
+      const option =
+        document.createElement("option");
+
+      option.value =
+        bookItem.id;
+
+      option.textContent =
+        window.BibleSelector
+          .getBookName(bookItem);
+
+      bookSelect.appendChild(
+        option
+      );
+    }
+
+    const currentBookExists =
+      books.some(
+        (bookItem) =>
+          bookItem.id === bibleBookID
+      );
+
+    bookSelect.value =
+      currentBookExists
+        ? bibleBookID
+        : "";
+
+    bookSelect.disabled =
+      books.length === 0;
+
+    if (currentBookExists) {
+      await loadChapterDropdownOptions(
+        selectedBibleId,
+        bibleBookID
+      );
+    } else {
+      resetDropdown(
+        chapterSelect,
+        "Select a book first",
+        true
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Unable to load Book dropdown:",
+      error
+    );
+
+    resetDropdown(
+      bookSelect,
+      "Unable to load Books",
+      true
+    );
+
+    resetDropdown(
+      chapterSelect,
+      "Select a book first",
+      true
+    );
+  }
+}
+
 async function loadChapterDropdownOptions(
   selectedBibleId =
     bibleVersionID,
