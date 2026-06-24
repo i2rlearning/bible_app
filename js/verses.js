@@ -275,7 +275,8 @@ async function loadChapterDropdownOptions(
   if (
     !chapterSelect ||
     !selectedBibleId ||
-    !selectedBookId
+    !selectedBookId ||
+    !window.BibleSelector
   ) {
     resetDropdown(
       chapterSelect,
@@ -293,32 +294,11 @@ async function loadChapterDropdownOptions(
   );
 
   try {
-    const response = await fetch(
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
-        selectedBibleId
-      )}/books/${encodeURIComponent(
-        selectedBookId
-      )}/chapters`,
-      {
-        headers: {
-          "api-key": API_KEY
-        }
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Chapter list request failed with status ${response.status}.`
-      );
-    }
-
-    const result =
-      await response.json();
-
     const chapters =
-      Array.isArray(result.data)
-        ? result.data
-        : [];
+      await window.BibleSelector.loadChapters(
+        selectedBibleId,
+        selectedBookId
+      );
 
     chapterSelect.innerHTML = "";
 
@@ -341,9 +321,8 @@ async function loadChapterDropdownOptions(
         chapterItem.id;
 
       option.textContent =
-        chapterItem.number ||
-        chapterItem.id.split(".").pop() ||
-        chapterItem.id;
+        window.BibleSelector
+          .getChapterLabel(chapterItem);
 
       chapterSelect.appendChild(
         option
