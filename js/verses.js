@@ -209,135 +209,34 @@ function updateBibleSelectDescription() {
         bible.id === bibleSelect.value
     );
 
-  bibleSelect.title =
-    selectedBible?.description ||
-    selectedBible?.descriptionLocal ||
-    selectedBible?.name ||
-    selectedBible?.nameLocal ||
-    "";
-}
-
-async function loadBookDropdownOptions(
-  selectedBibleId =
-    bibleVersionID
-) {
-  if (!bookSelect || !selectedBibleId) {
+  if (!selectedBible) {
+    bibleSelect.title = "";
     return;
   }
 
-  resetDropdown(
-    bookSelect,
-    "Loading Books...",
-    true
-  );
+  const bibleTitle =
+    selectedBible.name ||
+    selectedBible.nameLocal ||
+    selectedBible.abbreviation ||
+    selectedBible.abbreviationLocal ||
+    selectedBible.id;
 
-  resetDropdown(
-    chapterSelect,
-    "Loading Chapters...",
-    true
-  );
+  const bibleDescription =
+    selectedBible.description ||
+    selectedBible.descriptionLocal ||
+    "";
 
-  try {
-    const response = await fetch(
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
-        selectedBibleId
-      )}/books`,
-      {
-        headers: {
-          "api-key": API_KEY
-        }
-      }
-    );
+  const normalizedTitle =
+    bibleTitle.trim().toLowerCase();
 
-    if (!response.ok) {
-      throw new Error(
-        `Book list request failed with status ${response.status}.`
-      );
-    }
+  const normalizedDescription =
+    bibleDescription.trim().toLowerCase();
 
-    const result =
-      await response.json();
-
-    const books =
-      Array.isArray(result.data)
-        ? result.data
-        : [];
-
-    bookSelect.innerHTML = "";
-
-    const placeholder =
-      document.createElement("option");
-
-    placeholder.value = "";
-    placeholder.textContent =
-      "Select a Book...";
-
-    bookSelect.appendChild(
-      placeholder
-    );
-
-    for (const bookItem of books) {
-      const option =
-        document.createElement("option");
-
-      option.value =
-        bookItem.id;
-
-      option.textContent =
-        bookItem.name ||
-        bookItem.nameLong ||
-        bookItem.abbreviation ||
-        bookItem.id;
-
-      bookSelect.appendChild(option);
-    }
-
-    const currentBookExists =
-      books.some(
-        (bookItem) =>
-          bookItem.id === bibleBookID
-      );
-
-    if (currentBookExists) {
-      bookSelect.value =
-        bibleBookID;
-    } else {
-      bookSelect.value = "";
-    }
-
-    bookSelect.disabled =
-      books.length === 0;
-
-    if (currentBookExists) {
-      await loadChapterDropdownOptions(
-        selectedBibleId,
-        bibleBookID
-      );
-    } else {
-      resetDropdown(
-        chapterSelect,
-        "Select a book first",
-        true
-      );
-    }
-  } catch (error) {
-    console.error(
-      "Unable to load Book dropdown:",
-      error
-    );
-
-    resetDropdown(
-      bookSelect,
-      "Unable to load Books",
-      true
-    );
-
-    resetDropdown(
-      chapterSelect,
-      "Unable to load Chapters",
-      true
-    );
-  }
+  bibleSelect.title =
+    bibleDescription &&
+    normalizedDescription !== normalizedTitle
+      ? `${bibleTitle} (${bibleDescription})`
+      : bibleTitle;
 }
 
 async function loadChapterDropdownOptions(
