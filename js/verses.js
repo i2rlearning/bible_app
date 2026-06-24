@@ -1372,4 +1372,92 @@ function configureVerseMenuLinks() {
         }
       );
 
+
+
+      function isKeyboardNavigationBlocked(event) {
+        if (
+          event.defaultPrevented ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey
+        ) {
+          return true;
+        }
+
+        if (
+          typeof window.isBibleDrawingActive ===
+            "function" &&
+          window.isBibleDrawingActive()
+        ) {
+          return true;
+        }
+
+        const target = event.target;
+
+        if (!(target instanceof Element)) {
+          return false;
+        }
+
+        const tagName =
+          target.tagName.toLowerCase();
+
+        if (
+          tagName === "input" ||
+          tagName === "textarea" ||
+          tagName === "select" ||
+          tagName === "button"
+        ) {
+          return true;
+        }
+
+        if (
+          target.isContentEditable ||
+          target.closest(
+            '[contenteditable="true"], .ql-editor'
+          )
+        ) {
+          return true;
+        }
+
+        return false;
+      }
+
+      window.addEventListener(
+        "keydown",
+        function (event) {
+          if (
+            event.key !== "ArrowLeft" &&
+            event.key !== "ArrowRight"
+          ) {
+            return;
+          }
+
+          if (
+            isKeyboardNavigationBlocked(
+              event
+            )
+          ) {
+            return;
+          }
+
+          if (
+            event.key === "ArrowLeft" &&
+            canGoPreviousChapter()
+          ) {
+            event.preventDefault();
+            goToPreviousChapter();
+            return;
+          }
+
+          if (
+            event.key === "ArrowRight" &&
+            canGoNextChapter()
+          ) {
+            event.preventDefault();
+            goToNextChapter();
+          }
+        }
+      );
+
       initializeChapterArrows();
