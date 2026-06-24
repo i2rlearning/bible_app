@@ -155,8 +155,10 @@ async function loadBibleDropdownOptions(
         bible.id;
     
       option.title =
-        bibleDescription ||
-        bibleTitle;
+        bibleDescription &&
+        bibleDescription !== bibleTitle
+          ? `${bibleTitle} (${bibleDescription})`
+          : bibleTitle;
     
       bibleSelect.appendChild(option);
     }
