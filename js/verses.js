@@ -148,10 +148,11 @@ async function loadBibleDropdownOptions(
         "";
     
       option.textContent =
-        bibleDescription &&
-        bibleDescription !== bibleTitle
-          ? `${bibleTitle} (${bibleDescription})`
-          : bibleTitle;
+        bible.abbreviation ||
+        bible.abbreviationLocal ||
+        bible.name ||
+        bible.nameLocal ||
+        bible.id;
     
       option.title =
         bibleDescription ||
