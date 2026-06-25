@@ -12,7 +12,16 @@ const bibleSelect = document.getElementById("bible-select");
 const bookSelect = document.getElementById("book-select");
 const chapterSelect = document.getElementById("chapter-select");
 
+const passagePicker = document.getElementById("passage-picker");
+const passagePickerToggle = document.getElementById("passage-picker-toggle");
+const passagePickerPanel = document.getElementById("passage-picker-panel");
+const passagePickerClose = document.getElementById("passage-picker-close");
+const passagePickerOpen = document.getElementById("passage-picker-open");
+const currentPassageLabel = document.getElementById("current-passage-label");
+
 let availableBibles = [];
+let availableBooks = [];
+let availableChapters = [];
 
 const urlParams = new URLSearchParams(window.location.search);
 
@@ -94,6 +103,17 @@ async function loadBibleDropdownOptions(
 
     bibleSelect.innerHTML = "";
 
+    const placeholder =
+      document.createElement("option");
+
+    placeholder.value = "";
+    placeholder.textContent =
+      "Select a Bible...";
+
+    bibleSelect.appendChild(
+      placeholder
+    );
+
     for (const bible of availableBibles) {
       const option =
         document.createElement("option");
@@ -118,15 +138,16 @@ async function loadBibleDropdownOptions(
           bible.id === bibleVersionID
       );
 
-    if (currentBibleExists) {
-      bibleSelect.value =
-        bibleVersionID;
-    }
+    bibleSelect.value =
+      currentBibleExists
+        ? bibleVersionID
+        : "";
 
     bibleSelect.disabled =
       availableBibles.length === 0;
 
     updateBibleSelectDescription();
+    updatePassagePickerState();
   } catch (error) {
     console.error(
       "Unable to load Bible dropdown:",
@@ -185,10 +206,13 @@ async function loadBookDropdownOptions(
   );
 
   try {
-    const books =
+    availableBooks =
       await window.BibleSelector.loadBooks(
         selectedBibleId
       );
+
+    const books =
+      availableBooks;
 
     bookSelect.innerHTML = "";
 
@@ -232,6 +256,8 @@ async function loadBookDropdownOptions(
 
     bookSelect.disabled =
       books.length === 0;
+
+    updatePassagePickerState();
 
     if (currentBookExists) {
       await loadChapterDropdownOptions(
@@ -294,11 +320,14 @@ async function loadChapterDropdownOptions(
   );
 
   try {
-    const chapters =
+    availableChapters =
       await window.BibleSelector.loadChapters(
         selectedBibleId,
         selectedBookId
       );
+
+    const chapters =
+      availableChapters;
 
     chapterSelect.innerHTML = "";
 
@@ -345,6 +374,8 @@ async function loadChapterDropdownOptions(
 
     chapterSelect.disabled =
       chapters.length === 0;
+
+    updatePassagePickerState();
   } catch (error) {
     console.error(
       "Unable to load Chapter dropdown:",
@@ -359,130 +390,121 @@ async function loadChapterDropdownOptions(
   }
 }
 
-function navigateToSelectedBible() {
-  if (!bibleSelect?.value) {
+function updateCurrentPassageLabel() {
+  if (!currentPassageLabel) {
     return;
   }
 
-  const selectedBible =
-    availableBibles.find(
-      (bible) =>
-        bible.id === bibleSelect.value
-    );
+  const chapterLabel =
+    window.BibleSelector
+      ?.getChapterLabel({
+        id: bibleChapterID
+      }) ||
+    bibleChapterID.split(".").pop() ||
+    "";
 
-  if (!selectedBible) {
+  const labelParts = [
+    abbreviation || "Bible",
+    `${bibleBookName || bibleBookID} ${chapterLabel}`.trim()
+  ].filter(Boolean);
+
+  currentPassageLabel.textContent =
+    labelParts.join(" · ");
+
+  if (passagePickerToggle) {
+    passagePickerToggle.title =
+      `Change passage: ${labelParts.join(" — ")}`;
+  }
+}
+
+function updatePassagePickerState() {
+  if (!passagePickerOpen) {
     return;
   }
 
-  const url =
-    new URL(window.location.href);
+  passagePickerOpen.disabled =
+    !bibleSelect?.value ||
+    !bookSelect?.value ||
+    !chapterSelect?.value;
+}
 
-  url.searchParams.delete("version");
-  url.searchParams.delete("abbr");
-  url.searchParams.delete("name");
+function setPassagePickerOpen(isOpen) {
+  if (
+    !passagePickerPanel ||
+    !passagePickerToggle
+  ) {
+    return;
+  }
 
-  url.searchParams.set(
-    "bible",
-    selectedBible.id
+  passagePickerPanel.hidden =
+    !isOpen;
+
+  passagePickerToggle.setAttribute(
+    "aria-expanded",
+    String(isOpen)
   );
 
-  const selectedAbbreviation =
-    selectedBible.abbreviation ||
-    selectedBible.abbreviationLocal ||
-    selectedBible.name ||
-    selectedBible.id;
-
-  const selectedFullName =
-    selectedBible.name ||
-    selectedBible.nameLocal ||
-    selectedAbbreviation;
-
-  url.searchParams.set(
-    "bibleAbbr",
-    selectedAbbreviation
+  document.body.classList.toggle(
+    "passage-picker-is-open",
+    isOpen
   );
 
-  url.searchParams.set(
-    "bibleName",
-    selectedFullName
-  );
+  if (isOpen) {
+    requestAnimationFrame(() => {
+      languageSelect?.focus();
+    });
+  }
+}
 
-  /*
-   * Book, bookName and chapter remain untouched.
-   */
-
-  window.location.assign(
-    url.toString()
+function togglePassagePicker() {
+  setPassagePickerOpen(
+    Boolean(passagePickerPanel?.hidden)
   );
 }
 
-function navigateToSelectedChapter() {
-  const selectedBookId =
-    bookSelect?.value || "";
+function openSelectedPassage() {
+  const selectedBible =
+    availableBibles.find(
+      (bible) =>
+        bible.id === bibleSelect?.value
+    );
+
+  const selectedBook =
+    availableBooks.find(
+      (bookItem) =>
+        bookItem.id === bookSelect?.value
+    );
 
   const selectedChapterId =
     chapterSelect?.value || "";
 
   if (
-    !selectedBookId ||
-    !selectedChapterId
+    !selectedBible ||
+    !selectedBook ||
+    !selectedChapterId ||
+    !window.BibleSelector
   ) {
+    updatePassagePickerState();
     return;
   }
 
-  const selectedBookName =
-    bookSelect.options[
-      bookSelect.selectedIndex
-    ]?.textContent?.trim() ||
-    selectedBookId;
-
-  const url =
-    new URL(window.location.href);
-
-  url.searchParams.delete("version");
-  url.searchParams.delete("abbr");
-  url.searchParams.delete("name");
-
-  url.searchParams.set(
-    "bible",
-    bibleVersionID
-  );
-
-  if (abbreviation) {
-    url.searchParams.set(
-      "bibleAbbr",
-      abbreviation
-    );
-  }
-
-  if (bibleName) {
-    url.searchParams.set(
-      "bibleName",
-      bibleName
-    );
-  }
-
-  url.searchParams.set(
-    "book",
-    selectedBookId
-  );
-
-  url.searchParams.set(
-    "bookName",
-    selectedBookName
-  );
-
-  url.searchParams.set(
-    "chapter",
-    selectedChapterId
-  );
+  const destinationUrl =
+    window.BibleSelector.buildVerseUrl({
+      baseUrl: window.location.href,
+      bible: selectedBible,
+      book: selectedBook,
+      chapterId: selectedChapterId
+    });
 
   window.location.assign(
-    url.toString()
+    destinationUrl
   );
 }
 
 function initializeLanguageAndBibleDropdowns() {
+  updateCurrentPassageLabel();
+  updatePassagePickerState();
+
   if (
     languageSelect &&
     window.BibleLanguage
@@ -491,21 +513,26 @@ function initializeLanguageAndBibleDropdowns() {
       languageSelect,
       {
         async onChange({ apiUrl }) {
+          availableBooks = [];
+          availableChapters = [];
+
           await loadBibleDropdownOptions(
             apiUrl
           );
 
           resetDropdown(
             bookSelect,
-            "Current page unchanged",
+            "Select a Bible first",
             true
           );
 
           resetDropdown(
             chapterSelect,
-            "Current page unchanged",
+            "Select a book first",
             true
           );
+
+          updatePassagePickerState();
         }
       }
     );
@@ -520,28 +547,109 @@ function initializeLanguageAndBibleDropdowns() {
   );
 }
 
+passagePickerToggle?.addEventListener(
+  "click",
+  () => {
+    togglePassagePicker();
+  }
+);
+
+passagePickerClose?.addEventListener(
+  "click",
+  () => {
+    setPassagePickerOpen(false);
+    passagePickerToggle?.focus();
+  }
+);
+
+passagePickerOpen?.addEventListener(
+  "click",
+  () => {
+    openSelectedPassage();
+  }
+);
+
 bibleSelect?.addEventListener(
   "change",
-  () => {
+  async () => {
     updateBibleSelectDescription();
-    navigateToSelectedBible();
+
+    availableBooks = [];
+    availableChapters = [];
+
+    resetDropdown(
+      bookSelect,
+      "Loading Books...",
+      true
+    );
+
+    resetDropdown(
+      chapterSelect,
+      "Select a book first",
+      true
+    );
+
+    if (bibleSelect.value) {
+      await loadBookDropdownOptions(
+        bibleSelect.value
+      );
+    }
+
+    updatePassagePickerState();
   }
 );
 
 bookSelect?.addEventListener(
   "change",
   async () => {
+    availableChapters = [];
+
     await loadChapterDropdownOptions(
-      bibleVersionID,
+      bibleSelect?.value ||
+        bibleVersionID,
       bookSelect.value
     );
+
+    updatePassagePickerState();
   }
 );
 
 chapterSelect?.addEventListener(
   "change",
   () => {
-    navigateToSelectedChapter();
+    updatePassagePickerState();
+  }
+);
+
+document.addEventListener(
+  "click",
+  (event) => {
+    if (
+      passagePickerPanel?.hidden ||
+      !passagePicker ||
+      passagePicker.contains(
+        event.target
+      )
+    ) {
+      return;
+    }
+
+    setPassagePickerOpen(false);
+  }
+);
+
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (
+      event.key === "Escape" &&
+      passagePickerPanel &&
+      !passagePickerPanel.hidden
+    ) {
+      event.preventDefault();
+      setPassagePickerOpen(false);
+      passagePickerToggle?.focus();
+    }
   }
 );
 
@@ -1375,6 +1483,13 @@ function configureVerseMenuLinks() {
 
 
       function isKeyboardNavigationBlocked(event) {
+        if (
+          passagePickerPanel &&
+          !passagePickerPanel.hidden
+        ) {
+          return true;
+        }
+
         if (
           event.defaultPrevented ||
           event.altKey ||
