@@ -2,21 +2,22 @@
    Landing Page
    ========================================================================== */
 
-.landing-page {
-  min-height: 100vh;
+/* Header width matches the main landing-page content */
+.landing-header-container {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
 }
 
 .landing-header-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   width: 100%;
-  margin-right: 0 !important;
+  min-height: 52px;
 }
 
 .landing-header-title {
   display: flex;
-  flex: 1 1 auto;
-  flex-direction: row;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -52,6 +53,14 @@
   font-weight: 500;
   line-height: 1.25;
   color: #617184;
+}
+
+.landing-login-column {
+  flex: 0 0 auto;
+}
+
+.landing-page {
+  min-height: 100vh;
 }
 
 .landing-main {
