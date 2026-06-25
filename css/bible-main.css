@@ -425,6 +425,7 @@ body.basic_section #select-prompt {
 /* ==========================================================================
    Compact Passage Picker
    ========================================================================== */
+
 .passage-picker-column {
   position: relative;
   overflow: visible;
@@ -440,18 +441,19 @@ body.basic_section #select-prompt {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.65rem;
-  min-width: 170px;
-  min-height: 34px;
-  padding: 0.35rem 0.65rem;
+  gap: 0.5rem;
+  min-width: 180px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 0.6rem;
   border: 1px solid #2f9ae0;
   border-radius: 6px;
   background: #fff;
   color: #172033;
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -469,7 +471,14 @@ body.basic_section #select-prompt {
   outline-offset: 2px;
 }
 
+#current-passage-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .passage-picker-chevron {
+  flex: 0 0 auto;
   font-size: 0.7em;
   transition: transform 0.2s ease;
 }
@@ -483,16 +492,16 @@ body.basic_section #select-prompt {
   position: absolute;
   z-index: 5000;
   top: calc(100% + 8px);
-  left: 50%;
-  width: min(380px, calc(100vw - 32px));
-  padding: 0.8rem;
+  left: 0;
+  width: min(640px, calc(100vw - 24px));
+  padding: 1rem;
   border: 1px solid #b8cee1;
   border-radius: 10px;
   background: #fdfefe;
   box-shadow: 0 18px 45px rgba(19, 42, 66, 0.24);
   color: #172033;
   text-align: left;
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .passage-picker-panel[hidden] {
@@ -504,7 +513,7 @@ body.basic_section #select-prompt {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.9rem;
 }
 
 .passage-picker-header h2 {
@@ -538,23 +547,32 @@ body.basic_section #select-prompt {
 
 .passage-picker-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
+  grid-template-columns:
+    minmax(120px, 0.8fr)
+    minmax(180px, 1.35fr)
+    minmax(140px, 1fr)
+    72px;
+  column-gap: 14px;
+  row-gap: 10px;
+  align-items: end;
 }
 
 .passage-picker-field {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.35rem;
   min-width: 0;
   font-size: 0.78rem;
   font-weight: 600;
 }
 
 .passage-picker-field select {
+  box-sizing: border-box;
   width: 100%;
+  min-width: 0;
+  height: 36px;
   min-height: 36px;
-  padding: 0.35rem 0.45rem;
+  padding: 0 0.5rem;
   border: 1px solid #aac1d4;
   border-radius: 5px;
   background: #fff;
@@ -569,15 +587,21 @@ body.basic_section #select-prompt {
   cursor: not-allowed;
 }
 
+.passage-picker-field:nth-child(4) {
+  width: 72px;
+}
+
 .passage-picker-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.75rem;
+  margin-top: 1rem;
 }
 
 .passage-picker-open {
+  min-width: 150px;
+  height: 36px;
   min-height: 36px;
-  padding: 0.4rem 0.8rem;
+  padding: 0 1rem;
   border: 1px solid #1d44b8;
   border-radius: 6px;
   background: #1d44b8;
@@ -600,18 +624,14 @@ body.basic_section #select-prompt {
 
 /*
  * Only the passage picker receives responsive behavior here.
- * The complete site-wide responsive redesign can be handled later.
+ * The full site-wide responsive redesign can be handled later.
  */
 @media only screen and (max-width: 700px) {
   .passage-picker-toggle {
     min-width: 0;
     max-width: 55vw;
-  }
-
-  #current-passage-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    height: 34px;
+    min-height: 34px;
   }
 
   .passage-picker-panel {
@@ -636,16 +656,23 @@ body.basic_section #select-prompt {
 
   .passage-picker-fields {
     grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+
+  .passage-picker-field:nth-child(4) {
+    width: 100%;
   }
 
   .passage-picker-field select,
   .passage-picker-open {
+    width: 100%;
+    height: auto;
     min-height: 48px;
     font-size: 1rem;
   }
 
   .passage-picker-open {
-    width: 100%;
+    min-width: 0;
   }
 
   body.passage-picker-is-open::before {
@@ -654,110 +681,5 @@ body.basic_section #select-prompt {
     z-index: 4999;
     inset: 0;
     background: rgba(11, 22, 34, 0.48);
-  }
-}
-
-/* ==========================================================================
-   Compact Passage Picker - Desktop Refinements
-   ========================================================================== */
-
-/* Shorter compact passage button in the header */
-.passage-picker-toggle {
-  min-width: 180px;
-  min-height: 30px;
-  height: 30px;
-  padding: 0 0.6rem;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-  line-height: 1;
-}
-
-/* Wider, less crowded desktop panel */
-.passage-picker-panel {
-  width: min(680px, calc(100vw - 40px));
-  padding: 1rem 1.1rem;
-}
-
-/* Slightly more breathing room around the title */
-.passage-picker-header {
-  margin-bottom: 0.9rem;
-}
-
-/* Four fields across one row */
-.passage-picker-fields {
-  display: grid;
-  grid-template-columns:
-    minmax(105px, 0.8fr)
-    minmax(190px, 1.5fr)
-    minmax(130px, 1fr)
-    78px;
-  gap: 0.9rem;
-  align-items: end;
-}
-
-/* More separation between labels and dropdowns */
-.passage-picker-field {
-  gap: 0.35rem;
-}
-
-/* Slightly cleaner dropdown height */
-.passage-picker-field select {
-  min-height: 34px;
-  height: 34px;
-  padding: 0 0.5rem;
-}
-
-/* Keep the Chapter field narrow */
-.passage-picker-field:nth-child(4) {
-  width: 78px;
-}
-
-/* More space above the action button */
-.passage-picker-actions {
-  margin-top: 1rem;
-}
-
-/* Give the Open Passage button more horizontal room */
-.passage-picker-open {
-  min-width: 125px;
-  min-height: 34px;
-  height: 34px;
-  padding: 0 1rem;
-}
-
-/* Keep mobile stacked and full width */
-@media only screen and (max-width: 700px) {
-  .passage-picker-toggle {
-    height: 34px;
-    min-height: 34px;
-  }
-
-  .passage-picker-panel {
-    width: 100%;
-    padding:
-      1rem
-      1rem
-      calc(1rem + env(safe-area-inset-bottom));
-  }
-
-  .passage-picker-fields {
-    grid-template-columns: 1fr;
-    gap: 0.8rem;
-  }
-
-  .passage-picker-field:nth-child(4) {
-    width: 100%;
-  }
-
-  .passage-picker-field select {
-    width: 100%;
-    min-height: 48px;
-    height: auto;
-  }
-
-  .passage-picker-open {
-    width: 100%;
-    min-height: 48px;
-    height: auto;
   }
 }
