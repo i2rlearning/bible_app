@@ -10,6 +10,8 @@
 
     <link href="css/menu.css" rel="stylesheet">
     <link href="css/bible-main.css" rel="stylesheet">
+    <link href="css/bible-selector.css" rel="stylesheet">
+    <link href="css/index-home.css" rel="stylesheet">
     <link href="css/editor.css" rel="stylesheet">
 
     <link
@@ -26,15 +28,15 @@
     <title>Branch of Israel - Bible App</title>
   </head>
 
-  <body class="index">
+  <body class="index landing-page">
 
     <!-- **************** Header Sticky Menu **************** -->
 
     <div class="subheader" id="stickyHeader">
       <div class="container flex">
-        <div class="subheadings">
+        <div class="subheadings landing-header-row">
 
-          <div class="column">
+          <div class="column landing-menu-column">
             <div class="hamburger">
               <button
                 type="button"
@@ -50,44 +52,17 @@
             </div>
           </div>
 
-          <!-- Current Bible -->
-          <div class="column">
-            <span
-              id="currentBible"
-              class="header-selection unavailable"
-              title="Select a Bible"
-            >
-              Bible
+          <div class="landing-header-title">
+            <span class="landing-header-name">
+              Branch of Israel
+            </span>
+
+            <span class="landing-header-subtitle">
+              Scripture reading and personal study
             </span>
           </div>
 
-          <!-- Current Book and Chapter -->
-          <div class="column">
-            <span
-              id="currentBookChapter"
-              class="header-selection unavailable"
-              title="Select a book and chapter"
-            >
-              Book &amp; Chapter
-            </span>
-          </div>
-
-          <!-- Language Filter -->
-          <div class="column">
-            <div class="custom-combobox language-row">
-              <label
-                for="langInput"
-                class="language-label"
-              >
-                Language:
-              </label>
-
-              <select id="langInput"></select>
-            </div>
-          </div>
-
-          <!-- Login / Logout -->
-          <div class="column">
+          <div class="column landing-login-column">
             <button type="button" id="login">
               Login
             </button>
@@ -213,396 +188,198 @@
       </div>
     </header>
 
-    <!-- **************** Main Content **************** -->
+    <!-- **************** Landing Content **************** -->
 
-    <main
-      class="container"
-      style="font-size: 18px;"
-    >
-      <div id="bible-version-list">
-      </div>
+    <main class="landing-main">
+      <section class="landing-hero">
+        <div class="landing-hero-copy">
+          <p class="landing-eyebrow">
+            Read. Study. Reflect.
+          </p>
 
-      <div class="leftcol">
-        <a id="prevURL" href="#">
-          <img
-            id="imgleft"
-            class="left-button"
-            src="./img/orig_left_stamp.png"
-            alt="Previous page"
+          <h1>
+            A focused place for Scripture and personal study
+          </h1>
+
+          <p class="landing-intro">
+            Open a passage, search Scripture, or return to your saved notes
+            without turning the home page into another reading workspace.
+          </p>
+        </div>
+
+        <div class="landing-actions">
+
+          <!-- Shared picker, opened only through this action -->
+          <div
+            class="passage-picker passage-picker--landing"
+            id="passage-picker"
           >
-        </a>
-      </div>
+            <button
+              type="button"
+              id="passage-picker-toggle"
+              class="landing-action-card landing-action-primary"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="passage-picker-panel"
+            >
+              <span class="landing-action-icon" aria-hidden="true">
+                <i class="fa fa-book"></i>
+              </span>
 
-      <div class="rightcol">
-        <a id="nextURL" href="#">
-          <img
-            id="imgright"
-            class="right-button"
-            src="./img/orig_right_stamp.png"
-            alt="Next page"
+              <span class="landing-action-content">
+                <strong>Open a Passage</strong>
+                <span>Choose a Bible, Book, and Chapter</span>
+              </span>
+
+              <span class="landing-action-arrow" aria-hidden="true">
+                &rsaquo;
+              </span>
+            </button>
+
+            <div
+              id="passage-picker-panel"
+              class="passage-picker-panel landing-passage-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="passage-picker-title"
+              hidden
+            >
+              <div class="passage-picker-header">
+                <h2 id="passage-picker-title">
+                  Open a Passage
+                </h2>
+
+                <button
+                  type="button"
+                  id="passage-picker-close"
+                  class="passage-picker-close"
+                  aria-label="Close passage picker"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div class="passage-picker-fields">
+                <label class="passage-picker-field" for="language-select">
+                  <span>Language</span>
+                  <select id="language-select"></select>
+                </label>
+
+                <label class="passage-picker-field" for="bible-select">
+                  <span>Bible</span>
+                  <select id="bible-select">
+                    <option value="">
+                      Loading Bibles...
+                    </option>
+                  </select>
+                </label>
+
+                <label class="passage-picker-field" for="book-select">
+                  <span>Book</span>
+                  <select id="book-select" disabled>
+                    <option value="">
+                      Loading Books...
+                    </option>
+                  </select>
+                </label>
+
+                <label class="passage-picker-field" for="chapter-select">
+                  <span>Chapter</span>
+                  <select id="chapter-select" disabled>
+                    <option value="">
+                      Loading Chapters...
+                    </option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="passage-picker-actions">
+                <button
+                  type="button"
+                  id="passage-picker-open"
+                  class="passage-picker-open"
+                  disabled
+                >
+                  Open Passage
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <a
+            id="landing-search-action"
+            class="landing-action-card"
+            href="./search.html"
           >
-        </a>
-      </div>
+            <span class="landing-action-icon" aria-hidden="true">
+              <i class="fa fa-search"></i>
+            </span>
 
-      <div class="bottom-spacer"></div>
+            <span class="landing-action-content">
+              <strong>Search Scripture</strong>
+              <span>Find words, phrases, and passages</span>
+            </span>
+
+            <span class="landing-action-arrow" aria-hidden="true">
+              &rsaquo;
+            </span>
+          </a>
+
+          <button
+            type="button"
+            id="verse-of-day-action"
+            class="landing-action-card"
+            disabled
+            title="Verse of the Day will be added in the next step"
+          >
+            <span class="landing-action-icon" aria-hidden="true">
+              <i class="fa fa-calendar"></i>
+            </span>
+
+            <span class="landing-action-content">
+              <strong>Verse of the Day</strong>
+              <span>A date-aware daily passage</span>
+            </span>
+
+            <span class="landing-action-status">
+              Coming next
+            </span>
+          </button>
+
+        </div>
+      </section>
+
+      <section class="landing-feature-strip">
+        <article>
+          <h2>Read naturally</h2>
+          <p>
+            Move between Chapters with the picker, arrows, swipe, or keyboard.
+          </p>
+        </article>
+
+        <article>
+          <h2>Study visually</h2>
+          <p>
+            Highlight, format, draw, and keep your observations beside the text.
+          </p>
+        </article>
+
+        <article>
+          <h2>Return to your notes</h2>
+          <p>
+            Logged-in users can reopen saved work from the notes menu.
+          </p>
+        </article>
+      </section>
     </main>
 
-    <!-- Existing JavaScript Files -->
+    <!-- **************** JavaScript **************** -->
 
     <script src="js/my_key.js"></script>
     <script src="js/menu.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/bible-language.js"></script>
+    <script src="js/bible-selector.js"></script>
     <script src="js/misc.js"></script>
-
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const elements = {
-          menuNav: document.getElementById("menuNav"),
-          displayText: document.getElementById("bible-version-list"),
-          langInput: document.getElementById("langInput"),
-
-          currentBible: document.getElementById("currentBible"),
-          currentBookChapter:
-            document.getElementById("currentBookChapter"),
-
-          homeMenuLink:
-            document.getElementById("homeMenuLink"),
-
-          booksMenuLink:
-            document.getElementById("booksMenuLink"),
-
-          chapterMenuLink:
-            document.getElementById("chapterMenuLink"),
-
-          searchMenuLink:
-            document.getElementById("searchMenuLink")
-        };
-
-        /*
-         * URL state
-         *
-         * index.html may contain:
-         *
-         * index.html?bible=BIBLE_ID
-         *
-         * Book and chapter are intentionally ignored on this page.
-         */
-
-        const urlParams = new URLSearchParams(
-          window.location.search
-        );
-
-        const selectedBibleId =
-          urlParams.get("bible") || "";
-
-        /*
-         * Build a page URL using only known values.
-         *
-         * Empty values are not added.
-         */
-
-        function buildUrl(page, state = {}) {
-          const params = new URLSearchParams();
-
-          if (state.bible) {
-            params.set("bible", state.bible);
-          }
-
-          const queryString = params.toString();
-
-          if (!queryString) {
-            return page;
-          }
-
-          return `${page}?${queryString}`;
-        }
-
-        /*
-         * Disable a menu link safely.
-         */
-
-        function disableLink(link) {
-          if (!link) {
-            return;
-          }
-
-          link.href = "#";
-          link.classList.add("disabled");
-          link.setAttribute("aria-disabled", "true");
-          link.setAttribute("tabindex", "-1");
-        }
-
-        /*
-         * Enable a menu link.
-         */
-
-        function enableLink(link, href) {
-          if (!link) {
-            return;
-          }
-
-          link.href = href;
-          link.classList.remove("disabled");
-          link.removeAttribute("aria-disabled");
-          link.removeAttribute("tabindex");
-        }
-
-        /*
-         * Prevent disabled menu links from navigating.
-         */
-
-        document.addEventListener("click", (event) => {
-          const disabledLink =
-            event.target.closest("a.disabled");
-
-          if (!disabledLink) {
-            return;
-          }
-
-          event.preventDefault();
-        });
-
-        /*
-         * Configure navigation for index.html.
-         *
-         * Home:
-         * Keeps the currently selected Bible.
-         *
-         * Books:
-         * Becomes available when a Bible is known.
-         *
-         * Chapter:
-         * Remains unavailable because index.html does not know
-         * which book has been selected.
-         */
-
-        enableLink(
-          elements.homeMenuLink,
-          buildUrl("./index.html", {
-            bible: selectedBibleId
-          })
-        );
-
-        if (selectedBibleId) {
-          enableLink(
-            elements.booksMenuLink,
-            buildUrl("./book.html", {
-              bible: selectedBibleId
-            })
-          );
-        } else {
-          disableLink(elements.booksMenuLink);
-        }
-
-        disableLink(elements.chapterMenuLink);
-
-        /*
-         * Preserve the selected Bible when opening Search.
-         */
-
-        enableLink(
-          elements.searchMenuLink,
-          buildUrl("./search.html", {
-            bible: selectedBibleId
-          })
-        );
-
-        /*
-         * Display selected Bible in the sticky header.
-         *
-         * bibleAbbr is used for display only.
-         * bible is the API Bible ID.
-         */
-
-        if (elements.currentBible) {
-          elements.currentBible.textContent =
-            "Bible";
-        
-          elements.currentBible.title =
-            "Select a Bible version";
-        
-          elements.currentBible.classList.remove(
-            "unavailable"
-          );
-        }
-
-        /*
-         * No book or chapter should be shown on index.html.
-         */
-
-        if (elements.currentBookChapter) {
-          elements.currentBookChapter.textContent =
-            "Book & Chapter";
-
-          elements.currentBookChapter.title =
-            "Select a Bible first";
-        }
-
-        /*
-         * Shared language selection
-         *
-         * bible-language.js owns the language options and stores the
-         * selected API URL and language name in localStorage.
-         */
-
-        if (
-          elements.langInput &&
-          window.BibleLanguage
-        ) {
-          window.BibleLanguage.setupSelect(
-            elements.langInput,
-            {
-              onChange() {
-                /*
-                 * Changing language invalidates the selected Bible,
-                 * because that Bible may not exist in the new list.
-                 */
-
-                const cleanUrl =
-                  new URL(window.location.href);
-
-                cleanUrl.searchParams.delete(
-                  "bible"
-                );
-
-                cleanUrl.searchParams.delete(
-                  "bibleAbbr"
-                );
-
-                cleanUrl.searchParams.delete(
-                  "bibleName"
-                );
-
-                localStorage.removeItem(
-                  "selectedBibleId"
-                );
-
-                localStorage.removeItem(
-                  "selectedBibleAbbreviation"
-                );
-
-                localStorage.removeItem(
-                  "selectedBibleAbbr"
-                );
-
-                localStorage.removeItem(
-                  "selectedBibleName"
-                );
-
-                window.location.assign(
-                  cleanUrl.toString()
-                );
-              }
-            }
-          );
-        }
-
-        /*
-         * Make the URL helper available to misc.js.
-         *
-         * misc.js should call:
-         *
-         * window.BibleNavigation.selectBible({
-         *   id: bible.id,
-         *   abbreviation: bible.abbreviation,
-         *   name: bible.name
-         * });
-         *
-         * when the user selects a Bible.
-         */
-
-        window.BibleNavigation = {
-          getState() {
-            return {
-              bible: selectedBibleId
-            };
-          },
-
-          buildUrl,
-
-          selectBible(bible) {
-            if (!bible || !bible.id) {
-              console.error(
-                "A Bible ID is required."
-              );
-
-              return;
-            }
-
-            const abbreviation =
-              bible.abbreviation ||
-              bible.abbreviationLocal ||
-              "";
-
-            const fullName =
-              bible.name ||
-              bible.nameLocal ||
-              abbreviation ||
-              bible.id;
-
-            /*
-             * localStorage is retained only as a temporary cache for
-             * display labels and backward compatibility.
-             *
-             * The Bible ID in the URL is the navigation source of truth.
-             */
-
-            localStorage.setItem(
-              "selectedBibleId",
-              bible.id
-            );
-
-            localStorage.setItem(
-              "selectedBibleAbbreviation",
-              abbreviation
-            );
-
-            localStorage.setItem(
-              "selectedBibleAbbr",
-              abbreviation
-            );
-
-            localStorage.setItem(
-              "selectedBibleName",
-              fullName
-            );
-
-            const destinationParams =
-              new URLSearchParams();
-
-            destinationParams.set(
-              "bible",
-              bible.id
-            );
-
-            /*
-             * The abbreviation is included so book.html can display
-             * it immediately while API information is loading.
-             *
-             * It is display information, not the API identifier.
-             */
-
-            if (abbreviation) {
-              destinationParams.set(
-                "bibleAbbr",
-                abbreviation
-              );
-            }
-
-            if (fullName) {
-              destinationParams.set(
-                "bibleName",
-                fullName
-              );
-            }
-            
-            window.location.assign(
-              `./book.html?${destinationParams.toString()}`
-            );
-          }
-        };
-      });
-    </script>
   </body>
 </html>
