@@ -592,3 +592,25 @@ button#logout:focus-visible {
   outline: 2px solid #2f9ae0;
   outline-offset: 2px;
 }
+
+/* ==========================================================================
+   Compact Clerk Buttons in the Verse Toolbar
+   ========================================================================== */
+
+.subheader .column button#login,
+.subheader .column button#logout {
+  min-width: 68px;
+  height: 30px;
+  padding: 0 10px;
+  gap: 5px;
+
+  border-radius: 4px !important;
+
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.subheader .column button#login i,
+.subheader .column button#logout i {
+  font-size: 0.75rem;
+}
