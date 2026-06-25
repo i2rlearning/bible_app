@@ -508,16 +508,6 @@ body.basic_section #select-prompt {
   display: none;
 }
 
-.passage-picker-field > span {
-  display: block;
-  margin: 0;
-  padding: 0;
-  font-size: 0.88rem;
-  font-weight: 700;
-  line-height: 1.1;
-  color: #172033;
-}
-
 .passage-picker-header {
   display: flex;
   align-items: center;
@@ -594,6 +584,16 @@ body.basic_section #select-prompt {
 
 .passage-picker-field:nth-child(4) {
   width: 72px;
+}
+
+.passage-picker-field > span {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #172033;
 }
 
 .passage-picker-actions {
