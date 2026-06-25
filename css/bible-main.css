@@ -656,3 +656,108 @@ body.basic_section #select-prompt {
     background: rgba(11, 22, 34, 0.48);
   }
 }
+
+/* ==========================================================================
+   Compact Passage Picker - Desktop Refinements
+   ========================================================================== */
+
+/* Shorter compact passage button in the header */
+.passage-picker-toggle {
+  min-width: 180px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 0.6rem;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+/* Wider, less crowded desktop panel */
+.passage-picker-panel {
+  width: min(680px, calc(100vw - 40px));
+  padding: 1rem 1.1rem;
+}
+
+/* Slightly more breathing room around the title */
+.passage-picker-header {
+  margin-bottom: 0.9rem;
+}
+
+/* Four fields across one row */
+.passage-picker-fields {
+  display: grid;
+  grid-template-columns:
+    minmax(105px, 0.8fr)
+    minmax(190px, 1.5fr)
+    minmax(130px, 1fr)
+    78px;
+  gap: 0.9rem;
+  align-items: end;
+}
+
+/* More separation between labels and dropdowns */
+.passage-picker-field {
+  gap: 0.35rem;
+}
+
+/* Slightly cleaner dropdown height */
+.passage-picker-field select {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 0.5rem;
+}
+
+/* Keep the Chapter field narrow */
+.passage-picker-field:nth-child(4) {
+  width: 78px;
+}
+
+/* More space above the action button */
+.passage-picker-actions {
+  margin-top: 1rem;
+}
+
+/* Give the Open Passage button more horizontal room */
+.passage-picker-open {
+  min-width: 125px;
+  min-height: 34px;
+  height: 34px;
+  padding: 0 1rem;
+}
+
+/* Keep mobile stacked and full width */
+@media only screen and (max-width: 700px) {
+  .passage-picker-toggle {
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .passage-picker-panel {
+    width: 100%;
+    padding:
+      1rem
+      1rem
+      calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .passage-picker-fields {
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+
+  .passage-picker-field:nth-child(4) {
+    width: 100%;
+  }
+
+  .passage-picker-field select {
+    width: 100%;
+    min-height: 48px;
+    height: auto;
+  }
+
+  .passage-picker-open {
+    width: 100%;
+    min-height: 48px;
+    height: auto;
+  }
+}
