@@ -20,11 +20,26 @@
 .landing-header-title {
   display: flex;
   flex: 1 1 auto;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
   padding: 0 16px;
   text-align: left;
+}
+
+.landing-header-logo {
+  flex: 0 0 auto;
+  width: auto;
+  height: 38px;
+  object-fit: contain;
+}
+
+.landing-header-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
 }
 
 .landing-header-name {
@@ -36,6 +51,7 @@
 }
 
 .landing-header-subtitle {
+  margin-top: 2px;
   font-size: 0.72rem;
   font-weight: 500;
   line-height: 1.25;
