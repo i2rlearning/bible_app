@@ -508,6 +508,16 @@ body.basic_section #select-prompt {
   display: none;
 }
 
+.passage-picker-field > span {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #172033;
+}
+
 .passage-picker-header {
   display: flex;
   align-items: center;
@@ -566,19 +576,14 @@ body.basic_section #select-prompt {
   font-weight: 600;
 }
 
-.passage-picker-field select {
-  box-sizing: border-box;
-  width: 100%;
+.passage-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
   min-width: 0;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 0.5rem;
-  border: 1px solid #aac1d4;
-  border-radius: 5px;
-  background: #fff;
-  color: #172033;
-  font-family: inherit;
   font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.1;
 }
 
 .passage-picker-field select:disabled {
