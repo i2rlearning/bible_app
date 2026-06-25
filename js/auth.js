@@ -57,7 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function setLoggedOutUI() {
     if (loginButton) {
       loginButton.style.display = "";
-      loginButton.textContent = "Login";
       loginButton.disabled = false;
       loginButton.title = "";
     }
