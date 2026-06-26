@@ -52,7 +52,13 @@
             </div>
           </div>
     
-          <div class="auth-button-container">
+          <div class="landing-header-actions">
+            <button type="button" class="preferences-header-button" data-open-preferences aria-label="Open preferences" title="Preferences">
+              <i class="fa fa-cog" aria-hidden="true"></i>
+              <span>Preferences</span>
+            </button>
+
+            <div class="auth-button-container">
             <button
               type="button"
               id="login"
@@ -77,6 +83,7 @@
               ></i>
               <span>Logout</span>
             </button>
+            </div>
           </div>
     
         </div>
@@ -138,6 +145,44 @@
       </div>
     </div>
 
+
+    <!-- **************** Preferences Modal **************** -->
+    <div id="preferencesModal" class="preferences-modal" style="display: none;">
+      <div class="preferences-dialog" role="dialog" aria-modal="true" aria-labelledby="preferences-title">
+        <button type="button" id="closePreferences" class="preferences-close" aria-label="Close preferences">&times;</button>
+
+        <h2 id="preferences-title">Preferences</h2>
+        <p class="preferences-intro">Choose your default language, Bible, and starting page.</p>
+
+        <label class="preferences-field" for="preferences-language">
+          <span>Preferred Language</span>
+          <select id="preferences-language"></select>
+        </label>
+
+        <label class="preferences-field" for="preferences-bible">
+          <span>Preferred Bible</span>
+          <select id="preferences-bible" disabled>
+            <option value="">Loading Bibles...</option>
+          </select>
+        </label>
+
+        <label class="preferences-field" for="preferences-landing-page">
+          <span>Starting Page</span>
+          <select id="preferences-landing-page">
+            <option value="index">Home Page</option>
+            <option value="verse">Reading Page</option>
+          </select>
+        </label>
+
+        <div id="preferences-status" class="preferences-status" aria-live="polite"></div>
+
+        <div class="preferences-actions">
+          <button type="button" id="cancelPreferences" class="preferences-button preferences-button-secondary">Cancel</button>
+          <button type="button" id="savePreferences" class="preferences-button preferences-button-primary">Save Preferences</button>
+        </div>
+      </div>
+    </div>
+
     <!-- **************** Overlay Menu **************** -->
 
     <header>
@@ -176,6 +221,8 @@
           >
             Search
           </a>
+
+          <a href="#" id="openPreferences">Preferences</a>
 
           <a
             href="#"
@@ -382,6 +429,7 @@
     <script src="js/auth.js"></script>
     <script src="js/bible-language.js"></script>
     <script src="js/bible-selector.js"></script>
+    <script src="js/user-preferences.js"></script>
     <script src="js/misc.js"></script>
   </body>
 </html>
