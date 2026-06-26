@@ -315,3 +315,49 @@ body.passage-picker-is-open::before {
     transform: none;
   }
 }
+
+/* Header preferences action */
+.landing-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.preferences-header-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(18, 63, 124, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #123f7c;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.preferences-header-button:hover {
+  border-color: #2f9ae0;
+  background: #fff;
+}
+
+.preferences-header-button:focus-visible {
+  outline: 2px solid #2f9ae0;
+  outline-offset: 2px;
+}
+
+@media only screen and (max-width: 700px) {
+  .preferences-header-button span {
+    display: none;
+  }
+
+  .preferences-header-button {
+    width: 36px;
+    padding: 0;
+  }
+}
+
