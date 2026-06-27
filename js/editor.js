@@ -109,7 +109,7 @@ quill.root.addEventListener(
       e.preventDefault();
       e.stopPropagation();
 
-      alert("Direct image pasting is not allowed. Please save the image to your computer and use the 'Insert Image' button to insert it.");
+      alert("Direct image pasting is not allowed as this feature is diabled. Please save the image locally and use the 'Insert Image' button to insert it.");
     }
 
     // If there is NO image (just text), the code does nothing
