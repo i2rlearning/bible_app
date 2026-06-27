@@ -118,6 +118,7 @@
 
 .passage-picker-close:hover {
   background: #eaf3fa;
+  font-color: red;
 }
 
 .passage-picker-fields {
