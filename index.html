@@ -459,8 +459,8 @@
             type="button"
             id="verse-of-day-action"
             class="landing-action-card"
-            disabled
-            title="Verse of the Day will be added in the next step"
+            aria-haspopup="dialog"
+            aria-controls="verse-of-day-modal"
           >
             <span class="landing-action-icon" aria-hidden="true">
               <i class="fa fa-calendar"></i>
@@ -468,11 +468,11 @@
 
             <span class="landing-action-content">
               <strong>Verse of the Day</strong>
-              <span>A date-aware daily passage</span>
+              <span>Read today’s selected Scripture</span>
             </span>
 
-            <span class="landing-action-status">
-              Coming next
+            <span class="landing-action-arrow" aria-hidden="true">
+              &rsaquo;
             </span>
           </button>
 
