@@ -46,6 +46,68 @@ window.VerseOfDay = (() => {
   const CHRISTIAN_HOLIDAYS = [];
   const BIBLICAL_APPOINTED_TIMES = [];
   const LATER_JEWISH_OBSERVANCES = [];
+
+  /*
+   * Smaller fixed-date and civic/cultural observances.
+   *
+   * Supported date rules:
+   * - fixed-date: one Gregorian month and day
+   * - nth-weekday: e.g. the first Thursday in May
+   *
+   * More rules can be added later without changing the modal or API logic.
+   */
+  const SPECIAL_OBSERVANCES = [
+    {
+      key: "valentines-day",
+      labels: ["Valentine’s Day"],
+      category: "special-observance",
+      priority: 40,
+      dateRule: {
+        type: "fixed-date",
+        month: 2,
+        day: 14
+      },
+      references: ["1CO.13.13", "SNG.8.7"]
+    },
+    {
+      key: "saint-patricks-day",
+      labels: ["St. Patrick’s Day"],
+      category: "special-observance",
+      priority: 40,
+      dateRule: {
+        type: "fixed-date",
+        month: 3,
+        day: 17
+      },
+      references: ["ACT.1.8", "ISA.52.7"]
+    },
+    {
+      key: "independence-day",
+      labels: ["Independence Day"],
+      category: "special-observance",
+      priority: 40,
+      dateRule: {
+        type: "fixed-date",
+        month: 7,
+        day: 4
+      },
+      references: ["GAL.5.1", "PSA.33.12"]
+    },
+    {
+      key: "national-day-of-prayer",
+      labels: ["National Day of Prayer"],
+      category: "special-observance",
+      priority: 45,
+      dateRule: {
+        type: "nth-weekday",
+        month: 5,
+        weekday: 4,
+        occurrence: 1
+      },
+      references: ["2CH.7.14", "PSA.5.3"]
+    }
+  ];
+
   const HOLIDAY_COLLISION_OVERRIDES = [];
 
   /*
@@ -164,27 +226,103 @@ window.VerseOfDay = (() => {
     };
   }
 
+  function getEffectiveDate(date = new Date()) {
+    const debugDate = new URLSearchParams(window.location.search).get("votdDate");
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(debugDate || "")) {
+      const [year, month, day] = debugDate.split("-").map(Number);
+      const candidate = new Date(year, month - 1, day, 12, 0, 0);
+
+      if (
+        candidate.getFullYear() === year &&
+        candidate.getMonth() === month - 1 &&
+        candidate.getDate() === day
+      ) {
+        return candidate;
+      }
+    }
+
+    return date;
+  }
+
+  function getNthWeekdayOfMonth(date) {
+    return Math.floor((date.getDate() - 1) / 7) + 1;
+  }
+
+  function matchesDateRule(date, rule) {
+    if (!rule || !rule.type) {
+      return false;
+    }
+
+    if (rule.type === "fixed-date") {
+      return (
+        date.getMonth() + 1 === rule.month &&
+        date.getDate() === rule.day
+      );
+    }
+
+    if (rule.type === "nth-weekday") {
+      return (
+        date.getMonth() + 1 === rule.month &&
+        date.getDay() === rule.weekday &&
+        getNthWeekdayOfMonth(date) === rule.occurrence
+      );
+    }
+
+    return false;
+  }
+
+  function normalizeObservance(observance) {
+    return {
+      key: observance.key,
+      labels: observance.labels || [],
+      category: observance.category || "special-observance",
+      priority: Number(observance.priority || 0),
+      references: observance.references || [],
+      alternateSources: observance.alternateSources || []
+    };
+  }
+
   /*
-   * This is the extension point for holiday logic.
-   * It deliberately returns null until holiday passages are approved.
+   * Holiday and observance selection engine.
    *
-   * Later this function can:
-   * - calculate Christian movable observances
-   * - read cached Hebcal dates
-   * - combine multiple labels
-   * - check HOLIDAY_COLLISION_OVERRIDES first
+   * Multiple matching labels are preserved. The highest-priority matching
+   * observance supplies the verse unless a future collision override is added.
    */
-  function getHolidayDefinition() {
+  function getHolidayDefinition(date = new Date()) {
     void CHRISTIAN_HOLIDAYS;
     void BIBLICAL_APPOINTED_TIMES;
     void LATER_JEWISH_OBSERVANCES;
     void HOLIDAY_COLLISION_OVERRIDES;
 
-    return null;
+    const matches = SPECIAL_OBSERVANCES
+      .filter((observance) => matchesDateRule(date, observance.dateRule))
+      .map(normalizeObservance)
+      .sort((a, b) => b.priority - a.priority);
+
+    if (!matches.length) {
+      return null;
+    }
+
+    const primary = matches[0];
+    const labels = [...new Set(matches.flatMap((item) => item.labels))];
+
+    return {
+      labels,
+      category: primary.category,
+      references: primary.references,
+      alternateSources: primary.alternateSources,
+      matchedObservances: matches.map((item) => item.key)
+    };
   }
 
   function getTodayDefinition(date = new Date()) {
-    return getHolidayDefinition(date) || getOrdinaryDailyDefinition(date);
+    const effectiveDate = getEffectiveDate(date);
+
+    return (
+      getHolidayDefinition(effectiveDate) ||
+      getOrdinaryDailyDefinition(effectiveDate)
+    );
   }
 
   async function resolveBible() {
@@ -502,6 +640,7 @@ window.VerseOfDay = (() => {
 
   return {
     getTodayDefinition,
+    getHolidayDefinition,
     openModal
   };
 })();
