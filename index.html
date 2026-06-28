@@ -184,6 +184,86 @@
       </div>
     </div>
 
+     <!-- **************** Verse of the Day Modal **************** -->
+    <div
+      id="verse-of-day-modal"
+      class="verse-of-day-modal"
+      style="display: none;"
+      aria-hidden="true"
+    >
+      <div
+        class="verse-of-day-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="verse-of-day-title"
+      >
+        <button
+          type="button"
+          id="verse-of-day-close"
+          class="verse-of-day-close"
+          aria-label="Close Verse of the Day"
+        >
+          &times;
+        </button>
+
+        <p
+          id="verse-of-day-holiday"
+          class="verse-of-day-holiday"
+          hidden
+        ></p>
+
+        <h2 id="verse-of-day-title">Verse of the Day</h2>
+
+        <div
+          id="verse-of-day-status"
+          class="verse-of-day-status"
+          aria-live="polite"
+        >
+          Loading today’s verse...
+        </div>
+
+        <div id="verse-of-day-content" class="verse-of-day-content" hidden>
+          <p id="verse-of-day-reference" class="verse-of-day-reference"></p>
+
+          <blockquote
+            id="verse-of-day-text"
+            class="verse-of-day-text"
+          ></blockquote>
+
+          <p id="verse-of-day-version" class="verse-of-day-version"></p>
+        </div>
+
+        <div class="verse-of-day-actions">
+          <button
+            type="button"
+            id="verse-of-day-copy"
+            class="verse-of-day-button verse-of-day-button-secondary"
+            disabled
+          >
+            <i class="fa fa-copy" aria-hidden="true"></i>
+            <span>Copy Verse</span>
+          </button>
+
+          <button
+            type="button"
+            id="verse-of-day-open-chapter"
+            class="verse-of-day-button verse-of-day-button-primary"
+            disabled
+          >
+            Open Full Chapter
+          </button>
+
+          <button
+            type="button"
+            id="verse-of-day-cancel"
+            class="verse-of-day-button verse-of-day-button-plain"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+    
     <!-- **************** Overlay Menu **************** -->
 
     <header>
