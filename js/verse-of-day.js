@@ -162,7 +162,9 @@ window.VerseOfDay = (() => {
     { primary: "ISA.43.2", fallbacks: ["PSA.66.12"] },
     { primary: "PHP.4.13", fallbacks: ["HAB.3.19"] },
     { primary: "PSA.118.24", fallbacks: ["ECC.3.12"] },
-    { primary: "JER.29.11", fallbacks: ["DEU.30.9"] }
+    { primary: "JER.29.11", fallbacks: ["DEU.30.9"] },
+    { primary: "2COR.5.7", fallbacks: ["PSA.91.11-PSA.91.12"] },
+    { primary: "ROM.12.2", fallbacks: ["PSA.105.4"] }
   ];
 
   const state = {
