@@ -863,8 +863,7 @@ window.BibleSelector = (() => {
           document.createElement("option");
 
         placeholder.value = "";
-        placeholder.textContent =
-          "Select a Chapter...";
+        //placeholder.textContent = "Select a Chapter...";
 
         chapterSelect.appendChild(
           placeholder
