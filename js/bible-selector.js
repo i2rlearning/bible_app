@@ -28,7 +28,7 @@ window.BibleSelector = (() => {
     {
       label: "English",
       apiUrl:
-        "https://rest.api.bible/v1/bibles?language=eng&include-full-details=false"
+        "https://rest.api.bible/v1/bibles?language=eng&include-full-details=true"
     },
     {
       label: "Greek",
