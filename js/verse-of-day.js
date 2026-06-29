@@ -108,6 +108,20 @@ window.VerseOfDay = (() => {
     }
   ];
 
+  /*
+   * Optional overrides for dates where two or more observances overlap.
+   *
+   * Example:
+   * {
+   *   key: "christmas-hanukkah",
+   *   keys: ["christmas-day", "hanukkah"],
+   *   labels: ["Christmas Day", "Hanukkah"],
+   *   category: "collision-override",
+   *   priority: 1000,
+   *   references: ["JHN.1.5", "ISA.9.2"],
+   *   alternateSources: []
+   * }
+   */
   const HOLIDAY_COLLISION_OVERRIDES = [];
 
   /*
@@ -283,19 +297,53 @@ window.VerseOfDay = (() => {
     };
   }
 
+  function normalizeCollisionOverride(override) {
+    return {
+      key: override.key || "",
+      keys: Array.isArray(override.keys) ? override.keys : [],
+      labels: Array.isArray(override.labels) ? override.labels : [],
+      category: override.category || "collision-override",
+      priority: Number(override.priority || 0),
+      references: Array.isArray(override.references)
+        ? override.references
+        : [],
+      alternateSources: Array.isArray(override.alternateSources)
+        ? override.alternateSources
+        : []
+    };
+  }
+
+  function findCollisionOverride(matchedKeys) {
+    const keySet = new Set(matchedKeys);
+
+    return HOLIDAY_COLLISION_OVERRIDES
+      .map(normalizeCollisionOverride)
+      .filter((override) => (
+        override.keys.length >= 2 &&
+        override.keys.every((key) => keySet.has(key))
+      ))
+      .sort((a, b) => (
+        b.keys.length - a.keys.length ||
+        b.priority - a.priority
+      ))[0] || null;
+  }
+
   /*
    * Holiday and observance selection engine.
    *
-   * Multiple matching labels are preserved. The highest-priority matching
-   * observance supplies the verse unless a future collision override is added.
+   * Every observance group participates in the same resolver. All matching
+   * labels are preserved. An exact collision override supplies the verse when
+   * one exists; otherwise the highest-priority observance supplies the verse.
    */
   function getHolidayDefinition(date = new Date()) {
-    void CHRISTIAN_HOLIDAYS;
-    void BIBLICAL_APPOINTED_TIMES;
-    void LATER_JEWISH_OBSERVANCES;
-    void HOLIDAY_COLLISION_OVERRIDES;
+    const allObservances = [
+      ...CHRISTIAN_HOLIDAYS,
+      ...BIBLICAL_APPOINTED_TIMES,
+      ...LATER_JEWISH_OBSERVANCES,
+      ...SPECIAL_OBSERVANCES
+    ];
 
-    const matches = SPECIAL_OBSERVANCES
+    const matches = allObservances
       .filter((observance) => matchesDateRule(date, observance.dateRule))
       .map(normalizeObservance)
       .sort((a, b) => b.priority - a.priority);
@@ -304,15 +352,22 @@ window.VerseOfDay = (() => {
       return null;
     }
 
-    const primary = matches[0];
-    const labels = [...new Set(matches.flatMap((item) => item.labels))];
+    const matchedKeys = matches.map((item) => item.key);
+    const collisionOverride = findCollisionOverride(matchedKeys);
+    const primary = collisionOverride || matches[0];
+    const observedLabels = matches.flatMap((item) => item.labels);
+    const labels = [...new Set([
+      ...(collisionOverride?.labels || []),
+      ...observedLabels
+    ])];
 
     return {
       labels,
       category: primary.category,
       references: primary.references,
       alternateSources: primary.alternateSources,
-      matchedObservances: matches.map((item) => item.key)
+      matchedObservances: matchedKeys,
+      collisionOverride: collisionOverride?.key || null
     };
   }
 
