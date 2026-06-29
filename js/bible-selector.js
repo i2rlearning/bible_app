@@ -168,6 +168,10 @@ window.BibleSelector = (() => {
     return `${title} (${description})`;
   }
 
+  function getBibleOptionLabel(bible) {
+    return getBibleTooltip(bible);
+  }
+
   function getBookName(book) {
     return (
       book?.name ||
@@ -593,17 +597,73 @@ window.BibleSelector = (() => {
         !chapterSelect.value;
     }
 
-    function updateBibleTooltip() {
+    function getSelectedBible() {
+      return availableBibles.find(
+        (bible) =>
+          bible.id === bibleSelect.value
+      ) || null;
+    }
+
+    function showFullBibleOptionLabels() {
+      for (const option of bibleSelect.options) {
+        if (!option.value) {
+          continue;
+        }
+
+        const bible =
+          availableBibles.find(
+            (item) => item.id === option.value
+          );
+
+        if (!bible) {
+          continue;
+        }
+
+        const fullLabel =
+          getBibleOptionLabel(bible);
+
+        option.textContent = fullLabel;
+        option.title =
+          fullLabel.length > 10
+            ? fullLabel
+            : "";
+      }
+    }
+
+    function showSelectedBibleAbbreviation() {
       const selectedBible =
-        availableBibles.find(
-          (bible) =>
-            bible.id === bibleSelect.value
+        getSelectedBible();
+
+      if (!selectedBible) {
+        bibleSelect.title = "";
+        return;
+      }
+
+      const selectedOption =
+        bibleSelect.options[
+          bibleSelect.selectedIndex
+        ];
+
+      if (selectedOption) {
+        selectedOption.textContent =
+          getBibleAbbreviation(
+            selectedBible
+          );
+      }
+
+      const fullLabel =
+        getBibleOptionLabel(
+          selectedBible
         );
 
       bibleSelect.title =
-        selectedBible
-          ? getBibleTooltip(selectedBible)
+        fullLabel.length > 10
+          ? fullLabel
           : "";
+    }
+
+    function updateBibleTooltip() {
+      showSelectedBibleAbbreviation();
     }
 
     function setOpen(isOpen) {
@@ -664,11 +724,16 @@ window.BibleSelector = (() => {
             document.createElement("option");
 
           option.value = bible.id;
+          const fullLabel =
+            getBibleOptionLabel(bible);
+
           option.textContent =
-            getBibleAbbreviation(bible);
+            fullLabel;
 
           option.title =
-            getBibleTooltip(bible);
+            fullLabel.length > 10
+              ? fullLabel
+              : "";
 
           bibleSelect.appendChild(option);
         }
@@ -996,6 +1061,35 @@ window.BibleSelector = (() => {
     );
 
     bibleSelect.addEventListener(
+      "mousedown",
+      showFullBibleOptionLabels
+    );
+
+    bibleSelect.addEventListener(
+      "focus",
+      showFullBibleOptionLabels
+    );
+
+    bibleSelect.addEventListener(
+      "blur",
+      showSelectedBibleAbbreviation
+    );
+
+    bibleSelect.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.key === "Enter" ||
+          event.key === " " ||
+          event.key === "ArrowDown" ||
+          event.key === "ArrowUp"
+        ) {
+          showFullBibleOptionLabels();
+        }
+      }
+    );
+
+    bibleSelect.addEventListener(
       "change",
       async () => {
         updateBibleTooltip();
@@ -1151,6 +1245,7 @@ window.BibleSelector = (() => {
     getBibleTitle,
     getBibleDescription,
     getBibleTooltip,
+    getBibleOptionLabel,
     getBookName,
     getChapterLabel,
     loadBibles,
