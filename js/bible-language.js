@@ -10,12 +10,12 @@ window.BibleLanguage = {
     {
       label: "English",
       apiUrl:
-        "https://rest.api.bible/v1/bibles?language=eng&include-full-details=false"
+        "https://rest.api.bible/v1/bibles?language=eng&include-full-details=true"
     },
     {
       label: "Greek",
       apiUrl:
-        "https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=true"
+        "https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false"
     },
     {
       label: "Hebrew",
