@@ -15,7 +15,7 @@ window.BibleLanguage = {
     {
       label: "Greek",
       apiUrl:
-        "https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false"
+        "https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=true"
     },
     {
       label: "Hebrew",
