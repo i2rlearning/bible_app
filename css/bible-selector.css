@@ -185,7 +185,7 @@
 }
 
 .passage-picker-open {
-  min-width: 150px;
+  min-width: 100px;
   height: 36px;
   min-height: 36px;
   padding: 0 1rem;
