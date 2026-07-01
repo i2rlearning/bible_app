@@ -162,21 +162,25 @@ window.VerseOfDay = (() => {
     { primary: "ISA.43.2", fallbacks: ["PSA.66.12"] },
     { primary: "PHP.4.13", fallbacks: ["HAB.3.19"] },
     { primary: "PSA.118.24", fallbacks: ["ECC.3.12"] },
-    { primary: "JER.29.11", fallbacks: ["DEU.30.9"] },
-    { primary: "2COR.5.7", fallbacks: ["PSA.91.11-PSA.91.12"] },
-    { primary: "ROM.12.2", fallbacks: ["PSA.105.4"] },
-    { primary: "ROM.8.31", fallbacks: ["GEN.32.30"] },
-    { primary: "COL.4.2", fallbacks: ["NUM.6.24-NUM.6.26"] },
-    { primary: "ROM.8.28", fallbacks: ["PSA.42.11"] }
+    { primary: "JER.29.11", fallbacks: ["DEU.30.9"] }
   ];
+
+
+
+  const LEAP_DAY_PASSAGE = {
+    primary: "ECC.3.1",
+    fallbacks: ["PSA.90.12"]
+  };
 
   const state = {
     loaded: false,
     loading: false,
+    dateKey: "",
     holidayLabels: [],
     bible: null,
     verse: null,
-    openChapterUrl: ""
+    openChapterUrl: "",
+    lastFocusedElement: null
   };
 
   function getApiKey() {
@@ -223,18 +227,72 @@ window.VerseOfDay = (() => {
     return `${year}-${month}-${day}`;
   }
 
-  function hashDateKey(value) {
-    let hash = 0;
+  function isLeapYear(year) {
+    return (
+      year % 4 === 0 &&
+      (year % 100 !== 0 || year % 400 === 0)
+    );
+  }
 
-    for (let index = 0; index < value.length; index += 1) {
-      hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  /*
+   * Returns a stable 1–365 calendar position.
+   *
+   * February 29 has its own dedicated passage. Dates after February 29
+   * stay aligned with the same DAILY_PASSAGES entry every year.
+   */
+  function getStableDayOfYear(date = new Date()) {
+    const start = new Date(date.getFullYear(), 0, 1);
+    const current = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+
+    let dayOfYear =
+      Math.floor((current - start) / 86400000) + 1;
+
+    if (
+      isLeapYear(date.getFullYear()) &&
+      date.getMonth() === 1 &&
+      date.getDate() === 29
+    ) {
+      return 59;
     }
 
-    return Math.abs(hash);
+    if (
+      isLeapYear(date.getFullYear()) &&
+      date.getMonth() > 1
+    ) {
+      dayOfYear -= 1;
+    }
+
+    return dayOfYear;
   }
 
   function getOrdinaryDailyDefinition(date = new Date()) {
-    const index = hashDateKey(getLocalDateKey(date)) % DAILY_PASSAGES.length;
+    if (
+      date.getMonth() === 1 &&
+      date.getDate() === 29
+    ) {
+      return {
+        labels: [],
+        category: "ordinary",
+        references: [
+          LEAP_DAY_PASSAGE.primary,
+          ...(LEAP_DAY_PASSAGE.fallbacks || [])
+        ],
+        alternateSources: []
+      };
+    }
+
+    if (!DAILY_PASSAGES.length) {
+      throw new Error("The daily passage list is empty.");
+    }
+
+    const index =
+      (getStableDayOfYear(date) - 1) %
+      DAILY_PASSAGES.length;
+
     const item = DAILY_PASSAGES[index];
 
     return {
@@ -428,20 +486,19 @@ window.VerseOfDay = (() => {
   function htmlToPlainText(html) {
     const wrapper = document.createElement("div");
     wrapper.innerHTML = html || "";
-  
+
     wrapper.querySelectorAll(".v, .verse-number, sup").forEach((item) => {
       item.remove();
     });
-  
-    // Preserve line boundaries from API.Bible paragraph and poetry markup.
+
     wrapper.querySelectorAll("br").forEach((element) => {
       element.replaceWith(document.createTextNode("\n"));
     });
-  
+
     wrapper.querySelectorAll("p, div, li").forEach((element) => {
       element.appendChild(document.createTextNode("\n"));
     });
-  
+
     return wrapper.textContent
       .replace(/[ \t]+/g, " ")
       .replace(/ *\n+ */g, "\n")
@@ -449,7 +506,28 @@ window.VerseOfDay = (() => {
       .trim();
   }
 
-  async function loadVerse(bibleId, verseId) {
+  function isPassageRange(referenceId) {
+    return String(referenceId || "").includes("-");
+  }
+
+  function getFirstVerseId(referenceId) {
+    return String(referenceId || "").split("-")[0].trim();
+  }
+
+  function getBookAndChapterFromReference(referenceId) {
+    const firstVerseId = getFirstVerseId(referenceId);
+    const parts = firstVerseId.split(".");
+
+    return {
+      bookId: parts[0] || "",
+      chapterId:
+        parts.length >= 2
+          ? `${parts[0]}.${parts[1]}`
+          : ""
+    };
+  }
+
+  async function loadReference(bibleId, referenceId) {
     const query = new URLSearchParams({
       "content-type": "html",
       "include-notes": "false",
@@ -459,18 +537,34 @@ window.VerseOfDay = (() => {
       "include-verse-spans": "false"
     });
 
+    const endpoint = isPassageRange(referenceId)
+      ? "passages"
+      : "verses";
+
     const result = await requestJson(
       `${API_BASE_URL}/bibles/${encodeURIComponent(
         bibleId
-      )}/verses/${encodeURIComponent(verseId)}?${query.toString()}`
+      )}/${endpoint}/${encodeURIComponent(
+        referenceId
+      )}?${query.toString()}`
     );
 
     if (!result?.data) {
-      throw new Error("The selected verse could not be loaded.");
+      throw new Error("The selected Scripture could not be loaded.");
     }
+
+    const inferred = getBookAndChapterFromReference(referenceId);
+    const chapterIds = Array.isArray(result.data.chapterIds)
+      ? result.data.chapterIds
+      : [];
 
     return {
       ...result.data,
+      bookId: result.data.bookId || inferred.bookId,
+      chapterId:
+        result.data.chapterId ||
+        chapterIds[0] ||
+        inferred.chapterId,
       plainText: htmlToPlainText(result.data.content)
     };
   }
@@ -484,7 +578,7 @@ window.VerseOfDay = (() => {
 
     for (const verseId of references) {
       try {
-        const verse = await loadVerse(bible.id, verseId);
+        const verse = await loadReference(bible.id, verseId);
 
         if (verse.plainText) {
           return verse;
@@ -514,6 +608,41 @@ window.VerseOfDay = (() => {
       book,
       chapterId: verse.chapterId
     });
+  }
+
+  function resetLoadedState() {
+    state.loaded = false;
+    state.loading = false;
+    state.dateKey = "";
+    state.holidayLabels = [];
+    state.bible = null;
+    state.verse = null;
+    state.openChapterUrl = "";
+  }
+
+  function hasDateChanged() {
+    const effectiveDate = getEffectiveDate();
+    return (
+      state.dateKey &&
+      state.dateKey !== getLocalDateKey(effectiveDate)
+    );
+  }
+
+  function scheduleMidnightReset() {
+    const now = new Date();
+    const nextMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+      0,
+      0,
+      1
+    );
+
+    window.setTimeout(() => {
+      resetLoadedState();
+      scheduleMidnightReset();
+    }, nextMidnight - now);
   }
 
   function getElements() {
@@ -546,7 +675,15 @@ window.VerseOfDay = (() => {
     document.body.classList.toggle("verse-of-day-is-open", isOpen);
 
     if (isOpen) {
+      state.lastFocusedElement =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : elements.action;
+
       elements.close?.focus();
+    } else if (state.lastFocusedElement?.focus) {
+      state.lastFocusedElement.focus();
+      state.lastFocusedElement = null;
     }
   }
 
@@ -598,6 +735,10 @@ window.VerseOfDay = (() => {
   }
 
   async function ensureLoaded() {
+    if (hasDateChanged()) {
+      resetLoadedState();
+    }
+
     if (state.loaded || state.loading) {
       return;
     }
@@ -606,10 +747,12 @@ window.VerseOfDay = (() => {
     renderLoading();
 
     try {
-      const definition = getTodayDefinition();
+      const effectiveDate = getEffectiveDate();
+      const definition = getTodayDefinition(effectiveDate);
       const bible = await resolveBible();
       const verse = await resolveVerseForBible(bible, definition);
 
+      state.dateKey = getLocalDateKey(effectiveDate);
       state.holidayLabels = definition.labels || [];
       state.bible = bible;
       state.verse = verse;
@@ -628,6 +771,10 @@ window.VerseOfDay = (() => {
   }
 
   async function openModal() {
+    if (hasDateChanged()) {
+      resetLoadedState();
+    }
+
     setModalOpen(true);
 
     if (state.loaded) {
@@ -704,6 +851,16 @@ window.VerseOfDay = (() => {
         setModalOpen(false);
       }
     });
+
+    window.addEventListener("bible-preferences-changed", () => {
+      resetLoadedState();
+
+      if (elements.modal.style.display !== "none") {
+        ensureLoaded();
+      }
+    });
+
+    scheduleMidnightReset();
   }
 
   document.addEventListener("DOMContentLoaded", initialize);
@@ -711,6 +868,8 @@ window.VerseOfDay = (() => {
   return {
     getTodayDefinition,
     getHolidayDefinition,
-    openModal
+    getStableDayOfYear,
+    openModal,
+    reset: resetLoadedState
   };
 })();
