@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initializeLandingNavigation();
   initializeLandingPassagePicker();
+  initializePreferenceSync();
   initializeImageSwaps();
 });
 
@@ -53,6 +54,22 @@ function initializeLandingPassagePicker() {
     root,
     languageController: window.BibleLanguage,
     current: getLandingUrlState()
+  });
+}
+
+function initializePreferenceSync() {
+  window.addEventListener("bible-preferences-changed", async (event) => {
+    const picker = window.indexPassagePicker;
+
+    if (!picker?.applyPreferences) {
+      return;
+    }
+
+    try {
+      await picker.applyPreferences(event.detail || {});
+    } catch (error) {
+      console.error("Unable to refresh the passage picker from preferences:", error);
+    }
   });
 }
 
