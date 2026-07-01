@@ -294,7 +294,7 @@ window.UserPreferences = (() => {
     const selectedLanguage = languageSelect.options[languageSelect.selectedIndex];
     const selectedBible = bibleSelect.options[bibleSelect.selectedIndex];
 
-    write({
+    const savedPreferences = write({
       languageApiUrl: languageSelect.value,
       languageName: selectedLanguage?.textContent || "",
       bibleId: bibleSelect.value,
@@ -306,6 +306,19 @@ window.UserPreferences = (() => {
     window.BibleSelector.saveLanguage(
       languageSelect.value,
       selectedLanguage?.textContent || ""
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("bible-preferences-changed", {
+        detail: {
+          languageApiUrl: savedPreferences.languageApiUrl,
+          languageName: savedPreferences.languageName,
+          bibleId: savedPreferences.bibleId,
+          bibleAbbr: savedPreferences.bibleAbbr,
+          bibleName: savedPreferences.bibleName,
+          landingPage: savedPreferences.landingPage
+        }
+      })
     );
 
     setStatus("Preferences saved.");
