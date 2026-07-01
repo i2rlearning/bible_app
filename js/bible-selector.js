@@ -1206,10 +1206,63 @@ window.BibleSelector = (() => {
       return undefined;
     });
 
+    async function applyPreferences(preferences = {}) {
+      const languageApiUrl =
+        preferences.languageApiUrl ||
+        languageController.getSelectedApiUrl();
+
+      current.bibleId = preferences.bibleId || "";
+      current.bibleAbbr = preferences.bibleAbbr || "";
+      current.bibleName = preferences.bibleName || "";
+      current.bookId = "";
+      current.bookName = "";
+      current.chapterId = "";
+
+      const languageOptionExists =
+        Array.from(languageSelect.options).some(
+          (option) => option.value === languageApiUrl
+        );
+
+      if (languageOptionExists) {
+        languageSelect.value = languageApiUrl;
+      }
+
+      availableBooks = [];
+      availableChapters = [];
+
+      resetSelect(
+        bookSelect,
+        "Select a Bible first",
+        true
+      );
+
+      resetSelect(
+        chapterSelect,
+        "Select a book first",
+        true
+      );
+
+      await populateBibles(
+        languageApiUrl,
+        true
+      );
+
+      if (bibleSelect.value) {
+        await populateBooks(
+          bibleSelect.value,
+          false
+        );
+      }
+
+      updateCurrentLabel();
+      updateOpenButton();
+    }
+
     return {
       isOpen,
       setOpen,
       openSelectedPassage,
+      applyPreferences,
       refresh() {
         return populateBibles(
           languageController
