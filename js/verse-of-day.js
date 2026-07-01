@@ -428,13 +428,23 @@ window.VerseOfDay = (() => {
   function htmlToPlainText(html) {
     const wrapper = document.createElement("div");
     wrapper.innerHTML = html || "";
-
+  
     wrapper.querySelectorAll(".v, .verse-number, sup").forEach((item) => {
       item.remove();
     });
-
+  
+    // Preserve line boundaries from API.Bible paragraph and poetry markup.
+    wrapper.querySelectorAll("br").forEach((element) => {
+      element.replaceWith(document.createTextNode("\n"));
+    });
+  
+    wrapper.querySelectorAll("p, div, li").forEach((element) => {
+      element.appendChild(document.createTextNode("\n"));
+    });
+  
     return wrapper.textContent
-      .replace(/\s+/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/ *\n+ */g, "\n")
       .replace(/\s+([,.;:!?])/g, "$1")
       .trim();
   }
