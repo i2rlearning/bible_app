@@ -144,6 +144,16 @@ window.VerseOfDay = (() => {
       },
       references: ["EST.9.22", "PSA.30.11"]
     }
+    {
+      key: "yom-haatzmaut",
+      labels: ["Independence Day - Israel"],
+      category: "later-jewish",
+      priority: 50,
+      hebcalMatch: {
+        titles: ["Yom HaAtzma'ut", "Yom HaAtzma’ut"]
+      },
+      references: ["PSA.126.3", "ISA.66.8"]
+    }
   ];
 
   const HEBCAL_API_URL = "https://www.hebcal.com/hebcal";
