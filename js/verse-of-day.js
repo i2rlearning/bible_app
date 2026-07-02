@@ -108,62 +108,63 @@ window.VerseOfDay = (() => {
   ];
 
   const CHRISTIAN_HOLIDAYS = [
-  {
-    key: "palm-sunday",
-    labels: ["Palm Sunday"],
-    category: "christian",
-    priority: 60,
-    dateRule: {
-      type: "relative-to-resurrection",
-      offsetDays: -7
+    {
+      key: "palm-sunday",
+      labels: ["Palm Sunday"],
+      category: "christian",
+      priority: 60,
+      dateRule: {
+        type: "relative-to-resurrection",
+        offsetDays: -7
+      },
+      references: ["JHN.12.13", "ZEC.9.9"]
     },
-    references: ["JHN.12.13", "ZEC.9.9"]
-  },
-  {
-    key: "good-friday",
-    labels: ["Good Friday"],
-    category: "christian",
-    priority: 65,
-    dateRule: {
-      type: "relative-to-resurrection",
-      offsetDays: -2
+    {
+      key: "good-friday",
+      labels: ["Good Friday"],
+      category: "christian",
+      priority: 65,
+      dateRule: {
+        type: "relative-to-resurrection",
+        offsetDays: -2
+      },
+      references: ["ISA.53.5", "1PE.2.24"]
     },
-    references: ["ISA.53.5", "1PE.2.24"]
-  },
-  {
-    key: "resurrection-sunday",
-    labels: ["Resurrection Sunday"],
-    category: "christian",
-    priority: 70,
-    dateRule: {
-      type: "relative-to-resurrection",
-      offsetDays: 0
+    {
+      key: "resurrection-sunday",
+      labels: ["Resurrection Sunday"],
+      category: "christian",
+      priority: 70,
+      dateRule: {
+        type: "relative-to-resurrection",
+        offsetDays: 0
+      },
+      references: ["MAT.28.6", "PSA.16.10"]
     },
-    references: ["MAT.28.6", "PSA.16.10"]
-  },
-  {
-    key: "ascension-day",
-    labels: ["Ascension Day"],
-    category: "christian",
-    priority: 60,
-    dateRule: {
-      type: "relative-to-resurrection",
-      offsetDays: 39
+    {
+      key: "ascension-day",
+      labels: ["Ascension Day"],
+      category: "christian",
+      priority: 60,
+      dateRule: {
+        type: "relative-to-resurrection",
+        offsetDays: 39
+      },
+      references: ["ACT.1.9", "PSA.47.5"]
     },
-    references: ["ACT.1.9", "PSA.47.5"]
-  },
-  {
-    key: "pentecost",
-    labels: ["Pentecost"],
-    category: "christian",
-    priority: 65,
-    dateRule: {
-      type: "relative-to-resurrection",
-      offsetDays: 49
-    },
-    references: ["ACT.2.4", "JOL.2.28"]
-  }
-];
+    {
+      key: "pentecost",
+      labels: ["Pentecost"],
+      category: "christian",
+      priority: 65,
+      dateRule: {
+        type: "relative-to-resurrection",
+        offsetDays: 49
+      },
+      references: ["ACT.2.4", "JOL.2.28"]
+    }
+  ];
+
   /*
    * Optional overrides for dates where two or more observances overlap.
    *
@@ -380,6 +381,32 @@ window.VerseOfDay = (() => {
     return Math.floor((date.getDate() - 1) / 7) + 1;
   }
 
+  function getResurrectionSunday(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+    return new Date(year, month - 1, day, 12, 0, 0);
+  }
+
+  function addDays(date, numberOfDays) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + numberOfDays);
+    return result;
+  }
+
   function matchesDateRule(date, rule) {
     if (!rule || !rule.type) {
       return false;
@@ -413,35 +440,10 @@ window.VerseOfDay = (() => {
         date.getDate() === targetDate.getDate()
       );
     }
+
     return false;
   }
 
-  function getResurrectionSunday(year) {
-    const a = year % 19;
-    const b = Math.floor(year / 100);
-    const c = year % 100;
-    const d = Math.floor(b / 4);
-    const e = b % 4;
-    const f = Math.floor((b + 8) / 25);
-    const g = Math.floor((b - f + 1) / 3);
-    const h = (19 * a + b - d - g + 15) % 30;
-    const i = Math.floor(c / 4);
-    const k = c % 4;
-    const l = (32 + 2 * e + 2 * i - h - k) % 7;
-    const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  
-    const month = Math.floor((h + l - 7 * m + 114) / 31);
-    const day = ((h + l - 7 * m + 114) % 31) + 1;
-  
-    return new Date(year, month - 1, day, 12, 0, 0);
-  }
-  
-  function addDays(date, numberOfDays) {
-    const result = new Date(date);
-    result.setDate(result.getDate() + numberOfDays);
-    return result;
-  }
-  
   function normalizeObservance(observance) {
     return {
       key: observance.key,
