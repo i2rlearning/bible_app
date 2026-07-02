@@ -186,7 +186,7 @@ window.VerseOfDay = (() => {
     },
     {
       key: "independence-day",
-      labels: ["Independence Day"],
+      labels: ["Independence Day - America"],
       category: "special-observance",
       priority: 40,
       dateRule: {
