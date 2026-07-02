@@ -43,8 +43,112 @@ window.VerseOfDay = (() => {
    *   alternateSources: []
    * }
    */
-  const BIBLICAL_APPOINTED_TIMES = [];
-  const LATER_JEWISH_OBSERVANCES = [];
+  /*
+   * Hebcal supplies the Gregorian dates for these observances.
+   * This app remains responsible for the label, priority, and Scripture.
+   *
+   * The Israel schedule is enabled below. Set HEBCAL_USE_ISRAEL_SCHEDULE
+   * to false to use the Diaspora schedule instead.
+   */
+  const BIBLICAL_APPOINTED_TIMES = [
+    {
+      key: "passover",
+      labels: ["Passover"],
+      category: "biblical-appointed-time",
+      priority: 75,
+      hebcalMatch: {
+        titles: ["Pesach I"]
+      },
+      references: ["EXO.12.13", "1CO.5.7"]
+    },
+    {
+      key: "shavuot",
+      labels: ["Shavuot"],
+      category: "biblical-appointed-time",
+      priority: 75,
+      hebcalMatch: {
+        titles: ["Shavuot", "Shavuot I"]
+      },
+      references: ["EXO.19.5-EXO.19.6", "ACT.2.4"]
+    },
+    {
+      key: "yom-teruah",
+      labels: ["Yom Teruah"],
+      category: "biblical-appointed-time",
+      priority: 75,
+      hebcalMatch: {
+        titles: ["Rosh Hashana I"]
+      },
+      references: ["LEV.23.24", "NUM.29.1"]
+    },
+    {
+      key: "yom-kippur",
+      labels: ["Yom Kippur"],
+      category: "biblical-appointed-time",
+      priority: 80,
+      hebcalMatch: {
+        titles: ["Yom Kippur"]
+      },
+      references: ["LEV.16.30", "PSA.51.10"]
+    },
+    {
+      key: "sukkot",
+      labels: ["Sukkot"],
+      category: "biblical-appointed-time",
+      priority: 75,
+      hebcalMatch: {
+        titles: ["Sukkot I"]
+      },
+      references: ["LEV.23.42-LEV.23.43", "JHN.1.14"]
+    },
+    {
+      key: "shemini-atzeret",
+      labels: ["Shemini Atzeret"],
+      category: "biblical-appointed-time",
+      priority: 75,
+      hebcalMatch: {
+        titles: ["Shmini Atzeret"]
+      },
+      references: ["LEV.23.36", "NUM.29.35"]
+    }
+  ];
+
+  const LATER_JEWISH_OBSERVANCES = [
+    {
+      key: "simchat-torah",
+      labels: ["Simchat Torah"],
+      category: "later-jewish",
+      priority: 55,
+      hebcalMatch: {
+        titles: ["Simchat Torah"]
+      },
+      references: ["JOS.1.8", "PSA.119.105"]
+    },
+    {
+      key: "hanukkah",
+      labels: ["Hanukkah"],
+      category: "later-jewish",
+      priority: 50,
+      hebcalMatch: {
+        titles: ["Chanukah: 1 Candle"]
+      },
+      references: ["JHN.10.22", "PSA.30.1"]
+    },
+    {
+      key: "purim",
+      labels: ["Purim"],
+      category: "later-jewish",
+      priority: 50,
+      hebcalMatch: {
+        titles: ["Purim"]
+      },
+      references: ["EST.9.22", "PSA.30.11"]
+    }
+  ];
+
+  const HEBCAL_API_URL = "https://www.hebcal.com/hebcal";
+  const HEBCAL_CACHE_PREFIX = "branchOfIsraelHebcal:v1";
+  const HEBCAL_USE_ISRAEL_SCHEDULE = true;
 
   /*
    * Smaller fixed-date and civic/cultural observances.
@@ -444,6 +548,163 @@ window.VerseOfDay = (() => {
     return false;
   }
 
+  function getHebcalCacheKey(year) {
+    const schedule = HEBCAL_USE_ISRAEL_SCHEDULE ? "israel" : "diaspora";
+    return `${HEBCAL_CACHE_PREFIX}:${schedule}:${year}`;
+  }
+
+  function readHebcalCache(year) {
+    try {
+      const raw = localStorage.getItem(getHebcalCacheKey(year));
+
+      if (!raw) {
+        return null;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      return Array.isArray(parsed?.items)
+        ? parsed.items
+        : null;
+    } catch (error) {
+      console.warn("Unable to read the Hebcal cache:", error);
+      return null;
+    }
+  }
+
+  function writeHebcalCache(year, items) {
+    try {
+      localStorage.setItem(
+        getHebcalCacheKey(year),
+        JSON.stringify({
+          year,
+          schedule: HEBCAL_USE_ISRAEL_SCHEDULE ? "israel" : "diaspora",
+          savedAt: new Date().toISOString(),
+          items
+        })
+      );
+    } catch (error) {
+      console.warn("Unable to save the Hebcal cache:", error);
+    }
+  }
+
+  async function loadHebcalYear(year) {
+    const cached = readHebcalCache(year);
+
+    if (cached) {
+      return cached;
+    }
+
+    const query = new URLSearchParams({
+      v: "1",
+      cfg: "json",
+      year: String(year),
+      yt: "G",
+      month: "x",
+      maj: "on",
+      min: "on",
+      mod: "on",
+      nx: "on"
+    });
+
+    if (HEBCAL_USE_ISRAEL_SCHEDULE) {
+      query.set("i", "on");
+    }
+
+    const response = await fetch(`${HEBCAL_API_URL}?${query.toString()}`);
+
+    if (!response.ok) {
+      throw new Error(
+        `Hebcal request failed with status ${response.status}.`
+      );
+    }
+
+    const result = await response.json();
+    const items = Array.isArray(result?.items)
+      ? result.items
+          .filter((item) => item?.date && item?.title)
+          .map((item) => ({
+            date: item.date,
+            title: item.title,
+            category: item.category || "",
+            subcat: item.subcat || ""
+          }))
+      : [];
+
+    writeHebcalCache(year, items);
+    return items;
+  }
+
+  function matchesHebcalTitle(title, match = {}) {
+    const normalizedTitle = String(title || "").trim();
+
+    if (!normalizedTitle) {
+      return false;
+    }
+
+    const exactTitles = Array.isArray(match.titles)
+      ? match.titles
+      : [];
+
+    if (exactTitles.includes(normalizedTitle)) {
+      return true;
+    }
+
+    const titlePrefixes = Array.isArray(match.titlePrefixes)
+      ? match.titlePrefixes
+      : [];
+
+    return titlePrefixes.some((prefix) =>
+      normalizedTitle.startsWith(prefix)
+    );
+  }
+
+  async function getHebcalObservanceMatches(date) {
+    const hebcalObservances = [
+      ...BIBLICAL_APPOINTED_TIMES,
+      ...LATER_JEWISH_OBSERVANCES
+    ];
+
+    if (!hebcalObservances.length) {
+      return [];
+    }
+
+    let events;
+
+    try {
+      events = await loadHebcalYear(date.getFullYear());
+    } catch (error) {
+      console.warn(
+        "Hebcal events are unavailable; continuing without them:",
+        error
+      );
+      return [];
+    }
+
+    const dateKey = getLocalDateKey(date);
+    const todayTitles = events
+      .filter((event) => event.date === dateKey)
+      .map((event) => event.title);
+
+    if (!todayTitles.length) {
+      return [];
+    }
+
+    const matched = hebcalObservances.filter((observance) =>
+      todayTitles.some((title) =>
+        matchesHebcalTitle(title, observance.hebcalMatch)
+      )
+    );
+
+    const uniqueByKey = new Map();
+
+    matched.forEach((observance) => {
+      uniqueByKey.set(observance.key, observance);
+    });
+
+    return [...uniqueByKey.values()];
+  }
+
   function normalizeObservance(observance) {
     return {
       key: observance.key,
@@ -493,16 +754,22 @@ window.VerseOfDay = (() => {
    * labels are preserved. An exact collision override supplies the verse when
    * one exists; otherwise the highest-priority observance supplies the verse.
    */
-  function getHolidayDefinition(date = new Date()) {
-    const allObservances = [
+  async function getHolidayDefinition(date = new Date()) {
+    const localObservances = [
       ...CHRISTIAN_HOLIDAYS,
-      ...BIBLICAL_APPOINTED_TIMES,
-      ...LATER_JEWISH_OBSERVANCES,
       ...SPECIAL_OBSERVANCES
     ];
 
-    const matches = allObservances
-      .filter((observance) => matchesDateRule(date, observance.dateRule))
+    const localMatches = localObservances.filter((observance) =>
+      matchesDateRule(date, observance.dateRule)
+    );
+
+    const hebcalMatches = await getHebcalObservanceMatches(date);
+
+    const matches = [
+      ...localMatches,
+      ...hebcalMatches
+    ]
       .map(normalizeObservance)
       .sort((a, b) => b.priority - a.priority);
 
@@ -529,11 +796,12 @@ window.VerseOfDay = (() => {
     };
   }
 
-  function getTodayDefinition(date = new Date()) {
+  async function getTodayDefinition(date = new Date()) {
     const effectiveDate = getEffectiveDate(date);
+    const holiday = await getHolidayDefinition(effectiveDate);
 
     return (
-      getHolidayDefinition(effectiveDate) ||
+      holiday ||
       getOrdinaryDailyDefinition(effectiveDate)
     );
   }
@@ -843,7 +1111,7 @@ window.VerseOfDay = (() => {
 
     try {
       const effectiveDate = getEffectiveDate();
-      const definition = getTodayDefinition(effectiveDate);
+      const definition = await getTodayDefinition(effectiveDate);
       const bible = await resolveBible();
       const verse = await resolveVerseForBible(bible, definition);
 
