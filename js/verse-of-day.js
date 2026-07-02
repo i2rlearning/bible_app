@@ -126,7 +126,7 @@ window.VerseOfDay = (() => {
     },
     {
       key: "hanukkah",
-      labels: ["Hanukkah"],
+      labels: ["Chanukah"],
       category: "later-jewish",
       priority: 50,
       hebcalMatch: {
