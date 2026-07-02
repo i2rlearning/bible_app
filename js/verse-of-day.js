@@ -108,6 +108,63 @@ window.VerseOfDay = (() => {
     }
   ];
 
+  const CHRISTIAN_HOLIDAYS = [
+  {
+    key: "palm-sunday",
+    labels: ["Palm Sunday"],
+    category: "christian",
+    priority: 60,
+    dateRule: {
+      type: "relative-to-resurrection",
+      offsetDays: -7
+    },
+    references: ["JHN.12.13", "ZEC.9.9"]
+  },
+  {
+    key: "good-friday",
+    labels: ["Good Friday"],
+    category: "christian",
+    priority: 65,
+    dateRule: {
+      type: "relative-to-resurrection",
+      offsetDays: -2
+    },
+    references: ["ISA.53.5", "1PE.2.24"]
+  },
+  {
+    key: "resurrection-sunday",
+    labels: ["Resurrection Sunday"],
+    category: "christian",
+    priority: 70,
+    dateRule: {
+      type: "relative-to-resurrection",
+      offsetDays: 0
+    },
+    references: ["MAT.28.6", "PSA.16.10"]
+  },
+  {
+    key: "ascension-day",
+    labels: ["Ascension Day"],
+    category: "christian",
+    priority: 60,
+    dateRule: {
+      type: "relative-to-resurrection",
+      offsetDays: 39
+    },
+    references: ["ACT.1.9", "PSA.47.5"]
+  },
+  {
+    key: "pentecost",
+    labels: ["Pentecost"],
+    category: "christian",
+    priority: 65,
+    dateRule: {
+      type: "relative-to-resurrection",
+      offsetDays: 49
+    },
+    references: ["ACT.2.4", "JOL.2.28"]
+  }
+];
   /*
    * Optional overrides for dates where two or more observances overlap.
    *
@@ -164,8 +221,6 @@ window.VerseOfDay = (() => {
     { primary: "PSA.118.24", fallbacks: ["ECC.3.12"] },
     { primary: "JER.29.11", fallbacks: ["DEU.30.9"] }
   ];
-
-
 
   const LEAP_DAY_PASSAGE = {
     primary: "ECC.3.1",
@@ -345,7 +400,20 @@ window.VerseOfDay = (() => {
         getNthWeekdayOfMonth(date) === rule.occurrence
       );
     }
-
+    
+    if (rule.type === "relative-to-resurrection") {
+      const resurrectionSunday =
+        getResurrectionSunday(date.getFullYear());
+    
+      const targetDate =
+        addDays(resurrectionSunday, rule.offsetDays || 0);
+    
+      return (
+        date.getFullYear() === targetDate.getFullYear() &&
+        date.getMonth() === targetDate.getMonth() &&
+        date.getDate() === targetDate.getDate()
+      );
+    }
     return false;
   }
 
