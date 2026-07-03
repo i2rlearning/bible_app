@@ -143,7 +143,7 @@ window.VerseOfDay = (() => {
         titles: ["Purim"]
       },
       references: ["EST.9.22", "PSA.30.11"]
-    }
+    },
     {
       key: "yom-haatzmaut",
       labels: ["Independence Day - Israel"],
