@@ -204,7 +204,7 @@ window.VerseOfDay = (() => {
         month: 7,
         day: 4
       },
-      references: ["LEV.25.10", "PSA.33.12"]
+      references: ["GAL.5.1", "PSA.33.12"]
     },
     {
       key: "national-day-of-prayer",
