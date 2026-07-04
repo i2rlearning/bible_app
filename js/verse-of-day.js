@@ -303,12 +303,12 @@ window.VerseOfDay = (() => {
    * Bible is selected and the primary daily reference is from the New Testament.
    */
   const DAILY_PASSAGES = [
-    { primary: "PSA.23.1", fallbacks: ["ISA.40.31"] },
-    { primary: "JHN.3.16", fallbacks: ["GEN.22.14"] },
-    { primary: "ISA.41.10", fallbacks: ["PSA.46.1"] },
-    { primary: "PHP.4.6", fallbacks: ["PSA.55.22"] },
-    { primary: "ROM.8.28", fallbacks: ["GEN.50.20"] },
-    { primary: "PRO.3.5", fallbacks: ["PSA.37.5"] },
+    { primary: "LEV.25.10", fallbacks: ["ISA.40.31"] },  // Jan 1
+    { primary: "JHN.3.16", fallbacks: ["GEN.22.14"] },  // Jan 2
+    { primary: "ISA.41.10", fallbacks: ["PSA.46.1"] },  // Jan 3
+    { primary: "PHP.4.6", fallbacks: ["PSA.55.22"] },  // Jan 4
+    { primary: "ROM.8.28", fallbacks: ["GEN.50.20"] },  // Jan 5
+    { primary: "PRO.3.5", fallbacks: ["PSA.37.5"] },  // Jan 6
     { primary: "MAT.11.28", fallbacks: ["ISA.40.29"] },
     { primary: "PSA.119.105", fallbacks: ["PRO.6.23"] },
     { primary: "JOS.1.9", fallbacks: ["DEU.31.8"] },
