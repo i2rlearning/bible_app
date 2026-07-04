@@ -204,7 +204,7 @@ window.VerseOfDay = (() => {
         month: 7,
         day: 4
       },
-      references: ["GAL.5.1", "PSA.33.12"]
+      references: ["LEV.25.10", "PSA.33.12"]
     },
     {
       key: "national-day-of-prayer",
@@ -303,7 +303,7 @@ window.VerseOfDay = (() => {
    * Bible is selected and the primary daily reference is from the New Testament.
    */
   const DAILY_PASSAGES = [
-    { primary: "LEV.25.10", fallbacks: ["ISA.40.31"] },  // Jan 1
+    { primary: "2COR.5.17", fallbacks: ["ISA.40.31"] },  // Jan 1
     { primary: "JHN.3.16", fallbacks: ["GEN.22.14"] },  // Jan 2
     { primary: "ISA.41.10", fallbacks: ["PSA.46.1"] },  // Jan 3
     { primary: "PHP.4.6", fallbacks: ["PSA.55.22"] },  // Jan 4
