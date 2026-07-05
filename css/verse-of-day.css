@@ -427,6 +427,10 @@ body.passage-picker-is-open::before {
   letter-spacing: 0.04em;
 }
 
+.verse-of-day-holiday[hidden] {
+  display: none;
+}
+
 .verse-of-day-dialog h2 {
   color: #142239;
   font-family: "Libre Baskerville", serif;
