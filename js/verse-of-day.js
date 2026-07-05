@@ -1003,6 +1003,7 @@ window.VerseOfDay = (() => {
 
   function scheduleMidnightReset() {
     const now = new Date();
+  
     const nextMidnight = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -1011,11 +1012,22 @@ window.VerseOfDay = (() => {
       0,
       1
     );
-
-    window.setTimeout(() => {
+  
+    window.setTimeout(async () => {
       resetLoadedState();
+  
+      const elements = getElements();
+      const modalIsOpen =
+        elements.modal &&
+        elements.modal.style.display !== "none";
+  
+      if (modalIsOpen) {
+        renderLoading();
+        await ensureLoaded();
+      }
+  
       scheduleMidnightReset();
-    }, nextMidnight - now);
+    }, nextMidnight.getTime() - now.getTime());
   }
 
   function getElements() {
