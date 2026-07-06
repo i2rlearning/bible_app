@@ -400,8 +400,9 @@ function configureVerseMenuLinks() {
       function updateBibleZoomLayout() {
         const displayText = document.getElementById("display-text");
         const drawingArea = document.getElementById("bible-drawing-area");
+        const bibleText = document.getElementById("bible-text");
     
-        if (!displayText || !drawingArea) return;
+        if (!displayText || !drawingArea || !bibleText) return;
     
         drawingArea.style.transform = `scale(${window.currentBibleZoom})`;
         drawingArea.style.transformOrigin = "top left";
@@ -411,8 +412,9 @@ function configureVerseMenuLinks() {
         const paddingTop = parseFloat(displayStyles.paddingTop) || 0;
         const paddingBottom = parseFloat(displayStyles.paddingBottom) || 0;
     
-        const originalHeight = drawingArea.scrollHeight;
-        const originalWidth = drawingArea.scrollWidth;
+        const textRect = bibleText.getBoundingClientRect();
+        const originalHeight = bibleText.scrollHeight || textRect.height || drawingArea.scrollHeight;
+        const originalWidth = textRect.width || bibleText.clientWidth || bibleText.scrollWidth || drawingArea.scrollWidth;
     
         const zoomedHeight = originalHeight * window.currentBibleZoom;
         const zoomedWidth = originalWidth * window.currentBibleZoom;
@@ -423,6 +425,7 @@ function configureVerseMenuLinks() {
         displayText.style.minHeight = `${totalHeight}px`;
     
         drawingArea.style.width = `${originalWidth}px`;
+        drawingArea.style.height = `${originalHeight}px`;
     
         displayText.style.overflowX =
           zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
