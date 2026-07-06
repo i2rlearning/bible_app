@@ -11,8 +11,40 @@
         document.getElementById("menuNav"),
 
       menuToggle:
-        document.getElementById("menuToggle")
+        document.getElementById("menuToggle"),
+
+      stickyHeader:
+        document.getElementById("stickyHeader")
     };
+  }
+
+  function isResponsiveMenuMode() {
+    return window.matchMedia(
+      "(max-width: 1100px)"
+    ).matches;
+  }
+
+  function updateResponsiveMenuPosition() {
+    const { stickyHeader } =
+      getMenuElements();
+
+    if (!stickyHeader) {
+      return;
+    }
+
+    const headerRect =
+      stickyHeader.getBoundingClientRect();
+
+    const top =
+      Math.max(
+        0,
+        Math.round(headerRect.bottom + 6)
+      );
+
+    document.documentElement.style.setProperty(
+      "--branch-menu-top",
+      `${top}px`
+    );
   }
 
   function setMenuToggleState(isOpen) {
@@ -75,6 +107,10 @@
       return;
     }
 
+    if (isResponsiveMenuMode()) {
+      updateResponsiveMenuPosition();
+    }
+
     menuNav.style.width =
       "225px";
 
@@ -118,6 +154,7 @@
       const { menuToggle } =
         getMenuElements();
 
+      updateResponsiveMenuPosition();
       setMenuToggleState(false);
 
       if (menuToggle) {
@@ -129,6 +166,32 @@
           }
         );
       }
+
+      window.addEventListener(
+        "resize",
+        () => {
+          updateResponsiveMenuPosition();
+        }
+      );
+
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (isResponsiveMenuMode()) {
+            updateResponsiveMenuPosition();
+          }
+        },
+        { passive: true }
+      );
+
+      document.addEventListener(
+        "keydown",
+        (event) => {
+          if (event.key === "Escape") {
+            window.closeNav();
+          }
+        }
+      );
 
       document.addEventListener(
         "click",
@@ -144,6 +207,11 @@
             return;
           }
 
+          const menuLink =
+            target.closest(
+              "#menuNav .overlay-content a"
+            );
+
           const disabledMenuLink =
             target.closest(
               ".overlay-content a.disabled"
@@ -155,6 +223,11 @@
               "openMyNotes"
           ) {
             event.preventDefault();
+            return;
+          }
+
+          if (menuLink) {
+            window.closeNav();
           }
         }
       );
