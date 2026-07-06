@@ -676,3 +676,120 @@ button#logout:focus-visible {
   }
 }
 
+
+
+/* ========================================================================== 
+   Stage 2A Responsive Shell
+   Safe layout pass: hide decorative scrolls on tablet/mobile and let the main
+   reading area use the visible viewport. This does not add text-range anchoring
+   and does not change the editor/drawing logic.
+   ========================================================================== */
+@media only screen and (max-width: 1100px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  .left-button,
+  .right-button,
+  .leftcol,
+  .rightcol {
+    display: none !important;
+  }
+
+  .container,
+  main.container {
+    width: calc(100vw - 24px);
+    max-width: min(1060px, calc(100vw - 24px)) !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+  }
+
+  .subheader .container {
+    width: 100%;
+    max-width: 100% !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .subheader .subheadings {
+    width: 100%;
+    margin-right: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .subheader .column {
+    float: none;
+    border-right: 0;
+    min-height: 42px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .passage-picker-column {
+    flex: 1 1 320px;
+    min-width: 260px;
+    max-width: 520px;
+  }
+
+  .align-group {
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+
+  #display-text {
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media only screen and (max-width: 700px) {
+  .container,
+  main.container {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px) !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .subheader .container {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  .subheader .subheadings {
+    gap: 4px;
+  }
+
+  .subheader .column {
+    min-height: 38px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .passage-picker-column {
+    order: 2;
+    flex-basis: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .verse-auth-buttons {
+    order: 3;
+  }
+
+  .align-group label {
+    font-size: 0.9rem;
+  }
+
+  #font-size-slider {
+    max-width: 140px;
+  }
+}
