@@ -173,6 +173,7 @@ a.current {
   outline: none;
   border-color: #1f7fc2;
   box-shadow: 0 0 0 2px rgba(47, 154, 224, 0.15);
+}
 
 /* --- Responsive Adjustments --- */
 @media screen and (max-height: 450px) {
@@ -188,5 +189,73 @@ a.current {
 
   .overlay a {
     font-size: 20px;
+  }
+}
+
+
+/* ========================================================================== 
+   Stage 2A Responsive Menu
+   On smaller screens, the menu opens directly below the sticky header instead
+   of sliding out from behind the left decorative scroll.
+   ========================================================================== */
+@media screen and (max-width: 1100px) {
+  .overlay {
+    top: var(--branch-menu-top, 58px);
+    left: 8px;
+    height: auto;
+    max-height: calc(100vh - var(--branch-menu-top, 58px) - 12px);
+    background-image: url("../img/scrollpaper.png");
+    background-repeat: repeat;
+    background-size: cover;
+    border: 1px solid rgba(95, 66, 32, 0.38);
+    border-radius: 14px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+    overflow-x: hidden;
+    overflow-y: auto;
+    transition: width 0.22s ease;
+    z-index: 3200;
+  }
+
+  .overlay-content {
+    top: 0;
+    width: min(225px, calc(100vw - 24px));
+    height: auto;
+    min-height: 0;
+    padding: 18px 12px;
+    gap: 10px;
+    justify-content: flex-start;
+  }
+
+  .overlay a {
+    width: 100%;
+    padding: 7px 8px;
+    font-size: 24px;
+    line-height: 1.18;
+    border-radius: 8px;
+  }
+
+  .overlay a:hover,
+  .overlay a:focus,
+  .overlay a.current {
+    color: white;
+    background: rgba(1, 93, 155, 0.72);
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .overlay {
+    left: 6px;
+    border-radius: 12px;
+  }
+
+  .overlay-content {
+    width: min(225px, calc(100vw - 16px));
+    padding: 14px 10px;
+    gap: 8px;
+  }
+
+  .overlay a {
+    font-size: 21px;
+    padding: 6px 8px;
   }
 }
