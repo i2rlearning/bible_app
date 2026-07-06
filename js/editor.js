@@ -885,9 +885,16 @@ function handleMiniEditorKeyboardShortcuts(event) {
     return;
   }
 
+  if (key === "i" && hasBibleSelectionContext()) {
+    event.preventDefault();
+    applyBibleFormat("italic");
+    return;
+  }
+
   if (key === "u" && hasBibleSelectionContext()) {
     event.preventDefault();
     applyBibleFormat("underline");
+    return;
   }
 }
 
