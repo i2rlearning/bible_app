@@ -849,6 +849,12 @@ function startMiniEditorObserver() {
         return false;
       }
 
+      // Ignore metadata updates added for layout warnings. These are internal
+      // bookkeeping changes, not user edits, and must not start an autosave loop.
+      if (isAnnotationMetadataOnlyMutation(mutation)) {
+        return false;
+      }
+
       return true;
     });
 
@@ -1119,6 +1125,44 @@ let annotationLayoutWarningDismissed = false;
 const LAYOUT_SENSITIVE_ANNOTATION_SELECTOR =
   ".drawn-annotation.circle, .drawn-annotation.square, .freehand-group";
 
+const ANNOTATION_METADATA_ATTRIBUTE_NAMES = new Set([
+  "data-annotation-id",
+  "data-annotation-type",
+  "data-anchor-type",
+  "data-created-width",
+  "data-created-height",
+  "data-created-viewport-width",
+  "data-created-viewport-height",
+  "data-created-pathname",
+  "data-bounds-x",
+  "data-bounds-y",
+  "data-bounds-width",
+  "data-bounds-height"
+]);
+
+function setDatasetValueIfChanged(element, key, value) {
+  if (!element) return;
+
+  const stringValue = String(value);
+
+  if (element.dataset[key] !== stringValue) {
+    element.dataset[key] = stringValue;
+  }
+}
+
+function isAnnotationMetadataAttribute(attributeName) {
+  return ANNOTATION_METADATA_ATTRIBUTE_NAMES.has(attributeName);
+}
+
+function isAnnotationMetadataOnlyMutation(mutation) {
+  return (
+    mutation.type === "attributes" &&
+    isAnnotationMetadataAttribute(mutation.attributeName) &&
+    mutation.target instanceof Element &&
+    mutation.target.matches?.(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  );
+}
+
 const drawingArea = document.getElementById("bible-drawing-area");
 const annotationLayer = document.getElementById("bible-annotation-layer");
 
@@ -1165,30 +1209,33 @@ function addAnnotationMetadata(element, options = {}) {
   const metrics = getBibleTextLayoutMetrics();
 
   if (!element.dataset.annotationId) {
-    element.dataset.annotationId = createAnnotationId(type);
+    setDatasetValueIfChanged(element, "annotationId", createAnnotationId(type));
   }
 
-  element.dataset.annotationType = type;
-  element.dataset.anchorType = element.dataset.anchorType || "chapter-canvas";
+  setDatasetValueIfChanged(element, "annotationType", type);
+
+  if (!element.dataset.anchorType) {
+    setDatasetValueIfChanged(element, "anchorType", "chapter-canvas");
+  }
 
   if (!element.dataset.createdWidth) {
-    element.dataset.createdWidth = String(metrics.width);
+    setDatasetValueIfChanged(element, "createdWidth", metrics.width);
   }
 
   if (!element.dataset.createdHeight) {
-    element.dataset.createdHeight = String(metrics.height);
+    setDatasetValueIfChanged(element, "createdHeight", metrics.height);
   }
 
   if (!element.dataset.createdViewportWidth) {
-    element.dataset.createdViewportWidth = String(Math.round(window.innerWidth || 0));
+    setDatasetValueIfChanged(element, "createdViewportWidth", Math.round(window.innerWidth || 0));
   }
 
   if (!element.dataset.createdViewportHeight) {
-    element.dataset.createdViewportHeight = String(Math.round(window.innerHeight || 0));
+    setDatasetValueIfChanged(element, "createdViewportHeight", Math.round(window.innerHeight || 0));
   }
 
   if (!element.dataset.createdPathname) {
-    element.dataset.createdPathname = window.location.pathname;
+    setDatasetValueIfChanged(element, "createdPathname", window.location.pathname);
   }
 
   updateAnnotationBoundsMetadata(element);
@@ -1202,10 +1249,10 @@ function updateAnnotationBoundsMetadata(element) {
 
     if (!Number.isFinite(box.width) || !Number.isFinite(box.height)) return;
 
-    element.dataset.boundsX = String(Math.round(box.x));
-    element.dataset.boundsY = String(Math.round(box.y));
-    element.dataset.boundsWidth = String(Math.round(box.width));
-    element.dataset.boundsHeight = String(Math.round(box.height));
+    setDatasetValueIfChanged(element, "boundsX", Math.round(box.x));
+    setDatasetValueIfChanged(element, "boundsY", Math.round(box.y));
+    setDatasetValueIfChanged(element, "boundsWidth", Math.round(box.width));
+    setDatasetValueIfChanged(element, "boundsHeight", Math.round(box.height));
   } catch (error) {
     // getBBox can fail while an SVG object is detached or not rendered yet.
   }
