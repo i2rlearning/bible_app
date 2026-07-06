@@ -908,3 +908,20 @@ body.editor-locked-state .ql-toolbar {
   display: inline-block !important;
   max-width: 100% !important;
 }
+
+/************* Annotation layout warning *************/
+.annotation-layout-warning {
+  margin: 10px 20px 0 20px;
+  padding: 10px 12px;
+  border: 1px solid #d7b56d;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #5b4314;
+  font-size: 14px;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.annotation-layout-warning[hidden] {
+  display: none !important;
+}
