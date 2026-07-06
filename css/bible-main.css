@@ -676,3 +676,31 @@ button#logout:focus-visible {
   }
 }
 
+
+/* ==========================================================================
+   Stage 1B: Prevent Scripture from sliding behind decorative scrolls
+   ========================================================================== */
+@media only screen and (max-width: 1100px) {
+  .left-button,
+  .right-button,
+  .leftcol,
+  .rightcol {
+    display: none !important;
+  }
+
+  .container {
+    max-width: min(980px, calc(100vw - 32px)) !important;
+    width: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+    box-sizing: border-box;
+  }
+}
+
+@media only screen and (max-width: 700px) {
+  .container {
+    max-width: calc(100vw - 20px) !important;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
