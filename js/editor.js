@@ -773,6 +773,7 @@ function applyMiniEditorHistorySnapshot(snapshot) {
   selectedDrawnAnnotation = null;
   currentShape = null;
   currentFreehandGroup = null;
+  freehandSessionHasChanges = false;
 
   requestAnimationFrame(() => {
     ensureAllAnnotationMetadata();
@@ -793,6 +794,10 @@ function applyMiniEditorHistorySnapshot(snapshot) {
 }
 
 function undoMiniEditorChange() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
   if (!miniEditorHistoryReady) {
     initializeMiniEditorHistory();
   }
@@ -807,6 +812,10 @@ function undoMiniEditorChange() {
 }
 
 function redoMiniEditorChange() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
   if (!miniEditorHistoryReady || miniEditorRedoStack.length === 0) return;
 
   const nextSnapshot = miniEditorRedoStack.pop();
@@ -1336,11 +1345,13 @@ let currentShape = null;
 let selectedDrawnAnnotation = null;
 let freehandPoints = [];
 let currentFreehandGroup = null;
+let freehandSessionHasChanges = false;
 let freehandGroupCounter = 0;
 let activePointerId = null;
 let activePointerType = null;
 
 const FREEHAND_GROUP_TOUCH_PADDING = 10;
+const FREEHAND_ACTIVE_SESSION_PADDING = 28;
 const ANNOTATION_LAYOUT_WARNING_THRESHOLD = 40;
 let annotationLayoutWarningDismissed = false;
 const LAYOUT_SENSITIVE_ANNOTATION_SELECTOR =
@@ -1644,6 +1655,18 @@ function boxesOverlap(a, b) {
   );
 }
 
+function freehandPathTouchesActiveSession(path) {
+  if (!path || !currentFreehandGroup) return false;
+
+  try {
+    const pathBox = getExpandedBBox(path, FREEHAND_ACTIVE_SESSION_PADDING);
+    const groupBox = getExpandedBBox(currentFreehandGroup, FREEHAND_ACTIVE_SESSION_PADDING);
+    return boxesOverlap(pathBox, groupBox);
+  } catch (error) {
+    return false;
+  }
+}
+
 function findTouchingFreehandGroups(path) {
   if (!annotationLayer) return [];
 
@@ -1686,6 +1709,18 @@ function mergeFreehandGroups(targetGroup, groupsToMerge) {
 }
 
 function attachFreehandPathToGroup(path) {
+  if (currentFreehandGroup && freehandPathTouchesActiveSession(path)) {
+    currentFreehandGroup.appendChild(path);
+    updateAnnotationBoundsMetadata(currentFreehandGroup);
+    updateAnnotationLayoutWarning();
+    freehandSessionHasChanges = true;
+    return;
+  }
+
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
   const touchingGroups = findTouchingFreehandGroups(path);
 
   if (touchingGroups.length === 0) {
@@ -1694,6 +1729,7 @@ function attachFreehandPathToGroup(path) {
     updateAnnotationBoundsMetadata(group);
     updateAnnotationLayoutWarning();
     currentFreehandGroup = group;
+    freehandSessionHasChanges = true;
     return;
   }
 
@@ -1707,22 +1743,32 @@ function attachFreehandPathToGroup(path) {
   updateAnnotationBoundsMetadata(targetGroup);
   updateAnnotationLayoutWarning();
   currentFreehandGroup = targetGroup;
+  freehandSessionHasChanges = true;
 }
 
-function finalizeFreehandGroup() {
+function finalizeFreehandGroup(options = {}) {
+  const shouldRecordHistory = Boolean(options.recordHistory);
+
   if (currentFreehandGroup) {
     updateAnnotationBoundsMetadata(currentFreehandGroup);
   }
 
   currentFreehandGroup = null;
   updateAnnotationLayoutWarning();
+
+  if (shouldRecordHistory && freehandSessionHasChanges) {
+    freehandSessionHasChanges = false;
+    recordMiniEditorHistorySnapshot();
+  } else if (!currentFreehandGroup) {
+    freehandSessionHasChanges = false;
+  }
 }
 
 function setDrawingTool(tool) {
   if (!drawingArea) return;
 
   if (activeDrawingTool === "freehand" && tool !== "freehand") {
-    finalizeFreehandGroup();
+    finalizeFreehandGroup({ recordHistory: true });
   }
 
   activeDrawingTool = tool;
@@ -1755,6 +1801,10 @@ window.isBibleDrawingActive = function () {
 };
 
 function clearSelectedDrawnAnnotation() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
   if (!selectedDrawnAnnotation) return;
 
   selectedDrawnAnnotation.remove();
@@ -1764,11 +1814,16 @@ function clearSelectedDrawnAnnotation() {
 }
 
 function clearDrawnAnnotations() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
   if (!annotationLayer) return;
 
   annotationLayer.innerHTML = "";
   selectedDrawnAnnotation = null;
   currentFreehandGroup = null;
+  freehandSessionHasChanges = false;
   annotationLayoutWarningDismissed = false;
   updateAnnotationLayoutWarning();
   recordMiniEditorHistorySnapshot();
@@ -1898,14 +1953,18 @@ function finishDrawingStroke(event) {
     return;
   }
 
-  if (activeDrawingTool === "freehand" && currentShape) {
+  const completedFreehandStroke = activeDrawingTool === "freehand" && currentShape;
+
+  if (completedFreehandStroke) {
     attachFreehandPathToGroup(currentShape);
   } else if (currentShape) {
     updateAnnotationBoundsMetadata(currentShape);
     updateAnnotationLayoutWarning();
   }
 
-  recordMiniEditorHistorySnapshot();
+  if (!completedFreehandStroke) {
+    recordMiniEditorHistorySnapshot();
+  }
 
   isDrawing = false;
   currentShape = null;
@@ -1936,6 +1995,10 @@ if (drawingArea && annotationLayer) {
   setDrawingTool(null);
 
   annotationLayer.addEventListener("click", function (event) {
+    if (currentFreehandGroup) {
+      finalizeFreehandGroup({ recordHistory: true });
+    }
+
     const clickedAnnotation = event.target.closest(".drawn-annotation");
 
     if (!clickedAnnotation) return;
