@@ -1115,6 +1115,7 @@ let activePointerType = null;
 
 const FREEHAND_GROUP_TOUCH_PADDING = 10;
 const ANNOTATION_LAYOUT_WARNING_THRESHOLD = 40;
+let annotationLayoutWarningDismissed = false;
 const LAYOUT_SENSITIVE_ANNOTATION_SELECTOR =
   ".drawn-annotation.circle, .drawn-annotation.square, .freehand-group";
 
@@ -1178,6 +1179,14 @@ function addAnnotationMetadata(element, options = {}) {
     element.dataset.createdHeight = String(metrics.height);
   }
 
+  if (!element.dataset.createdViewportWidth) {
+    element.dataset.createdViewportWidth = String(Math.round(window.innerWidth || 0));
+  }
+
+  if (!element.dataset.createdViewportHeight) {
+    element.dataset.createdViewportHeight = String(Math.round(window.innerHeight || 0));
+  }
+
   if (!element.dataset.createdPathname) {
     element.dataset.createdPathname = window.location.pathname;
   }
@@ -1231,31 +1240,52 @@ function ensureAnnotationLayoutWarningElement() {
   warning.setAttribute("role", "status");
   warning.setAttribute("aria-live", "polite");
   warning.hidden = true;
-  warning.textContent =
-    "This chapter contains visual annotations created at a different display size. For best alignment, return to the original window size; drawings may shift when text wraps.";
 
-  const container = document.getElementById("display-text");
+  const message = document.createElement("div");
+  message.className = "annotation-layout-warning__message";
+  message.textContent =
+    "Visual annotations may not align at this display size. Return near the original window size for best alignment.";
 
-  if (container) {
-    container.insertBefore(warning, container.firstChild);
-  }
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "annotation-layout-warning__close";
+  closeButton.setAttribute("aria-label", "Dismiss annotation alignment warning");
+  closeButton.textContent = "×";
+  closeButton.addEventListener("click", () => {
+    annotationLayoutWarningDismissed = true;
+    warning.hidden = true;
+  });
+
+  warning.appendChild(message);
+  warning.appendChild(closeButton);
+
+  document.body.appendChild(warning);
 
   return warning;
 }
 
-function getMaxAnnotationLayoutWidthDifference(currentWidth) {
+function getMaxAnnotationLayoutDifference(currentWidth) {
   if (!annotationLayer) return 0;
+
+  const currentViewportWidth = Math.round(window.innerWidth || 0);
 
   return Array.from(
     annotationLayer.querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
   ).reduce((maxDifference, annotation) => {
-    const createdWidth = Number(annotation.dataset.createdWidth);
+    const createdContentWidth = Number(annotation.dataset.createdWidth);
+    const createdViewportWidth = Number(annotation.dataset.createdViewportWidth);
 
-    if (!Number.isFinite(createdWidth) || createdWidth <= 0) {
-      return maxDifference;
-    }
+    const contentDifference =
+      Number.isFinite(createdContentWidth) && createdContentWidth > 0
+        ? Math.abs(currentWidth - createdContentWidth)
+        : 0;
 
-    return Math.max(maxDifference, Math.abs(currentWidth - createdWidth));
+    const viewportDifference =
+      Number.isFinite(createdViewportWidth) && createdViewportWidth > 0
+        ? Math.abs(currentViewportWidth - createdViewportWidth)
+        : 0;
+
+    return Math.max(maxDifference, contentDifference, viewportDifference);
   }, 0);
 }
 
@@ -1265,6 +1295,7 @@ function updateAnnotationLayoutWarning() {
   if (!warning) return;
 
   if (!hasLayoutSensitiveAnnotations()) {
+    annotationLayoutWarningDismissed = false;
     warning.hidden = true;
     return;
   }
@@ -1272,9 +1303,16 @@ function updateAnnotationLayoutWarning() {
   ensureAllAnnotationMetadata();
 
   const metrics = getBibleTextLayoutMetrics();
-  const maxWidthDifference = getMaxAnnotationLayoutWidthDifference(metrics.width);
+  const maxLayoutDifference = getMaxAnnotationLayoutDifference(metrics.width);
+  const shouldWarn = maxLayoutDifference > ANNOTATION_LAYOUT_WARNING_THRESHOLD;
 
-  warning.hidden = maxWidthDifference <= ANNOTATION_LAYOUT_WARNING_THRESHOLD;
+  if (!shouldWarn) {
+    annotationLayoutWarningDismissed = false;
+    warning.hidden = true;
+    return;
+  }
+
+  warning.hidden = annotationLayoutWarningDismissed;
 }
 
 function getCurrentBibleZoom() {
@@ -1462,6 +1500,7 @@ function clearDrawnAnnotations() {
   annotationLayer.innerHTML = "";
   selectedDrawnAnnotation = null;
   currentFreehandGroup = null;
+  annotationLayoutWarningDismissed = false;
   updateAnnotationLayoutWarning();
 }
 
