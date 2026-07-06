@@ -1,976 +1,261 @@
-/************* Quill Editor *************/
-.ql-container.ql-snow {
-  font-size: 16px;
-  background-color: white; 
-  border: 1px solid black !important;
-  min-height: 200px;
+:root {
+  --primary-blue: #1d44b8;
 }
 
-.ql-editor {
-  line-height: 1.6;
-  padding-left: 8px !important; /* Adjust this value to your liking */
-  padding-right: 8px !important;
-  padding-top: 8px !important;
-}
-
-.ql-editor.ql-blank::before {
-  left: 15px !important; /* Match the padding-left above exactly */
-  right: 15px !important;
-  font-style: normal;
-  color: rgba(0,0,0,0.6); /* Optional: standard placeholder grey */
-}
-/* Bold fix */
-.ql-editor strong,
-.ql-editor b {
-  font-weight: bold !important;
-}
-
-.ql-editor span {
-  font-weight: inherit;
-}
-
-/* Fix for the link/image tooltip being cut off */
-.ql-snow .ql-tooltip {
-  margin-left: 10px; /* Moves it away from the left edge */
-  white-space: nowrap; 
-  left: 5px !important; /* Forces a minimum distance from the left */
-}
-
-/* Optional: Ensure it stays above other elements if needed */
-.ql-snow .ql-tooltip.ql-editing {
-  left: 15px !important;
-}
-
-/************* Quill size classes *************/
-.ql-editor .ql-size-8px {
-  font-size: 8px;
-}
-
-.ql-editor .ql-size-10px {
-  font-size: 10px;
-}
-
-.ql-editor .ql-size-12px {
-  font-size: 12px;
-}
-
-.ql-editor .ql-size-14px {
-  font-size: 14px;
-}
-
-.ql-editor .ql-size-18px {
-  font-size: 18px;
-}
-
-.ql-editor .ql-size-24px {
-  font-size: 24px;
-}
-
-.ql-editor .ql-size-32px {
-  font-size: 32px;
-}
-
-/************* Quill size dropdown labels *************/
-.ql-snow .ql-picker.ql-size .ql-picker-label::before {
-  content: "16px" !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-label[data-value]::before {
-  content: attr(data-value) !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before {
-  content: "16px" !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value]::before {
-  content: attr(data-value) !important;
-}
-
-/************* Quill size dropdown visual previews *************/
-.ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before {
-  font-size: 16px !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8px"]::before {
-  font-size: 8px !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before {
-  font-size: 10px !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before {
-  font-size: 12px !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before {
-  font-size: 14px !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before {
-  font-size: 18px !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before {
-  font-size: 24px !important;
-}
-
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before {
-  font-size: 32px !important;
-}
-
-/************* Mini-editor toolbar *************/
-#bible-mini-toolbar {
-  position: fixed;
-  top: 42px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: auto;
-  min-width: max-content; /* Prevents the toolbar container itself from collapsing narrower than its contents */
-  z-index: 2500;
-
+/* --- Animated hamburger toggle --- */
+.hamburger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-
-  background: #000;
-  border: 1px solid #222;
-  padding: 6px 8px;
-  margin: 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  width: 34px;
+  height: 34px;
 }
 
-#bible-mini-toolbar button,
-#bible-mini-toolbar select {
-  min-height: 28px;
-  padding: 3px 8px;
-  font-size: 14px;
-  white-space: nowrap; /* CRITICAL: Prevents "Highlighter" or "Font Color" text from wrapping onto two lines */
-}
-
-#bible-mini-toolbar button {
-  border: 1px solid #ddd;
-  background: #fff;
-  cursor: pointer;
-  display: inline-flex; /* Ensures text and any dropdown icons align perfectly */
-  align-items: center;
-}
-
-#bible-mini-toolbar button:hover {
-  background: #f3f3f3;
-}
-
-#bible-mini-toolbar button.active-tool {
-  background: #31ACFF;
-  color: #fff;
-  border-color: #31ACFF;
-}
-
-#bible-mini-toolbar .toolbar-separator {
-  color: #777;
-  margin: 0 2px;
-}
-
-/************* Bible display area *************/
-#display-text {
-  padding-top: 45px;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  max-height: none !important;
-}
-
-#bible-text {
-  padding: 20px 20px 8px 20px;
-  font-size: 18px;
-  line-height: 1.7;
-  user-select: text;
-  box-sizing: border-box;
-}
-
-#bible-text p:last-child,
-#bible-text div:last-child {
-  margin-bottom: 0 !important;
-}
-
-#bible-drawing-area {
+.main-nav-toggle {
   position: relative;
-  cursor: text;
-  transform-origin: top left;
-  box-sizing: border-box;
-}
-
-#bible-drawing-area.drawing-mode {
-  cursor: crosshair;
-  touch-action: none;
-  overscroll-behavior: contain;
-}
-
-#bible-drawing-area.drawing-mode,
-#bible-drawing-area.drawing-mode * {
-  user-select: none;
-  /* Safari browser*/
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
-#bible-drawing-area.drawing-mode #bible-annotation-layer {
-  pointer-events: auto;
-}
-
-/************* User-added Bible text annotations *************/
-.eb-container .bible-user-format.bold {
-  font-weight: 900 !important;
-}
-
-.eb-container .bible-user-format.italic {
-  font-style: italic !important;
-}
-
-.eb-container .bible-user-format.underline {
-  text-decoration-line: underline !important;
-  text-decoration-thickness: 2px;
-}
-
-.eb-container .bible-user-format.double-underline {
-  text-decoration-line: underline !important;
-  text-decoration-style: double !important;
-  text-decoration-thickness: 2px;
-}
-
-.eb-container .bible-user-format.overline-underline {
-  text-decoration-line: overline underline !important;
-  text-decoration-thickness: 2px;
-}
-
-.eb-container .bible-user-format.strike-through {
-  text-decoration-line: line-through !important;
-}
-
-.eb-container .bible-user-format.uppercase {
-  text-transform: uppercase;
-}
-
-/************* Bible highlight colors *************/
-.eb-container .bible-user-format.highlight-yellow {
-  background-color: #fff59d !important;
-}
-
-.eb-container .bible-user-format.highlight-green {
-  background-color: #c8f7c5 !important;
-}
-
-.eb-container .bible-user-format.highlight-blue {
-  background-color: #cce5ff !important;
-}
-
-.eb-container .bible-user-format.highlight-pink {
-  background-color: #ffd6e7 !important;
-}
-
-.eb-container .bible-user-format.highlight-orange {
-  background-color: #ffd59e !important;
-}
-
-/************* Bible font colors *************/
-.eb-container .bible-user-format.text-grey {
-  color: #9c9c9c !important;
-}
-
-.eb-container .bible-user-format.text-red {
-  color: #c40000 !important;
-}
-
-.eb-container .bible-user-format.text-blue {
-  color: #0066cc !important;
-}
-
-.eb-container .bible-user-format.text-green {
-  color: #2f7d32 !important;
-}
-
-.eb-container .bible-user-format.text-purple {
-  color: #6c2eb1 !important;
-}
-
-/************* Font color dropdown buttons *************/
-.toolbar-dropdown-menu .font-color-option {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  margin: 0;
-  border: 1px solid #999;
-  border-radius: 4px;
-  background: #fff;
-  font-weight: bold;
-  cursor: pointer;
-
-  display: flex !important;
-  align-items: center !important;      /* vertical centering */
-  justify-content: center !important;  /* horizontal centering */
-
-  font-size: 14px !important;          /* ensure consistent font size */
-  line-height: 1 !important;           /* remove inherited line-height */
-  padding: 0 !important;
-  text-align: center !important;
-
-  box-sizing: border-box !important;   /* prevent extra offset from border/padding */
-}
-
-.toolbar-dropdown-menu .font-color-option:hover {
-  outline: 2px solid #555;
-}
-
-.font-color-option.text-grey {
-  color: #9c9c9c !important;
-}
-
-.font-color-option.text-red {
-  color: #c40000 !important;
-}
-
-.font-color-option.text-blue {
-  color: #0066cc !important;
-}
-
-.font-color-option.text-green {
-  color: #2f7d32 !important;
-}
-
-.font-color-option.text-purple {
-  color: #6c2eb1 !important;
-}
-
-/* Appends the arrow to the end of the button */
-.dropdown-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px; /* Adds space between the word 'Draw' and the arrow */
-  padding: 8px 16px;
-  cursor: pointer;
-}
-
-.dropdown-btn::after {
-  content: "";
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000000'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-size: contain;
-}
-
-/************* Drawing layer *************/
-#bible-annotation-layer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  pointer-events: none;
-  overflow: visible;
   display: block;
-}
-
-.drawn-annotation {
-  fill: transparent;
-  stroke-width: 2;
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-.drawn-annotation.circle {
-  stroke: #c40000;
-}
-
-.drawn-annotation.square {
-  stroke: #0066cc;
-}
-
-.drawn-annotation.selected-annotation {
-  stroke-width: 4;
-}
-
-/************* Freehand drawing *************/
-.freehand-group {
-  fill: none;
-  stroke: #c40000;
-  stroke-width: 2;
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-.freehand-group path,
-.freehand {
-  fill: none;
-  stroke: #c40000;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  pointer-events: stroke;
-}
-
-.freehand-group.selected-annotation path {
-  stroke-width: 4;
-}
-
-/************* Toolbar dropdowns *************/
-.toolbar-dropdown {
-  position: relative;
-  display: inline-block;
-}
-
-.toolbar-dropdown-menu {
-  display: none;
-  position: absolute;
-  top: 32px;
-  left: 0;
-  z-index: 3000;
-  background: #fff;
-  border: 1px solid #ddd;
-  padding: 8px;
-  min-width: auto;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-}
-
-.toolbar-dropdown-menu.show {
-  display: flex;
-  gap: 6px;
-}
-
-.toolbar-dropdown-menu .color-option {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
+  width: 28px;
+  height: 22px;
   padding: 0;
-  margin: 0;
-  border: 1px solid #999;
-  border-radius: 4px;
+  border: none;
+  background: transparent;
   cursor: pointer;
 }
 
-.toolbar-dropdown-menu .color-option:hover {
-  outline: 2px solid #555;
+.main-nav-toggle span {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background-color: #111;
+  border-radius: 2px;
+  transition:
+    transform 0.25s ease,
+    opacity 0.15s ease,
+    top 0.25s ease,
+    background-color 0.2s ease;
 }
 
-.color-option.yellow {
-  background: #fff59d !important;
+.main-nav-toggle span:nth-child(1) {
+  top: 0;
 }
 
-.color-option.green {
-  background: #c8f7c5 !important;
+.main-nav-toggle span:nth-child(2) {
+  top: 9px;
 }
 
-.color-option.blue {
-  background: #cce5ff !important;
+.main-nav-toggle span:nth-child(3) {
+  top: 18px;
 }
 
-.color-option.pink {
-  background: #ffd6e7 !important;
+.main-nav-toggle.active-menu span:nth-child(1) {
+  top: 9px;
+  transform: rotate(45deg);
 }
 
-.color-option.orange {
-  background: #ffd59e !important;
+.main-nav-toggle.active-menu span:nth-child(2) {
+  opacity: 0;
 }
 
-.toolbar-separator {
-  display: inline-block;
-  width: 2px;
-  height: 18px;
-  background: #777;
-  margin: 0 4px;
-  user-select: none;
+.main-nav-toggle.active-menu span:nth-child(3) {
+  top: 9px;
+  transform: rotate(-45deg);
 }
 
-.text-tool-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 8px;
+.main-nav-toggle:hover span {
+  background-color: #006b8f;
 }
 
-/* ==========================================================================
-   Locked Editor State Changes
-   ========================================================================== */
-
-/* Freeze the entire toolbar wrapper container to block clicks, hovers, and selections */
-.editor-tools-locked {
-  opacity: 0.45;
-  pointer-events: none !important; /* Prevents clicks from triggering underlying elements */
-  user-select: none;
-}
-
-/* Force the cursor to stay as 'not-allowed' even when pointer events are muted */
-.editor-tools-locked,
-.editor-tools-locked *,
-.editor-tools-locked button,
-.editor-tools-locked select {
-  cursor: not-allowed !important;
-}
-
-/* Redundant but kept for explicit safety against Quill custom drop-downs */
-.editor-tools-locked .ql-picker,
-.editor-tools-locked .ql-picker-label,
-.editor-tools-locked .ql-picker-options {
-  pointer-events: none !important;
-  cursor: not-allowed !important;
-}
-
-/* ==========================================================================
-   Content View Adjustments when Locked
-   ========================================================================== */
-body.editor-locked-state .bible-user-format {
-  background-color: transparent !important;
-  text-decoration: none !important;
-  font-weight: inherit !important;
-}
-
-body.editor-locked-state .drawn-annotation,
-body.editor-locked-state .freehand-group,
-body.editor-locked-state .freehand {
-  display: none !important;
-}
-
-/************* Logged-out Quill state *************/
-body.editor-locked-state .ql-editor {
-  background: rgba(255, 255, 255, 0.65);
-  color: #777;
-  pointer-events: none;
-}
-
-body.editor-locked-state .ql-editor.ql-blank::before {
-  color: #555;
-  font-style: italic;
-  opacity: 0.9;
-}
-
-body.editor-locked-state .ql-toolbar {
-  opacity: 0.35;
-}
-
-/************* Editor save status in navbar *************/
-.editor-save-status {
-  margin-right: auto; /* places it far left*/ 
-  color: green;
-  font-weight: bold;
-  font-style: normal;
-  display: inline-block;
-  vertical-align: middle;
-  min-width: 50px;
-}
-
-.editor-save-status-saving {
-  color: #667;
-}
-
-.editor-save-status-saved {
-  color: #2f7d32;
-}
-
-.editor-save-status-failed {
-  color: #b00020;
-}
-
-/************* My Notes modal *************/
-#myNotesModal {
-  display: none;
+/* --- Sliding parchment menu from left --- */
+.overlay {
+  height: 60vh;
+  width: 0;
   position: fixed;
-  inset: 0;
-  z-index: 9000;
-  background: rgba(0, 0, 0, 0.45);
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  box-sizing: border-box;
+  z-index: 100;
+  top: 22.55vh;
+  left: 115px;
+  background-image: url("../img/scrollpaper.png");
+  background-repeat: no-repeat;
+  background-size: 250px 60vh;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  transition: 0.65s;
 }
 
-#myNotesModal.is-open {
-  display: flex;
-}
-
-.my-notes-content {
+.overlay-content {
   position: relative;
-  background: #fff;
-  width: min(980px, 94vw);
-  max-height: 82vh;
-  overflow: hidden;
-  padding: 22px;
-  border: 1px solid #888;
-  border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-  box-sizing: border-box;
+  height: 60vh;
+  width: 225px;
   display: flex;
   flex-direction: column;
-}
-
-.my-notes-content h2 {
-  margin: 0 0 14px 0;
-  font-size: 24px;
-  line-height: 1.2;
-}
-
-#closeMyNotes {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  color: #333;
-  z-index: 2;
-}
-
-#closeMyNotes:hover {
-  color: #b00020;
-}
-
-.my-notes-search {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 12px;
-  border: 1px solid #aaa;
-  border-radius: 4px;
-  box-sizing: border-box;
-  font-size: 14px;
-}
-
-.my-notes-status {
-  margin-bottom: 10px;
-  font-style: italic;
-  color: #666;
-  font-size: 14px;
-}
-
-.my-notes-table-wrapper {
-  overflow: auto;
-  max-height: calc(82vh - 140px);
-  border: 1px solid #ddd;
-}
-
-.my-notes-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 13px;
-  background: #fff;
-}
-
-.my-notes-table th,
-.my-notes-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
-  vertical-align: top;
-  line-height: 1.35;
-  word-break: normal;
-  overflow-wrap: anywhere;
-}
-
-.my-notes-table th {
-  background: #f5f5f5;
-  font-weight: bold;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.my-notes-table th:nth-child(1),
-.my-notes-table td:nth-child(1) {
-  width: 14%;
-}
-
-.my-notes-table th:nth-child(2),
-.my-notes-table td:nth-child(2) {
-  width: 12%;
-}
-
-.my-notes-table th:nth-child(3),
-.my-notes-table td:nth-child(3) {
-  width: 20%;
-}
-
-.my-notes-table th:nth-child(4),
-.my-notes-table td:nth-child(4) {
-  width: 32%;
-}
-
-.my-notes-table th:nth-child(5),
-.my-notes-table td:nth-child(5) {
-  width: 10%;
-}
-
-.my-notes-table th:nth-child(6),
-.my-notes-table td:nth-child(6),
-.my-notes-table th:nth-child(7),
-.my-notes-table td:nth-child(7) {
-  width: 6%;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
   text-align: center;
+  margin-top: 0;
+  top: -8px;
 }
 
-.my-notes-table a {
-  color: #0066cc;
-  text-decoration: underline;
-}
-
-.overlay-content a.disabled {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-/************* Auth buttons in header of My Notes *************/
-.subheader #login,
-.subheader #logout {
-  font-size: 13px;
-  font-weight: 500;
-  padding: 6px 14px;
-  margin-left: 6px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #ffffff, #f5f5f5);
-  color: #222;
-  line-height: 1.2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px; /* nice for icons */
-  
-  /* Fancy enhancements */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08),
-              inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-}
-
-.subheader #login:hover,
-.subheader #logout:hover {
-  background: linear-gradient(180deg, #f8f9fa, #e9ecef);
-  border-color: #bbb;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12),
-              inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform: translateY(-1px);
-  color: #111;
-}
-
-.subheader #login:active,
-.subheader #logout:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.subheader #login:disabled {
-  color: #667;
-  background: #eee;
-}
-
-.subheader .subheadings {
-  display: flex;
-  align-items: center;
-}
-
-.subheader .column {
-  float: none;
-  display: flex;
-  align-items: center;
-  min-height: 45px;
-  padding: 0 10px;
-}
-
-/* Icons in the My Notes page */
-.open-note {
-  text-decoration: none !important;
-  font-size: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 42px;
-  line-height: 1;
-  filter: grayscale(100%);
-  opacity: 0.65;
-  transition: all 0.2s ease-in-out;
-}
-
-.open-note:hover {
-  filter: grayscale(0%);
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-.delete-note {
-  text-decoration: none !important;
+.overlay a {
+  text-decoration: none;
   font-size: 30px;
+  color: black;
+  display: block;
+  transition: 0.3s;
+  font-family: Arima, sans-serif;
+}
+
+.overlay a:hover,
+.overlay a:focus {
+  color: white;
+}
+
+/* Hide old red X close button if it still exists somewhere 
+.overlay .closebtn {
+  display: none;
+}*/
+
+/* --- Menu Link States --- */
+a.disabled {
+  color: darkgray;
+  cursor: not-allowed;
+}
+
+a.current {
+  pointer-events: none;
+  color: white;
+}
+
+/* --- Language dropdown --- */
+.custom-combobox {
+  display: inline-flex;
+  align-items: flex-start; 
+  vertical-align: middle;
+}
+
+#langInput {
+  -webkit-appearance: none; /* Chrome/Safari */
+  -moz-appearance: none;    /* Firefox */
+  appearance: none;         /* modern browsers */
+  min-width: 130px;
+  height: 34px;             /* desired height */
+  padding: 0 30px 0 10px; /* leave space for custom arrow */
+  line-height: 34px; /* must match height for vertical align*/
+  box-sizing: border-box;
+  background: #fff;
+  color: #222;
+  border: 1px solid #2f9ae0;
+  border-radius: 4px;
+  /* down arrow size is controlled by: height/width/background */
+  background: url('data:image/svg+xml;utf8,<svg fill="%23000" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 10px center;
+  background-size: 24px;
+  font-size: 16px;
+  font-family: Arial, sans-serif;
   cursor: pointer;
+}
+
+.language-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 42px;
-  line-height: 1;
-  filter: grayscale(100%);
-  opacity: 0.65;
-  transition: all 0.2s ease-in-out;
+  gap: 6px;
+  width: auto;
 }
 
-.delete-note:hover {
-  filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%);
-  opacity: 1;
-  color: #ff4d4d;
-  transform: scale(1.1);
+.language-label {
+  font-size: 25px;
+  font-weight: bold;
+  color: #555;
+  white-space: nowrap;
+  font-family: Arima, sans-serif;
 }
 
-/* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 30 MINUTES  */
-#timeout-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.85); 
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 10000; 
-    backdrop-filter: blur(4px); 
+#langInput:focus {
+  outline: none;
+  border-color: #1f7fc2;
+  box-shadow: 0 0 0 2px rgba(47, 154, 224, 0.15);
 }
 
-/* The warning box styling */
-.timeout-box {
-    background: #ffffff;
-    padding: 40px;
-    border-radius: 12px;
-    text-align: center;
-    border-top: 5px solid #ff4d4d; 
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    font-family: sans-serif;
-}
+/* --- Responsive Adjustments --- */
+@media screen and (max-height: 450px) {
+  .overlay {
+    height: 65vh;
+    background-size: 250px 65vh;
+  }
 
-.timeout-button {
-    background: #007bff;
-    color: white;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 18px;
-    margin-top: 20px;
-}
+  .overlay-content {
+    height: 65vh;
+    gap: 4px;
+  }
 
-.timeout-button:hover {
-  box-shadow:0 8px 16px 0 rgba(0,0,0,0.6);
-}
-
-/******************** RESPONSIVE ***********/
-@media (max-width: 768px) {
-  #bible-mini-toolbar {
-    width: calc(100vw - 16px);
-    min-width: 0;
-    max-width: calc(100vw - 16px);
-    overflow-x: auto;
-    justify-content: flex-start;
-    box-sizing: border-box;
+  .overlay a {
+    font-size: 20px;
   }
 }
 
-/* ==========================================================================
-   Quill Blot Formatter Resizer Box Layout Corrective Context
+
+/* ========================================================================== 
+   Stage 2A Responsive Menu
+   On smaller screens, the menu opens directly below the sticky header instead
+   of sliding out from behind the left decorative scroll.
    ========================================================================== */
-.blot-formatter__wrapper {
-  position: absolute !important;
-  border: 1px dashed #007aff !important; /* System Accent Highlight Border */
-  background: rgba(0, 122, 255, 0.04) !important;
-  pointer-events: none !important;
-  z-index: 1050 !important;
+@media screen and (max-width: 1100px) {
+  .overlay {
+    top: var(--branch-menu-top, 58px);
+    left: 8px;
+    height: auto;
+    max-height: calc(100vh - var(--branch-menu-top, 58px) - 12px);
+    background-image: url("../img/scrollpaper.png");
+    background-repeat: repeat;
+    background-size: cover;
+    border: 1px solid rgba(95, 66, 32, 0.38);
+    border-radius: 14px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+    overflow-x: hidden;
+    overflow-y: auto;
+    transition: width 0.22s ease;
+    z-index: 3200;
+  }
+
+  .overlay-content {
+    top: 0;
+    width: min(225px, calc(100vw - 24px));
+    height: auto;
+    min-height: 0;
+    padding: 18px 12px;
+    gap: 10px;
+    justify-content: flex-start;
+  }
+
+  .overlay a {
+    width: 100%;
+    padding: 7px 8px;
+    font-size: 24px;
+    line-height: 1.18;
+    border-radius: 8px;
+  }
+
+  .overlay a:hover,
+  .overlay a:focus,
+  .overlay a.current {
+    color: white;
+    background: rgba(1, 93, 155, 0.72);
+  }
 }
 
-.blot-formatter__handle {
-  position: absolute !important;
-  width: 10px !important;
-  height: 10px !important;
-  background-color: #007aff !important;
-  border: 1.5px solid #ffffff !important;
-  border-radius: 50% !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
-  pointer-events: auto !important;
-  cursor: nwse-resize !important;
-}
+@media screen and (max-width: 700px) {
+  .overlay {
+    left: 6px;
+    border-radius: 12px;
+  }
 
-/* Individual alignment handle position modifiers */
-.blot-formatter__handle:nth-child(1) { cursor: nwse-resize !important; }
-.blot-formatter__handle:nth-child(2) { cursor: nesw-resize !important; }
-.blot-formatter__handle:nth-child(3) { cursor: nwse-resize !important; }
-.blot-formatter__handle:nth-child(4) { cursor: nesw-resize !important; }
+  .overlay-content {
+    width: min(225px, calc(100vw - 16px));
+    padding: 14px 10px;
+    gap: 8px;
+  }
 
-/* Keep selection parameters clean when clicking items inside Quill */
-.ql-editor img {
-  cursor: pointer !important;
-  display: inline-block !important;
-  max-width: 100% !important;
-}
-
-/************* Annotation layout warning (non-blocking toast) *************/
-.annotation-layout-warning {
-  position: fixed;
-  top: 104px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3000;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  width: max-content;
-  max-width: min(760px, calc(100vw - 44px));
-  padding: 14px 18px;
-  border: 2px solid #8a4f00;
-  border-radius: 12px;
-  background: #fff0b8;
-  color: #3b2500;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
-  font-size: 16px;
-  line-height: 1.45;
-  font-weight: 600;
-  text-align: left;
-  box-sizing: border-box;
-}
-
-.annotation-layout-warning[hidden] {
-  display: none !important;
-}
-
-.annotation-layout-warning__message {
-  flex: 1 1 auto;
-}
-
-.annotation-layout-warning__close {
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: #4d3505;
-  cursor: pointer;
-  font-size: 20px;
-  line-height: 20px;
-  padding: 0;
-}
-
-.annotation-layout-warning__close:hover,
-.annotation-layout-warning__close:focus-visible {
-  background: rgba(77, 53, 5, 0.12);
-  outline: none;
-}
-
-@media only screen and (max-width: 700px) {
-  .annotation-layout-warning {
-    top: 92px;
-    left: 12px;
-    right: 12px;
-    transform: none;
-    width: auto;
-    max-width: none;
-    padding: 12px 14px;
-    font-size: 14px;
+  .overlay a {
+    font-size: 21px;
+    padding: 6px 8px;
   }
 }
