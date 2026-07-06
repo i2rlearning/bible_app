@@ -909,14 +909,22 @@ body.editor-locked-state .ql-toolbar {
   max-width: 100% !important;
 }
 
-/************* Annotation layout warning *************/
+/************* Annotation layout warning (non-blocking toast) *************/
 .annotation-layout-warning {
-  margin: 10px 20px 0 20px;
-  padding: 10px 12px;
-  border: 1px solid #d7b56d;
-  border-radius: 8px;
-  background: #fff8e6;
-  color: #5b4314;
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 3000;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 36px));
+  padding: 12px 14px;
+  border: 1px solid #b97918;
+  border-radius: 10px;
+  background: #fff4d6;
+  color: #4d3505;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
   font-size: 14px;
   line-height: 1.4;
   box-sizing: border-box;
@@ -924,4 +932,37 @@ body.editor-locked-state .ql-toolbar {
 
 .annotation-layout-warning[hidden] {
   display: none !important;
+}
+
+.annotation-layout-warning__message {
+  flex: 1 1 auto;
+}
+
+.annotation-layout-warning__close {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #4d3505;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 20px;
+  padding: 0;
+}
+
+.annotation-layout-warning__close:hover,
+.annotation-layout-warning__close:focus-visible {
+  background: rgba(77, 53, 5, 0.12);
+  outline: none;
+}
+
+@media only screen and (max-width: 700px) {
+  .annotation-layout-warning {
+    right: 10px;
+    bottom: 10px;
+    max-width: calc(100vw - 20px);
+    font-size: 13px;
+  }
 }
