@@ -568,13 +568,15 @@ function refreshBibleAnnotationLayout() {
   }
 
   bibleLayoutRefreshFrame = requestAnimationFrame(() => {
-    resizeAnnotationLayer();
-    ensureAllAnnotationMetadata();
-    updateAnnotationLayoutWarning();
-
+    // Let the browser/CSS recalculate the Bible text width first. This is
+    // especially important when the viewport grows back after being narrow.
     if (typeof updateBibleZoomLayout === "function") {
       updateBibleZoomLayout();
     }
+
+    resizeAnnotationLayer();
+    ensureAllAnnotationMetadata();
+    updateAnnotationLayoutWarning();
 
     bibleLayoutRefreshFrame = null;
   });
@@ -587,6 +589,8 @@ function startBibleLayoutObservers() {
   if (bibleLayoutObserverStarted) return;
 
   const bibleText = document.getElementById("bible-text");
+  const displayText = document.getElementById("display-text");
+  const drawingArea = document.getElementById("bible-drawing-area");
 
   if (!bibleText) return;
 
@@ -597,7 +601,10 @@ function startBibleLayoutObservers() {
       refreshBibleAnnotationLayout();
     });
 
-    bibleTextResizeObserver.observe(bibleText);
+    // Watch every layout box that can affect text wrapping or annotation size.
+    [displayText, drawingArea, bibleText].forEach((element) => {
+      if (element) bibleTextResizeObserver.observe(element);
+    });
   }
 
   window.addEventListener("resize", refreshBibleAnnotationLayout);
@@ -1070,15 +1077,9 @@ function startMiniEditorObserver() {
       if (
         mutation.type === "attributes" &&
         mutation.target === annotationLayer &&
-        [
-          "width",
-          "height",
-          "viewBox",
-          "style",
-          "preserveAspectRatio",
-          "data-base-width",
-          "data-base-height"
-        ].includes(mutation.attributeName)
+        ["width", "height", "viewBox", "style", "preserveAspectRatio"].includes(
+          mutation.attributeName
+        )
       ) {
         return false;
       }
@@ -1605,129 +1606,76 @@ function getCurrentBibleZoom() {
   return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
 }
 
-function getAnnotationLayerViewBoxSize() {
-  const layer = document.getElementById("bible-annotation-layer");
-
-  if (!layer) {
-    return { width: 0, height: 0 };
-  }
-
-  const viewBox = layer.viewBox?.baseVal;
-
-  if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
-    return {
-      width: viewBox.width,
-      height: viewBox.height
-    };
-  }
-
-  return {
-    width: Number(layer.getAttribute("width")) || layer.clientWidth || 0,
-    height: Number(layer.getAttribute("height")) || layer.clientHeight || 0
-  };
-}
-
 function getDrawingCoordinates(event) {
   const layer = document.getElementById("bible-annotation-layer");
 
-  if (!layer) {
+  if (layer) {
+    const rect = layer.getBoundingClientRect();
+    const viewBox = layer.viewBox && layer.viewBox.baseVal;
+
+    if (rect.width > 0 && rect.height > 0 && viewBox) {
+      return {
+        x: viewBox.x + ((event.clientX - rect.left) / rect.width) * viewBox.width,
+        y: viewBox.y + ((event.clientY - rect.top) / rect.height) * viewBox.height
+      };
+    }
+  }
+
+  if (!drawingArea) {
     return { x: 0, y: 0 };
   }
 
-  const rect = layer.getBoundingClientRect();
-  const viewBoxSize = getAnnotationLayerViewBoxSize();
-
-  const rectWidth = rect.width || 1;
-  const rectHeight = rect.height || 1;
+  const rect = drawingArea.getBoundingClientRect();
+  const zoom = getCurrentBibleZoom();
 
   return {
-    x: ((event.clientX - rect.left) / rectWidth) * viewBoxSize.width,
-    y: ((event.clientY - rect.top) / rectHeight) * viewBoxSize.height
+    x: (event.clientX - rect.left) / zoom,
+    y: (event.clientY - rect.top) / zoom
   };
 }
 
-function getAnnotationLayerBaseSize(layer, currentWidth, currentHeight) {
-  const savedBaseWidth = Number(layer.dataset.baseWidth);
-  const savedBaseHeight = Number(layer.dataset.baseHeight);
+function getAnnotationBaseSize(currentWidth, currentHeight) {
+  const layer = document.getElementById("bible-annotation-layer");
 
-  if (
-    Number.isFinite(savedBaseWidth) &&
-    savedBaseWidth > 0 &&
-    Number.isFinite(savedBaseHeight) &&
-    savedBaseHeight > 0
-  ) {
-    return {
-      width: savedBaseWidth,
-      height: savedBaseHeight
-    };
+  if (!layer) {
+    return { width: currentWidth, height: currentHeight };
   }
 
-  let annotationBaseWidth = 0;
-  let annotationBaseHeight = 0;
+  const annotations = Array.from(
+    layer.querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  );
 
-  layer
-    .querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
-    .forEach((annotation) => {
-      const createdWidth = Number(annotation.dataset.createdWidth);
-      const createdHeight = Number(annotation.dataset.createdHeight);
+  const widths = annotations
+    .map((annotation) => Number(annotation.dataset.createdWidth))
+    .filter((value) => Number.isFinite(value) && value > 0);
 
-      if (Number.isFinite(createdWidth) && createdWidth > annotationBaseWidth) {
-        annotationBaseWidth = createdWidth;
-      }
-
-      if (Number.isFinite(createdHeight) && createdHeight > annotationBaseHeight) {
-        annotationBaseHeight = createdHeight;
-      }
-    });
-
-  const baseWidth = annotationBaseWidth || currentWidth;
-  const baseHeight = annotationBaseHeight || currentHeight;
-
-  if (baseWidth > 0 && baseHeight > 0) {
-    setDatasetValueIfChanged(layer, "baseWidth", Math.round(baseWidth));
-    setDatasetValueIfChanged(layer, "baseHeight", Math.round(baseHeight));
-  }
+  const heights = annotations
+    .map((annotation) => Number(annotation.dataset.createdHeight))
+    .filter((value) => Number.isFinite(value) && value > 0);
 
   return {
-    width: baseWidth,
-    height: baseHeight
+    width: Math.max(currentWidth, ...widths),
+    height: Math.max(currentHeight, ...heights)
   };
-}
-
-function resetAnnotationLayerBaseIfEmpty(layer) {
-  if (!layer) return;
-
-  if (!hasLayoutSensitiveAnnotations()) {
-    delete layer.dataset.baseWidth;
-    delete layer.dataset.baseHeight;
-  }
 }
 
 function resizeAnnotationLayer() {
   const bibleText = document.getElementById("bible-text");
   const layer = document.getElementById("bible-annotation-layer");
-  const area = document.getElementById("bible-drawing-area");
 
   if (!bibleText || !layer) return;
 
-  const textRect = bibleText.getBoundingClientRect();
-  const currentWidth = Math.max(1, Math.ceil(textRect.width || bibleText.clientWidth || bibleText.scrollWidth || 1));
-  const currentHeight = Math.max(1, Math.ceil(bibleText.scrollHeight || textRect.height || bibleText.clientHeight || 1));
+  const rect = bibleText.getBoundingClientRect();
+  const currentWidth = Math.ceil(rect.width || bibleText.clientWidth || bibleText.scrollWidth || 1);
+  const currentHeight = Math.ceil(bibleText.scrollHeight || rect.height || 1);
+  const baseSize = getAnnotationBaseSize(currentWidth, currentHeight);
 
-  resetAnnotationLayerBaseIfEmpty(layer);
-
-  const baseSize = getAnnotationLayerBaseSize(layer, currentWidth, currentHeight);
-  const viewBoxWidth = Math.max(1, Math.ceil(baseSize.width || currentWidth));
-  const viewBoxHeight = Math.max(1, Math.ceil(baseSize.height || currentHeight));
-
-  if (area) {
-    area.style.width = `${currentWidth}px`;
-    area.style.height = `${currentHeight}px`;
-  }
-
-  layer.setAttribute("width", String(viewBoxWidth));
-  layer.setAttribute("height", String(viewBoxHeight));
-  layer.setAttribute("viewBox", `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
+  // The displayed SVG follows the Bible text box. The viewBox can remain at
+  // the original annotation size so coordinate-based drawings scale back when
+  // the viewport returns to the original size instead of drifting off-screen.
+  layer.setAttribute("width", String(currentWidth));
+  layer.setAttribute("height", String(currentHeight));
+  layer.setAttribute("viewBox", `0 0 ${Math.ceil(baseSize.width)} ${Math.ceil(baseSize.height)}`);
   layer.setAttribute("preserveAspectRatio", "none");
   layer.style.width = `${currentWidth}px`;
   layer.style.height = `${currentHeight}px`;
@@ -1924,8 +1872,6 @@ function clearDrawnAnnotations() {
   if (!annotationLayer) return;
 
   annotationLayer.innerHTML = "";
-  delete annotationLayer.dataset.baseWidth;
-  delete annotationLayer.dataset.baseHeight;
   selectedDrawnAnnotation = null;
   currentFreehandGroup = null;
   freehandSessionHasChanges = false;
@@ -1936,8 +1882,6 @@ function clearDrawnAnnotations() {
 
 function handleDrawingPointerDown(event) {
   if (!activeDrawingTool || !drawingArea || !annotationLayer) return;
-
-  resizeAnnotationLayer();
 
   if (event.pointerType === "mouse" && event.button !== 0) {
     return;
