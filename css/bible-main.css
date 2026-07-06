@@ -676,3 +676,22 @@ button#logout:focus-visible {
   }
 }
 
+/* TEMP DEBUG ONLY — remove after layout testing */
+
+#bible-text {
+  background: rgba(255, 255, 0, 0.35) !important;
+  outline: 3px solid orange !important;
+}
+
+#bible-text-wrapper,
+.bible-text-wrapper,
+.scripture-container,
+.scripture-content {
+  outline: 2px dashed red !important;
+}
+
+#annotation-layer,
+.annotation-layer,
+svg {
+  outline: 2px solid blue !important;
+}
