@@ -683,6 +683,216 @@ function getMiniEditorFlags(miniEditorJson) {
   };
 }
 
+
+// ----------------------------------------------------
+// Mini-editor history (undo / redo)
+// ----------------------------------------------------
+const MINI_EDITOR_HISTORY_LIMIT = 50;
+let miniEditorUndoStack = [];
+let miniEditorRedoStack = [];
+let miniEditorHistorySignature = "";
+let miniEditorHistoryReady = false;
+let miniEditorHistoryApplying = false;
+let miniEditorHistorySaveTimer = null;
+
+function getMiniEditorHistorySnapshot() {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText) return null;
+
+  return {
+    bibleTextHtml: bibleText.innerHTML,
+    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : ""
+  };
+}
+
+function getMiniEditorHistorySignature(snapshot) {
+  if (!snapshot) return "";
+  return `${snapshot.bibleTextHtml}::${snapshot.annotationLayerHtml}`;
+}
+
+function initializeMiniEditorHistory() {
+  const snapshot = getMiniEditorHistorySnapshot();
+  if (!snapshot) return;
+
+  miniEditorUndoStack = [snapshot];
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = getMiniEditorHistorySignature(snapshot);
+  miniEditorHistoryReady = true;
+}
+
+function recordMiniEditorHistorySnapshot() {
+  if (!editorToolsUnlocked) return;
+  if (!miniEditorLoaded) return;
+  if (miniEditorApplyingState) return;
+  if (miniEditorHistoryApplying) return;
+
+  const snapshot = getMiniEditorHistorySnapshot();
+  if (!snapshot) return;
+
+  const signature = getMiniEditorHistorySignature(snapshot);
+  if (!signature || signature === miniEditorHistorySignature) return;
+
+  miniEditorUndoStack.push(snapshot);
+
+  if (miniEditorUndoStack.length > MINI_EDITOR_HISTORY_LIMIT) {
+    miniEditorUndoStack.shift();
+  }
+
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = signature;
+  miniEditorHistoryReady = true;
+}
+
+function scheduleMiniEditorSaveAfterHistoryApply() {
+  clearTimeout(miniEditorHistorySaveTimer);
+
+  miniEditorHistorySaveTimer = setTimeout(() => {
+    if (!miniEditorHistoryApplying) {
+      scheduleMiniEditorSave();
+    }
+  }, 80);
+}
+
+function applyMiniEditorHistorySnapshot(snapshot) {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText || !snapshot) return;
+
+  miniEditorApplyingState = true;
+  miniEditorHistoryApplying = true;
+
+  bibleText.innerHTML = snapshot.bibleTextHtml || "";
+
+  if (annotationLayer) {
+    annotationLayer.innerHTML = snapshot.annotationLayerHtml || "";
+  }
+
+  selectedDrawnAnnotation = null;
+  currentShape = null;
+  currentFreehandGroup = null;
+
+  requestAnimationFrame(() => {
+    ensureAllAnnotationMetadata();
+    resizeAnnotationLayer();
+    updateAnnotationLayoutWarning();
+
+    if (typeof updateBibleZoomLayout === "function") {
+      updateBibleZoomLayout();
+    }
+  });
+
+  setTimeout(() => {
+    miniEditorApplyingState = false;
+    miniEditorHistoryApplying = false;
+    miniEditorHistorySignature = getMiniEditorHistorySignature(snapshot);
+    scheduleMiniEditorSaveAfterHistoryApply();
+  }, 120);
+}
+
+function undoMiniEditorChange() {
+  if (!miniEditorHistoryReady) {
+    initializeMiniEditorHistory();
+  }
+
+  if (miniEditorUndoStack.length <= 1) return;
+
+  const currentSnapshot = miniEditorUndoStack.pop();
+  const previousSnapshot = miniEditorUndoStack[miniEditorUndoStack.length - 1];
+
+  miniEditorRedoStack.push(currentSnapshot);
+  applyMiniEditorHistorySnapshot(previousSnapshot);
+}
+
+function redoMiniEditorChange() {
+  if (!miniEditorHistoryReady || miniEditorRedoStack.length === 0) return;
+
+  const nextSnapshot = miniEditorRedoStack.pop();
+  miniEditorUndoStack.push(nextSnapshot);
+  applyMiniEditorHistorySnapshot(nextSnapshot);
+}
+
+function isQuillEditorTarget(target) {
+  return Boolean(target?.closest?.(".ql-editor"));
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+
+  const tagName = target.tagName?.toLowerCase();
+
+  return (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    (target.isContentEditable && !target.closest?.("#bible-text"))
+  );
+}
+
+function hasBibleSelectionContext() {
+  const bibleText = document.getElementById("bible-text");
+  const selection = window.getSelection();
+
+  if (
+    bibleText &&
+    selection &&
+    selection.rangeCount &&
+    !selection.isCollapsed &&
+    bibleText.contains(selection.getRangeAt(0).commonAncestorContainer)
+  ) {
+    return true;
+  }
+
+  return Boolean(savedBibleSelectionOffsets);
+}
+
+function handleMiniEditorKeyboardShortcuts(event) {
+  if (!editorToolsUnlocked) return;
+  if (!event.ctrlKey && !event.metaKey) return;
+  if (event.altKey) return;
+
+  const key = event.key.toLowerCase();
+  const target = event.target;
+
+  // Let Quill handle its own note-editor shortcuts/history.
+  if (isQuillEditorTarget(target)) return;
+
+  if (key === "z") {
+    event.preventDefault();
+
+    if (event.shiftKey) {
+      redoMiniEditorChange();
+    } else {
+      undoMiniEditorChange();
+    }
+
+    return;
+  }
+
+  if (key === "y") {
+    event.preventDefault();
+    redoMiniEditorChange();
+    return;
+  }
+
+  if (isTypingTarget(target)) return;
+
+  if (key === "b" && hasBibleSelectionContext()) {
+    event.preventDefault();
+    applyBibleFormat("bold");
+    return;
+  }
+
+  if (key === "u" && hasBibleSelectionContext()) {
+    event.preventDefault();
+    applyBibleFormat("underline");
+  }
+}
+
+document.addEventListener("keydown", handleMiniEditorKeyboardShortcuts);
+
 async function loadMiniEditorPage() {
   if (!editorToolsUnlocked) return;
 
@@ -712,11 +922,13 @@ async function loadMiniEditorPage() {
     }
 
     miniEditorLoaded = true;
+    initializeMiniEditorHistory();
     startBibleLayoutObservers();
     startMiniEditorObserver();
   } catch (error) {
     console.error("Load mini-editor page error:", error);
     miniEditorLoaded = true;
+    initializeMiniEditorHistory();
     startBibleLayoutObservers();
     startMiniEditorObserver();
   }
@@ -1014,6 +1226,7 @@ function applyBibleFormat(className) {
   saveBibleSelection();
   wrapSelectedTextNodes(range, className);
   restoreBibleSelection();
+  recordMiniEditorHistorySnapshot();
 }
 
 function wrapSelectedTextNodes(range, className) {
@@ -1090,6 +1303,7 @@ function clearBibleSelectionFormat() {
     .forEach(unwrapElement);
 
   restoreBibleSelection();
+  recordMiniEditorHistorySnapshot();
 }
 
 function unwrapElement(element) {
@@ -1539,6 +1753,7 @@ function clearSelectedDrawnAnnotation() {
   selectedDrawnAnnotation.remove();
   selectedDrawnAnnotation = null;
   updateAnnotationLayoutWarning();
+  recordMiniEditorHistorySnapshot();
 }
 
 function clearDrawnAnnotations() {
@@ -1549,6 +1764,7 @@ function clearDrawnAnnotations() {
   currentFreehandGroup = null;
   annotationLayoutWarningDismissed = false;
   updateAnnotationLayoutWarning();
+  recordMiniEditorHistorySnapshot();
 }
 
 function handleDrawingPointerDown(event) {
@@ -1681,6 +1897,8 @@ function finishDrawingStroke(event) {
     updateAnnotationBoundsMetadata(currentShape);
     updateAnnotationLayoutWarning();
   }
+
+  recordMiniEditorHistorySnapshot();
 
   isDrawing = false;
   currentShape = null;
@@ -1828,6 +2046,8 @@ window.closeDrawMenu = closeDrawMenu;
 window.resizeAnnotationLayer = resizeAnnotationLayer;
 window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
 window.updateAnnotationLayoutWarning = updateAnnotationLayoutWarning;
+window.undoMiniEditorChange = undoMiniEditorChange;
+window.redoMiniEditorChange = redoMiniEditorChange;
 
 // ----------------------------------------------------
 // Start editor auth check after all functions are loaded
