@@ -569,6 +569,8 @@ function refreshBibleAnnotationLayout() {
 
   bibleLayoutRefreshFrame = requestAnimationFrame(() => {
     resizeAnnotationLayer();
+    ensureAllAnnotationMetadata();
+    updateAnnotationLayoutWarning();
 
     if (typeof updateBibleZoomLayout === "function") {
       updateBibleZoomLayout();
@@ -619,6 +621,8 @@ function getMiniEditorState() {
 
   if (!bibleText) return null;
 
+  ensureAllAnnotationMetadata();
+
   return {
     bibleTextHtml: bibleText.innerHTML,
     annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : ""
@@ -643,6 +647,8 @@ function applyMiniEditorState(miniEditorJson) {
 
   // Important: recalculate the drawing layer after saved text/drawings are restored
   requestAnimationFrame(() => {
+    ensureAllAnnotationMetadata();
+
     if (typeof refreshBibleAnnotationLayout === "function") {
       refreshBibleAnnotationLayout();
     }
@@ -1108,8 +1114,168 @@ let activePointerId = null;
 let activePointerType = null;
 
 const FREEHAND_GROUP_TOUCH_PADDING = 10;
+const ANNOTATION_LAYOUT_WARNING_THRESHOLD = 40;
+const LAYOUT_SENSITIVE_ANNOTATION_SELECTOR =
+  ".drawn-annotation.circle, .drawn-annotation.square, .freehand-group";
+
 const drawingArea = document.getElementById("bible-drawing-area");
 const annotationLayer = document.getElementById("bible-annotation-layer");
+
+function getBibleTextLayoutMetrics() {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText) {
+    return { width: 0, height: 0 };
+  }
+
+  const rect = bibleText.getBoundingClientRect();
+
+  return {
+    width: Math.round(rect.width || bibleText.clientWidth || bibleText.scrollWidth || 0),
+    height: Math.round(bibleText.scrollHeight || rect.height || bibleText.clientHeight || 0)
+  };
+}
+
+function getAnnotationIdPrefix(type) {
+  if (type === "freehand") return "freehand";
+  if (type === "circle") return "circle";
+  if (type === "square") return "square";
+  return "annotation";
+}
+
+function createAnnotationId(type) {
+  return `${getAnnotationIdPrefix(type)}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function getAnnotationType(element) {
+  if (!element) return "annotation";
+  if (element.classList.contains("freehand-group")) return "freehand";
+  if (element.classList.contains("circle")) return "circle";
+  if (element.classList.contains("square")) return "square";
+  return element.dataset.annotationType || "annotation";
+}
+
+function addAnnotationMetadata(element, options = {}) {
+  if (!element) return;
+
+  const type = options.type || getAnnotationType(element);
+  const metrics = getBibleTextLayoutMetrics();
+
+  if (!element.dataset.annotationId) {
+    element.dataset.annotationId = createAnnotationId(type);
+  }
+
+  element.dataset.annotationType = type;
+  element.dataset.anchorType = element.dataset.anchorType || "chapter-canvas";
+
+  if (!element.dataset.createdWidth) {
+    element.dataset.createdWidth = String(metrics.width);
+  }
+
+  if (!element.dataset.createdHeight) {
+    element.dataset.createdHeight = String(metrics.height);
+  }
+
+  if (!element.dataset.createdPathname) {
+    element.dataset.createdPathname = window.location.pathname;
+  }
+
+  updateAnnotationBoundsMetadata(element);
+}
+
+function updateAnnotationBoundsMetadata(element) {
+  if (!element || typeof element.getBBox !== "function") return;
+
+  try {
+    const box = element.getBBox();
+
+    if (!Number.isFinite(box.width) || !Number.isFinite(box.height)) return;
+
+    element.dataset.boundsX = String(Math.round(box.x));
+    element.dataset.boundsY = String(Math.round(box.y));
+    element.dataset.boundsWidth = String(Math.round(box.width));
+    element.dataset.boundsHeight = String(Math.round(box.height));
+  } catch (error) {
+    // getBBox can fail while an SVG object is detached or not rendered yet.
+  }
+}
+
+function ensureAllAnnotationMetadata() {
+  if (!annotationLayer) return;
+
+  annotationLayer
+    .querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+    .forEach((annotation) => {
+      addAnnotationMetadata(annotation, {
+        type: getAnnotationType(annotation)
+      });
+    });
+}
+
+function hasLayoutSensitiveAnnotations() {
+  return Boolean(
+    annotationLayer?.querySelector(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  );
+}
+
+function ensureAnnotationLayoutWarningElement() {
+  let warning = document.getElementById("annotation-layout-warning");
+
+  if (warning) return warning;
+
+  warning = document.createElement("div");
+  warning.id = "annotation-layout-warning";
+  warning.className = "annotation-layout-warning";
+  warning.setAttribute("role", "status");
+  warning.setAttribute("aria-live", "polite");
+  warning.hidden = true;
+  warning.textContent =
+    "This chapter contains visual annotations created at a different display size. For best alignment, return to the original window size; drawings may shift when text wraps.";
+
+  const container = document.getElementById("display-text");
+
+  if (container) {
+    container.insertBefore(warning, container.firstChild);
+  }
+
+  return warning;
+}
+
+function getMaxAnnotationLayoutWidthDifference(currentWidth) {
+  if (!annotationLayer) return 0;
+
+  return Array.from(
+    annotationLayer.querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  ).reduce((maxDifference, annotation) => {
+    const createdWidth = Number(annotation.dataset.createdWidth);
+
+    if (!Number.isFinite(createdWidth) || createdWidth <= 0) {
+      return maxDifference;
+    }
+
+    return Math.max(maxDifference, Math.abs(currentWidth - createdWidth));
+  }, 0);
+}
+
+function updateAnnotationLayoutWarning() {
+  const warning = ensureAnnotationLayoutWarningElement();
+
+  if (!warning) return;
+
+  if (!hasLayoutSensitiveAnnotations()) {
+    warning.hidden = true;
+    return;
+  }
+
+  ensureAllAnnotationMetadata();
+
+  const metrics = getBibleTextLayoutMetrics();
+  const maxWidthDifference = getMaxAnnotationLayoutWidthDifference(metrics.width);
+
+  warning.hidden = maxWidthDifference <= ANNOTATION_LAYOUT_WARNING_THRESHOLD;
+}
 
 function getCurrentBibleZoom() {
   const zoom = Number(window.currentBibleZoom);
@@ -1195,6 +1361,7 @@ function createFreehandGroup() {
 
   newGroup.classList.add("drawn-annotation", "freehand-group");
   newGroup.dataset.groupId = `freehand-${freehandGroupCounter++}`;
+  addAnnotationMetadata(newGroup, { type: "freehand" });
   annotationLayer.appendChild(newGroup);
 
   return newGroup;
@@ -1208,6 +1375,8 @@ function mergeFreehandGroups(targetGroup, groupsToMerge) {
 
     group.remove();
   });
+
+  updateAnnotationBoundsMetadata(targetGroup);
 }
 
 function attachFreehandPathToGroup(path) {
@@ -1216,6 +1385,8 @@ function attachFreehandPathToGroup(path) {
   if (touchingGroups.length === 0) {
     const group = createFreehandGroup();
     group.appendChild(path);
+    updateAnnotationBoundsMetadata(group);
+    updateAnnotationLayoutWarning();
     currentFreehandGroup = group;
     return;
   }
@@ -1227,11 +1398,18 @@ function attachFreehandPathToGroup(path) {
     mergeFreehandGroups(targetGroup, touchingGroups.slice(1));
   }
 
+  updateAnnotationBoundsMetadata(targetGroup);
+  updateAnnotationLayoutWarning();
   currentFreehandGroup = targetGroup;
 }
 
 function finalizeFreehandGroup() {
+  if (currentFreehandGroup) {
+    updateAnnotationBoundsMetadata(currentFreehandGroup);
+  }
+
   currentFreehandGroup = null;
+  updateAnnotationLayoutWarning();
 }
 
 function setDrawingTool(tool) {
@@ -1275,6 +1453,7 @@ function clearSelectedDrawnAnnotation() {
 
   selectedDrawnAnnotation.remove();
   selectedDrawnAnnotation = null;
+  updateAnnotationLayoutWarning();
 }
 
 function clearDrawnAnnotations() {
@@ -1283,6 +1462,7 @@ function clearDrawnAnnotations() {
   annotationLayer.innerHTML = "";
   selectedDrawnAnnotation = null;
   currentFreehandGroup = null;
+  updateAnnotationLayoutWarning();
 }
 
 function handleDrawingPointerDown(event) {
@@ -1324,12 +1504,14 @@ function handleDrawingPointerDown(event) {
       "ellipse"
     );
     currentShape.classList.add("drawn-annotation", "circle");
+    addAnnotationMetadata(currentShape, { type: "circle" });
   } else if (activeDrawingTool === "square") {
     currentShape = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "rect"
     );
     currentShape.classList.add("drawn-annotation", "square");
+    addAnnotationMetadata(currentShape, { type: "square" });
   } else if (activeDrawingTool === "freehand") {
     freehandPoints = [`M ${startX} ${startY}`];
     currentShape = document.createElementNS(
@@ -1365,11 +1547,13 @@ function handleDrawingPointerMove(event) {
     currentShape.setAttribute("cy", y + height / 2);
     currentShape.setAttribute("rx", width / 2);
     currentShape.setAttribute("ry", height / 2);
+    updateAnnotationBoundsMetadata(currentShape);
   } else if (activeDrawingTool === "square") {
     currentShape.setAttribute("x", x);
     currentShape.setAttribute("y", y);
     currentShape.setAttribute("width", width);
     currentShape.setAttribute("height", height);
+    updateAnnotationBoundsMetadata(currentShape);
   } else if (activeDrawingTool === "freehand") {
     freehandPoints.push(`L ${currentX} ${currentY}`);
     currentShape.setAttribute("d", freehandPoints.join(" "));
@@ -1407,6 +1591,9 @@ function finishDrawingStroke(event) {
 
   if (activeDrawingTool === "freehand" && currentShape) {
     attachFreehandPathToGroup(currentShape);
+  } else if (currentShape) {
+    updateAnnotationBoundsMetadata(currentShape);
+    updateAnnotationLayoutWarning();
   }
 
   isDrawing = false;
@@ -1425,6 +1612,7 @@ function cancelDrawingStroke(event) {
   }
 
   currentShape?.remove();
+  updateAnnotationLayoutWarning();
 
   isDrawing = false;
   currentShape = null;
@@ -1553,6 +1741,7 @@ window.toggleDrawMenu = toggleDrawMenu;
 window.closeDrawMenu = closeDrawMenu;
 window.resizeAnnotationLayer = resizeAnnotationLayer;
 window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
+window.updateAnnotationLayoutWarning = updateAnnotationLayoutWarning;
 
 // ----------------------------------------------------
 // Start editor auth check after all functions are loaded
