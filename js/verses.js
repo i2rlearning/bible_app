@@ -400,11 +400,18 @@ function configureVerseMenuLinks() {
       function updateBibleZoomLayout() {
         const displayText = document.getElementById("display-text");
         const drawingArea = document.getElementById("bible-drawing-area");
-        const bibleText = document.getElementById("bible-text");
     
-        if (!displayText || !drawingArea || !bibleText) return;
+        if (!displayText || !drawingArea) return;
     
-        drawingArea.style.transform = `scale(${window.currentBibleZoom})`;
+        const zoom = Number(window.currentBibleZoom) || 1;
+    
+        // Important: never let a previous smaller viewport permanently lock
+        // the drawing/text wrapper width. The CSS should recalculate the
+        // natural width whenever the browser grows again.
+        drawingArea.style.width = "";
+        drawingArea.style.maxWidth = "100%";
+    
+        drawingArea.style.transform = `scale(${zoom})`;
         drawingArea.style.transformOrigin = "top left";
     
         const displayStyles = window.getComputedStyle(displayText);
@@ -412,20 +419,28 @@ function configureVerseMenuLinks() {
         const paddingTop = parseFloat(displayStyles.paddingTop) || 0;
         const paddingBottom = parseFloat(displayStyles.paddingBottom) || 0;
     
-        const textRect = bibleText.getBoundingClientRect();
-        const originalHeight = bibleText.scrollHeight || textRect.height || drawingArea.scrollHeight;
-        const originalWidth = textRect.width || bibleText.clientWidth || bibleText.scrollWidth || drawingArea.scrollWidth;
+        const naturalRect = drawingArea.getBoundingClientRect();
+        const naturalWidth = naturalRect.width || drawingArea.clientWidth || drawingArea.scrollWidth;
+        const naturalHeight = drawingArea.scrollHeight;
     
-        const zoomedHeight = originalHeight * window.currentBibleZoom;
-        const zoomedWidth = originalWidth * window.currentBibleZoom;
+        const zoomedHeight = naturalHeight * zoom;
+        const zoomedWidth = naturalWidth * zoom;
+    
+        if (zoom <= 1.001) {
+          // At normal zoom, let the document height and width be automatic.
+          // This prevents the smaller responsive layout from getting stuck
+          // when the window returns to a larger size.
+          displayText.style.height = "";
+          displayText.style.minHeight = "";
+          displayText.style.overflowX = "hidden";
+          displayText.style.overflowY = "visible";
+          return;
+        }
     
         const totalHeight = zoomedHeight + paddingTop + paddingBottom + 10;
     
         displayText.style.height = `${totalHeight}px`;
         displayText.style.minHeight = `${totalHeight}px`;
-    
-        drawingArea.style.width = `${originalWidth}px`;
-        drawingArea.style.height = `${originalHeight}px`;
     
         displayText.style.overflowX =
           zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
