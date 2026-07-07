@@ -1320,3 +1320,49 @@ main.container > .ql-container.ql-snow {
     max-width: calc(100vw - 28px) !important;
   }
 }
+
+/* ========================================================================== 
+   Stage 2G - width step 2: responsive parchment-safe content widths
+   Keep this block last. It only adjusts the Bible text and notes editor widths.
+   ========================================================================== */
+
+@media only screen and (min-width: 1400px) {
+  #display-text,
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: min(calc(100vw - 420px), 1120px) !important;
+    max-width: 1120px !important;
+  }
+}
+
+@media only screen and (min-width: 1200px) and (max-width: 1399px) {
+  #display-text,
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: min(calc(100vw - 360px), 980px) !important;
+    max-width: 980px !important;
+  }
+}
+
+@media only screen and (min-width: 1020px) and (max-width: 1199px) {
+  #display-text,
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: clamp(700px, calc(100vw - 360px), 840px) !important;
+    max-width: 840px !important;
+  }
+}
+
+@media only screen and (min-width: 640px) and (max-width: 1019px) {
+  #display-text,
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: min(calc(100vw - 72px), 820px) !important;
+    max-width: 820px !important;
+  }
+
+  #bible-text {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+}
