@@ -1105,3 +1105,15 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
     margin-right: 0 !important;
   }
 }
+
+/* ==========================================================================
+   Navbar-only fine tune: give scroll artwork breathing room below top navbar.
+   ========================================================================== */
+@media only screen and (min-width: 1101px) {
+  body:not(.landing-page) .leftcol,
+  body:not(.landing-page) .rightcol {
+    top: 58px !important;
+    height: calc(100vh - 58px) !important;
+    background-size: 150px calc(100vh - 66px) !important;
+  }
+}
