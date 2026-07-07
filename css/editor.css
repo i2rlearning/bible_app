@@ -1031,3 +1031,55 @@ body.editor-locked-state .ql-toolbar {
     font-size: 0.82rem;
   }
 }
+
+/* ========================================================================== 
+   Stage 2G - Fixed mini-toolbar spacing and editor alignment
+   The mini-toolbar now sits below the sticky navbar instead of competing with it.
+   ========================================================================== */
+:root {
+  --sticky-header-height: 52px;
+  --mini-toolbar-height: 42px;
+  --fixed-toolbar-gap: 8px;
+}
+
+#bible-mini-toolbar {
+  top: calc(var(--sticky-header-height) + var(--fixed-toolbar-gap));
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+  overflow-y: visible;
+  box-sizing: border-box;
+}
+
+#display-text {
+  padding-top: calc(var(--mini-toolbar-height) + var(--fixed-toolbar-gap) + 16px) !important;
+}
+
+main.container > .ql-toolbar.ql-snow,
+main.container > .ql-container.ql-snow {
+  width: min(100%, 920px);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  #bible-mini-toolbar {
+    width: max-content;
+    min-width: 0;
+    max-width: calc(100vw - 16px);
+    justify-content: flex-start;
+    gap: 5px;
+    padding: 5px 7px;
+  }
+
+  #bible-mini-toolbar button,
+  #bible-mini-toolbar select {
+    min-height: 28px;
+    padding: 3px 8px;
+  }
+
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: calc(100% - 16px);
+  }
+}
