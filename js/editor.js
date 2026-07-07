@@ -2215,6 +2215,57 @@ scheduleStickyEditorLayoutUpdate();
 setTimeout(scheduleStickyEditorLayoutUpdate, 250);
 setTimeout(scheduleStickyEditorLayoutUpdate, 1000);
 
+
+function closeMobileToolbarMenus() {
+  const menus = document.querySelectorAll(".mobile-toolbar-menu");
+  const toggles = document.querySelectorAll(".mobile-toolbar-toggle");
+
+  menus.forEach((menu) => {
+    menu.classList.remove("show");
+  });
+
+  toggles.forEach((toggle) => {
+    toggle.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleMobileToolbarMenu(menuId) {
+  const menu = document.getElementById(menuId);
+
+  if (!menu) return;
+
+  const wasOpen = menu.classList.contains("show");
+  closeMobileToolbarMenus();
+
+  if (!wasOpen) {
+    menu.classList.add("show");
+
+    const toggle = document.querySelector(
+      `.mobile-toolbar-toggle[onclick*="${menuId}"]`
+    );
+
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", "true");
+    }
+  }
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof Element)) return;
+
+  if (!target.closest("#bible-mini-toolbar")) {
+    closeMobileToolbarMenus();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeMobileToolbarMenus();
+  }
+});
+
 // ----------------------------------------------------
 // Expose functions used by inline HTML onclick attributes
 // ----------------------------------------------------
@@ -2236,6 +2287,8 @@ window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
 window.updateAnnotationLayoutWarning = updateAnnotationLayoutWarning;
 window.undoMiniEditorChange = undoMiniEditorChange;
 window.redoMiniEditorChange = redoMiniEditorChange;
+window.toggleMobileToolbarMenu = toggleMobileToolbarMenu;
+window.closeMobileToolbarMenus = closeMobileToolbarMenus;
 
 // ----------------------------------------------------
 // Start editor auth check after all functions are loaded
