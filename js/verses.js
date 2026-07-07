@@ -389,43 +389,42 @@ function configureVerseMenuLinks() {
 
     
       // ******************* Bible zoom state *********************
+      // The visible navbar zoom slider has been removed for now.
+      // Keep this logic optional so a future zoom control can reuse it
+      // without breaking chapter loading when #font-size-slider is absent.
       const fontSizeSlider = document.getElementById("font-size-slider");
-    
+
       window.currentBibleZoom = 1;
-    
-      fontSizeSlider.min = 18;
-      fontSizeSlider.max = 35;
-      fontSizeSlider.value = 18;
-    
+
       function updateBibleZoomLayout() {
         const displayText = document.getElementById("display-text");
         const drawingArea = document.getElementById("bible-drawing-area");
-    
+
         if (!displayText || !drawingArea) return;
-    
+
         const zoom = Number(window.currentBibleZoom) || 1;
-    
+
         // Important: never let a previous smaller viewport permanently lock
         // the drawing/text wrapper width. The CSS should recalculate the
         // natural width whenever the browser grows again.
         drawingArea.style.width = "";
         drawingArea.style.maxWidth = "100%";
-    
-        drawingArea.style.transform = `scale(${zoom})`;
+
+        drawingArea.style.transform = zoom > 1.001 ? `scale(${zoom})` : "";
         drawingArea.style.transformOrigin = "top left";
-    
+
         const displayStyles = window.getComputedStyle(displayText);
-    
+
         const paddingTop = parseFloat(displayStyles.paddingTop) || 0;
         const paddingBottom = parseFloat(displayStyles.paddingBottom) || 0;
-    
+
         const naturalRect = drawingArea.getBoundingClientRect();
         const naturalWidth = naturalRect.width || drawingArea.clientWidth || drawingArea.scrollWidth;
         const naturalHeight = drawingArea.scrollHeight;
-    
+
         const zoomedHeight = naturalHeight * zoom;
         const zoomedWidth = naturalWidth * zoom;
-    
+
         if (zoom <= 1.001) {
           // At normal zoom, let the document height and width be automatic.
           // This prevents the smaller responsive layout from getting stuck
@@ -436,32 +435,38 @@ function configureVerseMenuLinks() {
           displayText.style.overflowY = "visible";
           return;
         }
-    
+
         const totalHeight = zoomedHeight + paddingTop + paddingBottom + 10;
-    
+
         displayText.style.height = `${totalHeight}px`;
         displayText.style.minHeight = `${totalHeight}px`;
-    
+
         displayText.style.overflowX =
           zoomedWidth > displayText.clientWidth ? "auto" : "hidden";
-    
+
         displayText.style.overflowY = "hidden";
       }
-    
+
       window.updateBibleZoomLayout = updateBibleZoomLayout;
 
-      fontSizeSlider.addEventListener("input", () => {
-        const sliderValue = Number(fontSizeSlider.value);
-    
-        // 18 = 100%, 35 = about 194%
-        window.currentBibleZoom = sliderValue / 18;
-    
-        if (typeof window.refreshBibleAnnotationLayout === "function") {
-      window.refreshBibleAnnotationLayout();
-    } else {
-      updateBibleZoomLayout();
-    }
-      });
+      if (fontSizeSlider) {
+        fontSizeSlider.min = 18;
+        fontSizeSlider.max = 35;
+        fontSizeSlider.value = 18;
+
+        fontSizeSlider.addEventListener("input", () => {
+          const sliderValue = Number(fontSizeSlider.value);
+
+          // 18 = 100%, 35 = about 194%
+          window.currentBibleZoom = sliderValue / 18;
+
+          if (typeof window.refreshBibleAnnotationLayout === "function") {
+            window.refreshBibleAnnotationLayout();
+          } else {
+            updateBibleZoomLayout();
+          }
+        });
+      }
     
       // ******************* Load chapter text *********************
       getChapterText(bibleChapterID)
