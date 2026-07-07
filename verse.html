@@ -247,88 +247,135 @@
     </header>
 
     <main class="container">
-      <div id="bible-mini-toolbar">
-        
-        <div class="toolbar-dropdown">
-          <button type="button" class="dropdown-btn" data-mobile-label="Aa" onclick="toggleFontMenu()">
-            <span class="toolbar-label">Font</span>
-          </button>  
-       
-          <div id="font-menu" class="toolbar-dropdown-menu">
-            <button onclick="applyBibleFormat('bold'); closeFontMenu();" title="Bold"><strong>B</strong></button>
-            <button onclick="applyBibleFormat('italic'); closeFontMenu();" title="Italic"><em>I</em></button>      
-            <button onclick="applyBibleFormat('underline'); closeFontMenu();" title="Underline"><u>U</u></button>
-            <button onclick="applyBibleFormat('double-underline'); closeFontMenu();" title="Double Underline"><span style="text-decoration-line: underline; text-decoration-style: double;">DU</span></button>
-            <button onclick="applyBibleFormat('overline-underline'); closeFontMenu();" title="Overline Underline"><span style="text-decoration: overline underline;">OU</span></button>
-            <button onclick="applyBibleFormat('strike-through'); closeFontMenu();" title="Strikethrough"><span style="text-decoration-line: line-through;">S</span></button>  
-            <button onclick="applyBibleFormat('uppercase'); closeFontMenu();" title="Uppercase"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="menu-icon">
-                  <path d="M4 18 L7.5 8 L11 18" />
-                  <path d="M5.5 14 L9.5 14" />
-                  <path d="M7.5 5 L7.5 2" stroke-width="1.8" />
-                  <path d="M5.5 4 L7.5 2 L9.5 4" stroke-width="1.8" />
-                  <path d="M13 18 L17.5 4 L22 18" />
-                  <path d="M14.5 13 L20.5 13" />
-                </svg>
-            </button>  
-         </div>
-       </div>
-    
-       <div class="toolbar-dropdown">
-         <button type="button" class="dropdown-btn" data-mobile-label="A" onclick="toggleFontColorMenu()">
-           <span class="toolbar-label">Font Color</span>
-         </button>
-       
-         <div id="font-color-menu" class="toolbar-dropdown-menu">
-           <button type="button" class="font-color-option text-grey" onclick="applyBibleFormat('text-grey'); closeFontColorMenu();" title="Grey">A</button>
-           <button type="button" class="font-color-option text-red" onclick="applyBibleFormat('text-red'); closeFontColorMenu();" title="Red">A</button>
-           <button type="button" class="font-color-option text-blue" onclick="applyBibleFormat('text-blue'); closeFontColorMenu();" title="Blue">A</button>
-           <button type="button" class="font-color-option text-green" onclick="applyBibleFormat('text-green'); closeFontColorMenu();" title="Green">A</button>
-           <button type="button" class="font-color-option text-purple" onclick="applyBibleFormat('text-purple'); closeFontColorMenu();" title="Purple">A</button>
-         </div>
-       </div>         
-              
-       <div class="toolbar-dropdown">
-         <button type="button" class="dropdown-btn" data-mobile-label="▰" onclick="toggleHighlightMenu()">
-           <span class="toolbar-label">Highlighter</span>
-         </button>
-       
-         <div id="highlight-menu" class="toolbar-dropdown-menu">
-           <button type="button" class="color-option yellow" onclick="applyBibleFormat('highlight-yellow'); closeHighlightMenu();"></button>
-           <button type="button" class="color-option green" onclick="applyBibleFormat('highlight-green'); closeHighlightMenu();"></button>
-           <button type="button" class="color-option blue" onclick="applyBibleFormat('highlight-blue'); closeHighlightMenu();"></button>
-           <button type="button" class="color-option pink" onclick="applyBibleFormat('highlight-pink'); closeHighlightMenu();"></button>
-           <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeHighlightMenu();"></button>
-         </div>
-       </div>
-    
-     <span class="toolbar-separator">|</span> 
-      <div class="toolbar-dropdown">
-       <button type="button" class="dropdown-btn" data-mobile-label="✎" onclick="toggleDrawMenu()">
-           <span class="toolbar-label">Draw</span>
-       </button>
-     
-       <div id="draw-menu" class="toolbar-dropdown-menu">
-          <button type="button" onclick="setDrawingTool('circle'); closeDrawMenu();" data-drawing-tool="circle" title="Draw Circle" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
-          </button>
-        
-          <button type="button" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Draw Square" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-          </button>
-        
-          <button type="button" onclick="setDrawingTool('freehand'); closeDrawMenu();" data-drawing-tool="freehand" title="Freehand Draw" style="display: inline-flex; align-items: center; justify-content: center; padding: 4px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
+      <div id="bible-mini-toolbar" aria-label="Bible annotation toolbar">
+        <div class="desktop-mini-toolbar" aria-label="Desktop annotation toolbar">
+          <div class="toolbar-dropdown">
+            <button type="button" class="dropdown-btn" data-mobile-label="Aa" onclick="toggleFontMenu()">
+              <span class="toolbar-label">Font</span>
+            </button>
+
+            <div id="font-menu" class="toolbar-dropdown-menu">
+              <button onclick="applyBibleFormat('bold'); closeFontMenu();" title="Bold"><strong>B</strong></button>
+              <button onclick="applyBibleFormat('italic'); closeFontMenu();" title="Italic"><em>I</em></button>
+              <button onclick="applyBibleFormat('underline'); closeFontMenu();" title="Underline"><u>U</u></button>
+              <button onclick="applyBibleFormat('double-underline'); closeFontMenu();" title="Double Underline"><span style="text-decoration-line: underline; text-decoration-style: double;">DU</span></button>
+              <button onclick="applyBibleFormat('overline-underline'); closeFontMenu();" title="Overline Underline"><span style="text-decoration: overline underline;">OU</span></button>
+              <button onclick="applyBibleFormat('strike-through'); closeFontMenu();" title="Strikethrough"><span style="text-decoration-line: line-through;">S</span></button>
+              <button onclick="applyBibleFormat('uppercase'); closeFontMenu();" title="Uppercase">AA</button>
+            </div>
+          </div>
+
+          <div class="toolbar-dropdown">
+            <button type="button" class="dropdown-btn" onclick="toggleFontColorMenu()">
+              <span class="toolbar-label">Font Color</span>
+            </button>
+
+            <div id="font-color-menu" class="toolbar-dropdown-menu">
+              <button type="button" class="font-color-option text-grey" onclick="applyBibleFormat('text-grey'); closeFontColorMenu();" title="Grey">A</button>
+              <button type="button" class="font-color-option text-red" onclick="applyBibleFormat('text-red'); closeFontColorMenu();" title="Red">A</button>
+              <button type="button" class="font-color-option text-blue" onclick="applyBibleFormat('text-blue'); closeFontColorMenu();" title="Blue">A</button>
+              <button type="button" class="font-color-option text-green" onclick="applyBibleFormat('text-green'); closeFontColorMenu();" title="Green">A</button>
+              <button type="button" class="font-color-option text-purple" onclick="applyBibleFormat('text-purple'); closeFontColorMenu();" title="Purple">A</button>
+            </div>
+          </div>
+
+          <div class="toolbar-dropdown">
+            <button type="button" class="dropdown-btn" onclick="toggleHighlightMenu()">
+              <span class="toolbar-label">Highlighter</span>
+            </button>
+
+            <div id="highlight-menu" class="toolbar-dropdown-menu">
+              <button type="button" class="color-option yellow" onclick="applyBibleFormat('highlight-yellow'); closeHighlightMenu();" title="Yellow"></button>
+              <button type="button" class="color-option green" onclick="applyBibleFormat('highlight-green'); closeHighlightMenu();" title="Green"></button>
+              <button type="button" class="color-option blue" onclick="applyBibleFormat('highlight-blue'); closeHighlightMenu();" title="Blue"></button>
+              <button type="button" class="color-option pink" onclick="applyBibleFormat('highlight-pink'); closeHighlightMenu();" title="Pink"></button>
+              <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeHighlightMenu();" title="Orange"></button>
+            </div>
+          </div>
+
+          <span class="toolbar-separator" aria-hidden="true">|</span>
+
+          <div class="toolbar-dropdown">
+            <button type="button" class="dropdown-btn" onclick="toggleDrawMenu()">
+              <span class="toolbar-label">Draw</span>
+            </button>
+
+            <div id="draw-menu" class="toolbar-dropdown-menu">
+              <button type="button" onclick="setDrawingTool('circle'); closeDrawMenu();" data-drawing-tool="circle" title="Draw Circle" class="draw-tool-choice">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
+              </button>
+              <button type="button" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Draw Square" class="draw-tool-choice">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              </button>
+              <button type="button" onclick="setDrawingTool('freehand'); closeDrawMenu();" data-drawing-tool="freehand" title="Freehand Draw" class="draw-tool-choice">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <span class="toolbar-separator" aria-hidden="true">|</span>
+
+          <button type="button" onclick="undoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Undo" aria-label="Undo"><i class="fa fa-undo" aria-hidden="true"></i></button>
+          <button type="button" onclick="redoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Redo" aria-label="Redo"><i class="fa fa-repeat" aria-hidden="true"></i></button>
+          <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" data-drawing-tool="text" title="Text / Select">T</button>
+          <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();" class="clear-format-button" title="Clear Format" aria-label="Clear Format">Clear</button>
         </div>
-     </div>    
-          
-      <span class="toolbar-separator">|</span>
-      <button type="button" onclick="undoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Undo" aria-label="Undo">↶</button>
-      <button type="button" onclick="redoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Redo" aria-label="Redo">↷</button>
-      <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" data-drawing-tool="text" title="Text / Select">T</button>
-      <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();" class="clear-format-button" title="Clear Format" aria-label="Clear Format">Clear</button>
-    </div>
-    
+
+        <div class="mobile-mini-toolbar" aria-label="Mobile annotation toolbar">
+          <div class="mobile-toolbar-group">
+            <button type="button" class="mobile-toolbar-toggle" onclick="toggleMobileToolbarMenu('mobile-text-menu')" aria-haspopup="true" aria-expanded="false">
+              Text
+            </button>
+            <div id="mobile-text-menu" class="mobile-toolbar-menu">
+              <div class="mobile-toolbar-menu-title">Text Style</div>
+              <button onclick="applyBibleFormat('bold'); closeMobileToolbarMenus();" title="Bold"><strong>B</strong></button>
+              <button onclick="applyBibleFormat('italic'); closeMobileToolbarMenus();" title="Italic"><em>I</em></button>
+              <button onclick="applyBibleFormat('underline'); closeMobileToolbarMenus();" title="Underline"><u>U</u></button>
+              <button onclick="applyBibleFormat('double-underline'); closeMobileToolbarMenus();" title="Double Underline"><span style="text-decoration-line: underline; text-decoration-style: double;">DU</span></button>
+              <button onclick="applyBibleFormat('overline-underline'); closeMobileToolbarMenus();" title="Overline Underline"><span style="text-decoration: overline underline;">OU</span></button>
+              <button onclick="applyBibleFormat('strike-through'); closeMobileToolbarMenus();" title="Strikethrough"><span style="text-decoration-line: line-through;">S</span></button>
+              <button onclick="applyBibleFormat('uppercase'); closeMobileToolbarMenus();" title="Uppercase">AA</button>
+              <div class="mobile-toolbar-menu-title">Font Color</div>
+              <button type="button" class="font-color-option text-grey" onclick="applyBibleFormat('text-grey'); closeMobileToolbarMenus();" title="Grey">A</button>
+              <button type="button" class="font-color-option text-red" onclick="applyBibleFormat('text-red'); closeMobileToolbarMenus();" title="Red">A</button>
+              <button type="button" class="font-color-option text-blue" onclick="applyBibleFormat('text-blue'); closeMobileToolbarMenus();" title="Blue">A</button>
+              <button type="button" class="font-color-option text-green" onclick="applyBibleFormat('text-green'); closeMobileToolbarMenus();" title="Green">A</button>
+              <button type="button" class="font-color-option text-purple" onclick="applyBibleFormat('text-purple'); closeMobileToolbarMenus();" title="Purple">A</button>
+            </div>
+          </div>
+
+          <div class="mobile-toolbar-group">
+            <button type="button" class="mobile-toolbar-toggle" onclick="toggleMobileToolbarMenu('mobile-drawing-menu')" aria-haspopup="true" aria-expanded="false">
+              Drawing
+            </button>
+            <div id="mobile-drawing-menu" class="mobile-toolbar-menu">
+              <div class="mobile-toolbar-menu-title">Highlight</div>
+              <button type="button" class="color-option yellow" onclick="applyBibleFormat('highlight-yellow'); closeMobileToolbarMenus();" title="Yellow"></button>
+              <button type="button" class="color-option green" onclick="applyBibleFormat('highlight-green'); closeMobileToolbarMenus();" title="Green"></button>
+              <button type="button" class="color-option blue" onclick="applyBibleFormat('highlight-blue'); closeMobileToolbarMenus();" title="Blue"></button>
+              <button type="button" class="color-option pink" onclick="applyBibleFormat('highlight-pink'); closeMobileToolbarMenus();" title="Pink"></button>
+              <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeMobileToolbarMenus();" title="Orange"></button>
+              <div class="mobile-toolbar-menu-title">Draw</div>
+              <button type="button" onclick="setDrawingTool('circle'); closeMobileToolbarMenus();" data-drawing-tool="circle" title="Circle">○</button>
+              <button type="button" onclick="setDrawingTool('square'); closeMobileToolbarMenus();" data-drawing-tool="square" title="Square">□</button>
+              <button type="button" onclick="setDrawingTool('freehand'); closeMobileToolbarMenus();" data-drawing-tool="freehand" title="Freehand">✎</button>
+              <button type="button" onclick="setDrawingTool(null); closeMobileToolbarMenus();" data-drawing-tool="text" title="Text / Select">T</button>
+            </div>
+          </div>
+
+          <div class="mobile-toolbar-group">
+            <button type="button" class="mobile-toolbar-toggle" onclick="toggleMobileToolbarMenu('mobile-actions-menu')" aria-haspopup="true" aria-expanded="false">
+              Actions
+            </button>
+            <div id="mobile-actions-menu" class="mobile-toolbar-menu mobile-actions-menu">
+              <button type="button" onclick="undoMiniEditorChange(); closeMobileToolbarMenus();" title="Undo" aria-label="Undo"><i class="fa fa-undo" aria-hidden="true"></i><span>Undo</span></button>
+              <button type="button" onclick="redoMiniEditorChange(); closeMobileToolbarMenus();" title="Redo" aria-label="Redo"><i class="fa fa-repeat" aria-hidden="true"></i><span>Redo</span></button>
+              <button type="button" onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation(); closeMobileToolbarMenus();" title="Clear Format" aria-label="Clear Format"><span>Clear</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="eb-container" id="display-text">
         <div id="bible-drawing-area">
             <div id="bible-text"></div>
