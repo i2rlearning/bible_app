@@ -118,13 +118,11 @@
                 </div>
               </div>
             </div>
-            <!-- Zoom for container 
-            <div class="column">
-              <div class="align-group">
-                <label for="font-size-slider">Zoom: </label>&nbsp;
-                <input type="range" id="font-size-slider" min="18" max="35" value="18">
-              </div>
-            </div>    -->
+            <!-- Save status placeholder. The visible zoom slider was removed from the navbar for now.
+                 verses.js still keeps optional zoom support if we bring it back later. -->
+            <div class="column save-status-column" aria-live="polite">
+              <span id="editor-save-status" class="editor-save-status"></span>
+            </div>
             <!-- Login/Logout -->
             <div class="column auth-button-container verse-auth-buttons">
               <button
