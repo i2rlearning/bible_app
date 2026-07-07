@@ -26,25 +26,26 @@
       <div class="subheader" id="stickyHeader">
         <div class="container flex">
           <div class="subheadings">
-            <!-- Mamburger menu -->
-            <div class="column">
-              <div class="hamburger">
-                  <button
-                    type="button"
-                    id="menuToggle"
-                    class="main-nav-toggle"
-                    aria-label="Toggle menu"
-                    aria-expanded="false"
-                  >
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </button>
-                </div>
-            </div>
-            <!-- Compact passage picker -->
-            <div class="column passage-picker-column">
-              <div class="passage-picker" id="passage-picker">
+            <div class="verse-toolbar-left">
+              <!-- Hamburger menu -->
+              <div class="column menu-toggle-column">
+                <div class="hamburger">
+                    <button
+                      type="button"
+                      id="menuToggle"
+                      class="main-nav-toggle"
+                      aria-label="Toggle menu"
+                      aria-expanded="false"
+                    >
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </button>
+                  </div>
+              </div>
+              <!-- Compact passage picker -->
+              <div class="column passage-picker-column">
+                <div class="passage-picker" id="passage-picker">
                 <button
                   type="button"
                   id="passage-picker-toggle"
@@ -117,6 +118,7 @@
                   </div>
                 </div>
               </div>
+            </div>
             </div>
             <!-- Save status placeholder. The visible zoom slider was removed from the navbar for now.
                  verses.js still keeps optional zoom support if we bring it back later. -->
