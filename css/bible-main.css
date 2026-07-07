@@ -318,27 +318,13 @@ body.basic_section #select-prompt {
   height: auto;
 }
 
-.leftcol {
-  position: fixed;
-  height: 100%;
-  width: 200px;
-  background-image: url('../img/scrollbarleft.png');
-  background-repeat: no-repeat;
-  background-size: 150px 97vh;
-  top: 35px;
-  left: 0;
+.leftcol,
+.rightcol,
+.left-button,
+.right-button {
+  display: none !important;
 }
 
-.rightcol {
-  position: fixed;
-  height: 100%;
-  width: 200px;
-  background-image: url('../img/scrollbar.png');
-  background-repeat: no-repeat;
-  background-size: 150px 97vh;
-  top: 35px;
-  right: -50px;
-}
 
 .saveButton {
   position: relative;
@@ -401,8 +387,10 @@ body.basic_section #select-prompt {
     font-size: 16px;
   }
   .container {
-    max-width: calc(100vw - 400px); 
+    width: calc(100% - 40px);
+    max-width: 1180px;
     padding: 0 20px;
+    box-sizing: border-box;
   }
   .list-container.numeric-list ol {
     justify-content: left;
@@ -676,22 +664,3 @@ button#logout:focus-visible {
   }
 }
 
-/* TEMP DEBUG ONLY — remove after layout testing */
-
-#bible-text {
-  background: rgba(255, 255, 0, 0.35) !important;
-  outline: 3px solid orange !important;
-}
-
-#bible-text-wrapper,
-.bible-text-wrapper,
-.scripture-container,
-.scripture-content {
-  outline: 2px dashed red !important;
-}
-
-#annotation-layer,
-.annotation-layer,
-svg {
-  outline: 2px solid blue !important;
-}
