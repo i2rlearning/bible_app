@@ -1090,7 +1090,7 @@ main.container > .ql-container.ql-snow {
    Keep this block at the end so it overrides older mini-toolbar attempts.
    ========================================================================== */
 :root {
-  --verse-content-width: 820px;
+  --verse-content-width: 980px;
   --sticky-header-height: 44px;
   --mini-toolbar-height: 38px;
   --fixed-toolbar-gap: 6px;
