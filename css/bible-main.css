@@ -894,296 +894,214 @@ button#logout:focus-visible {
   }
 }
 
-
 /* ========================================================================== 
-   Stage 2G-3 - definitive compact navbar and mobile passage picker
-   Keep this block near the end so it overrides older Week 2 experiments.
+   Stage 2G navbar-only rollback / stabilization
+   Purpose: keep the top navbar compact and prevent any header-height feedback.
+   This intentionally does not change the mini-editor, Bible text width, notes editor,
+   or the passage picker panel behavior.
    ========================================================================== */
-:root {
-  --verse-content-width: 820px;
-  --sticky-header-height: 44px;
-  --mini-toolbar-height: 38px;
-  --fixed-toolbar-gap: 6px;
-}
-
-body.index {
-  overflow-x: hidden;
-}
-
 #stickyHeader {
-  position: sticky;
-  top: 0;
-  z-index: 6000;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 6000 !important;
 }
 
-.subheader {
-  background: #f6fbff;
-  border-bottom: 1px solid rgba(19, 57, 93, 0.08);
-  box-shadow: 0 1px 7px rgba(19, 57, 93, 0.08);
+body:not(.landing-page) .subheader {
+  height: 50px !important;
+  min-height: 50px !important;
+  max-height: 50px !important;
+  overflow: visible !important;
+  background: #f6fbff !important;
+  border-bottom: 1px solid rgba(19, 57, 93, 0.08) !important;
+  box-shadow: 0 1px 7px rgba(19, 57, 93, 0.08) !important;
 }
 
-.subheader .container.flex {
-  max-width: none;
-  width: 100%;
-  padding: 0 10px;
-  justify-content: center;
-  box-sizing: border-box;
-}
-
-.subheader .subheadings {
-  display: grid !important;
-  grid-template-columns: auto auto auto auto;
+body:not(.landing-page) .subheader .container.flex {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  padding: 0 10px !important;
+  margin: 0 auto !important;
+  display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 14px !important;
+  flex-wrap: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+body:not(.landing-page) .subheader .subheadings {
   width: auto !important;
   max-width: calc(100vw - 20px) !important;
-  min-height: var(--sticky-header-height) !important;
-  margin: 0 auto !important;
-  padding: 2px 0 !important;
-  line-height: 1 !important;
-  box-sizing: border-box;
-}
-
-.subheader .column,
-.subheader .verse-toolbar-left,
-.subheader .passage-picker-column,
-.subheader .save-status-column,
-.subheader .verse-auth-buttons {
-  float: none !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100% !important;
   min-height: 0 !important;
-  height: auto !important;
+  margin: 0 auto !important;
   padding: 0 !important;
-  margin: 0 !important;
-  border-right: 0 !important;
-}
-
-.subheader .verse-toolbar-left {
-  gap: 0 !important;
-}
-
-.subheader .hamburger {
-  width: 30px !important;
-  height: 28px !important;
-}
-
-.subheader .main-nav-toggle {
-  width: 26px !important;
-  height: 20px !important;
-}
-
-.subheader .main-nav-toggle span {
-  height: 3px !important;
-}
-
-.subheader .main-nav-toggle span:nth-child(1) {
-  top: 0 !important;
-}
-
-.subheader .main-nav-toggle span:nth-child(2) {
-  top: 8px !important;
-}
-
-.subheader .main-nav-toggle span:nth-child(3) {
-  top: 16px !important;
-}
-
-.subheader .main-nav-toggle.active-menu span:nth-child(1),
-.subheader .main-nav-toggle.active-menu span:nth-child(3) {
-  top: 8px !important;
-}
-
-.subheader .passage-picker {
-  max-width: min(44vw, 340px) !important;
-}
-
-.subheader .passage-picker-toggle {
-  min-height: 28px !important;
-  height: 28px !important;
-  max-width: 100% !important;
-  padding: 2px 8px !important;
-  font-size: 0.86rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-wrap: nowrap !important;
+  gap: 16px !important;
   line-height: 1 !important;
+  font-size: 1rem !important;
+  box-sizing: border-box !important;
 }
 
-.subheader #current-passage-label {
-  display: inline-block;
-  max-width: min(36vw, 270px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+body:not(.landing-page) .subheader .column,
+body:not(.landing-page) .subheader .verse-toolbar-left,
+body:not(.landing-page) .subheader .menu-toggle-column,
+body:not(.landing-page) .subheader .passage-picker-column,
+body:not(.landing-page) .subheader .save-status-column,
+body:not(.landing-page) .subheader .verse-auth-buttons {
+  float: none !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-right: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
 }
 
-.subheader .save-status-column {
+body:not(.landing-page) .subheader .verse-toolbar-left {
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+
+body:not(.landing-page) .subheader .hamburger {
+  width: 34px !important;
+  height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+body:not(.landing-page) .subheader .main-nav-toggle {
+  width: 30px !important;
+  height: 24px !important;
+}
+
+body:not(.landing-page) .subheader .main-nav-toggle span {
+  height: 4px !important;
+}
+
+body:not(.landing-page) .subheader .passage-picker {
+  max-width: min(42vw, 340px) !important;
+}
+
+body:not(.landing-page) .subheader .passage-picker-toggle {
+  min-height: 30px !important;
+  height: 30px !important;
+  max-width: 100% !important;
+  padding: 3px 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  font-size: 0.94rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+body:not(.landing-page) .subheader #current-passage-label {
+  display: inline-block !important;
+  max-width: min(34vw, 270px) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body:not(.landing-page) .subheader .save-status-column {
   display: none !important;
 }
 
-.subheader .save-status-column.save-status-column-visible {
+body:not(.landing-page) .subheader .save-status-column.save-status-column-visible {
   display: flex !important;
 }
 
-.verse-auth-buttons button#login,
-.verse-auth-buttons button#logout {
-  min-width: 64px !important;
-  height: 28px !important;
-  padding: 0 9px !important;
-  font-size: 0.82rem !important;
+body:not(.landing-page) .verse-auth-buttons button#login,
+body:not(.landing-page) .verse-auth-buttons button#logout {
+  min-width: 68px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 0.85rem !important;
   line-height: 1 !important;
 }
 
-.verse-auth-buttons button#login i,
-.verse-auth-buttons button#logout i {
-  margin-right: 5px;
-}
-
-.mobile-passage-link {
-  display: none !important;
-}
-
-.leftcol,
-.rightcol {
-  top: calc(var(--sticky-header-height) + 8px) !important;
-  background-size: 150px calc(100vh - var(--sticky-header-height) - 10px) !important;
+body:not(.landing-page) .verse-auth-buttons button#login i,
+body:not(.landing-page) .verse-auth-buttons button#logout i {
+  margin-right: 5px !important;
 }
 
 @media only screen and (max-width: 639px) {
-  .subheader .subheadings {
-    grid-template-columns: auto auto !important;
-    grid-template-areas:
-      "menu auth"
-      "status status" !important;
-    gap: 8px 22px !important;
-    min-height: var(--sticky-header-height) !important;
-    padding: 4px 8px !important;
+  body:not(.landing-page) .subheader {
+    height: 54px !important;
+    min-height: 54px !important;
+    max-height: 54px !important;
   }
 
-  .subheader .verse-toolbar-left {
-    grid-area: menu;
+  body:not(.landing-page) .subheader .subheadings {
+    max-width: calc(100vw - 12px) !important;
+    gap: 12px !important;
   }
 
-  .subheader .verse-auth-buttons {
-    grid-area: auth;
+  body:not(.landing-page) .subheader .passage-picker {
+    max-width: min(48vw, 210px) !important;
   }
 
-  .subheader .save-status-column {
-    grid-area: status;
+  body:not(.landing-page) .subheader #current-passage-label {
+    max-width: min(38vw, 170px) !important;
   }
 
-  .subheader .passage-picker-column {
-    position: absolute !important;
-    width: 0 !important;
-    height: 0 !important;
-    min-width: 0 !important;
-    max-width: 0 !important;
-    overflow: visible !important;
-    pointer-events: none !important;
-  }
-
-  .subheader .passage-picker {
-    position: static !important;
-    width: 0 !important;
-    max-width: 0 !important;
-    overflow: visible !important;
-    pointer-events: none !important;
-  }
-
-  .subheader .passage-picker-toggle {
-    display: none !important;
-  }
-
-  .subheader .passage-picker-panel {
+  body:not(.landing-page) .subheader .save-status-column.save-status-column-visible {
     position: fixed !important;
-    top: calc(var(--sticky-header-height) + 10px) !important;
-    left: 12px !important;
-    right: 12px !important;
-    width: auto !important;
-    max-width: none !important;
-    max-height: calc(100vh - var(--sticky-header-height) - 24px) !important;
-    overflow-y: auto !important;
-    z-index: 8000 !important;
-    padding: 14px !important;
-    border: 1px solid rgba(19, 57, 93, 0.22) !important;
-    border-radius: 14px !important;
-    background: #f8fbff !important;
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28) !important;
-    box-sizing: border-box !important;
-    pointer-events: auto !important;
-    text-align: left !important;
+    top: 58px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 6002 !important;
   }
 
-  .subheader .passage-picker-panel[hidden] {
-    display: none !important;
-  }
-
-  .subheader .passage-picker-header {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 10px !important;
-    margin-bottom: 12px !important;
-  }
-
-  .subheader .passage-picker-header h2 {
-    margin: 0 !important;
-    font-size: 1.15rem !important;
-    line-height: 1.2 !important;
-    text-transform: none !important;
-  }
-
-  .subheader .passage-picker-close {
-    width: 30px !important;
+  body:not(.landing-page) .verse-auth-buttons button#login,
+  body:not(.landing-page) .verse-auth-buttons button#logout {
+    min-width: 68px !important;
     height: 30px !important;
-    border: 1px solid #bbb !important;
-    border-radius: 6px !important;
-    background: #fff !important;
-    cursor: pointer;
-  }
-
-  .subheader .passage-picker-fields {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-
-  .subheader .passage-picker-field {
-    display: grid !important;
-    gap: 4px !important;
-    font-size: 0.92rem !important;
-    line-height: 1.2 !important;
-  }
-
-  .subheader .passage-picker-field span {
-    font-weight: 700 !important;
-  }
-
-  .subheader .passage-picker-field select,
-  .subheader .passage-picker-open {
-    width: 100% !important;
-    min-height: 34px !important;
-    font-size: 1rem !important;
-  }
-
-  .subheader .passage-picker-actions {
-    margin-top: 12px !important;
-    text-align: center !important;
-  }
-
-  .mobile-passage-link {
-    display: block !important;
+    min-height: 30px !important;
+    padding: 0 9px !important;
+    font-size: 0.82rem !important;
   }
 }
 
-@media only screen and (max-width: 420px) {
-  .subheader .subheadings {
-    gap: 8px 18px !important;
+@media only screen and (max-width: 380px) {
+  body:not(.landing-page) .subheader .subheadings {
+    gap: 8px !important;
   }
 
-  .verse-auth-buttons button#login,
-  .verse-auth-buttons button#logout {
-    min-width: 58px !important;
-    padding: 0 8px !important;
+  body:not(.landing-page) .subheader .passage-picker {
+    max-width: min(46vw, 170px) !important;
+  }
+
+  body:not(.landing-page) .subheader #current-passage-label {
+    max-width: min(36vw, 135px) !important;
+  }
+
+  body:not(.landing-page) .verse-auth-buttons button#login span,
+  body:not(.landing-page) .verse-auth-buttons button#logout span {
+    display: none !important;
+  }
+
+  body:not(.landing-page) .verse-auth-buttons button#login,
+  body:not(.landing-page) .verse-auth-buttons button#logout {
+    min-width: 38px !important;
+    width: 38px !important;
+    padding: 0 !important;
+  }
+
+  body:not(.landing-page) .verse-auth-buttons button#login i,
+  body:not(.landing-page) .verse-auth-buttons button#logout i {
+    margin-right: 0 !important;
   }
 }
