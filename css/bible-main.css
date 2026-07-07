@@ -817,3 +817,79 @@ button#logout:focus-visible {
     justify-self: end;
   }
 }
+
+/* ========================================================================== 
+   Stage 2G - Centered verse navbar refinement
+   Keeps the top controls visually centered as one compact control group.
+   ========================================================================== */
+.subheader {
+  border-bottom: 1px solid rgba(19, 57, 93, 0.08);
+  box-shadow: 0 1px 8px rgba(19, 57, 93, 0.08);
+}
+
+.subheader .container.flex {
+  justify-content: center;
+}
+
+.subheader .subheadings {
+  width: fit-content;
+  max-width: calc(100vw - 28px);
+  margin: 0 auto;
+  grid-template-columns: auto auto auto;
+  justify-content: center;
+  align-items: center;
+  column-gap: 18px;
+  padding: 6px 0;
+}
+
+.subheader .verse-toolbar-left {
+  min-width: 0;
+  justify-self: center;
+}
+
+.subheader .verse-auth-buttons {
+  justify-self: center;
+}
+
+.subheader .passage-picker {
+  max-width: min(42vw, 340px);
+}
+
+.subheader .passage-picker-toggle {
+  min-height: 30px;
+  padding: 3px 8px;
+}
+
+.subheader .save-status-column:not(.save-status-column-visible),
+.subheader .save-status-column .editor-save-status:not(.editor-save-status-visible) {
+  display: none !important;
+}
+
+@media only screen and (max-width: 700px) {
+  .subheader .subheadings {
+    width: 100%;
+    max-width: calc(100vw - 16px);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "left auth"
+      "status status";
+    justify-content: stretch;
+    column-gap: 8px;
+    row-gap: 4px;
+    padding: 6px 8px;
+  }
+
+  .subheader .verse-toolbar-left {
+    justify-self: start;
+    max-width: 100%;
+    gap: 8px;
+  }
+
+  .subheader .passage-picker {
+    max-width: min(58vw, 300px);
+  }
+
+  .subheader .verse-auth-buttons {
+    justify-self: end;
+  }
+}
