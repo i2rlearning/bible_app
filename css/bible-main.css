@@ -688,3 +688,57 @@ button#logout:focus-visible {
   }
 }
 
+
+
+/* ========================================================================== 
+   Stage 2F - Navbar cleanup after removing visible zoom slider
+   ========================================================================== */
+.subheader .subheadings {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-right: 0;
+}
+
+.subheader .column {
+  float: none;
+}
+
+.subheader .passage-picker-column {
+  flex: 0 1 auto;
+}
+
+.subheader .save-status-column {
+  flex: 1 1 auto;
+  justify-content: center;
+  border-right: 2px solid lightgray;
+  min-width: 90px;
+}
+
+.subheader .verse-auth-buttons {
+  margin-left: auto;
+}
+
+@media only screen and (max-width: 700px) {
+  .subheader .subheadings {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .subheader .column {
+    min-height: 40px;
+    border-right: 0;
+    padding: 0 6px;
+  }
+
+  .subheader .save-status-column {
+    order: 4;
+    flex-basis: 100%;
+    min-height: 22px;
+  }
+
+  .subheader .verse-auth-buttons {
+    margin-left: 0;
+  }
+}
