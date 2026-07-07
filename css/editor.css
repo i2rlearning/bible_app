@@ -176,6 +176,8 @@
 /************* Bible display area *************/
 #display-text {
   padding-top: 45px;
+  padding-bottom: 34px;
+  margin-bottom: 28px;
   overflow-x: auto !important;
   overflow-y: hidden !important;
   max-height: none !important;
