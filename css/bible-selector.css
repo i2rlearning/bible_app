@@ -1017,16 +1017,41 @@ body.passage-picker-is-open::before {
 }
 
 .passage-picker-close {
+  position: relative;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
   border: 1px solid rgba(19, 57, 93, 0.22);
   border-radius: 50%;
   background: #fff;
   color: #16355c;
-  font-size: 1.45rem;
+  font-size: 0;
   line-height: 1;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.passage-picker-close::before,
+.passage-picker-close::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 17px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.passage-picker-close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.passage-picker-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .passage-picker-close:hover {
