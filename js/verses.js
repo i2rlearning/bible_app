@@ -69,6 +69,39 @@ function initializePassagePicker() {
     });
 }
 
+function configureMobilePassagePickerMenu() {
+  const menuPassageLink =
+    document.getElementById(
+      "openPassagePickerFromMenu"
+    );
+
+  if (!menuPassageLink) {
+    return;
+  }
+
+  menuPassageLink.addEventListener(
+    "click",
+    (event) => {
+      event.preventDefault();
+
+      if (
+        typeof window.closeNav ===
+        "function"
+      ) {
+        window.closeNav();
+      }
+
+      if (
+        versePassagePicker &&
+        typeof versePassagePicker.setOpen ===
+          "function"
+      ) {
+        versePassagePicker.setOpen(true);
+      }
+    }
+  );
+}
+
 function normalizeCurrentVerseUrl() {
     if (!bibleVersionID || !bibleChapterID) {
       return;
@@ -301,6 +334,7 @@ const preloadedArrowImages = [
       } else {
         initializeBibleIdentity();
         initializePassagePicker();
+        configureMobilePassagePickerMenu();
       }
 
 const chapterParts = bibleChapterID.split(".");
