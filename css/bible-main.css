@@ -318,11 +318,35 @@ body.basic_section #select-prompt {
   height: auto;
 }
 
-.leftcol,
-.rightcol,
-.left-button,
-.right-button {
-  display: none !important;
+.leftcol {
+  position: fixed;
+  height: 100%;
+  width: 200px;
+  background-image: url('../img/scrollbarleft.png');
+  background-repeat: no-repeat;
+  background-size: 150px 97vh;
+  top: 35px;
+  left: 0;
+}
+
+.rightcol {
+  position: fixed;
+  height: 100%;
+  width: 200px;
+  background-image: url('../img/scrollbar.png');
+  background-repeat: no-repeat;
+  background-size: 150px 97vh;
+  top: 35px;
+  right: -50px;
+}
+
+@media only screen and (max-width: 1100px) {
+  .leftcol,
+  .rightcol,
+  .left-button,
+  .right-button {
+    display: none !important;
+  }
 }
 
 
