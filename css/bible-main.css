@@ -692,11 +692,14 @@ button#logout:focus-visible {
 
 /* ========================================================================== 
    Stage 2F - Navbar cleanup after removing visible zoom slider
+   Save status is centered across the full navbar on desktop/tablet.
    ========================================================================== */
 .subheader .subheadings {
+  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
+  min-height: 48px;
   margin-right: 0;
 }
 
@@ -709,10 +712,18 @@ button#logout:focus-visible {
 }
 
 .subheader .save-status-column {
-  flex: 1 1 auto;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
   justify-content: center;
-  border-right: 2px solid lightgray;
-  min-width: 90px;
+  min-width: 120px;
+  padding: 0;
+  border-right: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .subheader .verse-auth-buttons {
@@ -724,6 +735,7 @@ button#logout:focus-visible {
     flex-wrap: wrap;
     justify-content: center;
     gap: 4px;
+    min-height: 0;
   }
 
   .subheader .column {
@@ -733,9 +745,13 @@ button#logout:focus-visible {
   }
 
   .subheader .save-status-column {
+    position: static;
     order: 4;
     flex-basis: 100%;
     min-height: 22px;
+    transform: none;
+    min-width: 0;
+    pointer-events: auto;
   }
 
   .subheader .verse-auth-buttons {
