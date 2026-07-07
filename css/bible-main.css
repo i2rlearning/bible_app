@@ -1,1119 +1,1132 @@
-@import url("https://fonts.googleapis.com/css?family=Libre+Baskerville:400,700|Arima:400,500,700");
-
-/* ==========================================================================
-   Core Resets & Base Elements
-   ========================================================================== */
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background-image: url('../img/wedding-paper.jpg'); 
-  background-attachment: fixed;
-  background-repeat: no-repeat;
-  background-size: cover;
+/************* Quill Editor *************/
+.ql-container.ql-snow {
+  font-size: 16px;
+  background-color: white; 
+  border: 1px solid black !important;
+  min-height: 200px;
 }
 
-html {
-  box-sizing: border-box;
-  font-size: 12.8px;
+.ql-editor {
+  line-height: 1.6;
+  padding-left: 8px !important; /* Adjust this value to your liking */
+  padding-right: 8px !important;
+  padding-top: 8px !important;
 }
 
-/* Global Border-Box Reset */
-html *,
-html *:before,
-html *:after {
-  box-sizing: inherit;
+.ql-editor.ql-blank::before {
+  left: 15px !important; /* Match the padding-left above exactly */
+  right: 15px !important;
+  font-style: normal;
+  color: rgba(0,0,0,0.6); /* Optional: standard placeholder grey */
+}
+/* Bold fix */
+.ql-editor strong,
+.ql-editor b {
+  font-weight: bold !important;
 }
 
-body {
-  font-family: "Arima";
-  font-weight: 300;
+.ql-editor span {
+  font-weight: inherit;
 }
 
-*:focus {
-  outline: none;
+/* Fix for the link/image tooltip being cut off */
+.ql-snow .ql-tooltip {
+  margin-left: 10px; /* Moves it away from the left edge */
+  white-space: nowrap; 
+  left: 5px !important; /* Forces a minimum distance from the left */
 }
 
-h1, h2, h3, h4, h5, h6 {
-  margin: 0;
+/* Optional: Ensure it stays above other elements if needed */
+.ql-snow .ql-tooltip.ql-editing {
+  left: 15px !important;
 }
 
-a {
-  color: #000;
-  text-decoration: none;
+/************* Quill size classes *************/
+.ql-editor .ql-size-8px {
+  font-size: 8px;
 }
 
-ul, ol {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.ql-editor .ql-size-10px {
+  font-size: 10px;
 }
 
-/* ==========================================================================
-   Layout & Utility Classes
-   ========================================================================== */
-.hidden {
-  display: none !important;
+.ql-editor .ql-size-12px {
+  font-size: 12px;
 }
 
-.flex {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.ql-editor .ql-size-14px {
+  font-size: 14px;
 }
 
-.container {
-  box-sizing: content-box;
-  max-width: 1060px;
-  padding: 0 10px;
-  margin: auto;
+.ql-editor .ql-size-18px {
+  font-size: 18px;
 }
 
-.container .inside {
-  background-color: white;
-  text-align: center;
+.ql-editor .ql-size-24px {
+  font-size: 24px;
 }
 
-/* Row & Columns */
-.column {
-  float: left;
-  border-right: 2px solid lightgray;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  height: 100%;
+.ql-editor .ql-size-32px {
+  font-size: 32px;
 }
 
-.row:after {
-  content: "";
-  display: table;
-  clear: both;
+/************* Quill size dropdown labels *************/
+.ql-snow .ql-picker.ql-size .ql-picker-label::before {
+  content: "16px" !important;
 }
 
-.align-group {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value]::before {
+  content: attr(data-value) !important;
 }
 
-.center {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
+.ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before {
+  content: "16px" !important;
 }
 
-.bottom-spacer {
-  padding-bottom: 30px;
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value]::before {
+  content: attr(data-value) !important;
 }
 
-/* ==========================================================================
-   Header & Navigation Components
-   ========================================================================== */
-#stickyHeader {
-  position: sticky;
-  top: 0;
-  z-index: 3000;
+/************* Quill size dropdown visual previews *************/
+.ql-snow .ql-picker.ql-size .ql-picker-item:not([data-value])::before {
+  font-size: 16px !important;
 }
 
-header {
-  position: relative;
-  z-index: 99;
-  padding: 0.5em 0;
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8px"]::before {
+  font-size: 8px !important;
 }
 
-header:after {
-  content: "";
-  width: 100%;
-  height: 1px;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  box-shadow: 0 2px 14px 0 rgba(0, 0, 0, 0.15);
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before {
+  font-size: 10px !important;
 }
 
-header.container {
-  display: flex;
-  justify-content: left;
-  align-items: center;
-  font-size: 2em;
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before {
+  font-size: 12px !important;
 }
 
-header .logo {
-  text-indent: 99999px;
-  overflow: hidden;
-  width: 10rem;
-  height: 8rem;
-  margin-left: 0px;
-  margin-right: 50px;
-  margin-bottom: .5rem;
-  background: url("../img/logo.png") center no-repeat;
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before {
+  font-size: 14px !important;
 }
 
-header h1 {
-  text-align: right;
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before {
+  font-size: 18px !important;
 }
 
-header h1 a {
-  font-family: "Libre Baskerville", serif;
-  font-style: italic;
-  font-weight: 400;
-  color: #027CFF;
-  font-size: 1.5rem;
-  line-height: 2.75rem;
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before {
+  font-size: 24px !important;
 }
 
-/* Subheader */
-.subheader {
-  background: #F6FBFF;
-  background: rgba(246,251,255); 
-  position: relative;
-  text-align: center;
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before {
+  font-size: 32px !important;
 }
 
-.subheader .container {
-  flex-wrap: wrap;
-  font-size: 1.75vw;  
-  line-height: 2.25rem;
-  font-weight: 600;
-}
-
-.subheader .subheadings {
-  margin-right: 2rem;
-}
-
-.subheader .subheadings h2 {
-  font-size: 1rem;
-  line-height: 1.3125;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-bottom: 0.375em;
-}
-
-.subheader .subheadings h3 {
-  font-family: "Libre Baskerville", serif;
-  font-size: 1.75rem;
-  line-height: 2.25rem;
-  font-weight: 700;
-}
-
-/* ==========================================================================
-   Lists & Dynamic Data Views
-   ========================================================================== */
-body.basic_index #select-prompt, 
-body.basic_verse-selected #select-prompt, 
-body.basic_section #select-prompt {
-  display: none;
-}
-
-.list-heading {
-  border-bottom: 1px solid lightgray;
-  margin-bottom: 1em;
-  font-weight: normal;
-}
-
-.list-heading span {
-  display: inline-block;
-  background: #31ACFF;
-  color: #fff;
-  text-transform: uppercase;
-  font-size: 1.125rem;
-  line-height: 1.875rem;
-  font-weight: 700;
-  padding: 0 1em;
-  margin-bottom: -1px;
-}
-
-.list-container > ul,
-.list-container > ol {
-  margin-bottom: 3rem;   
-}
-
-.list-container li {
-  font-size: 2rem;
-  line-height: 1.5;
-  padding: 0.25em 0;
-}
-
-.list-container li a:hover {
-  color: #015d9b;
-}
-
-.list-container.bible-list li, 
-.list-container.section-list li {
-  font-size: 1.2rem;
-  line-height: 1.5625rem;
-  padding: 0.3em 0;
-}
-
-.list-container.bible-list li a, 
-.list-container.section-list li a {
-  display: flex;
-  justify-content: left;
-}
-
-.list-container.bible-list li .bible-version-abbr, 
-.list-container.bible-list li .section-id, 
-.list-container.section-list li .bible-version-abbr, 
-.list-container.section-list li .section-id {
-  display: inline-block;
-  white-space: nowrap;
-  font-weight: 700;
-  min-width: 5.3em;
-  text-align: right;
-  text-decoration: none;
-  margin-right: 1.3em;
-}
-
-.list-container.bible-list li .bible-version-desc:before, 
-.list-container.section-list li .bible-version-desc:before {
-  content: "- ";
-}
-
-/* Numeric Lists */
-.list-container.numeric-list ol {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-}
-
-.list-container.numeric-list li {
-  padding: 0;
-  margin: 0 0.15em 0.3em;
-}
-
-.list-container.numeric-list li a {
-  display: inline-block;
-  padding: 0 0.25em;
-  border: 1px solid lightgray;
-  white-space: nowrap;
-  font-size: 1rem;
-  line-height: 3.75rem;
-  min-width: 3.75rem;
-  text-align: center;
-}
-
-.list-container.numeric-list li a:hover {
-  background: #31ACFF;
-  color: #fff;
-}
-
-/* ==========================================================================
-   Interactive Elements & Fixed Layouts
-   ========================================================================== */
-.right-button {
+/************* Mini-editor toolbar *************/
+#bible-mini-toolbar {
   position: fixed;
-  top: 50%;
-  right: 30px;
-  width: 5vw;
-  height: auto;
-}
-
-.left-button {
-  position: fixed;
-  top: 50%;
-  left: 30px;
-  width: 5vw;
-  height: auto;
-}
-
-.leftcol {
-  position: fixed;
-  height: 100%;
-  width: 200px;
-  background-image: url('../img/scrollbarleft.png');
-  background-repeat: no-repeat;
-  background-size: 150px 97vh;
-  top: 35px;
-  left: 0;
-}
-
-.rightcol {
-  position: fixed;
-  height: 100%;
-  width: 200px;
-  background-image: url('../img/scrollbar.png');
-  background-repeat: no-repeat;
-  background-size: 150px 97vh;
-  top: 35px;
-  right: -50px;
-}
-
-@media only screen and (max-width: 1100px) {
-  .leftcol,
-  .rightcol,
-  .left-button,
-  .right-button {
-    display: none !important;
-  }
-}
-
-
-.saveButton {
-  position: relative;
-  top: -25px;
-  left: 15px;
-}
-
-/* Tooltips */
-.tooltip {
-  position: relative;
-  display: inline-block;
-  color: #006080;
-}
-
-.tooltip .tooltiptext {
-  visibility: hidden;
-  position: absolute;
-  width: 150px;
-  background-color: #555;
-  color: #fff;
-  text-align: center;
-  font-size: 11px;
-  line-height: normal;
-  padding: 5px;
-  border-radius: 6px;
-  z-index: 1000;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.tooltip:hover .tooltiptext {
-  visibility: visible;
-  opacity: 1;
-}
-
-.tooltip-bottom {
-  top: 135%;
-  left: 50%;  
-  margin-left: -70px;
-}
-
-.tooltip-bottom::after {
-  content: "";
-  position: absolute;
-  bottom: 100%;
+  top: 42px;
   left: 50%;
-  margin-left: -5px;
-  border-width: 5px;
-  border-style: solid;
-  border-color: transparent transparent #555 transparent;
-}
-
-/* ==========================================================================
-   Media Queries (Responsiveness)
-   ========================================================================== */
-
-/* Tablet & Desktop Settings (600px and up) */
-@media only screen and (min-width: 600px) {
-  html {
-    font-size: 16px;
-  }
-  .container {
-    width: calc(100% - 40px);
-    max-width: 1180px;
-    padding: 0 20px;
-    box-sizing: border-box;
-  }
-  .list-container.numeric-list ol {
-    justify-content: left;
-  }
-  .list-container.numeric-list li {
-    margin: 0 0.3em 0.3em 0;
-  }
-}
-
-/* Mobile Rules (600px and down) */
-@media only screen and (max-width: 600px) {
-  .left-button,
-  .right-button,
-  .leftcol,
-  .rightcol {
-    display: none;
-  }
-}
-
-
-/* ==========================================================================
-   Shared Clerk Login / Logout Buttons
-   Keep this section at the end of bible-main.css.
-   ========================================================================== */
-
-.auth-button-container {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-}
-
-button#login,
-button#logout {
-  appearance: none;
-  -webkit-appearance: none;
+  transform: translateX(-50%);
+  width: auto;
+  min-width: max-content; /* Prevents the toolbar container itself from collapsing narrower than its contents */
+  z-index: 2500;
 
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
 
-  min-width: 82px;
-  height: 36px;
-  padding: 0 14px;
+  background: #000;
+  border: 1px solid #222;
+  padding: 6px 8px;
+  margin: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
 
-  border: 1px solid #123f7c !important;
-  border-radius: 6px !important;
+#bible-mini-toolbar button,
+#bible-mini-toolbar select {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 14px;
+  white-space: nowrap; /* CRITICAL: Prevents "Highlighter" or "Font Color" text from wrapping onto two lines */
+}
 
-  background-color: #072d61 !important;
-  background-image: linear-gradient(
-    180deg,
-    #123f7c 0%,
-    #072d61 100%
-  ) !important;
+#bible-mini-toolbar button {
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  display: inline-flex; /* Ensures text and any dropdown icons align perfectly */
+  align-items: center;
+}
 
-  box-shadow:
-    0 4px 10px rgba(7, 45, 97, 0.18);
+#bible-mini-toolbar button:hover {
+  background: #f3f3f3;
+}
 
-  color: #fff !important;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1;
+#bible-mini-toolbar button.active-tool {
+  background: #31ACFF;
+  color: #fff;
+  border-color: #31ACFF;
+}
 
+#bible-mini-toolbar .toolbar-separator {
+  color: #777;
+  margin: 0 2px;
+}
+
+/************* Bible display area *************/
+#display-text {
+  padding-top: 45px;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  max-height: none !important;
+}
+
+#bible-text {
+  padding: 20px 20px 8px 20px;
+  font-size: 18px;
+  line-height: 1.7;
+  user-select: text;
+  box-sizing: border-box;
+}
+
+#bible-text p:last-child,
+#bible-text div:last-child {
+  margin-bottom: 0 !important;
+}
+
+#bible-drawing-area {
+  position: relative;
+  cursor: text;
+  transform-origin: top left;
+  box-sizing: border-box;
+}
+
+#bible-drawing-area.drawing-mode {
+  cursor: crosshair;
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+#bible-drawing-area.drawing-mode,
+#bible-drawing-area.drawing-mode * {
+  user-select: none;
+  /* Safari browser*/
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#bible-drawing-area.drawing-mode #bible-annotation-layer {
+  pointer-events: auto;
+}
+
+/************* User-added Bible text annotations *************/
+.eb-container .bible-user-format.bold {
+  font-weight: 900 !important;
+}
+
+.eb-container .bible-user-format.italic {
+  font-style: italic !important;
+}
+
+.eb-container .bible-user-format.underline {
+  text-decoration-line: underline !important;
+  text-decoration-thickness: 2px;
+}
+
+.eb-container .bible-user-format.double-underline {
+  text-decoration-line: underline !important;
+  text-decoration-style: double !important;
+  text-decoration-thickness: 2px;
+}
+
+.eb-container .bible-user-format.overline-underline {
+  text-decoration-line: overline underline !important;
+  text-decoration-thickness: 2px;
+}
+
+.eb-container .bible-user-format.strike-through {
+  text-decoration-line: line-through !important;
+}
+
+.eb-container .bible-user-format.uppercase {
+  text-transform: uppercase;
+}
+
+/************* Bible highlight colors *************/
+.eb-container .bible-user-format.highlight-yellow {
+  background-color: #fff59d !important;
+}
+
+.eb-container .bible-user-format.highlight-green {
+  background-color: #c8f7c5 !important;
+}
+
+.eb-container .bible-user-format.highlight-blue {
+  background-color: #cce5ff !important;
+}
+
+.eb-container .bible-user-format.highlight-pink {
+  background-color: #ffd6e7 !important;
+}
+
+.eb-container .bible-user-format.highlight-orange {
+  background-color: #ffd59e !important;
+}
+
+/************* Bible font colors *************/
+.eb-container .bible-user-format.text-grey {
+  color: #9c9c9c !important;
+}
+
+.eb-container .bible-user-format.text-red {
+  color: #c40000 !important;
+}
+
+.eb-container .bible-user-format.text-blue {
+  color: #0066cc !important;
+}
+
+.eb-container .bible-user-format.text-green {
+  color: #2f7d32 !important;
+}
+
+.eb-container .bible-user-format.text-purple {
+  color: #6c2eb1 !important;
+}
+
+/************* Font color dropdown buttons *************/
+.toolbar-dropdown-menu .font-color-option {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  margin: 0;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #fff;
+  font-weight: bold;
+  cursor: pointer;
+
+  display: flex !important;
+  align-items: center !important;      /* vertical centering */
+  justify-content: center !important;  /* horizontal centering */
+
+  font-size: 14px !important;          /* ensure consistent font size */
+  line-height: 1 !important;           /* remove inherited line-height */
+  padding: 0 !important;
+  text-align: center !important;
+
+  box-sizing: border-box !important;   /* prevent extra offset from border/padding */
+}
+
+.toolbar-dropdown-menu .font-color-option:hover {
+  outline: 2px solid #555;
+}
+
+.font-color-option.text-grey {
+  color: #9c9c9c !important;
+}
+
+.font-color-option.text-red {
+  color: #c40000 !important;
+}
+
+.font-color-option.text-blue {
+  color: #0066cc !important;
+}
+
+.font-color-option.text-green {
+  color: #2f7d32 !important;
+}
+
+.font-color-option.text-purple {
+  color: #6c2eb1 !important;
+}
+
+/* Appends the arrow to the end of the button */
+.dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px; /* Adds space between the word 'Draw' and the arrow */
+  padding: 8px 16px;
   cursor: pointer;
 }
 
-button#login i,
-button#logout i {
-  color: #fff !important;
-  font-size: 0.9rem;
+.dropdown-btn::after {
+  content: "";
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000000'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
-button#login:hover,
-button#logout:hover {
-  border-color: #185294 !important;
-
-  background-color: #0a3976 !important;
-  background-image: linear-gradient(
-    180deg,
-    #185294 0%,
-    #0a3976 100%
-  ) !important;
-
-  box-shadow:
-    0 6px 14px rgba(7, 45, 97, 0.24);
-
-  transform: translateY(-1px);
+/************* Drawing layer *************/
+#bible-annotation-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+  display: block;
 }
 
-button#login:active,
-button#logout:active {
-  box-shadow:
-    0 2px 6px rgba(7, 45, 97, 0.18);
-
-  transform: translateY(0);
+.drawn-annotation {
+  fill: transparent;
+  stroke-width: 2;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
-button#login:focus-visible,
-button#logout:focus-visible {
-  outline: 2px solid #2f9ae0;
-  outline-offset: 2px;
+.drawn-annotation.circle {
+  stroke: #c40000;
+}
+
+.drawn-annotation.square {
+  stroke: #0066cc;
+}
+
+.drawn-annotation.selected-annotation {
+  stroke-width: 4;
+}
+
+/************* Freehand drawing *************/
+.freehand-group {
+  fill: none;
+  stroke: #c40000;
+  stroke-width: 2;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.freehand-group path,
+.freehand {
+  fill: none;
+  stroke: #c40000;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
+}
+
+.freehand-group.selected-annotation path {
+  stroke-width: 4;
+}
+
+/************* Toolbar dropdowns *************/
+.toolbar-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.toolbar-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 32px;
+  left: 0;
+  z-index: 3000;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 8px;
+  min-width: auto;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.toolbar-dropdown-menu.show {
+  display: flex;
+  gap: 6px;
+}
+
+.toolbar-dropdown-menu .color-option {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #999;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toolbar-dropdown-menu .color-option:hover {
+  outline: 2px solid #555;
+}
+
+.color-option.yellow {
+  background: #fff59d !important;
+}
+
+.color-option.green {
+  background: #c8f7c5 !important;
+}
+
+.color-option.blue {
+  background: #cce5ff !important;
+}
+
+.color-option.pink {
+  background: #ffd6e7 !important;
+}
+
+.color-option.orange {
+  background: #ffd59e !important;
+}
+
+.toolbar-separator {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  background: #777;
+  margin: 0 4px;
+  user-select: none;
+}
+
+.text-tool-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
 }
 
 /* ==========================================================================
-   Compact Clerk Buttons in the Verse Toolbar
+   Locked Editor State Changes
    ========================================================================== */
 
-.verse-auth-buttons {
-  padding: 0 8px;
+/* Freeze the entire toolbar wrapper container to block clicks, hovers, and selections */
+.editor-tools-locked {
+  opacity: 0.45;
+  pointer-events: none !important; /* Prevents clicks from triggering underlying elements */
+  user-select: none;
 }
 
-.verse-auth-buttons button#login,
-.verse-auth-buttons button#logout {
-  min-width: 68px;
-  height: 30px;
-  padding: 0 9px;
-  gap: 5px;
-
-  border-radius: 4px !important;
-
-  font-size: 0.72rem;
-  line-height: 1;
+/* Force the cursor to stay as 'not-allowed' even when pointer events are muted */
+.editor-tools-locked,
+.editor-tools-locked *,
+.editor-tools-locked button,
+.editor-tools-locked select {
+  cursor: not-allowed !important;
 }
 
-.verse-auth-buttons button#login i,
-.verse-auth-buttons button#logout i {
-  font-size: 0.75rem;
+/* Redundant but kept for explicit safety against Quill custom drop-downs */
+.editor-tools-locked .ql-picker,
+.editor-tools-locked .ql-picker-label,
+.editor-tools-locked .ql-picker-options {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
 }
 
-/* ========================================================================== 
-   Shared Preferences Modal
+/* ==========================================================================
+   Content View Adjustments when Locked
    ========================================================================== */
+body.editor-locked-state .bible-user-format {
+  background-color: transparent !important;
+  text-decoration: none !important;
+  font-weight: inherit !important;
+}
 
-.preferences-modal {
+body.editor-locked-state .drawn-annotation,
+body.editor-locked-state .freehand-group,
+body.editor-locked-state .freehand {
+  display: none !important;
+}
+
+/************* Logged-out Quill state *************/
+body.editor-locked-state .ql-editor {
+  background: rgba(255, 255, 255, 0.65);
+  color: #777;
+  pointer-events: none;
+}
+
+body.editor-locked-state .ql-editor.ql-blank::before {
+  color: #555;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+body.editor-locked-state .ql-toolbar {
+  opacity: 0.35;
+}
+
+/************* Editor save status in navbar *************/
+.editor-save-status {
+  margin-right: auto; /* places it far left*/ 
+  color: green;
+  font-weight: bold;
+  font-style: normal;
+  display: inline-block;
+  vertical-align: middle;
+  min-width: 50px;
+}
+
+.editor-save-status-saving {
+  color: #667;
+}
+
+.editor-save-status-saved {
+  color: #2f7d32;
+}
+
+.editor-save-status-failed {
+  color: #b00020;
+}
+
+/************* My Notes modal *************/
+#myNotesModal {
+  display: none;
   position: fixed;
-  z-index: 7000;
   inset: 0;
-  display: flex;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.45);
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  background: rgba(11, 22, 34, 0.58);
+  padding: 24px;
+  box-sizing: border-box;
 }
 
-.preferences-dialog {
+#myNotesModal.is-open {
+  display: flex;
+}
+
+.my-notes-content {
   position: relative;
-  width: min(520px, 100%);
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
-  padding: 30px;
-  border: 1px solid rgba(75, 103, 132, 0.3);
-  border-radius: 14px;
-  background: #f8fbff;
-  box-shadow: 0 24px 60px rgba(7, 25, 46, 0.3);
-  color: #172033;
-  text-align: left;
+  background: #fff;
+  width: min(980px, 94vw);
+  max-height: 82vh;
+  overflow: hidden;
+  padding: 22px;
+  border: 1px solid #888;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
-.preferences-dialog h2 {
-  font-family: "Libre Baskerville", serif;
-  font-size: 1.45rem;
+.my-notes-content h2 {
+  margin: 0 0 14px 0;
+  font-size: 24px;
+  line-height: 1.2;
 }
 
-.preferences-intro {
-  margin: 8px 0 22px;
-  color: #617184;
-  line-height: 1.5;
-}
-
-.preferences-close {
+#closeMyNotes {
   position: absolute;
-  top: 12px;
+  top: 10px;
   right: 14px;
-  width: 34px;
-  height: 34px;
-  border: 0;
-  background: transparent;
-  color: #4d5d70;
-  font-size: 1.8rem;
+  font-size: 24px;
   line-height: 1;
   cursor: pointer;
+  color: #333;
+  z-index: 2;
 }
 
-.preferences-field {
-  display: grid;
-  gap: 7px;
-  margin-top: 16px;
+#closeMyNotes:hover {
+  color: #b00020;
 }
 
-.preferences-field span {
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.preferences-field select {
+.my-notes-search {
   width: 100%;
-  min-height: 42px;
-  padding: 0 11px;
-  border: 1px solid #aab8c8;
-  border-radius: 7px;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+.my-notes-status {
+  margin-bottom: 10px;
+  font-style: italic;
+  color: #666;
+  font-size: 14px;
+}
+
+.my-notes-table-wrapper {
+  overflow: auto;
+  max-height: calc(82vh - 140px);
+  border: 1px solid #ddd;
+}
+
+.my-notes-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
   background: #fff;
-  color: #172033;
-  font-family: inherit;
-  font-size: 0.9rem;
 }
 
-.preferences-field select:focus-visible {
-  outline: 2px solid #2f9ae0;
-  outline-offset: 2px;
+.my-notes-table th,
+.my-notes-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.35;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
-.preferences-status {
-  min-height: 22px;
-  margin-top: 14px;
-  color: #246b3d;
-  font-size: 0.82rem;
+.my-notes-table th {
+  background: #f5f5f5;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
-.preferences-status.is-error {
-  color: #a62727;
+.my-notes-table th:nth-child(1),
+.my-notes-table td:nth-child(1) {
+  width: 14%;
 }
 
-.preferences-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
+.my-notes-table th:nth-child(2),
+.my-notes-table td:nth-child(2) {
+  width: 12%;
 }
 
-.preferences-button {
-  min-height: 38px;
-  padding: 0 15px;
+.my-notes-table th:nth-child(3),
+.my-notes-table td:nth-child(3) {
+  width: 20%;
+}
+
+.my-notes-table th:nth-child(4),
+.my-notes-table td:nth-child(4) {
+  width: 32%;
+}
+
+.my-notes-table th:nth-child(5),
+.my-notes-table td:nth-child(5) {
+  width: 10%;
+}
+
+.my-notes-table th:nth-child(6),
+.my-notes-table td:nth-child(6),
+.my-notes-table th:nth-child(7),
+.my-notes-table td:nth-child(7) {
+  width: 6%;
+  text-align: center;
+}
+
+.my-notes-table a {
+  color: #0066cc;
+  text-decoration: underline;
+}
+
+.overlay-content a.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/************* Auth buttons in header of My Notes *************/
+.subheader #login,
+.subheader #logout {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  margin-left: 6px;
+  border: 1px solid #ddd;
   border-radius: 6px;
-  font-family: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.preferences-button-secondary {
-  border: 1px solid #aab8c8;
-  background: #fff;
-  color: #304255;
-}
-
-.preferences-button-primary {
-  border: 1px solid #123f7c;
-  background: linear-gradient(180deg, #185294 0%, #0a3976 100%);
-  color: #fff;
-}
-
-@media only screen and (max-width: 600px) {
-  .preferences-modal {
-    align-items: flex-end;
-    padding: 0;
-  }
-
-  .preferences-dialog {
-    width: 100%;
-    max-height: 90vh;
-    padding: 26px 20px;
-    border-radius: 14px 14px 0 0;
-  }
-
-  .preferences-actions {
-    flex-direction: column-reverse;
-  }
-
-  .preferences-button {
-    width: 100%;
-  }
-}
-
-
-
-/* ========================================================================== 
-   Stage 2F - Navbar cleanup after removing visible zoom slider
-   Uses a stable 3-zone grid so the save status stays truly centered.
-   ========================================================================== */
-.subheader .subheadings {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  background: linear-gradient(180deg, #ffffff, #f5f5f5);
+  color: #222;
+  line-height: 1.2;
+  display: inline-flex;
   align-items: center;
-  column-gap: 8px;
-  width: 100%;
-  min-height: 52px;
-  margin-right: 0;
+  justify-content: center;
+  gap: 5px; /* nice for icons */
+  
+  /* Fancy enhancements */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08),
+              inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
-.subheader .verse-toolbar-left {
-  grid-column: 1;
-  justify-self: start;
+.subheader #login:hover,
+.subheader #logout:hover {
+  background: linear-gradient(180deg, #f8f9fa, #e9ecef);
+  border-color: #bbb;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+  color: #111;
+}
+
+.subheader #login:active,
+.subheader #logout:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.subheader #login:disabled {
+  color: #667;
+  background: #eee;
+}
+
+.subheader .subheadings {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
 }
 
 .subheader .column {
   float: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: auto;
-  min-height: 0;
-  padding: 0;
-  border-right: 0;
+  min-height: 45px;
+  padding: 0 10px;
 }
 
-.subheader .menu-toggle-column {
-  flex: 0 0 auto;
-}
-
-.subheader .passage-picker-column {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.subheader .passage-picker {
-  max-width: min(42vw, 360px);
-}
-
-.subheader .passage-picker-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  max-width: 100%;
-}
-
-.subheader #current-passage-label {
-  display: inline-block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.subheader .save-status-column {
-  grid-column: 2;
-  justify-self: center;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  padding: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.subheader .save-status-column.save-status-column-visible {
+/* Icons in the My Notes page */
+.open-note {
+  text-decoration: none !important;
+  font-size: 24px;
+  cursor: pointer;
   display: flex;
-}
-
-.subheader .verse-auth-buttons {
-  grid-column: 3;
-  justify-self: end;
-  margin-left: 0;
-  padding: 0;
-}
-
-@media only screen and (max-width: 700px) {
-  .subheader .subheadings {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "left auth"
-      "status status";
-    justify-content: center;
-    row-gap: 4px;
-    min-height: 0;
-    padding: 5px 0;
-  }
-
-  .subheader .verse-toolbar-left {
-    grid-area: left;
-    justify-self: start;
-    max-width: 100%;
-  }
-
-  .subheader .column {
-    min-height: 34px;
-    padding: 0 4px;
-  }
-
-  .subheader .passage-picker {
-    max-width: min(58vw, 300px);
-  }
-
-  .subheader .save-status-column {
-    grid-area: status;
-    justify-self: center;
-    min-height: 0;
-    padding: 0;
-    pointer-events: auto;
-  }
-
-  .subheader .verse-auth-buttons {
-    grid-area: auth;
-    justify-self: end;
-  }
-}
-
-/* ========================================================================== 
-   Stage 2G - Centered verse navbar refinement
-   Keeps the top controls visually centered as one compact control group.
-   ========================================================================== */
-.subheader {
-  border-bottom: 1px solid rgba(19, 57, 93, 0.08);
-  box-shadow: 0 1px 8px rgba(19, 57, 93, 0.08);
-}
-
-.subheader .container.flex {
-  justify-content: center;
-}
-
-.subheader .subheadings {
-  width: fit-content;
-  max-width: calc(100vw - 28px);
-  margin: 0 auto;
-  grid-template-columns: auto auto auto;
-  justify-content: center;
   align-items: center;
-  column-gap: 18px;
-  padding: 6px 0;
+  justify-content: center;
+  width: 100%;
+  height: 42px;
+  line-height: 1;
+  filter: grayscale(100%);
+  opacity: 0.65;
+  transition: all 0.2s ease-in-out;
 }
 
-.subheader .verse-toolbar-left {
-  min-width: 0;
-  justify-self: center;
+.open-note:hover {
+  filter: grayscale(0%);
+  opacity: 1;
+  transform: scale(1.1);
 }
 
-.subheader .verse-auth-buttons {
-  justify-self: center;
+.delete-note {
+  text-decoration: none !important;
+  font-size: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 42px;
+  line-height: 1;
+  filter: grayscale(100%);
+  opacity: 0.65;
+  transition: all 0.2s ease-in-out;
 }
 
-.subheader .passage-picker {
-  max-width: min(42vw, 340px);
+.delete-note:hover {
+  filter: grayscale(0%) sepia(100%) hue-rotate(-50deg) saturate(600%);
+  opacity: 1;
+  color: #ff4d4d;
+  transform: scale(1.1);
 }
 
-.subheader .passage-picker-toggle {
-  min-height: 30px;
-  padding: 3px 8px;
+/* USED FOR TIMER FOR INACTIVITY NOTIFICATION - 30 MINUTES  */
+#timeout-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85); 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000; 
+    backdrop-filter: blur(4px); 
 }
 
-.subheader .save-status-column:not(.save-status-column-visible),
-.subheader .save-status-column .editor-save-status:not(.editor-save-status-visible) {
-  display: none !important;
+/* The warning box styling */
+.timeout-box {
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    text-align: center;
+    border-top: 5px solid #ff4d4d; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    font-family: sans-serif;
 }
 
-@media only screen and (max-width: 700px) {
-  .subheader .subheadings {
-    width: 100%;
+.timeout-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    margin-top: 20px;
+}
+
+.timeout-button:hover {
+  box-shadow:0 8px 16px 0 rgba(0,0,0,0.6);
+}
+
+/******************** RESPONSIVE ***********/
+@media (max-width: 768px) {
+  #bible-mini-toolbar {
+    width: calc(100vw - 16px);
+    min-width: 0;
     max-width: calc(100vw - 16px);
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "left auth"
-      "status status";
-    justify-content: stretch;
-    column-gap: 8px;
-    row-gap: 4px;
-    padding: 6px 8px;
-  }
-
-  .subheader .verse-toolbar-left {
-    justify-self: start;
-    max-width: 100%;
-    gap: 8px;
-  }
-
-  .subheader .passage-picker {
-    max-width: min(58vw, 300px);
-  }
-
-  .subheader .verse-auth-buttons {
-    justify-self: end;
-  }
-}
-
-/* ========================================================================== 
-   Stage 2G navbar-only rollback / stabilization
-   Purpose: keep the top navbar compact and prevent any header-height feedback.
-   This intentionally does not change the mini-editor, Bible text width, notes editor,
-   or the passage picker panel behavior.
-   ========================================================================== */
-#stickyHeader {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 6000 !important;
-}
-
-body:not(.landing-page) .subheader {
-  height: 50px !important;
-  min-height: 50px !important;
-  max-height: 50px !important;
-  overflow: visible !important;
-  background: #f6fbff !important;
-  border-bottom: 1px solid rgba(19, 57, 93, 0.08) !important;
-  box-shadow: 0 1px 7px rgba(19, 57, 93, 0.08) !important;
-}
-
-body:not(.landing-page) .subheader .container.flex {
-  width: 100% !important;
-  max-width: none !important;
-  height: 100% !important;
-  padding: 0 10px !important;
-  margin: 0 auto !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex-wrap: nowrap !important;
-  box-sizing: border-box !important;
-}
-
-body:not(.landing-page) .subheader .subheadings {
-  width: auto !important;
-  max-width: calc(100vw - 20px) !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  margin: 0 auto !important;
-  padding: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex-wrap: nowrap !important;
-  gap: 16px !important;
-  line-height: 1 !important;
-  font-size: 1rem !important;
-  box-sizing: border-box !important;
-}
-
-body:not(.landing-page) .subheader .column,
-body:not(.landing-page) .subheader .verse-toolbar-left,
-body:not(.landing-page) .subheader .menu-toggle-column,
-body:not(.landing-page) .subheader .passage-picker-column,
-body:not(.landing-page) .subheader .save-status-column,
-body:not(.landing-page) .subheader .verse-auth-buttons {
-  float: none !important;
-  width: auto !important;
-  height: auto !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border-right: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  line-height: 1 !important;
-  box-sizing: border-box !important;
-}
-
-body:not(.landing-page) .subheader .verse-toolbar-left {
-  gap: 10px !important;
-  min-width: 0 !important;
-}
-
-body:not(.landing-page) .subheader .hamburger {
-  width: 34px !important;
-  height: 34px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-body:not(.landing-page) .subheader .main-nav-toggle {
-  width: 30px !important;
-  height: 24px !important;
-}
-
-body:not(.landing-page) .subheader .main-nav-toggle span {
-  height: 4px !important;
-}
-
-body:not(.landing-page) .subheader .passage-picker {
-  max-width: min(42vw, 340px) !important;
-}
-
-body:not(.landing-page) .subheader .passage-picker-toggle {
-  min-height: 30px !important;
-  height: 30px !important;
-  max-width: 100% !important;
-  padding: 3px 8px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 4px !important;
-  font-size: 0.94rem !important;
-  line-height: 1 !important;
-  white-space: nowrap !important;
-}
-
-body:not(.landing-page) .subheader #current-passage-label {
-  display: inline-block !important;
-  max-width: min(34vw, 270px) !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-body:not(.landing-page) .subheader .save-status-column {
-  display: none !important;
-}
-
-body:not(.landing-page) .subheader .save-status-column.save-status-column-visible {
-  display: flex !important;
-}
-
-body:not(.landing-page) .verse-auth-buttons button#login,
-body:not(.landing-page) .verse-auth-buttons button#logout {
-  min-width: 68px !important;
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 10px !important;
-  font-size: 0.85rem !important;
-  line-height: 1 !important;
-}
-
-body:not(.landing-page) .verse-auth-buttons button#login i,
-body:not(.landing-page) .verse-auth-buttons button#logout i {
-  margin-right: 5px !important;
-}
-
-@media only screen and (max-width: 639px) {
-  body:not(.landing-page) .subheader {
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-  }
-
-  body:not(.landing-page) .subheader .subheadings {
-    max-width: calc(100vw - 12px) !important;
-    gap: 12px !important;
-  }
-
-  body:not(.landing-page) .subheader .passage-picker {
-    max-width: min(48vw, 210px) !important;
-  }
-
-  body:not(.landing-page) .subheader #current-passage-label {
-    max-width: min(38vw, 170px) !important;
-  }
-
-  body:not(.landing-page) .subheader .save-status-column.save-status-column-visible {
-    position: fixed !important;
-    top: 58px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    z-index: 6002 !important;
-  }
-
-  body:not(.landing-page) .verse-auth-buttons button#login,
-  body:not(.landing-page) .verse-auth-buttons button#logout {
-    min-width: 68px !important;
-    height: 30px !important;
-    min-height: 30px !important;
-    padding: 0 9px !important;
-    font-size: 0.82rem !important;
-  }
-}
-
-@media only screen and (max-width: 380px) {
-  body:not(.landing-page) .subheader .subheadings {
-    gap: 8px !important;
-  }
-
-  body:not(.landing-page) .subheader .passage-picker {
-    max-width: min(46vw, 170px) !important;
-  }
-
-  body:not(.landing-page) .subheader #current-passage-label {
-    max-width: min(36vw, 135px) !important;
-  }
-
-  body:not(.landing-page) .verse-auth-buttons button#login span,
-  body:not(.landing-page) .verse-auth-buttons button#logout span {
-    display: none !important;
-  }
-
-  body:not(.landing-page) .verse-auth-buttons button#login,
-  body:not(.landing-page) .verse-auth-buttons button#logout {
-    min-width: 38px !important;
-    width: 38px !important;
-    padding: 0 !important;
-  }
-
-  body:not(.landing-page) .verse-auth-buttons button#login i,
-  body:not(.landing-page) .verse-auth-buttons button#logout i {
-    margin-right: 0 !important;
+    overflow-x: auto;
+    justify-content: flex-start;
+    box-sizing: border-box;
   }
 }
 
 /* ==========================================================================
-   Navbar-only fine tune: give scroll artwork breathing room below top navbar.
+   Quill Blot Formatter Resizer Box Layout Corrective Context
    ========================================================================== */
-@media only screen and (min-width: 1101px) {
-  body:not(.landing-page) .leftcol,
-  body:not(.landing-page) .rightcol {
-    top: 58px !important;
-    height: calc(100vh - 58px) !important;
-    background-size: 150px calc(100vh - 66px) !important;
+.blot-formatter__wrapper {
+  position: absolute !important;
+  border: 1px dashed #007aff !important; /* System Accent Highlight Border */
+  background: rgba(0, 122, 255, 0.04) !important;
+  pointer-events: none !important;
+  z-index: 1050 !important;
+}
+
+.blot-formatter__handle {
+  position: absolute !important;
+  width: 10px !important;
+  height: 10px !important;
+  background-color: #007aff !important;
+  border: 1.5px solid #ffffff !important;
+  border-radius: 50% !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  pointer-events: auto !important;
+  cursor: nwse-resize !important;
+}
+
+/* Individual alignment handle position modifiers */
+.blot-formatter__handle:nth-child(1) { cursor: nwse-resize !important; }
+.blot-formatter__handle:nth-child(2) { cursor: nesw-resize !important; }
+.blot-formatter__handle:nth-child(3) { cursor: nwse-resize !important; }
+.blot-formatter__handle:nth-child(4) { cursor: nesw-resize !important; }
+
+/* Keep selection parameters clean when clicking items inside Quill */
+.ql-editor img {
+  cursor: pointer !important;
+  display: inline-block !important;
+  max-width: 100% !important;
+}
+
+/************* Annotation layout warning *************/
+.annotation-layout-warning {
+  margin: 10px 20px 0 20px;
+  padding: 10px 12px;
+  border: 1px solid #d7b56d;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #5b4314;
+  font-size: 14px;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.annotation-layout-warning[hidden] {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Stage 1B: Verse layout containment for responsive reflow
+   ========================================================================== */
+#display-text {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+}
+
+#bible-drawing-area {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#bible-text {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+#bible-text p,
+#bible-text div {
+  max-width: 100%;
+}
+
+#bible-annotation-layer {
+  max-width: 100%;
+}
+
+
+/************* Shared passage picker dialog *************/
+.passage-picker {
+  position: relative;
+}
+
+.passage-picker-panel[hidden] {
+  display: none !important;
+}
+
+body.passage-picker-is-open {
+  overflow: hidden;
+}
+
+body.passage-picker-is-open::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 5999;
+  background: rgba(11, 22, 34, 0.52);
+}
+
+.passage-picker-panel {
+  position: fixed;
+  z-index: 6000;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(19, 57, 93, 0.18);
+  border-radius: 14px;
+  background: #f8fbff;
+  box-shadow: 0 18px 48px rgba(11, 22, 34, 0.28);
+}
+
+.passage-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.passage-picker-header h2 {
+  margin: 0;
+  color: #1d2d44;
+  font-family: "Libre Baskerville", serif;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.passage-picker-close {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(19, 57, 93, 0.22);
+  border-radius: 50%;
+  background: #fff;
+  color: #16355c;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.passage-picker-close:hover {
+  background: #eef4fb;
+}
+
+.passage-picker-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.passage-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.passage-picker-field span {
+  color: #29486f;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.passage-picker-field select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(25, 61, 107, 0.28);
+  border-radius: 8px;
+  background: #fff;
+  color: #12243c;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.passage-picker-field select:disabled {
+  color: #7b8694;
+  background: #f1f4f8;
+}
+
+.passage-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.passage-picker-open {
+  min-width: 150px;
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid #123f7c;
+  border-radius: 8px;
+  background: #123f7c;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.passage-picker-open:hover:not(:disabled) {
+  background: #0e3363;
+}
+
+.passage-picker-open:disabled {
+  border-color: #b8c2cf;
+  background: #d8dfe8;
+  color: #5d6978;
+  cursor: not-allowed;
+}
+
+@media only screen and (max-width: 640px) {
+  .passage-picker-panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-height: 88vh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 16px 16px 0 0;
+    padding: 16px 14px 14px;
+  }
+
+  .passage-picker-fields {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .passage-picker-actions {
+    margin-top: 16px;
+  }
+
+  .passage-picker-open {
+    width: 100%;
   }
 }
