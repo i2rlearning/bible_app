@@ -146,6 +146,21 @@ function getEditorSaveStatusElement() {
 
 let editorSaveStatusClearTimer = null;
 
+function syncEditorSaveStatusVisibility(status) {
+  const hasMessage = Boolean(status?.textContent?.trim());
+  const statusColumn = status?.closest?.(".save-status-column");
+
+  status?.classList.toggle(
+    "editor-save-status-visible",
+    hasMessage
+  );
+
+  statusColumn?.classList.toggle(
+    "save-status-column-visible",
+    hasMessage
+  );
+}
+
 function setEditorSaveStatus(message) {
   const status = getEditorSaveStatusElement();
 
@@ -171,12 +186,15 @@ function setEditorSaveStatus(message) {
     status.classList.add("editor-save-status-failed");
   }
 
+  syncEditorSaveStatusVisibility(status);
+
   clearTimeout(editorSaveStatusClearTimer);
 
   if (message === "Saved") {
     editorSaveStatusClearTimer = setTimeout(() => {
       status.textContent = "";
       status.classList.remove("editor-save-status-saved");
+      syncEditorSaveStatusVisibility(status);
     }, 3000);
   }
 }
