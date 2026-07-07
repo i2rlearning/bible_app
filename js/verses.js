@@ -92,6 +92,13 @@ function configureMobilePassagePickerMenu() {
       }
 
       if (
+        typeof window.closeMobileToolbarMenus ===
+        "function"
+      ) {
+        window.closeMobileToolbarMenus();
+      }
+
+      if (
         versePassagePicker &&
         typeof versePassagePicker.setOpen ===
           "function"
