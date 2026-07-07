@@ -960,3 +960,173 @@ body.editor-locked-state .ql-toolbar {
 #bible-annotation-layer {
   max-width: 100%;
 }
+
+
+/************* Shared passage picker dialog *************/
+.passage-picker {
+  position: relative;
+}
+
+.passage-picker-panel[hidden] {
+  display: none !important;
+}
+
+body.passage-picker-is-open {
+  overflow: hidden;
+}
+
+body.passage-picker-is-open::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 5999;
+  background: rgba(11, 22, 34, 0.52);
+}
+
+.passage-picker-panel {
+  position: fixed;
+  z-index: 6000;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(19, 57, 93, 0.18);
+  border-radius: 14px;
+  background: #f8fbff;
+  box-shadow: 0 18px 48px rgba(11, 22, 34, 0.28);
+}
+
+.passage-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.passage-picker-header h2 {
+  margin: 0;
+  color: #1d2d44;
+  font-family: "Libre Baskerville", serif;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.passage-picker-close {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(19, 57, 93, 0.22);
+  border-radius: 50%;
+  background: #fff;
+  color: #16355c;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.passage-picker-close:hover {
+  background: #eef4fb;
+}
+
+.passage-picker-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.passage-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.passage-picker-field span {
+  color: #29486f;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.passage-picker-field select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(25, 61, 107, 0.28);
+  border-radius: 8px;
+  background: #fff;
+  color: #12243c;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.passage-picker-field select:disabled {
+  color: #7b8694;
+  background: #f1f4f8;
+}
+
+.passage-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.passage-picker-open {
+  min-width: 150px;
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid #123f7c;
+  border-radius: 8px;
+  background: #123f7c;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.passage-picker-open:hover:not(:disabled) {
+  background: #0e3363;
+}
+
+.passage-picker-open:disabled {
+  border-color: #b8c2cf;
+  background: #d8dfe8;
+  color: #5d6978;
+  cursor: not-allowed;
+}
+
+@media only screen and (max-width: 640px) {
+  .passage-picker-panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-height: 88vh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 16px 16px 0 0;
+    padding: 16px 14px 14px;
+  }
+
+  .passage-picker-fields {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .passage-picker-actions {
+    margin-top: 16px;
+  }
+
+  .passage-picker-open {
+    width: 100%;
+  }
+}
