@@ -558,13 +558,15 @@ body.editor-locked-state .ql-toolbar {
 
 /************* Editor save status in navbar *************/
 .editor-save-status {
-  margin-right: auto; /* places it far left*/ 
   color: green;
   font-weight: bold;
   font-style: normal;
-  display: inline-block;
-  vertical-align: middle;
-  min-width: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 24px;
+  white-space: nowrap;
 }
 
 .editor-save-status-saving {
@@ -981,5 +983,18 @@ body.editor-locked-state .ql-toolbar {
     max-width: none;
     padding: 12px 14px;
     font-size: 14px;
+  }
+}
+
+
+/* Stage 2F - save status polish */
+.subheader .save-status-column .editor-save-status {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+@media only screen and (max-width: 700px) {
+  .subheader .save-status-column .editor-save-status {
+    font-size: 0.82rem;
   }
 }
