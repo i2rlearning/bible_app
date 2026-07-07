@@ -1083,3 +1083,240 @@ main.container > .ql-container.ql-snow {
     width: calc(100% - 16px);
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G-3 - definitive responsive mini-toolbar and width alignment
+   Keep this block at the end so it overrides older mini-toolbar attempts.
+   ========================================================================== */
+:root {
+  --verse-content-width: 820px;
+  --sticky-header-height: 44px;
+  --mini-toolbar-height: 38px;
+  --fixed-toolbar-gap: 6px;
+}
+
+#bible-mini-toolbar {
+  position: fixed !important;
+  top: calc(var(--sticky-header-height) + var(--fixed-toolbar-gap)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 5600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - 24px) !important;
+  overflow: visible !important;
+  gap: 0 !important;
+  padding: 4px 6px !important;
+  background: #000 !important;
+  border: 1px solid #222 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18) !important;
+  box-sizing: border-box !important;
+}
+
+.desktop-mini-toolbar {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.mobile-mini-toolbar {
+  display: none !important;
+}
+
+#bible-mini-toolbar button,
+#bible-mini-toolbar select {
+  min-height: 26px !important;
+  padding: 3px 8px !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+#bible-mini-toolbar .mini-toolbar-icon-button,
+#bible-mini-toolbar .undo-redo-button {
+  width: 30px !important;
+  min-width: 30px !important;
+  justify-content: center !important;
+  padding: 3px 0 !important;
+}
+
+#bible-mini-toolbar .undo-redo-button .fa {
+  font-size: 15px !important;
+  line-height: 1 !important;
+}
+
+#bible-mini-toolbar .toolbar-separator {
+  color: #aaa !important;
+  margin: 0 2px !important;
+}
+
+#display-text {
+  width: min(calc(100vw - 48px), var(--verse-content-width)) !important;
+  max-width: var(--verse-content-width) !important;
+  min-width: 0 !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-top: calc(var(--mini-toolbar-height) + var(--fixed-toolbar-gap) + 42px) !important;
+  padding-bottom: 28px !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  box-sizing: border-box !important;
+}
+
+#bible-drawing-area,
+#bible-text {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+#bible-text {
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+}
+
+main.container > .ql-toolbar.ql-snow,
+main.container > .ql-container.ql-snow {
+  width: min(calc(100vw - 48px), var(--verse-content-width)) !important;
+  max-width: var(--verse-content-width) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+}
+
+.mobile-toolbar-group,
+.mobile-toolbar-menu {
+  position: relative;
+}
+
+.mobile-toolbar-menu {
+  display: none;
+}
+
+@media only screen and (max-width: 639px) {
+  #bible-mini-toolbar {
+    width: min(360px, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    padding: 5px !important;
+    overflow: visible !important;
+  }
+
+  .desktop-mini-toolbar {
+    display: none !important;
+  }
+
+  .mobile-mini-toolbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    gap: 6px !important;
+  }
+
+  .mobile-toolbar-group {
+    position: relative !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+  }
+
+  #bible-mini-toolbar .mobile-toolbar-toggle {
+    width: 100% !important;
+    min-height: 30px !important;
+    justify-content: center !important;
+    padding: 4px 6px !important;
+    border: 1px solid #ddd !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+  }
+
+  #bible-mini-toolbar .mobile-toolbar-toggle::after {
+    content: "▾";
+    margin-left: 5px;
+    font-size: 11px;
+  }
+
+  .mobile-toolbar-menu {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 6100 !important;
+    display: none !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    width: min(322px, calc(100vw - 28px)) !important;
+    padding: 10px !important;
+    border: 1px solid rgba(0, 0, 0, 0.24) !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28) !important;
+    box-sizing: border-box !important;
+  }
+
+  .mobile-toolbar-menu.show {
+    display: flex !important;
+  }
+
+  .mobile-toolbar-menu-title {
+    flex: 0 0 100% !important;
+    margin: 2px 0 0 !important;
+    color: #555 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  #bible-mini-toolbar .mobile-toolbar-menu button {
+    min-width: 34px !important;
+    min-height: 34px !important;
+    justify-content: center !important;
+    padding: 4px 8px !important;
+    font-size: 15px !important;
+  }
+
+  #bible-mini-toolbar .mobile-toolbar-menu .color-option {
+    width: 34px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+  }
+
+  #bible-mini-toolbar .mobile-actions-menu {
+    width: min(230px, calc(100vw - 28px)) !important;
+  }
+
+  #bible-mini-toolbar .mobile-actions-menu button {
+    min-width: 88px !important;
+    gap: 6px !important;
+  }
+
+  #display-text {
+    width: min(calc(100vw - 28px), 420px) !important;
+    max-width: calc(100vw - 28px) !important;
+    padding-top: calc(var(--mini-toolbar-height) + var(--fixed-toolbar-gap) + 44px) !important;
+    margin-bottom: 30px !important;
+  }
+
+  #bible-text {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: min(calc(100vw - 28px), 420px) !important;
+    max-width: calc(100vw - 28px) !important;
+  }
+}
