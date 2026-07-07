@@ -1067,21 +1067,15 @@ body.passage-picker-is-open::before {
 .passage-picker-field {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
   gap: 6px;
   min-width: 0;
-  text-align: left;
 }
 
 .passage-picker-field span {
-  display: block;
-  width: 100%;
   color: #29486f;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  text-align: left;
-  padding-left: 2px;
 }
 
 .passage-picker-field select {
@@ -1159,5 +1153,50 @@ body.passage-picker-is-open::before {
 
   .passage-picker-open {
     width: 100%;
+  }
+}
+
+
+/************* Passage picker professional field layout *************/
+/* Desktop: one clean row of fields with a smaller Chapter dropdown. */
+@media only screen and (min-width: 821px) {
+  .passage-picker-fields {
+    grid-template-columns:
+      minmax(150px, 0.75fr)
+      minmax(170px, 0.95fr)
+      minmax(230px, 1.35fr)
+      minmax(104px, 0.45fr);
+    align-items: end;
+  }
+
+  .passage-picker-field[for="chapter-select"] {
+    max-width: 132px;
+  }
+
+  .passage-picker-field[for="chapter-select"] select {
+    text-align: left;
+  }
+
+  .passage-picker-actions {
+    margin-top: 20px;
+  }
+}
+
+/* Tablet: keep the two-row layout, but prevent Chapter from feeling oversized. */
+@media only screen and (min-width: 641px) and (max-width: 820px) {
+  .passage-picker-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .passage-picker-field[for="chapter-select"] {
+    max-width: 160px;
+  }
+}
+
+/* Phone: full-width fields are easier to tap. */
+@media only screen and (max-width: 640px) {
+  .passage-picker-field[for="chapter-select"] {
+    max-width: none;
   }
 }
