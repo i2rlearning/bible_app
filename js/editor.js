@@ -2166,6 +2166,55 @@ document.addEventListener("click", function (event) {
   });
 });
 
+
+// ----------------------------------------------------
+// Keep the fixed mini-toolbar below the sticky navbar
+// ----------------------------------------------------
+function updateStickyEditorLayoutVars() {
+  const root = document.documentElement;
+  const stickyHeader = document.getElementById("stickyHeader");
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+  if (stickyHeader) {
+    const headerHeight = Math.ceil(stickyHeader.getBoundingClientRect().height);
+    if (headerHeight > 0) {
+      root.style.setProperty("--sticky-header-height", `${headerHeight}px`);
+    }
+  }
+
+  if (miniToolbar) {
+    const toolbarHeight = Math.ceil(miniToolbar.getBoundingClientRect().height);
+    if (toolbarHeight > 0) {
+      root.style.setProperty("--mini-toolbar-height", `${toolbarHeight}px`);
+    }
+  }
+}
+
+function scheduleStickyEditorLayoutUpdate() {
+  requestAnimationFrame(updateStickyEditorLayoutVars);
+}
+
+window.addEventListener("load", scheduleStickyEditorLayoutUpdate);
+window.addEventListener("resize", scheduleStickyEditorLayoutUpdate);
+window.addEventListener("orientationchange", scheduleStickyEditorLayoutUpdate);
+
+if (document.fonts?.ready) {
+  document.fonts.ready.then(scheduleStickyEditorLayoutUpdate).catch(() => {});
+}
+
+if (typeof ResizeObserver !== "undefined") {
+  const stickyEditorLayoutObserver = new ResizeObserver(scheduleStickyEditorLayoutUpdate);
+  const stickyHeader = document.getElementById("stickyHeader");
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+  if (stickyHeader) stickyEditorLayoutObserver.observe(stickyHeader);
+  if (miniToolbar) stickyEditorLayoutObserver.observe(miniToolbar);
+}
+
+scheduleStickyEditorLayoutUpdate();
+setTimeout(scheduleStickyEditorLayoutUpdate, 250);
+setTimeout(scheduleStickyEditorLayoutUpdate, 1000);
+
 // ----------------------------------------------------
 // Expose functions used by inline HTML onclick attributes
 // ----------------------------------------------------
