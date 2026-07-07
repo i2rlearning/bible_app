@@ -988,13 +988,46 @@ body.editor-locked-state .ql-toolbar {
 
 
 /* Stage 2F - save status polish */
+.editor-save-status:empty {
+  display: none;
+}
+
 .subheader .save-status-column .editor-save-status {
-  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  min-height: 30px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(19, 57, 93, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  font-size: 0.98rem;
   line-height: 1;
+  white-space: nowrap;
+}
+
+.subheader .save-status-column .editor-save-status.editor-save-status-saving {
+  color: #5c6470;
+  background: rgba(246, 251, 255, 0.94);
+}
+
+.subheader .save-status-column .editor-save-status.editor-save-status-saved {
+  color: #2f7d32;
+  background: rgba(241, 250, 241, 0.96);
+}
+
+.subheader .save-status-column .editor-save-status.editor-save-status-failed {
+  color: #b00020;
+  background: rgba(255, 245, 245, 0.96);
 }
 
 @media only screen and (max-width: 700px) {
   .subheader .save-status-column .editor-save-status {
+    min-width: 96px;
+    min-height: 26px;
+    padding: 3px 10px;
     font-size: 0.82rem;
   }
 }
