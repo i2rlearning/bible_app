@@ -1,16 +1,21 @@
-/* ==========================================================================
+/* ========================================================================== 
    Compact popover menu
    Used when scroll artwork is hidden.
-   Breakpoint: 639px and below.
+   Breakpoint: 1100px and below.
    ========================================================================== */
 
-@media only screen and (max-width: 639px) {
+@media only screen and (max-width: 1100px) {
   .overlay {
     position: fixed !important;
     z-index: 6500 !important;
-    top: 56px !important;
+    top: calc(
+      var(--sticky-header-height, 54px) +
+      var(--fixed-toolbar-gap, 6px) +
+      var(--mini-toolbar-height, 38px) +
+      10px
+    ) !important;
     left: 50% !important;
-    width: min(240px, calc(100vw - 20px)) !important;
+    width: min(260px, calc(100vw - 20px)) !important;
     height: auto !important;
     max-height: 0 !important;
     padding: 0 !important;
@@ -30,7 +35,7 @@
   }
 
   .overlay.menu-open {
-    max-height: 360px !important;
+    max-height: 380px !important;
     padding: 8px !important;
     opacity: 1 !important;
     pointer-events: auto !important;
@@ -87,5 +92,16 @@
   .overlay a.current {
     color: #123f7c !important;
     background: #e8f1fb !important;
+  }
+
+  /* In compact mode the top passage selector is hidden, so expose passage changing here. */
+  .overlay .mobile-passage-link {
+    display: flex !important;
+  }
+}
+
+@media only screen and (max-width: 639px) {
+  .overlay {
+    width: min(240px, calc(100vw - 20px)) !important;
   }
 }
