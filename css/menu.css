@@ -2,6 +2,13 @@
   --primary-blue: #1d44b8;
 }
 
+/* ==========================================================================
+   Shared hamburger and menu foundation
+   Layout-specific menu styles live in:
+   - css/menu-scroll.css
+   - css/menu-popover.css
+   ========================================================================== */
+
 /* --- Animated hamburger toggle --- */
 .hamburger {
   display: inline-flex;
@@ -62,92 +69,65 @@
   transform: rotate(-45deg);
 }
 
-.main-nav-toggle:hover span {
+.main-nav-toggle:hover span,
+.main-nav-toggle:focus-visible span {
   background-color: #006b8f;
 }
 
-/* --- Sliding parchment menu from left --- */
+/* --- Shared menu states --- */
 .overlay {
-  height: 60vh;
-  width: 0;
-  position: fixed;
-  z-index: 100;
-  top: 22.55vh;
-  left: 115px;
-  background-image: url("../img/scrollpaper.png");
-  background-repeat: no-repeat;
-  background-size: 250px 60vh;
-  overflow-x: hidden;
-  overflow-y: hidden;
-  transition: 0.65s;
+  box-sizing: border-box;
 }
 
 .overlay-content {
-  position: relative;
-  height: 60vh;
-  width: 225px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  margin-top: 0;
-  top: -8px;
+  box-sizing: border-box;
 }
 
 .overlay a {
-  text-decoration: none;
-  font-size: 30px;
-  color: black;
-  display: block;
-  transition: 0.3s;
-  font-family: Arima, sans-serif;
+  box-sizing: border-box;
 }
 
-.overlay a:hover,
-.overlay a:focus {
-  color: white;
-}
-
-/* Hide old red X close button if it still exists somewhere 
-.overlay .closebtn {
-  display: none;
-}*/
-
-/* --- Menu Link States --- */
+.overlay a.disabled,
 a.disabled {
-  color: darkgray;
   cursor: not-allowed;
 }
 
+.overlay a.current,
 a.current {
   pointer-events: none;
-  color: white;
 }
 
-/* --- Language dropdown --- */
+/* Change Passage is intentionally hidden from the menu for now.
+   The passage selector remains available in the navbar above 640px. */
+.overlay .mobile-passage-link {
+  display: none !important;
+}
+
+/* --- Language dropdown, shared legacy styles --- */
 .custom-combobox {
   display: inline-flex;
-  align-items: flex-start; 
+  align-items: flex-start;
   vertical-align: middle;
 }
 
 #langInput {
-  -webkit-appearance: none; /* Chrome/Safari */
-  -moz-appearance: none;    /* Firefox */
-  appearance: none;         /* modern browsers */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   min-width: 130px;
-  height: 34px;             /* desired height */
-  padding: 0 30px 0 10px; /* leave space for custom arrow */
-  line-height: 34px; /* must match height for vertical align*/
+  height: 34px;
+  padding: 0 30px 0 10px;
+  line-height: 34px;
   box-sizing: border-box;
-  background: #fff;
   color: #222;
   border: 1px solid #2f9ae0;
   border-radius: 4px;
-  /* down arrow size is controlled by: height/width/background */
-  background: url('data:image/svg+xml;utf8,<svg fill="%23000" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 10px center;
+  background:
+    #fff
+    url('data:image/svg+xml;utf8,<svg fill="%23000" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>')
+    no-repeat
+    right 10px
+    center;
   background-size: 24px;
   font-size: 16px;
   font-family: Arial, sans-serif;
@@ -173,20 +153,4 @@ a.current {
   outline: none;
   border-color: #1f7fc2;
   box-shadow: 0 0 0 2px rgba(47, 154, 224, 0.15);
-
-/* --- Responsive Adjustments --- */
-@media screen and (max-height: 450px) {
-  .overlay {
-    height: 65vh;
-    background-size: 250px 65vh;
-  }
-
-  .overlay-content {
-    height: 65vh;
-    gap: 4px;
-  }
-
-  .overlay a {
-    font-size: 20px;
-  }
 }
