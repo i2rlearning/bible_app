@@ -58,6 +58,13 @@
    * the current page state.
    */
 
+  function isMenuOpen(menuNav) {
+    return (
+      !!menuNav &&
+      menuNav.classList.contains("menu-open")
+    );
+  }
+
   window.openNav = function () {
     const { menuNav } =
       getMenuElements();
@@ -66,17 +73,18 @@
       return;
     }
 
-    const isOpen =
-      menuNav.style.width &&
-      menuNav.style.width !== "0px";
-
-    if (isOpen) {
+    if (isMenuOpen(menuNav)) {
       window.closeNav();
       return;
     }
 
-    menuNav.style.width =
-      "225px";
+    menuNav.classList.add(
+      "menu-open"
+    );
+
+    menuNav.removeAttribute(
+      "style"
+    );
 
     setMenuToggleState(true);
   };
@@ -86,8 +94,13 @@
       getMenuElements();
 
     if (menuNav) {
-      menuNav.style.width =
-        "0px";
+      menuNav.classList.remove(
+        "menu-open"
+      );
+
+      menuNav.removeAttribute(
+        "style"
+      );
     }
 
     setMenuToggleState(false);
@@ -101,11 +114,7 @@
       return;
     }
 
-    const isOpen =
-      menuNav.style.width &&
-      menuNav.style.width !== "0px";
-
-    if (isOpen) {
+    if (isMenuOpen(menuNav)) {
       window.closeNav();
     } else {
       window.openNav();
