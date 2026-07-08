@@ -1121,10 +1121,11 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
 
 /* ========================================================================== 
    Permanent responsive rule - hide top passage picker
-   This matches the breakpoint where the mini-editor becomes Text / Drawing / Actions.
+   This matches the breakpoint where the side scroll artwork disappears.
+   Below this width, passage changing is available from the popover menu.
    ========================================================================== */
 
-@media only screen and (max-width: 639px) {
+@media only screen and (max-width: 1100px) {
   body:not(.landing-page) .subheader .passage-picker-column,
   body:not(.landing-page) .subheader .passage-picker {
     display: none !important;
