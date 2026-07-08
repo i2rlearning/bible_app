@@ -97,11 +97,7 @@ a.current {
   pointer-events: none;
 }
 
-/* Change Passage is intentionally hidden from the menu for now.
-   The passage selector remains available in the navbar above 640px. */
-.overlay .mobile-passage-link {
-  display: none !important;
-}
+/* Menu-specific files decide whether the passage link is visible. */
 
 /* --- Language dropdown, shared legacy styles --- */
 .custom-combobox {
