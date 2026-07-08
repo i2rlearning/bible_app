@@ -1,0 +1,93 @@
+/* ==========================================================================
+   Parchment pull-out menu
+   Used when scroll artwork is visible.
+   Breakpoint: 640px and above.
+   ========================================================================== */
+
+@media only screen and (min-width: 640px) {
+  .overlay {
+    position: fixed !important;
+    z-index: 6500 !important;
+    top: 22.55vh !important;
+    left: 115px !important;
+    width: 0 !important;
+    height: 60vh !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    background-color: transparent !important;
+    background-image: url("../img/scrollpaper.png") !important;
+    background-repeat: no-repeat !important;
+    background-size: 250px 60vh !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: none !important;
+    transition: width 0.65s ease !important;
+  }
+
+  .overlay.menu-open {
+    width: 225px !important;
+  }
+
+  .overlay-content {
+    position: relative !important;
+    top: -8px !important;
+    width: 225px !important;
+    height: 60vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    text-align: center !important;
+  }
+
+  .overlay a {
+    display: block !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: black !important;
+    font-family: Arima, sans-serif !important;
+    font-size: 30px !important;
+    font-weight: 400 !important;
+    line-height: 1.25 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    transition: color 0.3s ease !important;
+  }
+
+  .overlay a:hover,
+  .overlay a:focus {
+    color: white !important;
+    background: transparent !important;
+  }
+
+  .overlay a.disabled {
+    color: darkgray !important;
+  }
+
+  .overlay a.current {
+    color: white !important;
+  }
+}
+
+@media only screen and (min-width: 640px) and (max-height: 450px) {
+  .overlay {
+    height: 65vh !important;
+    background-size: 250px 65vh !important;
+  }
+
+  .overlay-content {
+    height: 65vh !important;
+    gap: 4px !important;
+  }
+
+  .overlay a {
+    font-size: 20px !important;
+  }
+}
