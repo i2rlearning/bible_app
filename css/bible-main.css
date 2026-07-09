@@ -1170,3 +1170,61 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
     gap: 28px !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G - mobile save status navbar refinement
+   Keep the save status inside the navbar when the mini-editor switches to
+   compact mode, instead of letting it drop onto the mini-editor.
+   ========================================================================== */
+
+@media only screen and (max-width: 639px) {
+  body:not(.landing-page) .subheader .save-status-column.save-status-column-visible {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    z-index: auto !important;
+    display: flex !important;
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    max-width: 128px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    pointer-events: none !important;
+  }
+
+  body:not(.landing-page) .subheader .editor-save-status {
+    max-width: 128px !important;
+    min-height: 28px !important;
+    padding: 4px 14px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  body:not(.landing-page) .subheader .subheadings {
+    gap: 18px !important;
+  }
+}
+
+@media only screen and (max-width: 380px) {
+  body:not(.landing-page) .subheader .save-status-column.save-status-column-visible {
+    max-width: 112px !important;
+  }
+
+  body:not(.landing-page) .subheader .editor-save-status {
+    max-width: 112px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  body:not(.landing-page) .subheader .subheadings {
+    gap: 12px !important;
+  }
+}
