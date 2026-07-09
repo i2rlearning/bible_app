@@ -1436,6 +1436,7 @@ main.container > .ql-container.ql-snow {
   }
 }
 
+
 /* ========================================================================== 
    Stage 2G - tablet right margin refinement
    The 820px breakpoint was jumping from comfortable margins to a wider tablet
@@ -1456,5 +1457,40 @@ main.container > .ql-container.ql-snow {
   #bible-text {
     padding-left: 14px !important;
     padding-right: 14px !important;
+  }
+}
+
+
+/* ========================================================================== 
+   Stage 2G - large-phone / small-tablet margin refinement
+   631px is technically under the mobile toolbar breakpoint, but visually it
+   still needs tablet-style side breathing room. True phones stay wider.
+   ========================================================================== */
+
+@media only screen and (max-width: 639px) and (min-width: 481px) {
+  #display-text,
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: min(calc(100vw - 64px), 620px) !important;
+    max-width: min(calc(100vw - 64px), 620px) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  #bible-text {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}
+
+/* Actual phone widths can still use more of the available screen. */
+@media only screen and (max-width: 480px) {
+  #display-text,
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
 }
