@@ -1379,6 +1379,8 @@ const FREEHAND_GROUP_TOUCH_PADDING = 10;
 const FREEHAND_ACTIVE_SESSION_PADDING = 28;
 const ANNOTATION_LAYOUT_WARNING_THRESHOLD = 40;
 let annotationLayoutWarningDismissed = false;
+let annotationLayoutBaselineWidth = null;
+let annotationLayoutBaselineViewportWidth = null;
 const LAYOUT_SENSITIVE_ANNOTATION_SELECTOR =
   ".drawn-annotation.circle, .drawn-annotation.square, .freehand-group";
 
@@ -1600,6 +1602,8 @@ function updateAnnotationLayoutWarning() {
 
   if (!hasLayoutSensitiveAnnotations()) {
     annotationLayoutWarningDismissed = false;
+    annotationLayoutBaselineWidth = null;
+    annotationLayoutBaselineViewportWidth = null;
     warning.hidden = true;
     return;
   }
@@ -1607,8 +1611,31 @@ function updateAnnotationLayoutWarning() {
   ensureAllAnnotationMetadata();
 
   const metrics = getBibleTextLayoutMetrics();
-  const maxLayoutDifference = getMaxAnnotationLayoutDifference(metrics.width);
-  const shouldWarn = maxLayoutDifference > ANNOTATION_LAYOUT_WARNING_THRESHOLD;
+  const currentWidth = Math.round(metrics.width || 0);
+  const currentViewportWidth = Math.round(window.innerWidth || 0);
+
+  if (
+    !annotationLayoutBaselineWidth ||
+    !annotationLayoutBaselineViewportWidth
+  ) {
+    annotationLayoutBaselineWidth = currentWidth;
+    annotationLayoutBaselineViewportWidth = currentViewportWidth;
+    annotationLayoutWarningDismissed = false;
+    warning.hidden = true;
+    return;
+  }
+
+  const contentDifference =
+    Math.abs(currentWidth - annotationLayoutBaselineWidth);
+
+  const viewportDifference =
+    Math.abs(currentViewportWidth - annotationLayoutBaselineViewportWidth);
+
+  const maxLayoutDifference =
+    Math.max(contentDifference, viewportDifference);
+
+  const shouldWarn =
+    maxLayoutDifference > ANNOTATION_LAYOUT_WARNING_THRESHOLD;
 
   if (!shouldWarn) {
     annotationLayoutWarningDismissed = false;
