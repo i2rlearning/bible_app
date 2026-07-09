@@ -430,6 +430,59 @@ function getCurrentBiblePageIdentity() {
   };
 }
 
+function getCurrentBookChapterLabel() {
+  const urlParams = new URLSearchParams(window.location.search);
+
+  const rawChapter =
+    urlParams.get("chapter") ||
+    urlParams.get("chapterId") ||
+    "";
+
+  const bookName =
+    urlParams.get("bookName") ||
+    urlParams.get("name") ||
+    "";
+
+  const bookId =
+    urlParams.get("book") ||
+    (rawChapter.includes(".")
+      ? rawChapter.split(".")[0]
+      : "");
+
+  const chapterLabel =
+    rawChapter.includes(".")
+      ? rawChapter.split(".").pop()
+      : rawChapter;
+
+  if (bookName && chapterLabel) {
+    return `${bookName} ${chapterLabel}`.trim();
+  }
+
+  if (rawChapter.includes(".")) {
+    return rawChapter.trim();
+  }
+
+  if (bookId && chapterLabel) {
+    return `${bookId}.${chapterLabel}`.trim();
+  }
+
+  const currentPassageLabel =
+    document.getElementById("current-passage-label")
+      ?.textContent
+      ?.trim() ||
+    "";
+
+  if (currentPassageLabel.includes("·")) {
+    return currentPassageLabel
+      .split("·")
+      .pop()
+      .trim();
+  }
+
+  return currentPassageLabel;
+}
+
+
 async function loadQuillNotes() {
   if (typeof quill === "undefined") return;
 
@@ -502,6 +555,7 @@ async function saveQuillNotes() {
         bibleChapterID: pageIdentity.bibleChapterID,
         pageKey: pageIdentity.pageKey,
         pageUrl: window.location.pathname + window.location.search,
+        bookChapterLabel: getCurrentBookChapterLabel(),
         quillDelta,
         plainText
       })
@@ -1022,7 +1076,7 @@ async function saveMiniEditorPage() {
         pageUrl: window.location.pathname + window.location.search,
         bibleName: new URLSearchParams(window.location.search).get("bibleAbbr") ||
           new URLSearchParams(window.location.search).get("abbr") || "",
-        bookChapterLabel: document.querySelector(".subheadings .column:nth-child(3)")?.textContent?.trim() || "",
+        bookChapterLabel: getCurrentBookChapterLabel(),
         miniEditorJson,
         hasHighlights: flags.hasHighlights,
         hasDrawings: flags.hasDrawings,
