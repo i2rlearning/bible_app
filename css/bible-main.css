@@ -1120,14 +1120,49 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
 
 
 /* ========================================================================== 
-   Permanent responsive rule - hide top passage picker
+   Permanent responsive rule - compact passage picker access
    This matches the breakpoint where the side scroll artwork disappears.
-   Below this width, passage changing is available from the popover menu.
+   Below this width, the navbar button is hidden, but the passage picker panel
+   remains available for the responsive menu's Open Passage action.
    ========================================================================== */
 
 @media only screen and (max-width: 1100px) {
-  body:not(.landing-page) .subheader .passage-picker-column,
+  body:not(.landing-page) .subheader .passage-picker-column {
+    display: flex !important;
+    flex: 0 0 0 !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+  }
+
   body:not(.landing-page) .subheader .passage-picker {
+    display: block !important;
+    position: relative !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:not(.landing-page) .subheader .passage-picker-toggle {
+    display: none !important;
+  }
+
+  body:not(.landing-page) .subheader #passage-picker-panel {
+    display: block;
+  }
+
+  body:not(.landing-page) .subheader #passage-picker-panel[hidden] {
     display: none !important;
   }
 
