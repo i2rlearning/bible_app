@@ -83,6 +83,7 @@ function configureMobilePassagePickerMenu() {
     "click",
     (event) => {
       event.preventDefault();
+      event.stopPropagation();
 
       if (
         typeof window.closeNav ===
@@ -98,13 +99,18 @@ function configureMobilePassagePickerMenu() {
         window.closeMobileToolbarMenus();
       }
 
-      if (
-        versePassagePicker &&
-        typeof versePassagePicker.setOpen ===
-          "function"
-      ) {
-        versePassagePicker.setOpen(true);
-      }
+      window.setTimeout(
+        () => {
+          if (
+            versePassagePicker &&
+            typeof versePassagePicker.setOpen ===
+              "function"
+          ) {
+            versePassagePicker.setOpen(true);
+          }
+        },
+        0
+      );
     }
   );
 }
