@@ -1435,3 +1435,26 @@ main.container > .ql-container.ql-snow {
     margin-right: auto !important;
   }
 }
+
+/* ========================================================================== 
+   Stage 2G - tablet right margin refinement
+   The 820px breakpoint was jumping from comfortable margins to a wider tablet
+   rule. This keeps the 640px-820px range from running too close to the right
+   edge while preserving the wider responsive layout above it.
+   ========================================================================== */
+
+@media only screen and (max-width: 820px) and (min-width: 640px) {
+  #display-text,
+  main.container > .ql-toolbar.ql-snow,
+  main.container > .ql-container.ql-snow {
+    width: min(calc(100vw - 88px), 760px) !important;
+    max-width: min(calc(100vw - 88px), 760px) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  #bible-text {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+}
