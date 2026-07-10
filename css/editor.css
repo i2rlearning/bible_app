@@ -2139,3 +2139,76 @@ main.container > .ql-container.ql-snow {
     width: min(250px, calc(100vw - 18px)) !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G - mobile toolbar menu connection polish
+   Pulls mobile dropdown panels closer to the toolbar and makes drawing
+   controls visually consistent with the text controls.
+   ========================================================================== */
+
+@media only screen and (max-width: 639px) {
+  .mobile-toolbar-menu {
+    top: calc(var(--sticky-header-height) + var(--fixed-toolbar-gap) + 38px) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 28px rgba(11, 22, 34, 0.18) !important;
+  }
+
+  .mobile-toolbar-menu::before {
+    content: "" !important;
+    position: absolute !important;
+    top: -8px !important;
+    left: 50% !important;
+    width: 16px !important;
+    height: 16px !important;
+    background: #fff !important;
+    border-left: 1px solid rgba(19, 57, 93, 0.12) !important;
+    border-top: 1px solid rgba(19, 57, 93, 0.12) !important;
+    transform: translateX(-50%) rotate(45deg) !important;
+  }
+
+  .mobile-drawing-menu {
+    padding: 13px 16px 14px !important;
+  }
+
+  .mobile-drawing-menu .draw-tool-choice,
+  #bible-mini-toolbar .mobile-drawing-menu button[data-drawing-tool] {
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    min-height: 46px !important;
+    padding: 0 !important;
+  }
+
+  .mobile-drawing-menu .draw-tool-choice svg,
+  #bible-mini-toolbar .mobile-drawing-menu button[data-drawing-tool] svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .mobile-drawing-menu .color-option {
+    width: 46px !important;
+    height: 38px !important;
+    min-width: 46px !important;
+    min-height: 38px !important;
+  }
+}
+
+@media only screen and (max-width: 380px) {
+  .mobile-toolbar-menu {
+    top: calc(var(--sticky-header-height) + var(--fixed-toolbar-gap) + 34px) !important;
+  }
+
+  .mobile-drawing-menu .draw-tool-choice,
+  #bible-mini-toolbar .mobile-drawing-menu button[data-drawing-tool] {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+  }
+
+  .mobile-drawing-menu .color-option {
+    width: 42px !important;
+    min-width: 42px !important;
+  }
+}
