@@ -2036,3 +2036,106 @@ main.container > .ql-container.ql-snow {
     font-size: 0.86rem !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G - mobile toolbar menu polish
+   Makes Text and Actions menus usable on phones, keeps Drawing clean,
+   and moves text/select mode into Actions instead of Drawing.
+   ========================================================================== */
+
+@media only screen and (max-width: 639px) {
+  .mobile-toolbar-menu {
+    position: fixed !important;
+    top: calc(var(--sticky-header-height) + var(--fixed-toolbar-gap) + 48px) !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(360px, calc(100vw - 18px)) !important;
+    max-width: calc(100vw - 18px) !important;
+    max-height: calc(100vh - 132px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  .mobile-text-menu {
+    display: none !important;
+    grid-template-columns: repeat(4, minmax(42px, 1fr)) !important;
+    gap: 8px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .mobile-text-menu.show {
+    display: grid !important;
+  }
+
+  .mobile-text-menu .mobile-toolbar-menu-title {
+    grid-column: 1 / -1 !important;
+    margin: 2px 0 0 !important;
+  }
+
+  #bible-mini-toolbar .mobile-text-menu button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 5px 7px !important;
+    font-size: 15px !important;
+  }
+
+  .mobile-drawing-menu {
+    width: min(338px, calc(100vw - 18px)) !important;
+  }
+
+  .mobile-actions-menu {
+    display: none !important;
+    grid-template-columns: repeat(2, minmax(112px, 1fr)) !important;
+    gap: 8px !important;
+    width: min(330px, calc(100vw - 18px)) !important;
+  }
+
+  .mobile-actions-menu.show {
+    display: grid !important;
+  }
+
+  #bible-mini-toolbar .mobile-actions-menu button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    padding: 6px 10px !important;
+    gap: 7px !important;
+    font-size: 15px !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+
+  #bible-mini-toolbar .mobile-actions-menu .select-text-action {
+    border-color: #9fc6e8 !important;
+    background: #eef7ff !important;
+    color: #123f7c !important;
+    font-weight: 700 !important;
+  }
+
+  #bible-mini-toolbar .mobile-actions-menu .action-letter {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 18px !important;
+    height: 18px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+  }
+}
+
+@media only screen and (max-width: 380px) {
+  .mobile-text-menu {
+    grid-template-columns: repeat(3, minmax(42px, 1fr)) !important;
+  }
+
+  .mobile-actions-menu {
+    grid-template-columns: 1fr !important;
+    width: min(250px, calc(100vw - 18px)) !important;
+  }
+}
