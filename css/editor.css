@@ -1494,3 +1494,393 @@ main.container > .ql-container.ql-snow {
     margin-right: auto !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G - My Notes mobile card layout
+   Desktop keeps the table. Phone turns rows into clean searchable cards.
+   Search still checks hidden content through auth.js, even when Preview,
+   Updated, and Saved Content are not visible.
+   ========================================================================== */
+
+.note-action-label {
+  display: none;
+}
+
+@media only screen and (max-width: 640px) {
+  #myNotesModal {
+    padding: 8px !important;
+    align-items: stretch !important;
+  }
+
+  .my-notes-content {
+    width: 100% !important;
+    max-height: calc(100vh - 16px) !important;
+    padding: 14px !important;
+    border-radius: 10px !important;
+  }
+
+  .my-notes-content h2 {
+    padding-right: 42px !important;
+    margin-bottom: 12px !important;
+    font-size: 22px !important;
+  }
+
+  #closeMyNotes {
+    top: 10px !important;
+    right: 10px !important;
+  }
+
+  .my-notes-search {
+    min-height: 42px !important;
+    margin-bottom: 8px !important;
+    padding: 9px 11px !important;
+    font-size: 16px !important;
+  }
+
+  .my-notes-status {
+    margin: 4px 0 10px !important;
+    font-size: 13px !important;
+  }
+
+  .my-notes-table-wrapper {
+    max-height: calc(100vh - 150px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    border: 0 !important;
+    padding-right: 2px !important;
+  }
+
+  .my-notes-table,
+  .my-notes-table tbody {
+    display: block !important;
+    width: 100% !important;
+    border-collapse: separate !important;
+    background: transparent !important;
+  }
+
+  .my-notes-table thead {
+    display: none !important;
+  }
+
+  .my-notes-table tr.my-notes-row,
+  .my-notes-table tbody tr {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 10px !important;
+    padding: 12px !important;
+    border: 1px solid rgba(19, 57, 93, 0.14) !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    box-shadow: 0 2px 8px rgba(11, 22, 34, 0.08) !important;
+    box-sizing: border-box !important;
+  }
+
+  .my-notes-table td {
+    border: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    line-height: 1.25 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .my-notes-table td.note-bible,
+  .my-notes-table td:nth-child(1) {
+    display: inline !important;
+    color: #1d2d44 !important;
+    font-weight: 800 !important;
+    font-size: 0.98rem !important;
+  }
+
+  .my-notes-table td.note-bible::after,
+  .my-notes-table td:nth-child(1)::after {
+    content: " · ";
+    color: #6c7887;
+    font-weight: 700;
+  }
+
+  .my-notes-table td.note-book-chapter,
+  .my-notes-table td:nth-child(2) {
+    display: inline !important;
+    color: #1d2d44 !important;
+    font-weight: 800 !important;
+    font-size: 0.98rem !important;
+  }
+
+  .my-notes-table td.note-saved-content,
+  .my-notes-table td.note-preview,
+  .my-notes-table td.note-updated,
+  .my-notes-table td:nth-child(3),
+  .my-notes-table td:nth-child(4),
+  .my-notes-table td:nth-child(5) {
+    display: none !important;
+  }
+
+  .my-notes-table td.note-open,
+  .my-notes-table td.note-delete,
+  .my-notes-table td:nth-child(6),
+  .my-notes-table td:nth-child(7) {
+    display: inline-flex !important;
+    width: calc(50% - 5px) !important;
+    margin-top: 12px !important;
+    vertical-align: top !important;
+  }
+
+  .my-notes-table td.note-open,
+  .my-notes-table td:nth-child(6) {
+    margin-right: 10px !important;
+  }
+
+  .open-note,
+  .delete-note {
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border: 1px solid rgba(19, 57, 93, 0.2) !important;
+    border-radius: 8px !important;
+    background: #f7fbff !important;
+    color: #123f7c !important;
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    box-sizing: border-box !important;
+    gap: 6px !important;
+  }
+
+  .delete-note {
+    background: #fff8f8 !important;
+    color: #9b1c1c !important;
+    border-color: rgba(155, 28, 28, 0.22) !important;
+  }
+
+  .open-note:hover,
+  .delete-note:hover {
+    transform: none !important;
+  }
+
+  .note-action-icon {
+    font-size: 1rem !important;
+    line-height: 1 !important;
+  }
+
+  .note-action-label {
+    display: inline !important;
+  }
+}
+
+
+/* ========================================================================== 
+   Stage 2G - My Notes responsive card layout at 1033px
+   The table is kept for 1034px and above. From 1033px down, notes become
+   compact searchable cards. Hidden columns still remain in the DOM, so the
+   search bar can continue matching Preview, Saved Content, and Updated values.
+   ========================================================================== */
+
+@media only screen and (max-width: 1033px) {
+  #myNotesModal {
+    padding: 12px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .my-notes-content {
+    width: min(720px, calc(100vw - 24px)) !important;
+    max-height: calc(100vh - 24px) !important;
+    padding: 16px !important;
+    border-radius: 10px !important;
+  }
+
+  .my-notes-content h2 {
+    margin-bottom: 12px !important;
+    padding-right: 42px !important;
+    font-size: 22px !important;
+  }
+
+  #closeMyNotes {
+    top: 10px !important;
+    right: 10px !important;
+  }
+
+  .my-notes-search {
+    width: 100% !important;
+    min-height: 42px !important;
+    margin-bottom: 8px !important;
+    padding: 9px 11px !important;
+    font-size: 16px !important;
+  }
+
+  .my-notes-status {
+    margin: 4px 0 10px !important;
+    font-size: 13px !important;
+  }
+
+  .my-notes-table-wrapper {
+    max-height: calc(100vh - 155px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    border: 0 !important;
+    padding-right: 2px !important;
+  }
+
+  .my-notes-table,
+  .my-notes-table tbody {
+    display: block !important;
+    width: 100% !important;
+    border-collapse: separate !important;
+    table-layout: auto !important;
+    background: transparent !important;
+  }
+
+  .my-notes-table thead {
+    display: none !important;
+  }
+
+  .my-notes-table tbody {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .my-notes-table tr.my-notes-row,
+  .my-notes-table tbody tr {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    border: 1px solid rgba(19, 57, 93, 0.14) !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    box-shadow: 0 2px 8px rgba(11, 22, 34, 0.08) !important;
+    box-sizing: border-box !important;
+  }
+
+  .my-notes-table th,
+  .my-notes-table td {
+    width: auto !important;
+  }
+
+  .my-notes-table td {
+    border: 0 !important;
+    padding: 0 !important;
+    line-height: 1.25 !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
+
+  .my-notes-table td.note-bible,
+  .my-notes-table td:nth-child(1) {
+    display: inline !important;
+    color: #1d2d44 !important;
+    font-size: 0.98rem !important;
+    font-weight: 800 !important;
+  }
+
+  .my-notes-table td.note-bible::after,
+  .my-notes-table td:nth-child(1)::after {
+    content: " · ";
+    color: #6c7887 !important;
+    font-weight: 700 !important;
+  }
+
+  .my-notes-table td.note-book-chapter,
+  .my-notes-table td:nth-child(2) {
+    display: inline !important;
+    color: #1d2d44 !important;
+    font-size: 0.98rem !important;
+    font-weight: 800 !important;
+  }
+
+  .my-notes-table td.note-saved-content,
+  .my-notes-table td.note-preview,
+  .my-notes-table td.note-updated,
+  .my-notes-table td:nth-child(3),
+  .my-notes-table td:nth-child(4),
+  .my-notes-table td:nth-child(5) {
+    display: none !important;
+  }
+
+  .my-notes-table td.note-open,
+  .my-notes-table td.note-delete,
+  .my-notes-table td:nth-child(6),
+  .my-notes-table td:nth-child(7) {
+    display: inline-flex !important;
+    width: calc(50% - 5px) !important;
+    margin-top: 12px !important;
+    vertical-align: top !important;
+  }
+
+  .my-notes-table td.note-open,
+  .my-notes-table td:nth-child(6) {
+    margin-right: 10px !important;
+  }
+
+  .open-note,
+  .delete-note {
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border: 1px solid rgba(19, 57, 93, 0.2) !important;
+    border-radius: 8px !important;
+    background: #f7fbff !important;
+    color: #123f7c !important;
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    box-sizing: border-box !important;
+    gap: 6px !important;
+  }
+
+  .delete-note {
+    background: #fff8f8 !important;
+    color: #9b1c1c !important;
+    border-color: rgba(155, 28, 28, 0.22) !important;
+  }
+
+  .open-note:hover,
+  .delete-note:hover {
+    transform: none !important;
+  }
+
+  .note-action-icon {
+    font-size: 1rem !important;
+    line-height: 1 !important;
+  }
+
+  .note-action-label {
+    display: inline !important;
+  }
+
+  /* Fallback labels if auth.js has not yet added .note-action-label spans. */
+  .open-note:not(:has(.note-action-label))::after {
+    content: "Open";
+    margin-left: 6px;
+  }
+
+  .delete-note:not(:has(.note-action-label))::after {
+    content: "Delete";
+    margin-left: 6px;
+  }
+}
+
+@media only screen and (max-width: 520px) {
+  #myNotesModal {
+    padding: 8px !important;
+    align-items: stretch !important;
+  }
+
+  .my-notes-content {
+    width: 100% !important;
+    max-height: calc(100vh - 16px) !important;
+    padding: 14px !important;
+  }
+
+  .my-notes-table tbody {
+    grid-template-columns: 1fr !important;
+  }
+}
