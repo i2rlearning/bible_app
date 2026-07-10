@@ -2285,3 +2285,99 @@ main.container > .ql-container.ql-snow {
     min-width: 42px !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G - mobile toolbar dropdown anchored positioning
+   Anchor mobile dropdown panels to the mini-toolbar itself so they sit close
+   to the selected menu instead of using a fixed page offset.
+   ========================================================================== */
+
+@media only screen and (max-width: 639px) {
+  #bible-mini-toolbar {
+    overflow: visible !important;
+  }
+
+  #bible-mini-toolbar .mobile-mini-toolbar {
+    position: relative !important;
+  }
+
+  #bible-mini-toolbar .mobile-toolbar-group {
+    position: static !important;
+  }
+
+  #bible-mini-toolbar .mobile-toolbar-menu {
+    position: absolute !important;
+    top: calc(100% + 6px) !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    z-index: 6500 !important;
+    width: min(360px, calc(100vw - 18px)) !important;
+    max-width: calc(100vw - 18px) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 24px rgba(11, 22, 34, 0.18) !important;
+  }
+
+  #bible-mini-toolbar .mobile-toolbar-menu::before {
+    content: "" !important;
+    position: absolute !important;
+    top: -7px !important;
+    left: 50% !important;
+    width: 14px !important;
+    height: 14px !important;
+    background: #fff !important;
+    border-left: 1px solid rgba(19, 57, 93, 0.12) !important;
+    border-top: 1px solid rgba(19, 57, 93, 0.12) !important;
+    transform: translateX(-50%) rotate(45deg) !important;
+  }
+
+  #bible-mini-toolbar .mobile-drawing-menu {
+    width: min(338px, calc(100vw - 18px)) !important;
+    padding: 13px 16px 14px !important;
+  }
+
+  #bible-mini-toolbar .mobile-drawing-menu button[data-drawing-tool] {
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    min-height: 46px !important;
+    padding: 0 !important;
+  }
+
+  #bible-mini-toolbar .mobile-drawing-menu button[data-drawing-tool] svg {
+    width: 22px !important;
+    height: 22px !important;
+    display: block !important;
+  }
+
+  #bible-mini-toolbar .mobile-drawing-menu .color-option {
+    width: 46px !important;
+    height: 38px !important;
+    min-width: 46px !important;
+    min-height: 38px !important;
+  }
+}
+
+@media only screen and (max-width: 380px) {
+  #bible-mini-toolbar .mobile-toolbar-menu {
+    top: calc(100% + 5px) !important;
+  }
+
+  #bible-mini-toolbar .mobile-drawing-menu button[data-drawing-tool] {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+  }
+
+  #bible-mini-toolbar .mobile-drawing-menu button[data-drawing-tool] svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  #bible-mini-toolbar .mobile-drawing-menu .color-option {
+    width: 42px !important;
+    min-width: 42px !important;
+  }
+}
