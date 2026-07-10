@@ -2381,3 +2381,33 @@ main.container > .ql-container.ql-snow {
     min-width: 42px !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G - disabled undo redo button states
+   Shows undo/redo as unavailable when no history exists in that direction.
+   ========================================================================== */
+
+#bible-mini-toolbar button.history-button-disabled,
+#bible-mini-toolbar button[aria-disabled="true"][onclick*="undoMiniEditorChange"],
+#bible-mini-toolbar button[aria-disabled="true"][onclick*="redoMiniEditorChange"] {
+  opacity: 0.38 !important;
+  filter: grayscale(100%) !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+#bible-mini-toolbar button.history-button-disabled i,
+#bible-mini-toolbar button[aria-disabled="true"][onclick*="undoMiniEditorChange"] i,
+#bible-mini-toolbar button[aria-disabled="true"][onclick*="redoMiniEditorChange"] i {
+  opacity: 0.75 !important;
+}
+
+@media only screen and (max-width: 639px) {
+  #bible-mini-toolbar .mobile-actions-menu button.history-button-disabled {
+    background: #f2f3f5 !important;
+    border-color: #d6d9de !important;
+    color: #8a9099 !important;
+    opacity: 0.72 !important;
+  }
+}
