@@ -392,6 +392,7 @@ function unlockEditorTools() {
   }
 
   setEditorSaveStatus("");
+  updateMiniEditorHistoryControls();
   }
   
 // ----------------------------------------------------
@@ -799,6 +800,49 @@ function initializeMiniEditorHistory() {
   miniEditorRedoStack = [];
   miniEditorHistorySignature = getMiniEditorHistorySignature(snapshot);
   miniEditorHistoryReady = true;
+  updateMiniEditorHistoryControls();
+}
+
+function updateMiniEditorHistoryControls() {
+  const canUndo =
+    miniEditorHistoryReady &&
+    miniEditorUndoStack.length > 1;
+
+  const canRedo =
+    miniEditorHistoryReady &&
+    miniEditorRedoStack.length > 0;
+
+  document
+    .querySelectorAll(
+      '[onclick*="undoMiniEditorChange"]'
+    )
+    .forEach((button) => {
+      button.disabled = !canUndo;
+      button.classList.toggle(
+        "history-button-disabled",
+        !canUndo
+      );
+      button.setAttribute(
+        "aria-disabled",
+        String(!canUndo)
+      );
+    });
+
+  document
+    .querySelectorAll(
+      '[onclick*="redoMiniEditorChange"]'
+    )
+    .forEach((button) => {
+      button.disabled = !canRedo;
+      button.classList.toggle(
+        "history-button-disabled",
+        !canRedo
+      );
+      button.setAttribute(
+        "aria-disabled",
+        String(!canRedo)
+      );
+    });
 }
 
 function recordMiniEditorHistorySnapshot() {
@@ -822,6 +866,7 @@ function recordMiniEditorHistorySnapshot() {
   miniEditorRedoStack = [];
   miniEditorHistorySignature = signature;
   miniEditorHistoryReady = true;
+  updateMiniEditorHistoryControls();
 }
 
 function scheduleMiniEditorSaveAfterHistoryApply() {
@@ -868,6 +913,7 @@ function applyMiniEditorHistorySnapshot(snapshot) {
     miniEditorApplyingState = false;
     miniEditorHistoryApplying = false;
     miniEditorHistorySignature = getMiniEditorHistorySignature(snapshot);
+    updateMiniEditorHistoryControls();
     scheduleMiniEditorSaveAfterHistoryApply();
   }, 120);
 }
@@ -887,6 +933,7 @@ function undoMiniEditorChange() {
   const previousSnapshot = miniEditorUndoStack[miniEditorUndoStack.length - 1];
 
   miniEditorRedoStack.push(currentSnapshot);
+  updateMiniEditorHistoryControls();
   applyMiniEditorHistorySnapshot(previousSnapshot);
 }
 
@@ -899,6 +946,7 @@ function redoMiniEditorChange() {
 
   const nextSnapshot = miniEditorRedoStack.pop();
   miniEditorUndoStack.push(nextSnapshot);
+  updateMiniEditorHistoryControls();
   applyMiniEditorHistorySnapshot(nextSnapshot);
 }
 
