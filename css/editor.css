@@ -1884,3 +1884,155 @@ main.container > .ql-container.ql-snow {
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 2G - My Notes compact card preview refinement
+   Refines the card layout below 1034px:
+   - consistent card alignment
+   - compact visible preview
+   - clean side-by-side Open/Delete actions
+   - no return to cramped table columns
+   ========================================================================== */
+
+@media only screen and (max-width: 1033px) {
+  .my-notes-table tbody {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .my-notes-table tr.my-notes-row,
+  .my-notes-table tbody tr {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 78px 78px !important;
+    grid-template-areas:
+      "bible open delete"
+      "book open delete"
+      "preview preview preview" !important;
+    column-gap: 8px !important;
+    row-gap: 4px !important;
+    align-items: start !important;
+    min-height: 112px !important;
+    padding: 11px !important;
+  }
+
+  .my-notes-table td.note-bible,
+  .my-notes-table td:nth-child(1) {
+    grid-area: bible !important;
+    display: block !important;
+    min-width: 0 !important;
+    color: #1d2d44 !important;
+    font-size: 0.88rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .my-notes-table td.note-bible::after,
+  .my-notes-table td:nth-child(1)::after {
+    content: "" !important;
+  }
+
+  .my-notes-table td.note-book-chapter,
+  .my-notes-table td:nth-child(2) {
+    grid-area: book !important;
+    display: block !important;
+    min-width: 0 !important;
+    color: #1d2d44 !important;
+    font-size: 0.96rem !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .my-notes-table td.note-saved-content,
+  .my-notes-table td.note-updated,
+  .my-notes-table td:nth-child(3),
+  .my-notes-table td:nth-child(5) {
+    display: none !important;
+  }
+
+  .my-notes-table td.note-preview,
+  .my-notes-table td:nth-child(4) {
+    grid-area: preview !important;
+    display: -webkit-box !important;
+    min-width: 0 !important;
+    margin-top: 7px !important;
+    color: #344256 !important;
+    font-size: 0.82rem !important;
+    line-height: 1.35 !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .my-notes-table td.note-preview:empty,
+  .my-notes-table td:nth-child(4):empty {
+    display: none !important;
+  }
+
+  .my-notes-table td.note-open,
+  .my-notes-table td:nth-child(6) {
+    grid-area: open !important;
+    display: block !important;
+    width: 78px !important;
+    margin: 0 !important;
+  }
+
+  .my-notes-table td.note-delete,
+  .my-notes-table td:nth-child(7) {
+    grid-area: delete !important;
+    display: block !important;
+    width: 78px !important;
+    margin: 0 !important;
+  }
+
+  .open-note,
+  .delete-note {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 8px !important;
+    font-size: 0.78rem !important;
+    line-height: 1 !important;
+  }
+
+  .note-action-icon {
+    font-size: 0.84rem !important;
+  }
+}
+
+@media only screen and (max-width: 520px) {
+  .my-notes-table tbody {
+    grid-template-columns: 1fr !important;
+  }
+
+  .my-notes-table tr.my-notes-row,
+  .my-notes-table tbody tr {
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-areas:
+      "bible bible"
+      "book book"
+      "preview preview"
+      "open delete" !important;
+    min-height: 0 !important;
+  }
+
+  .my-notes-table td.note-open,
+  .my-notes-table td:nth-child(6),
+  .my-notes-table td.note-delete,
+  .my-notes-table td:nth-child(7) {
+    width: 100% !important;
+    margin-top: 8px !important;
+  }
+
+  .open-note,
+  .delete-note {
+    height: 36px !important;
+    min-height: 36px !important;
+    font-size: 0.86rem !important;
+  }
+}
