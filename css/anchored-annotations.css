@@ -2,19 +2,10 @@
   Anchored annotations
   Week 3 parallel system for responsive circle and square
 
-  This version uses inline text wrappers instead of absolute SVG.
-  The annotation becomes part of the Bible text flow, so it naturally
-  stays with the selected words when screen width or font size changes.
-
-  Step 1F:
-  Use non-layout drawing styles so the annotation border does not create
-  random scrollbars when a selected phrase sits near the right edge.
+  Adds deletion support. Click an anchored circle/square to select it,
+  then press Clear. Or select/highlight the annotated words and press Clear.
 **************************************************************/
 
-/*
-  The Bible passage should not become its own horizontal scroll area just
-  because an inline annotation ring extends a pixel or two beyond the text.
-*/
 #display-text {
   overflow-x: clip !important;
   overflow-y: visible !important;
@@ -43,11 +34,6 @@
   color: inherit !important;
   background: transparent !important;
 
-  /*
-    Important:
-    Do not use a real border here. A real border and padding can add width to
-    the selected words, which can trigger an unwanted scrollbar.
-  */
   border: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
@@ -55,6 +41,7 @@
   box-shadow: 0 0 0 1.8px var(--anchored-inline-color) !important;
   box-decoration-break: clone !important;
   -webkit-box-decoration-break: clone !important;
+  cursor: pointer;
 }
 
 .anchored-inline-circle {
@@ -67,8 +54,20 @@
   border-radius: 0.14em !important;
 }
 
+.anchored-inline-selected {
+  box-shadow:
+    0 0 0 1.8px var(--anchored-inline-color),
+    0 0 0 4px rgba(255, 193, 7, 0.45) !important;
+}
+
 @media only screen and (max-width: 640px) {
   .anchored-inline-annotation {
     box-shadow: 0 0 0 1.9px var(--anchored-inline-color) !important;
+  }
+
+  .anchored-inline-selected {
+    box-shadow:
+      0 0 0 1.9px var(--anchored-inline-color),
+      0 0 0 4px rgba(255, 193, 7, 0.45) !important;
   }
 }
