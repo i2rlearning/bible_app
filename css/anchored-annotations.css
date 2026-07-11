@@ -1,49 +1,74 @@
 /**************************************************************
   Anchored annotations
-  Parallel system for responsive circle and square
+  Week 3 parallel system for responsive circle and square
 
   This version uses inline text wrappers instead of absolute SVG.
   The annotation becomes part of the Bible text flow, so it naturally
   stays with the selected words when screen width or font size changes.
+
+  Step 1F:
+  Use non-layout drawing styles so the annotation border does not create
+  random scrollbars when a selected phrase sits near the right edge.
 **************************************************************/
 
+/*
+  The Bible passage should not become its own horizontal scroll area just
+  because an inline annotation ring extends a pixel or two beyond the text.
+*/
+#display-text {
+  overflow-x: clip !important;
+  overflow-y: visible !important;
+  max-height: none !important;
+}
+
+@supports not (overflow: clip) {
+  #display-text {
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+}
+
+#bible-drawing-area,
+#bible-text {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
 .anchored-inline-annotation {
-  position: relative;
-  display: inline;
-  color: inherit;
-  background: transparent;
-  border-style: solid;
-  border-width: 1.8px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  --anchored-inline-color: #c40000;
+
+  position: relative !important;
+  display: inline !important;
+  color: inherit !important;
+  background: transparent !important;
+
+  /*
+    Important:
+    Do not use a real border here. A real border and padding can add width to
+    the selected words, which can trigger an unwanted scrollbar.
+  */
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+
+  box-shadow: 0 0 0 1.8px var(--anchored-inline-color) !important;
+  box-decoration-break: clone !important;
+  -webkit-box-decoration-break: clone !important;
 }
 
 .anchored-inline-circle {
-  border-color: #c40000;
-  border-radius: 999px;
-  padding: 0 0.26em 0.04em;
-  margin: 0 0.04em;
+  --anchored-inline-color: #c40000;
+  border-radius: 999px !important;
 }
 
 .anchored-inline-square {
-  border-color: #0066cc;
-  border-radius: 0.14em;
-  padding: 0 0.22em 0.04em;
-  margin: 0 0.04em;
+  --anchored-inline-color: #0066cc;
+  border-radius: 0.14em !important;
 }
 
 @media only screen and (max-width: 640px) {
   .anchored-inline-annotation {
-    border-width: 1.9px;
-  }
-
-  .anchored-inline-circle {
-    padding-left: 0.24em;
-    padding-right: 0.24em;
-  }
-
-  .anchored-inline-square {
-    padding-left: 0.2em;
-    padding-right: 0.2em;
+    box-shadow: 0 0 0 1.9px var(--anchored-inline-color) !important;
   }
 }
