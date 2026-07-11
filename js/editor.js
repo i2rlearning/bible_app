@@ -2674,10 +2674,35 @@ document.addEventListener("click", (event) => {
   }
 });
 
+function isTypingOrFormTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      'input, textarea, select, [contenteditable="true"], .ql-editor'
+    )
+  );
+}
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeMobileToolbarMenus();
     closeFreehandWarningDialog();
+    return;
+  }
+
+  if (event.key === "Delete") {
+    if (isTypingOrFormTarget(event.target)) {
+      return;
+    }
+
+    if (window.AnchoredAnnotations?.clearSelected?.()) {
+      event.preventDefault();
+      recordMiniEditorHistorySnapshot();
+      scheduleMiniEditorSave();
+    }
   }
 });
 
