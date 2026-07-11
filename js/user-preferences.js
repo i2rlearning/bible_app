@@ -22,15 +22,23 @@ window.UserPreferences = (() => {
     bibleAbbr: "",
     bibleName: "",
     landingPage: "index",
+    freehandWarningEnabled: true,
     lastPassage: null
   };
 
   function read() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      const legacyFreehandWarningHidden =
+        localStorage.getItem("boi-hide-freehand-warning") === "true";
+
       return {
         ...DEFAULTS,
         ...saved,
+        freehandWarningEnabled:
+          typeof saved.freehandWarningEnabled === "boolean"
+            ? saved.freehandWarningEnabled
+            : !legacyFreehandWarningHidden,
         lastPassage: saved.lastPassage || null
       };
     } catch (error) {
@@ -250,6 +258,9 @@ window.UserPreferences = (() => {
   async function openModal() {
     const languageSelect = document.getElementById("preferences-language");
     const landingSelect = document.getElementById("preferences-landing-page");
+    const freehandWarningCheckbox = document.getElementById(
+      "preferences-freehand-warning"
+    );
 
     if (!languageSelect || !landingSelect || !window.BibleSelector) {
       return;
@@ -270,6 +281,11 @@ window.UserPreferences = (() => {
 
     languageSelect.value = preferredLanguage?.apiUrl || "";
     landingSelect.value = preferences.landingPage === "verse" ? "verse" : "index";
+
+    if (freehandWarningCheckbox) {
+      freehandWarningCheckbox.checked = preferences.freehandWarningEnabled !== false;
+    }
+
     setStatus("");
     setModalOpen(true);
 
@@ -280,6 +296,9 @@ window.UserPreferences = (() => {
     const languageSelect = document.getElementById("preferences-language");
     const bibleSelect = document.getElementById("preferences-bible");
     const landingSelect = document.getElementById("preferences-landing-page");
+    const freehandWarningCheckbox = document.getElementById(
+      "preferences-freehand-warning"
+    );
 
     if (!languageSelect || !bibleSelect || !landingSelect) {
       return;
@@ -300,7 +319,10 @@ window.UserPreferences = (() => {
       bibleId: bibleSelect.value,
       bibleAbbr: selectedBible?.dataset.abbr || selectedBible?.textContent || "",
       bibleName: selectedBible?.dataset.name || selectedBible?.textContent || "",
-      landingPage: landingSelect.value === "verse" ? "verse" : "index"
+      landingPage: landingSelect.value === "verse" ? "verse" : "index",
+      freehandWarningEnabled: freehandWarningCheckbox
+        ? freehandWarningCheckbox.checked
+        : read().freehandWarningEnabled
     });
 
     window.BibleSelector.saveLanguage(
@@ -316,7 +338,8 @@ window.UserPreferences = (() => {
           bibleId: savedPreferences.bibleId,
           bibleAbbr: savedPreferences.bibleAbbr,
           bibleName: savedPreferences.bibleName,
-          landingPage: savedPreferences.landingPage
+          landingPage: savedPreferences.landingPage,
+          freehandWarningEnabled: savedPreferences.freehandWarningEnabled
         }
       })
     );
