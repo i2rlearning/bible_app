@@ -2,12 +2,14 @@
   "use strict";
 
   const INLINE_CLASS = "anchored-inline-annotation";
+  const SELECTED_CLASS = "anchored-inline-selected";
   const TYPE_CLASSES = {
     circle: "anchored-inline-circle",
     square: "anchored-inline-square"
   };
 
   let savedSelectionOffsets = null;
+  let selectedAnnotation = null;
 
   function getBibleText() {
     return document.getElementById("bible-text");
@@ -171,7 +173,11 @@
     const parent = element.parentNode;
 
     if (!parent) {
-      return;
+      return false;
+    }
+
+    if (selectedAnnotation === element) {
+      selectedAnnotation = null;
     }
 
     while (element.firstChild) {
@@ -180,6 +186,8 @@
 
     parent.removeChild(element);
     parent.normalize();
+
+    return true;
   }
 
   function removeNestedAnchoredAnnotations(container) {
@@ -230,6 +238,76 @@
     return wrapper;
   }
 
+  function clearSelectedVisualState() {
+    document
+      .querySelectorAll(`.${INLINE_CLASS}.${SELECTED_CLASS}`)
+      .forEach((element) => {
+        element.classList.remove(SELECTED_CLASS);
+      });
+  }
+
+  function selectAnnotation(element) {
+    if (!element || !element.classList?.contains(INLINE_CLASS)) {
+      return false;
+    }
+
+    clearSelectedVisualState();
+    selectedAnnotation = element;
+    selectedAnnotation.classList.add(SELECTED_CLASS);
+
+    return true;
+  }
+
+  function clearSelected() {
+    if (!selectedAnnotation || !document.body.contains(selectedAnnotation)) {
+      selectedAnnotation = null;
+      return false;
+    }
+
+    return unwrapElement(selectedAnnotation);
+  }
+
+  function clearIntersectingRange(range) {
+    const bibleText = getBibleText();
+
+    if (!bibleText || !range || range.collapsed) {
+      return false;
+    }
+
+    const matches = Array.from(
+      bibleText.querySelectorAll(`.${INLINE_CLASS}`)
+    ).filter((element) => {
+      try {
+        return range.intersectsNode(element);
+      } catch (error) {
+        return false;
+      }
+    });
+
+    if (!matches.length) {
+      return false;
+    }
+
+    matches.forEach((element) => unwrapElement(element));
+    savedSelectionOffsets = null;
+
+    return true;
+  }
+
+  function clearIntersectingCurrentSelection() {
+    return clearIntersectingRange(getSelectionRangeInsideBibleText());
+  }
+
+  function clearAtEventTarget(target) {
+    const annotation = target?.closest?.(`.${INLINE_CLASS}`);
+
+    if (!annotation) {
+      return false;
+    }
+
+    return unwrapElement(annotation);
+  }
+
   function createFromCurrentSelection(type) {
     if (type !== "circle" && type !== "square") {
       return { created: false, reason: "unsupported-type" };
@@ -264,6 +342,7 @@
       }
 
       savedSelectionOffsets = null;
+      selectAnnotation(wrapper);
 
       return {
         created: true,
@@ -298,6 +377,7 @@
       .forEach((element) => unwrapElement(element));
 
     savedSelectionOffsets = null;
+    selectedAnnotation = null;
   }
 
   function render() {
@@ -319,6 +399,7 @@
   }
 
   function setState() {
+    selectedAnnotation = null;
     render();
   }
 
@@ -360,11 +441,33 @@
       },
       true
     );
+
+    document.addEventListener(
+      "click",
+      (event) => {
+        const annotation =
+          event.target?.closest?.(`.${INLINE_CLASS}`);
+
+        if (annotation) {
+          selectAnnotation(annotation);
+          return;
+        }
+
+        if (!event.target?.closest?.("#bible-mini-toolbar")) {
+          clearSelectedVisualState();
+          selectedAnnotation = null;
+        }
+      },
+      true
+    );
   }
 
   window.AnchoredAnnotations = {
     createFromCurrentSelection,
     rememberCurrentSelection,
+    clearSelected,
+    clearIntersectingCurrentSelection,
+    clearAtEventTarget,
     getState,
     setState,
     clear,
