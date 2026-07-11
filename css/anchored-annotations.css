@@ -1,46 +1,49 @@
 /**************************************************************
   Anchored annotations
-  Parallel drawing system for responsive circle and square
+  Parallel system for responsive circle and square
+
+  This version uses inline text wrappers instead of absolute SVG.
+  The annotation becomes part of the Bible text flow, so it naturally
+  stays with the selected words when screen width or font size changes.
 **************************************************************/
 
-#bible-anchored-annotation-layer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 3;
-  overflow: visible;
-  pointer-events: none;
-  display: block;
-  max-width: none;
+.anchored-inline-annotation {
+  position: relative;
+  display: inline;
+  color: inherit;
+  background: transparent;
+  border-style: solid;
+  border-width: 1.8px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
-.anchored-annotation {
-  --anchored-annotation-color: #c40000;
-  fill: transparent;
-  stroke: var(--anchored-annotation-color);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-  pointer-events: none;
+.anchored-inline-circle {
+  border-color: #c40000;
+  border-radius: 999px;
+  padding: 0 0.26em 0.04em;
+  margin: 0 0.04em;
 }
 
-.anchored-annotation-square {
-  --anchored-annotation-color: #0066cc;
-}
-
-.anchored-annotation ellipse,
-.anchored-annotation rect {
-  fill: transparent;
-  stroke: inherit;
-  stroke-width: inherit;
-  stroke-linecap: inherit;
-  stroke-linejoin: inherit;
-  vector-effect: non-scaling-stroke;
+.anchored-inline-square {
+  border-color: #0066cc;
+  border-radius: 0.14em;
+  padding: 0 0.22em 0.04em;
+  margin: 0 0.04em;
 }
 
 @media only screen and (max-width: 640px) {
-  .anchored-annotation {
-    stroke-width: 2.2;
+  .anchored-inline-annotation {
+    border-width: 1.9px;
+  }
+
+  .anchored-inline-circle {
+    padding-left: 0.24em;
+    padding-right: 0.24em;
+  }
+
+  .anchored-inline-square {
+    padding-left: 0.2em;
+    padding-right: 0.2em;
   }
 }
