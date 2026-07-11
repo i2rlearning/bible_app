@@ -2411,3 +2411,127 @@ main.container > .ql-container.ql-snow {
     opacity: 0.72 !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 3A - freehand warning dialog
+   Freehand is still supported, but it is display-size specific.
+   ========================================================================== */
+
+.freehand-warning-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(11, 22, 34, 0.38);
+  box-sizing: border-box;
+}
+
+.freehand-warning-dialog.is-open {
+  display: flex;
+}
+
+.freehand-warning-card {
+  position: relative;
+  width: min(420px, calc(100vw - 28px));
+  padding: 22px;
+  border: 1px solid rgba(19, 57, 93, 0.18);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(11, 22, 34, 0.28);
+  color: #1d2d44;
+  box-sizing: border-box;
+}
+
+.freehand-warning-card h3 {
+  margin: 0 34px 10px 0;
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.freehand-warning-card p {
+  margin: 0 0 14px;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.freehand-warning-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(19, 57, 93, 0.22);
+  border-radius: 50%;
+  background: #fff;
+  color: #1d2d44;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.freehand-warning-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 18px;
+  color: #344256;
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
+.freehand-warning-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.freehand-warning-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.freehand-warning-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(19, 57, 93, 0.2);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.freehand-warning-cancel {
+  background: #fff;
+  color: #1d2d44;
+}
+
+.freehand-warning-continue {
+  background: #174a8b;
+  color: #fff;
+}
+
+@media only screen and (max-width: 520px) {
+  .freehand-warning-dialog {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .freehand-warning-card {
+    width: 100%;
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .freehand-warning-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .freehand-warning-actions button {
+    width: 100%;
+  }
+}
