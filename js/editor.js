@@ -650,6 +650,7 @@ function refreshBibleAnnotationLayout() {
     resizeAnnotationLayer();
     ensureAllAnnotationMetadata();
     updateAnnotationLayoutWarning();
+    window.AnchoredAnnotations?.render?.();
 
     bibleLayoutRefreshFrame = null;
   });
@@ -705,7 +706,9 @@ function getMiniEditorState() {
 
   return {
     bibleTextHtml: bibleText.innerHTML,
-    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : ""
+    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : "",
+    anchoredAnnotations:
+      window.AnchoredAnnotations?.getState?.() || []
   };
 }
 
@@ -725,6 +728,10 @@ function applyMiniEditorState(miniEditorJson) {
     annotationLayer.innerHTML = miniEditorJson.annotationLayerHtml;
   }
 
+  window.AnchoredAnnotations?.setState?.(
+    miniEditorJson.anchoredAnnotations || []
+  );
+
   // Important: recalculate the drawing layer after saved text/drawings are restored
   requestAnimationFrame(() => {
     ensureAllAnnotationMetadata();
@@ -732,6 +739,8 @@ function applyMiniEditorState(miniEditorJson) {
     if (typeof refreshBibleAnnotationLayout === "function") {
       refreshBibleAnnotationLayout();
     }
+
+    window.AnchoredAnnotations?.render?.();
   });
 
   setTimeout(() => {
@@ -742,10 +751,17 @@ function applyMiniEditorState(miniEditorJson) {
 function getMiniEditorFlags(miniEditorJson) {
   const bibleTextHtml = miniEditorJson?.bibleTextHtml || "";
   const annotationLayerHtml = miniEditorJson?.annotationLayerHtml || "";
+  const anchoredAnnotations = Array.isArray(
+    miniEditorJson?.anchoredAnnotations
+  )
+    ? miniEditorJson.anchoredAnnotations
+    : [];
 
   return {
     hasHighlights: bibleTextHtml.includes("highlight-"),
-    hasDrawings: annotationLayerHtml.trim().length > 0,
+    hasDrawings:
+      annotationLayerHtml.trim().length > 0 ||
+      anchoredAnnotations.length > 0,
     hasTextFormats:
       bibleTextHtml.includes("bible-user-format bold") ||
       bibleTextHtml.includes("bible-user-format italic") ||
@@ -783,13 +799,20 @@ function getMiniEditorHistorySnapshot() {
 
   return {
     bibleTextHtml: bibleText.innerHTML,
-    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : ""
+    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : "",
+    anchoredAnnotations:
+      window.AnchoredAnnotations?.getState?.() || []
   };
 }
 
 function getMiniEditorHistorySignature(snapshot) {
   if (!snapshot) return "";
-  return `${snapshot.bibleTextHtml}::${snapshot.annotationLayerHtml}`;
+
+  return [
+    snapshot.bibleTextHtml || "",
+    snapshot.annotationLayerHtml || "",
+    JSON.stringify(snapshot.anchoredAnnotations || [])
+  ].join("::");
 }
 
 function initializeMiniEditorHistory() {
@@ -894,6 +917,10 @@ function applyMiniEditorHistorySnapshot(snapshot) {
     annotationLayer.innerHTML = snapshot.annotationLayerHtml || "";
   }
 
+  window.AnchoredAnnotations?.setState?.(
+    snapshot.anchoredAnnotations || []
+  );
+
   selectedDrawnAnnotation = null;
   currentShape = null;
   currentFreehandGroup = null;
@@ -907,6 +934,8 @@ function applyMiniEditorHistorySnapshot(snapshot) {
     if (typeof updateBibleZoomLayout === "function") {
       updateBibleZoomLayout();
     }
+
+    window.AnchoredAnnotations?.render?.();
   });
 
   setTimeout(() => {
@@ -2113,6 +2142,41 @@ function showFreehandWarningDialog() {
 function setDrawingTool(tool, options = {}) {
   if (!drawingArea) return;
 
+  if (
+    (tool === "circle" || tool === "square") &&
+    window.AnchoredAnnotations?.createFromCurrentSelection
+  ) {
+    restoreBibleSelection();
+
+    const anchoredResult =
+      window.AnchoredAnnotations.createFromCurrentSelection(tool);
+
+    if (anchoredResult?.created) {
+      if (currentFreehandGroup) {
+        finalizeFreehandGroup({ recordHistory: true });
+      }
+
+      activeDrawingTool = null;
+      drawingArea.classList.remove("drawing-mode");
+
+      document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+        button.classList.remove("active-tool");
+      });
+
+      const textButton = document.querySelector(
+        '[data-drawing-tool="text"]'
+      );
+
+      textButton?.classList.add("active-tool");
+
+      closeDrawMenu();
+      closeMobileToolbarMenus();
+      recordMiniEditorHistorySnapshot();
+      scheduleMiniEditorSave();
+      return;
+    }
+  }
+
   const skipFreehandWarning =
     Boolean(options.skipFreehandWarning);
 
@@ -2180,12 +2244,15 @@ function clearDrawnAnnotations() {
   if (!annotationLayer) return;
 
   annotationLayer.innerHTML = "";
+  window.AnchoredAnnotations?.clear?.();
+
   selectedDrawnAnnotation = null;
   currentFreehandGroup = null;
   freehandSessionHasChanges = false;
   annotationLayoutWarningDismissed = false;
   updateAnnotationLayoutWarning();
   recordMiniEditorHistorySnapshot();
+  scheduleMiniEditorSave();
 }
 
 function handleDrawingPointerDown(event) {
