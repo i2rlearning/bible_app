@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -318,10 +318,10 @@
             </button>
 
             <div id="draw-menu" class="toolbar-dropdown-menu">
-              <button type="button" onclick="setDrawingTool('circle'); closeDrawMenu();" data-drawing-tool="circle" title="Draw Circle" class="draw-tool-choice">
+              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('circle'); closeDrawMenu();" data-drawing-tool="circle" title="Draw Circle" class="draw-tool-choice">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
               </button>
-              <button type="button" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Draw Square" class="draw-tool-choice">
+              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Draw Square" class="draw-tool-choice">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
               </button>
               <button type="button" onclick="setDrawingTool('freehand'); closeDrawMenu();" data-drawing-tool="freehand" title="Freehand Draw" class="draw-tool-choice">
@@ -382,12 +382,12 @@
               <button type="button" class="color-option pink" onclick="applyBibleFormat('highlight-pink'); closeMobileToolbarMenus();" title="Pink"></button>
               <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeMobileToolbarMenus();" title="Orange"></button>
               <div class="mobile-toolbar-menu-title">Draw</div>
-              <button type="button" onclick="setDrawingTool('circle'); closeMobileToolbarMenus();" data-drawing-tool="circle" title="Circle" aria-label="Circle">
+              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('circle'); closeMobileToolbarMenus();" data-drawing-tool="circle" title="Circle" aria-label="Circle">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <circle cx="12" cy="12" r="5.25" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
                 </svg>
               </button>
-              <button type="button" onclick="setDrawingTool('square'); closeMobileToolbarMenus();" data-drawing-tool="square" title="Square" aria-label="Square">
+              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('square'); closeMobileToolbarMenus();" data-drawing-tool="square" title="Square" aria-label="Square">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <rect x="7" y="7" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
                 </svg>
