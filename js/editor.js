@@ -1927,6 +1927,13 @@ const FREEHAND_WARNING_STORAGE_KEY =
 let pendingFreehandWarningTool = null;
 
 function shouldShowFreehandWarning() {
+  if (window.UserPreferences?.read) {
+    return (
+      window.UserPreferences.read()
+        .freehandWarningEnabled !== false
+    );
+  }
+
   try {
     return (
       window.localStorage.getItem(
@@ -1940,6 +1947,12 @@ function shouldShowFreehandWarning() {
 
 function rememberFreehandWarningChoice(shouldHide) {
   if (!shouldHide) return;
+
+  if (window.UserPreferences?.write) {
+    window.UserPreferences.write({
+      freehandWarningEnabled: false
+    });
+  }
 
   try {
     window.localStorage.setItem(
@@ -1998,7 +2011,7 @@ function ensureFreehandWarningDialog() {
       >
         ×
       </button>
-      <h3 id="freehandWarningTitle">Freehand Drawing</h3>
+      <h3 id="freehandWarningTitle">Freehand drawing</h3>
       <p>
         Freehand drawings work best on the screen size where they were created.
         Alignment may vary on other devices.
