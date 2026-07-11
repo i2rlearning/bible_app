@@ -761,7 +761,8 @@ function getMiniEditorFlags(miniEditorJson) {
     hasHighlights: bibleTextHtml.includes("highlight-"),
     hasDrawings:
       annotationLayerHtml.trim().length > 0 ||
-      anchoredAnnotations.length > 0,
+      anchoredAnnotations.length > 0 ||
+      bibleTextHtml.includes("anchored-inline-annotation"),
     hasTextFormats:
       bibleTextHtml.includes("bible-user-format bold") ||
       bibleTextHtml.includes("bible-user-format italic") ||
