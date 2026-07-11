@@ -1700,52 +1700,11 @@ function getMaxAnnotationLayoutDifference(currentWidth) {
 function updateAnnotationLayoutWarning() {
   const warning = ensureAnnotationLayoutWarningElement();
 
-  if (!warning) return;
-
-  if (!hasLayoutSensitiveAnnotations()) {
-    annotationLayoutWarningDismissed = false;
-    annotationLayoutBaselineWidth = null;
-    annotationLayoutBaselineViewportWidth = null;
+  if (warning) {
     warning.hidden = true;
-    return;
   }
 
-  ensureAllAnnotationMetadata();
-
-  const metrics = getBibleTextLayoutMetrics();
-  const currentWidth = Math.round(metrics.width || 0);
-  const currentViewportWidth = Math.round(window.innerWidth || 0);
-
-  if (
-    !annotationLayoutBaselineWidth ||
-    !annotationLayoutBaselineViewportWidth
-  ) {
-    annotationLayoutBaselineWidth = currentWidth;
-    annotationLayoutBaselineViewportWidth = currentViewportWidth;
-    annotationLayoutWarningDismissed = false;
-    warning.hidden = true;
-    return;
-  }
-
-  const contentDifference =
-    Math.abs(currentWidth - annotationLayoutBaselineWidth);
-
-  const viewportDifference =
-    Math.abs(currentViewportWidth - annotationLayoutBaselineViewportWidth);
-
-  const maxLayoutDifference =
-    Math.max(contentDifference, viewportDifference);
-
-  const shouldWarn =
-    maxLayoutDifference > ANNOTATION_LAYOUT_WARNING_THRESHOLD;
-
-  if (!shouldWarn) {
-    annotationLayoutWarningDismissed = false;
-    warning.hidden = true;
-    return;
-  }
-
-  warning.hidden = annotationLayoutWarningDismissed;
+  annotationLayoutWarningDismissed = false;
 }
 
 function getCurrentBibleZoom() {
