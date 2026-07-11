@@ -1460,23 +1460,41 @@ function clearBibleSelectionFormat() {
   const bibleText = document.getElementById("bible-text");
 
   if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
-    return;
+    return false;
   }
 
   const range = selection.getRangeAt(0);
 
   if (!bibleText.contains(range.commonAncestorContainer)) {
-    return;
+    return false;
   }
 
   saveBibleSelection();
 
-  Array.from(bibleText.querySelectorAll(".bible-user-format"))
-    .filter((span) => range.intersectsNode(span))
-    .forEach(unwrapElement);
+  let changed = false;
+
+  const formattedSpans = Array.from(
+    bibleText.querySelectorAll(".bible-user-format")
+  ).filter((span) => range.intersectsNode(span));
+
+  formattedSpans.forEach(unwrapElement);
+
+  if (formattedSpans.length > 0) {
+    changed = true;
+  }
+
+  if (window.AnchoredAnnotations?.clearIntersectingCurrentSelection?.()) {
+    changed = true;
+  }
 
   restoreBibleSelection();
-  recordMiniEditorHistorySnapshot();
+
+  if (changed) {
+    recordMiniEditorHistorySnapshot();
+    scheduleMiniEditorSave();
+  }
+
+  return changed;
 }
 
 function unwrapElement(element) {
@@ -2259,12 +2277,20 @@ function clearSelectedDrawnAnnotation() {
     finalizeFreehandGroup({ recordHistory: true });
   }
 
-  if (!selectedDrawnAnnotation) return;
+  if (!selectedDrawnAnnotation) {
+    if (window.AnchoredAnnotations?.clearSelected?.()) {
+      recordMiniEditorHistorySnapshot();
+      scheduleMiniEditorSave();
+    }
+
+    return;
+  }
 
   selectedDrawnAnnotation.remove();
   selectedDrawnAnnotation = null;
   updateAnnotationLayoutWarning();
   recordMiniEditorHistorySnapshot();
+  scheduleMiniEditorSave();
 }
 
 function clearDrawnAnnotations() {
