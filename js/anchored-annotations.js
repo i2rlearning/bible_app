@@ -189,25 +189,29 @@
   }
 
   function applyInlineFallbackStyles(wrapper, type) {
+    const color = type === "circle" ? "#c40000" : "#0066cc";
+
     wrapper.style.position = "relative";
     wrapper.style.display = "inline";
     wrapper.style.color = "inherit";
     wrapper.style.background = "transparent";
-    wrapper.style.borderStyle = "solid";
-    wrapper.style.borderWidth = "1.8px";
+
+    /*
+      Use a non-layout visual ring instead of a real border.
+      A real border/padding changes the line width and can cause an unwanted
+      scrollbar when the selected text sits near the right edge.
+    */
+    wrapper.style.border = "0";
+    wrapper.style.padding = "0";
+    wrapper.style.margin = "0";
+    wrapper.style.boxShadow = `0 0 0 1.8px ${color}`;
     wrapper.style.boxDecorationBreak = "clone";
     wrapper.style.webkitBoxDecorationBreak = "clone";
 
     if (type === "circle") {
-      wrapper.style.borderColor = "#c40000";
       wrapper.style.borderRadius = "999px";
-      wrapper.style.padding = "0 0.26em 0.04em";
-      wrapper.style.margin = "0 0.04em";
     } else {
-      wrapper.style.borderColor = "#0066cc";
       wrapper.style.borderRadius = "0.14em";
-      wrapper.style.padding = "0 0.22em 0.04em";
-      wrapper.style.margin = "0 0.04em";
     }
   }
 
