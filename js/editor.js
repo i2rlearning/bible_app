@@ -1998,7 +1998,7 @@ function ensureFreehandWarningDialog() {
       >
         ×
       </button>
-      <h3 id="freehandWarningTitle">Freehand drawing</h3>
+      <h3 id="freehandWarningTitle">Freehand Drawing</h3>
       <p>
         Freehand drawings work best on the screen size where they were created.
         Alignment may vary on other devices.
