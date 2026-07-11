@@ -1173,7 +1173,7 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
 
 
 /* ========================================================================== 
-   Stage 2G - mobile save status navbar refinement
+   Mobile save status navbar refinement
    Keep the save status inside the navbar when the mini-editor switches to
    compact mode, instead of letting it drop onto the mini-editor.
    ========================================================================== */
@@ -1227,4 +1227,36 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
   body:not(.landing-page) .subheader .subheadings {
     gap: 12px !important;
   }
+}
+
+
+/* ========================================================================== 
+   Preferences checkbox field
+   Used for editor behavior preferences such as the freehand warning.
+   ========================================================================== */
+
+.preferences-checkbox-field {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(75, 103, 132, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+}
+
+.preferences-checkbox-field input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+
+.preferences-checkbox-field span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #172033;
 }
