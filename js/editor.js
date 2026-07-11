@@ -2154,7 +2154,7 @@ function setDrawingTool(tool, options = {}) {
       return;
     }
 
-    restoreBibleSelection();
+    window.AnchoredAnnotations?.rememberCurrentSelection?.();
 
     const anchoredResult =
       window.AnchoredAnnotations.createFromCurrentSelection(tool);
