@@ -1921,8 +1921,197 @@ function finalizeFreehandGroup(options = {}) {
   }
 }
 
-function setDrawingTool(tool) {
+const FREEHAND_WARNING_STORAGE_KEY =
+  "boi-hide-freehand-warning";
+
+let pendingFreehandWarningTool = null;
+
+function shouldShowFreehandWarning() {
+  try {
+    return (
+      window.localStorage.getItem(
+        FREEHAND_WARNING_STORAGE_KEY
+      ) !== "true"
+    );
+  } catch (error) {
+    return true;
+  }
+}
+
+function rememberFreehandWarningChoice(shouldHide) {
+  if (!shouldHide) return;
+
+  try {
+    window.localStorage.setItem(
+      FREEHAND_WARNING_STORAGE_KEY,
+      "true"
+    );
+  } catch (error) {
+    console.warn(
+      "Could not save freehand warning preference:",
+      error
+    );
+  }
+}
+
+function closeFreehandWarningDialog() {
+  const dialog =
+    document.getElementById(
+      "freehandWarningDialog"
+    );
+
+  if (dialog) {
+    dialog.classList.remove("is-open");
+    dialog.setAttribute("hidden", "hidden");
+  }
+
+  pendingFreehandWarningTool = null;
+}
+
+function ensureFreehandWarningDialog() {
+  let dialog =
+    document.getElementById(
+      "freehandWarningDialog"
+    );
+
+  if (dialog) {
+    return dialog;
+  }
+
+  dialog = document.createElement("div");
+  dialog.id = "freehandWarningDialog";
+  dialog.className = "freehand-warning-dialog";
+  dialog.setAttribute("hidden", "hidden");
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute(
+    "aria-labelledby",
+    "freehandWarningTitle"
+  );
+
+  dialog.innerHTML = `
+    <div class="freehand-warning-card">
+      <button
+        type="button"
+        class="freehand-warning-close"
+        aria-label="Close freehand warning"
+      >
+        ×
+      </button>
+      <h3 id="freehandWarningTitle">Freehand drawing</h3>
+      <p>
+        Freehand drawings work best on the screen size where they were created.
+        Alignment may vary on other devices.
+      </p>
+      <label class="freehand-warning-check">
+        <input type="checkbox" id="freehandWarningDontShowAgain" />
+        <span>Do not show this again</span>
+      </label>
+      <div class="freehand-warning-actions">
+        <button
+          type="button"
+          class="freehand-warning-cancel"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="freehand-warning-continue"
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  dialog
+    .querySelector(".freehand-warning-close")
+    ?.addEventListener("click", () => {
+      closeFreehandWarningDialog();
+    });
+
+  dialog
+    .querySelector(".freehand-warning-cancel")
+    ?.addEventListener("click", () => {
+      closeFreehandWarningDialog();
+    });
+
+  dialog
+    .querySelector(".freehand-warning-continue")
+    ?.addEventListener("click", () => {
+      const dontShowAgain =
+        dialog.querySelector(
+          "#freehandWarningDontShowAgain"
+        )?.checked;
+
+      rememberFreehandWarningChoice(
+        Boolean(dontShowAgain)
+      );
+
+      const toolToActivate =
+        pendingFreehandWarningTool;
+
+      closeFreehandWarningDialog();
+
+      if (toolToActivate === "freehand") {
+        setDrawingTool(
+          "freehand",
+          { skipFreehandWarning: true }
+        );
+      }
+    });
+
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      closeFreehandWarningDialog();
+    }
+  });
+
+  return dialog;
+}
+
+function showFreehandWarningDialog() {
+  const dialog = ensureFreehandWarningDialog();
+
+  pendingFreehandWarningTool = "freehand";
+
+  dialog.removeAttribute("hidden");
+  dialog.classList.add("is-open");
+
+  const checkbox =
+    dialog.querySelector(
+      "#freehandWarningDontShowAgain"
+    );
+
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+
+  const continueButton =
+    dialog.querySelector(
+      ".freehand-warning-continue"
+    );
+
+  continueButton?.focus();
+}
+
+function setDrawingTool(tool, options = {}) {
   if (!drawingArea) return;
+
+  const skipFreehandWarning =
+    Boolean(options.skipFreehandWarning);
+
+  if (
+    tool === "freehand" &&
+    activeDrawingTool !== "freehand" &&
+    !skipFreehandWarning &&
+    shouldShowFreehandWarning()
+  ) {
+    showFreehandWarningDialog();
+    return;
+  }
 
   if (activeDrawingTool === "freehand" && tool !== "freehand") {
     finalizeFreehandGroup({ recordHistory: true });
@@ -2351,6 +2540,7 @@ document.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeMobileToolbarMenus();
+    closeFreehandWarningDialog();
   }
 });
 
