@@ -1,1 +1,46 @@
+/**************************************************************
+  Anchored annotations
+  Week 3 parallel drawing system for responsive circle and square
+**************************************************************/
 
+#bible-anchored-annotation-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  overflow: visible;
+  pointer-events: none;
+  display: block;
+  max-width: none;
+}
+
+.anchored-annotation {
+  --anchored-annotation-color: #c40000;
+  fill: transparent;
+  stroke: var(--anchored-annotation-color);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.anchored-annotation-square {
+  --anchored-annotation-color: #0066cc;
+}
+
+.anchored-annotation ellipse,
+.anchored-annotation rect {
+  fill: transparent;
+  stroke: inherit;
+  stroke-width: inherit;
+  stroke-linecap: inherit;
+  stroke-linejoin: inherit;
+  vector-effect: non-scaling-stroke;
+}
+
+@media only screen and (max-width: 640px) {
+  .anchored-annotation {
+    stroke-width: 2.2;
+  }
+}
