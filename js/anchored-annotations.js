@@ -261,25 +261,49 @@
 
   function syncLayerSize(layer) {
     const drawingArea = getDrawingArea();
+    const bibleText = getBibleText();
 
     if (!drawingArea || !layer) {
       return;
     }
 
+    const drawingRect = drawingArea.getBoundingClientRect();
+    const bibleRect = bibleText?.getBoundingClientRect();
+
+    /*
+      Important:
+      Do not use drawingArea.scrollWidth here.
+
+      The anchored SVG layer itself can make scrollWidth stay at an older
+      desktop size after the screen becomes narrower. That causes the SVG
+      viewBox to scale the old desktop coordinates down on mobile, which makes
+      the circle appear around the wrong word.
+
+      The layer must match the current visible layout box, then every render
+      recalculates the annotation from the current DOM Range.
+    */
     const width = Math.max(
-      drawingArea.scrollWidth,
-      drawingArea.clientWidth,
-      Math.ceil(drawingArea.getBoundingClientRect().width)
+      1,
+      Math.ceil(drawingRect.width)
     );
+
+    const textBottom = bibleRect
+      ? bibleRect.bottom - drawingRect.top
+      : 0;
+
     const height = Math.max(
-      drawingArea.scrollHeight,
-      drawingArea.clientHeight,
-      Math.ceil(drawingArea.getBoundingClientRect().height)
+      1,
+      Math.ceil(drawingRect.height),
+      Math.ceil(textBottom),
+      drawingArea.clientHeight
     );
 
     layer.setAttribute("width", width);
     layer.setAttribute("height", height);
     layer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+    layer.style.width = `${width}px`;
+    layer.style.height = `${height}px`;
   }
 
   function getUsefulClientRects(range) {
