@@ -2144,18 +2144,27 @@ function setDrawingTool(tool, options = {}) {
   if (!drawingArea) return;
 
   if (
-    (tool === "circle" || tool === "square") &&
-    window.AnchoredAnnotations?.createFromCurrentSelection
+    tool === "circle" ||
+    tool === "square"
   ) {
+    if (!window.AnchoredAnnotations?.createFromCurrentSelection) {
+      window.alert(
+        "The responsive annotation tool is not loaded yet. Please refresh the page and try again."
+      );
+      return;
+    }
+
     restoreBibleSelection();
 
     const anchoredResult =
       window.AnchoredAnnotations.createFromCurrentSelection(tool);
 
-    if (anchoredResult?.created) {
-      if (currentFreehandGroup) {
-        finalizeFreehandGroup({ recordHistory: true });
-      }
+    if (!anchoredResult?.created) {
+      window.alert(
+        tool === "circle"
+          ? "Select Bible text first, then click Circle."
+          : "Select Bible text first, then click Square."
+      );
 
       activeDrawingTool = null;
       drawingArea.classList.remove("drawing-mode");
@@ -2172,10 +2181,31 @@ function setDrawingTool(tool, options = {}) {
 
       closeDrawMenu();
       closeMobileToolbarMenus();
-      recordMiniEditorHistorySnapshot();
-      scheduleMiniEditorSave();
       return;
     }
+
+    if (currentFreehandGroup) {
+      finalizeFreehandGroup({ recordHistory: true });
+    }
+
+    activeDrawingTool = null;
+    drawingArea.classList.remove("drawing-mode");
+
+    document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+      button.classList.remove("active-tool");
+    });
+
+    const textButton = document.querySelector(
+      '[data-drawing-tool="text"]'
+    );
+
+    textButton?.classList.add("active-tool");
+
+    closeDrawMenu();
+    closeMobileToolbarMenus();
+    recordMiniEditorHistorySnapshot();
+    scheduleMiniEditorSave();
+    return;
   }
 
   const skipFreehandWarning =
