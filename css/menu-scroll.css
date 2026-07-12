@@ -137,3 +137,66 @@
     line-height: 1.08 !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 3B-2 - scroll menu parchment refinement
+   Makes the parchment feel like it slides out from behind the left scroll.
+   ========================================================================== */
+@media only screen and (min-width: 1101px) {
+  /*
+    The scroll artwork should sit visually above the parchment edge so the
+    menu looks like it is coming out from behind the scroll, not pasted on top.
+  */
+  body:not(.landing-page) .leftcol {
+    z-index: 6600 !important;
+    pointer-events: none !important;
+  }
+
+  body:not(.landing-page) .rightcol {
+    z-index: 1 !important;
+    pointer-events: none !important;
+  }
+
+  .overlay {
+    z-index: 6450 !important;
+    top: 25vh !important;
+    left: 112px !important;
+    height: 52vh !important;
+    background-size: 250px 52vh !important;
+  }
+
+  .overlay.menu-open {
+    width: 225px !important;
+  }
+
+  .overlay-content {
+    top: -4px !important;
+    width: 225px !important;
+    height: 52vh !important;
+    gap: 5px !important;
+    justify-content: center !important;
+  }
+
+  .overlay .menu-current-passage {
+    width: 58% !important;
+    margin: 0 auto 5px !important;
+    padding: 0 0 6px !important;
+    border-bottom: 2px solid rgba(70, 40, 15, 0.24) !important;
+  }
+
+  .overlay .menu-current-passage-title {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  .overlay .menu-current-passage-value {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+  }
+
+  .overlay a {
+    font-size: 28px !important;
+    line-height: 1.08 !important;
+  }
+}
