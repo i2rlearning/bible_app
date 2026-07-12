@@ -41,6 +41,100 @@ let abbreviation =
   urlParams.get("abbr") ||
   "";
 
+
+function getCurrentChapterNumberForDisplay() {
+  const chapterParts = bibleChapterID.split(".");
+  return chapterParts[chapterParts.length - 1] || "";
+}
+
+function getCurrentPassageShortLabel() {
+  const chapterNumber = getCurrentChapterNumberForDisplay();
+  const bookName = bibleBookName || bibleBookID || "";
+
+  return `${bookName} ${chapterNumber}`.trim() || "Current Passage";
+}
+
+function updateCurrentPassageLocationLabels() {
+  const shortLabel = getCurrentPassageShortLabel();
+  const fullLabel = [
+    abbreviation || "",
+    shortLabel
+  ].filter(Boolean).join(" • ");
+
+  const mobileLabel =
+    document.getElementById(
+      "mobile-current-passage-label"
+    );
+
+  const mobileButton =
+    document.getElementById(
+      "mobile-current-passage-button"
+    );
+
+  const menuLabel =
+    document.getElementById(
+      "menu-current-passage-label"
+    );
+
+  if (mobileLabel) {
+    mobileLabel.textContent = shortLabel;
+  }
+
+  if (mobileButton) {
+    mobileButton.title = `Open ${fullLabel}`;
+    mobileButton.setAttribute(
+      "aria-label",
+      `Open ${fullLabel}`
+    );
+  }
+
+  if (menuLabel) {
+    menuLabel.textContent = fullLabel;
+  }
+}
+
+function openCurrentPassagePickerFromCompactButton() {
+  if (
+    typeof window.closeMobileToolbarMenus ===
+    "function"
+  ) {
+    window.closeMobileToolbarMenus();
+  }
+
+  window.setTimeout(
+    () => {
+      if (
+        versePassagePicker &&
+        typeof versePassagePicker.setOpen ===
+          "function"
+      ) {
+        versePassagePicker.setOpen(true);
+      }
+    },
+    0
+  );
+}
+
+function configureCompactCurrentPassageButton() {
+  const mobileButton =
+    document.getElementById(
+      "mobile-current-passage-button"
+    );
+
+  if (!mobileButton) {
+    return;
+  }
+
+  mobileButton.addEventListener(
+    "click",
+    (event) => {
+      event.preventDefault();
+      openCurrentPassagePickerFromCompactButton();
+    }
+  );
+}
+
+
 function initializePassagePicker() {
   if (!window.BibleSelector) {
     console.error(
@@ -347,7 +441,9 @@ const preloadedArrowImages = [
       } else {
         initializeBibleIdentity();
         initializePassagePicker();
+        updateCurrentPassageLocationLabels();
         configureMobilePassagePickerMenu();
+        configureCompactCurrentPassageButton();
       }
 
 const chapterParts = bibleChapterID.split(".");
