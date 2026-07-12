@@ -1,10 +1,10 @@
 /* ==========================================================================
    Parchment pull-out menu
    Used when scroll artwork is visible.
-   Breakpoint: 640px and above.
+   Breakpoint: 1101px and above.
    ========================================================================== */
 
-@media only screen and (min-width: 640px) {
+@media only screen and (min-width: 1101px) {
   .overlay {
     position: fixed !important;
     z-index: 6500 !important;
@@ -76,7 +76,7 @@
   }
 }
 
-@media only screen and (min-width: 640px) and (max-height: 450px) {
+@media only screen and (min-width: 1101px) and (max-height: 450px) {
   .overlay {
     height: 65vh !important;
     background-size: 250px 65vh !important;
