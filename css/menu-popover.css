@@ -1,10 +1,10 @@
 /* ==========================================================================
    Compact popover menu
    Used when scroll artwork is hidden.
-   Breakpoint: 639px and below.
+   Breakpoint: 1100px and below.
    ========================================================================== */
 
-@media only screen and (max-width: 639px) {
+@media only screen and (max-width: 1100px) {
   .overlay {
     position: fixed !important;
     z-index: 6500 !important;
@@ -135,5 +135,18 @@
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+  }
+}
+
+
+/* Tablet-width compact popover tuning */
+@media only screen and (min-width: 640px) and (max-width: 1100px) {
+  .overlay {
+    top: 56px !important;
+    width: min(280px, calc(100vw - 24px)) !important;
+  }
+
+  .overlay.menu-open {
+    max-height: 430px !important;
   }
 }
