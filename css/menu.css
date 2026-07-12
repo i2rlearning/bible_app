@@ -97,7 +97,30 @@ a.current {
   pointer-events: none;
 }
 
-/* Menu-specific files decide whether the passage link is visible. */
+/* Open Passage is intentionally available in the menu at every size.
+   The navbar button may also be visible, but the menu remains the stable
+   navigation home. */
+.overlay .mobile-passage-link {
+  display: inherit;
+}
+
+.menu-current-passage {
+  box-sizing: border-box;
+}
+
+.menu-current-passage-title,
+.menu-current-passage-value {
+  display: block;
+  box-sizing: border-box;
+}
+
+.menu-current-passage-title {
+  font-weight: 700;
+}
+
+.menu-current-passage-value {
+  font-weight: 700;
+}
 
 /* --- Language dropdown, shared legacy styles --- */
 .custom-combobox {
