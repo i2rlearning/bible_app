@@ -96,6 +96,7 @@
 /* ========================================================================== 
    Stage 3B - current passage in scroll menu
    Open Passage remains available in the slideout menu while scroll artwork is exposed.
+   The current passage is intentionally subtle so it reads as context, not a main action.
    ========================================================================== */
 @media only screen and (min-width: 1101px) {
   .overlay .mobile-passage-link {
@@ -104,31 +105,31 @@
 
   .overlay .menu-current-passage {
     display: block !important;
-    width: 82% !important;
-    margin: 0 auto 6px !important;
-    padding: 0 0 8px !important;
-    border-bottom: 1px solid rgba(70, 40, 15, 0.28) !important;
-    color: #2a1b0a !important;
+    width: 72% !important;
+    margin: 0 auto 4px !important;
+    padding: 0 0 5px !important;
+    border-bottom: 1px solid rgba(70, 40, 15, 0.16) !important;
+    color: rgba(42, 27, 10, 0.78) !important;
     font-family: Arima, sans-serif !important;
     text-align: center !important;
-    line-height: 1.1 !important;
+    line-height: 1.05 !important;
   }
 
   .overlay .menu-current-passage-title {
-    margin-bottom: 3px !important;
-    font-size: 15px !important;
-    font-weight: 700 !important;
+    margin-bottom: 1px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
     letter-spacing: 0.02em !important;
   }
 
   .overlay .menu-current-passage-value {
-    font-size: 19px !important;
-    font-weight: 700 !important;
-    color: #174a8b !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: rgba(23, 74, 139, 0.82) !important;
   }
 
   .overlay-content {
-    gap: 6px !important;
+    gap: 5px !important;
   }
 
   .overlay a {
