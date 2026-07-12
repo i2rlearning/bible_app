@@ -122,6 +122,17 @@
                 </div>
               </div>
             </div>
+
+            <div class="column mobile-current-passage-column">
+              <button
+                type="button"
+                id="mobile-current-passage-button"
+                class="mobile-current-passage-button"
+                aria-label="Open current passage"
+              >
+                <span id="mobile-current-passage-label">Loading...</span>
+              </button>
+            </div>
             </div>
             <!-- Save status placeholder. The visible zoom slider was removed from the navbar for now.
                  verses.js still keeps optional zoom support if we bring it back later. -->
@@ -245,6 +256,7 @@
     <header>
       <div id="menuNav" class="overlay">
         <div class="overlay-content">
+          <div class="menu-current-passage" aria-live="polite">Current: <span id="menu-current-passage-label">Loading...</span></div>
           <a href="./index.html?stay=home">Home</a>
           <a href="#" id="openPassagePickerFromMenu" class="mobile-passage-link">Open Passage</a>
           <a href="#" id="openMyNotes" class="disabled" aria-disabled="true">My Notes</a>
@@ -310,9 +322,7 @@
             </div>
           </div>
 
-          <span class="toolbar-separator" aria-hidden="true">|</span>
-
-          <div class="toolbar-dropdown">
+          <div class="toolbar-dropdown draw-toolbar-dropdown">
             <button type="button" class="dropdown-btn" onclick="toggleDrawMenu()">
               <span class="toolbar-label">Draw</span>
             </button>
@@ -329,8 +339,6 @@
               </button>
             </div>
           </div>
-
-          <span class="toolbar-separator" aria-hidden="true">|</span>
 
           <button type="button" onclick="undoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Undo" aria-label="Undo"><i class="fa fa-undo" aria-hidden="true"></i></button>
           <button type="button" onclick="redoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Redo" aria-label="Redo"><i class="fa fa-repeat" aria-hidden="true"></i></button>
