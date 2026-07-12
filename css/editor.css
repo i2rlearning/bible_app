@@ -2414,7 +2414,7 @@ main.container > .ql-container.ql-snow {
 
 
 /* ========================================================================== 
-   Stage 3A - freehand warning dialog
+   Freehand warning dialog
    Freehand is still supported, but it is display-size specific.
    ========================================================================== */
 
@@ -2534,4 +2534,29 @@ main.container > .ql-container.ql-snow {
   .freehand-warning-actions button {
     width: 100%;
   }
+}
+
+
+/* ========================================================================== 
+   The Draw dropdown gets one divider on each side instead of duplicate lines.
+   ========================================================================== */
+
+#bible-mini-toolbar .desktop-mini-toolbar .draw-toolbar-dropdown {
+  display: inline-flex;
+  align-items: center;
+  border-left: 2px solid #777;
+  border-right: 2px solid #777;
+  padding-left: 6px;
+  padding-right: 6px;
+  margin-left: 4px;
+  margin-right: 4px;
+}
+
+#bible-mini-toolbar .desktop-mini-toolbar .draw-toolbar-dropdown .dropdown-btn {
+  margin: 0;
+}
+
+#bible-mini-toolbar .desktop-mini-toolbar .draw-toolbar-dropdown + .toolbar-separator,
+#bible-mini-toolbar .desktop-mini-toolbar .toolbar-separator:has(+ .draw-toolbar-dropdown) {
+  display: none !important;
 }
