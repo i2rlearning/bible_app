@@ -1173,7 +1173,7 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
 
 
 /* ========================================================================== 
-   Mobile save status navbar refinement
+   Stage 2G - mobile save status navbar refinement
    Keep the save status inside the navbar when the mini-editor switches to
    compact mode, instead of letting it drop onto the mini-editor.
    ========================================================================== */
@@ -1231,7 +1231,7 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
 
 
 /* ========================================================================== 
-   Preferences checkbox field
+   Stage 3A - Preferences checkbox field
    Used for editor behavior preferences such as the freehand warning.
    ========================================================================== */
 
@@ -1259,4 +1259,174 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
   font-size: 0.9rem;
   font-weight: 700;
   color: #172033;
+}
+
+
+/* ========================================================================== 
+   Stage 3B - navbar passage visibility and current passage chip
+   Keep the full passage button until the navbar truly runs out of room.
+   Then show a compact current passage chip so the user still knows where they are.
+   ========================================================================== */
+
+body:not(.landing-page) .subheader .mobile-current-passage-column {
+  display: none !important;
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+}
+
+body:not(.landing-page) .subheader .mobile-current-passage-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 132px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(19, 57, 93, 0.34);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172033;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+body:not(.landing-page) .subheader .mobile-current-passage-button span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-current-passage {
+  display: none;
+}
+
+/*
+  The old rule hid the full passage picker below 1100px.
+  Restore it from 561px to 1100px because there is still enough room there.
+*/
+@media only screen and (min-width: 561px) and (max-width: 1100px) {
+  body:not(.landing-page) .subheader .passage-picker-column {
+    display: flex !important;
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: min(42vw, 260px) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:not(.landing-page) .subheader .passage-picker {
+    display: block !important;
+    position: relative !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: min(42vw, 260px) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:not(.landing-page) .subheader .passage-picker-toggle {
+    display: inline-flex !important;
+    max-width: min(42vw, 260px) !important;
+  }
+
+  body:not(.landing-page) .subheader #current-passage-label {
+    max-width: min(34vw, 210px) !important;
+  }
+
+  body:not(.landing-page) .subheader .mobile-current-passage-column {
+    display: none !important;
+  }
+
+  body:not(.landing-page) .subheader .subheadings {
+    gap: 14px !important;
+  }
+}
+
+/*
+  Below 560px, the full BSB • Book Chapter button usually becomes too wide.
+  Hide it and show the compact Book Chapter chip instead.
+*/
+@media only screen and (max-width: 560px) {
+  body:not(.landing-page) .subheader .passage-picker-column {
+    display: flex !important;
+    flex: 0 0 0 !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+  }
+
+  body:not(.landing-page) .subheader .passage-picker {
+    display: block !important;
+    position: relative !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:not(.landing-page) .subheader .passage-picker-toggle {
+    display: none !important;
+  }
+
+  body:not(.landing-page) .subheader .mobile-current-passage-column {
+    display: flex !important;
+  }
+
+  body:not(.landing-page) .subheader .mobile-current-passage-button {
+    max-width: clamp(76px, 34vw, 132px);
+  }
+
+  body:not(.landing-page) .subheader .subheadings {
+    gap: clamp(6px, 2.6vw, 12px) !important;
+  }
+
+  .menu-current-passage {
+    display: block;
+    margin: 0 0 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(19, 57, 93, 0.18);
+    color: #1d2d44;
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .menu-current-passage span {
+    color: #174a8b;
+  }
+}
+
+@media only screen and (max-width: 380px) {
+  body:not(.landing-page) .subheader .mobile-current-passage-button {
+    max-width: clamp(66px, 31vw, 112px);
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 0.8rem;
+  }
 }
