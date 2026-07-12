@@ -94,6 +94,7 @@
 /* ========================================================================== 
    Stage 3B - current passage in popover menu
    Shows the user's current location above the menu links.
+   The current passage is intentionally subtle so it reads as context, not a main action.
    ========================================================================== */
 @media only screen and (max-width: 1100px) {
   .overlay.menu-open {
@@ -107,30 +108,30 @@
   .overlay .menu-current-passage {
     display: block !important;
     width: 100% !important;
-    margin: 0 0 6px !important;
-    padding: 9px 12px 10px !important;
-    border-bottom: 1px solid rgba(19, 57, 93, 0.18) !important;
-    background: rgba(246, 251, 255, 0.78) !important;
-    border-radius: 8px !important;
-    color: #1d2d44 !important;
+    margin: 0 0 4px !important;
+    padding: 7px 10px 8px !important;
+    border-bottom: 1px solid rgba(19, 57, 93, 0.12) !important;
+    background: rgba(246, 251, 255, 0.46) !important;
+    border-radius: 7px !important;
+    color: rgba(29, 45, 68, 0.82) !important;
     font-family: Arial, sans-serif !important;
     text-align: left !important;
-    line-height: 1.25 !important;
+    line-height: 1.2 !important;
   }
 
   .overlay .menu-current-passage-title {
-    margin-bottom: 2px !important;
-    font-size: 0.74rem !important;
-    font-weight: 800 !important;
-    letter-spacing: 0.04em !important;
+    margin-bottom: 1px !important;
+    font-size: 0.68rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.035em !important;
     text-transform: uppercase !important;
-    color: #536272 !important;
+    color: rgba(83, 98, 114, 0.82) !important;
   }
 
   .overlay .menu-current-passage-value {
-    font-size: 0.96rem !important;
-    font-weight: 800 !important;
-    color: #174a8b !important;
+    font-size: 0.86rem !important;
+    font-weight: 700 !important;
+    color: rgba(23, 74, 139, 0.82) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
