@@ -200,3 +200,43 @@
     line-height: 1.08 !important;
   }
 }
+
+
+/* ========================================================================== 
+   Stage 3B-3 - scroll menu bottom tuck refinement
+   Keeps the top position that worked, but shortens the parchment so the bottom
+   does not hang too far below the scroll body.
+   ========================================================================== */
+@media only screen and (min-width: 1101px) {
+  .overlay {
+    top: 25vh !important;
+    height: 46vh !important;
+    background-size: 250px 46vh !important;
+  }
+
+  .overlay-content {
+    top: -2px !important;
+    height: 46vh !important;
+    gap: 4px !important;
+  }
+
+  .overlay .menu-current-passage {
+    width: 56% !important;
+    margin-bottom: 4px !important;
+    padding-bottom: 5px !important;
+    border-bottom: 2px solid rgba(70, 40, 15, 0.26) !important;
+  }
+
+  .overlay .menu-current-passage-title {
+    font-size: 11px !important;
+  }
+
+  .overlay .menu-current-passage-value {
+    font-size: 14px !important;
+  }
+
+  .overlay a {
+    font-size: 27px !important;
+    line-height: 1.04 !important;
+  }
+}
