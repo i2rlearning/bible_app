@@ -11,14 +11,14 @@
     top: 22.55vh !important;
     left: 115px !important;
     width: 0 !important;
-    height: 80vh !important;
+    height: 95vh !important;
     
     overflow-x: hidden !important;
     overflow-y: hidden !important;
     background-color: transparent !important;
     background-image: url("../img/scrollpaper.png") !important;
     background-repeat: no-repeat !important;
-    background-size: 250px 80vh !important;
+    background-size: 250px 95vh !important;
      
     border: 0 !important;
     border-radius: 0 !important;
@@ -37,7 +37,7 @@
     position: relative !important;
     top: -8px !important;
     width: 225px !important;
-    height: 80vh !important;
+    height: 95vh !important;
      
     margin: 0 !important;
     padding: 0 !important;
