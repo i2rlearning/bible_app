@@ -6,28 +6,29 @@
 
 @media only screen and (min-width: 1101px) {
   .overlay {
-    position: fixed !important;
-    z-index: 6500 !important;
-    top: 22.55vh !important;
-    left: 115px !important;
-    width: 0 !important;
-    height: 95vh !important;
-    
-    overflow-x: hidden !important;
-    overflow-y: hidden !important;
-    background-color: transparent !important;
-    background-image: url("../img/scrollpaper.png") !important;
-    background-repeat: no-repeat !important;
-    background-size: 270px 95vh !important;
-     
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    transform: none !important;
-    transition: width 0.65s ease !important;
-  }
+     position: fixed !important;
+     z-index: 6500 !important;
+     top: 22.55vh !important;
+     left: 115px !important;
+     width: 0 !important;
+     height: 60vh !important;
+     overflow: visible !important;
+     background: none !important;
+   }
+
+   .overlay::before {
+     content: "";
+     position: absolute;
+     top: 0;
+     left: 0;
+     width: 270px;
+     height: 95vh;
+     background-image: url("../img/scrollpaper.png");
+     background-repeat: no-repeat;
+     background-size: 270px 95vh;
+     z-index: -1;
+     pointer-events: none;
+   }
 
   .overlay.menu-open {
     width: 225px !important;
