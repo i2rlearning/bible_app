@@ -1,21 +1,16 @@
-/* ========================================================================== 
+/* ==========================================================================
    Compact popover menu
    Used when scroll artwork is hidden.
-   Breakpoint: 1100px and below.
+   Breakpoint: 639px and below.
    ========================================================================== */
 
-@media only screen and (max-width: 1100px) {
+@media only screen and (max-width: 639px) {
   .overlay {
     position: fixed !important;
     z-index: 6500 !important;
-    top: calc(
-      var(--sticky-header-height, 54px) +
-      var(--fixed-toolbar-gap, 6px) +
-      var(--mini-toolbar-height, 38px) +
-      10px
-    ) !important;
+    top: 56px !important;
     left: 50% !important;
-    width: min(260px, calc(100vw - 20px)) !important;
+    width: min(240px, calc(100vw - 20px)) !important;
     height: auto !important;
     max-height: 0 !important;
     padding: 0 !important;
@@ -35,7 +30,7 @@
   }
 
   .overlay.menu-open {
-    max-height: 380px !important;
+    max-height: 360px !important;
     padding: 8px !important;
     opacity: 1 !important;
     pointer-events: auto !important;
@@ -93,15 +88,51 @@
     color: #123f7c !important;
     background: #e8f1fb !important;
   }
+}
 
-  /* In compact mode the top passage selector is hidden, so expose passage changing here. */
+
+/* ========================================================================== 
+   Stage 3B - current passage in popover menu
+   Shows the user's current location above the menu links.
+   ========================================================================== */
+@media only screen and (max-width: 1100px) {
+  .overlay.menu-open {
+    max-height: 430px !important;
+  }
+
   .overlay .mobile-passage-link {
     display: flex !important;
   }
-}
 
-@media only screen and (max-width: 639px) {
-  .overlay {
-    width: min(240px, calc(100vw - 20px)) !important;
+  .overlay .menu-current-passage {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 6px !important;
+    padding: 9px 12px 10px !important;
+    border-bottom: 1px solid rgba(19, 57, 93, 0.18) !important;
+    background: rgba(246, 251, 255, 0.78) !important;
+    border-radius: 8px !important;
+    color: #1d2d44 !important;
+    font-family: Arial, sans-serif !important;
+    text-align: left !important;
+    line-height: 1.25 !important;
+  }
+
+  .overlay .menu-current-passage-title {
+    margin-bottom: 2px !important;
+    font-size: 0.74rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    color: #536272 !important;
+  }
+
+  .overlay .menu-current-passage-value {
+    font-size: 0.96rem !important;
+    font-weight: 800 !important;
+    color: #174a8b !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 }
