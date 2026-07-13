@@ -1382,6 +1382,11 @@ function rememberCurrentSelectionOffsets() {
   saveBibleSelection();
 }
 
+function clearSavedBibleSelection() {
+  savedBibleSelectionOffsets = null;
+  savedBibleSelectionTimestamp = 0;
+}
+
 function getLiveBibleSelectionRange() {
   const selection = window.getSelection();
   const bibleText = document.getElementById("bible-text");
@@ -1399,7 +1404,7 @@ function getLiveBibleSelectionRange() {
   return range.cloneRange();
 }
 
-function getRecentSavedBibleSelectionRange(maxAgeMs = 1200) {
+function getRecentSavedBibleSelectionRange(maxAgeMs = 60000) {
   const bibleText = document.getElementById("bible-text");
 
   if (!savedBibleSelectionOffsets || !bibleText) {
@@ -1569,9 +1574,9 @@ function removeBibleUserFormattingFromRange(range) {
     return false;
   }
 
-  const hasIntersectingFormat = Array.from(
+  const formattedSpans = Array.from(
     bibleText.querySelectorAll(".bible-user-format")
-  ).some((span) => {
+  ).filter((span) => {
     try {
       return range.intersectsNode(span);
     } catch (error) {
@@ -1579,17 +1584,11 @@ function removeBibleUserFormattingFromRange(range) {
     }
   });
 
-  if (!hasIntersectingFormat) {
+  if (!formattedSpans.length) {
     return false;
   }
 
-  const fragment = range.extractContents();
-
-  Array.from(
-    fragment.querySelectorAll?.(".bible-user-format") || []
-  ).forEach(unwrapElement);
-
-  range.insertNode(fragment);
+  formattedSpans.forEach(unwrapElement);
   bibleText.normalize();
 
   return true;
@@ -2385,7 +2384,11 @@ function clearSelectedDrawnAnnotation() {
     return false;
   }
 
-  selectedDrawnAnnotation.remove();
+  const annotationToRemove =
+    selectedDrawnAnnotation.closest?.(".freehand-group") ||
+    selectedDrawnAnnotation;
+
+  annotationToRemove.remove();
   selectedDrawnAnnotation = null;
   updateAnnotationLayoutWarning();
   recordMiniEditorHistorySnapshot();
@@ -2556,16 +2559,19 @@ if (drawingArea && annotationLayer) {
       finalizeFreehandGroup({ recordHistory: true });
     }
 
-    const clickedAnnotation = event.target.closest(
-      ".drawn-annotation, .freehand-group"
-    );
+    const clickedAnnotation =
+      event.target.closest(".drawn-annotation, .freehand-group") ||
+      (event.target.classList?.contains("freehand") ? event.target : null);
 
     if (!clickedAnnotation) return;
 
-    selectedDrawnAnnotation = clickedAnnotation;
+    selectedDrawnAnnotation =
+      clickedAnnotation.closest?.(".freehand-group") || clickedAnnotation;
+
+    clearSavedBibleSelection();
 
     document
-      .querySelectorAll(".drawn-annotation, .freehand-group")
+      .querySelectorAll(".drawn-annotation, .freehand-group, .freehand")
       .forEach((shape) => {
         shape.classList.remove("selected-annotation");
       });
@@ -2776,10 +2782,8 @@ document.addEventListener("keydown", (event) => {
       return;
     }
 
-    if (window.AnchoredAnnotations?.clearSelected?.()) {
+    if (clearSelectedDrawnAnnotation()) {
       event.preventDefault();
-      recordMiniEditorHistorySnapshot();
-      scheduleMiniEditorSave();
     }
   }
 });
@@ -2788,8 +2792,11 @@ document.addEventListener("keydown", (event) => {
 // Expose functions used by inline HTML onclick attributes
 // ----------------------------------------------------
 window.setDrawingTool = setDrawingTool;
+window.rememberCurrentSelectionOffsets = rememberCurrentSelectionOffsets;
+window.clearSavedBibleSelection = clearSavedBibleSelection;
 window.clearBibleSelectionFormat = clearBibleSelectionFormat;
 window.clearSelectedDrawnAnnotation = clearSelectedDrawnAnnotation;
+window.clearSelectedBibleAnnotation = clearSelectedBibleAnnotation;
 window.clearDrawnAnnotations = clearDrawnAnnotations;
 window.applyBibleFormat = applyBibleFormat;
 window.toggleHighlightMenu = toggleHighlightMenu;
