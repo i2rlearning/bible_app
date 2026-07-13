@@ -1270,6 +1270,7 @@ function startMiniEditorObserver() {
 // Mini-editor selection memory
 // ----------------------------------------------------
 let savedBibleSelectionOffsets = null;
+let savedBibleSelectionTimestamp = 0;
 
 function getTextOffsetWithinElement(root, targetNode, targetOffset) {
   let offset = 0;
@@ -1333,18 +1334,24 @@ function saveBibleSelection() {
     return;
   }
 
-  savedBibleSelectionOffsets = {
-    start: getTextOffsetWithinElement(
-      bibleText,
-      range.startContainer,
-      range.startOffset
-    ),
-    end: getTextOffsetWithinElement(
-      bibleText,
-      range.endContainer,
-      range.endOffset
-    )
-  };
+  const start = getTextOffsetWithinElement(
+    bibleText,
+    range.startContainer,
+    range.startOffset
+  );
+
+  const end = getTextOffsetWithinElement(
+    bibleText,
+    range.endContainer,
+    range.endOffset
+  );
+
+  if (start === end) {
+    return;
+  }
+
+  savedBibleSelectionOffsets = { start, end };
+  savedBibleSelectionTimestamp = Date.now();
 }
 
 function restoreBibleSelection() {
@@ -1373,6 +1380,51 @@ function restoreBibleSelection() {
 
 function rememberCurrentSelectionOffsets() {
   saveBibleSelection();
+}
+
+function getLiveBibleSelectionRange() {
+  const selection = window.getSelection();
+  const bibleText = document.getElementById("bible-text");
+
+  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!bibleText.contains(range.commonAncestorContainer)) {
+    return null;
+  }
+
+  return range.cloneRange();
+}
+
+function getRecentSavedBibleSelectionRange(maxAgeMs = 1200) {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!savedBibleSelectionOffsets || !bibleText) {
+    return null;
+  }
+
+  if (Date.now() - savedBibleSelectionTimestamp > maxAgeMs) {
+    return null;
+  }
+
+  const range = getRangeFromTextOffsets(
+    bibleText,
+    savedBibleSelectionOffsets.start,
+    savedBibleSelectionOffsets.end
+  );
+
+  if (!range || range.collapsed) {
+    return null;
+  }
+
+  return range;
+}
+
+function getClearTargetBibleSelectionRange() {
+  return getLiveBibleSelectionRange() || getRecentSavedBibleSelectionRange();
 }
 
 document.addEventListener("selectionchange", saveBibleSelection);
@@ -1454,40 +1506,53 @@ function wrapTextNodePart(textNode, range, className) {
 }
 
 function clearBibleSelectionFormat() {
-  restoreBibleSelection();
-
-  const selection = window.getSelection();
   const bibleText = document.getElementById("bible-text");
+  const range = getClearTargetBibleSelectionRange();
 
-  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+  if (!bibleText || !range || range.collapsed) {
     return false;
   }
 
-  const range = selection.getRangeAt(0);
-
-  if (!bibleText.contains(range.commonAncestorContainer)) {
-    return false;
-  }
-
-  saveBibleSelection();
+  const selectedOffsets = {
+    start: getTextOffsetWithinElement(
+      bibleText,
+      range.startContainer,
+      range.startOffset
+    ),
+    end: getTextOffsetWithinElement(
+      bibleText,
+      range.endContainer,
+      range.endOffset
+    )
+  };
 
   let changed = false;
 
-  const formattedSpans = Array.from(
-    bibleText.querySelectorAll(".bible-user-format")
-  ).filter((span) => range.intersectsNode(span));
-
-  formattedSpans.forEach(unwrapElement);
-
-  if (formattedSpans.length > 0) {
+  if (window.AnchoredAnnotations?.clearIntersectingRange?.(range.cloneRange())) {
     changed = true;
   }
 
-  if (window.AnchoredAnnotations?.clearIntersectingCurrentSelection?.()) {
+  const formattingRange = getRangeFromTextOffsets(
+    bibleText,
+    selectedOffsets.start,
+    selectedOffsets.end
+  );
+
+  if (
+    formattingRange &&
+    removeBibleUserFormattingFromRange(formattingRange)
+  ) {
     changed = true;
   }
 
-  restoreBibleSelection();
+  savedBibleSelectionOffsets = null;
+  savedBibleSelectionTimestamp = 0;
+
+  const selection = window.getSelection();
+
+  if (selection) {
+    selection.removeAllRanges();
+  }
 
   if (changed) {
     recordMiniEditorHistorySnapshot();
@@ -1495,6 +1560,39 @@ function clearBibleSelectionFormat() {
   }
 
   return changed;
+}
+
+function removeBibleUserFormattingFromRange(range) {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText || !range || range.collapsed) {
+    return false;
+  }
+
+  const hasIntersectingFormat = Array.from(
+    bibleText.querySelectorAll(".bible-user-format")
+  ).some((span) => {
+    try {
+      return range.intersectsNode(span);
+    } catch (error) {
+      return false;
+    }
+  });
+
+  if (!hasIntersectingFormat) {
+    return false;
+  }
+
+  const fragment = range.extractContents();
+
+  Array.from(
+    fragment.querySelectorAll?.(".bible-user-format") || []
+  ).forEach(unwrapElement);
+
+  range.insertNode(fragment);
+  bibleText.normalize();
+
+  return true;
 }
 
 function unwrapElement(element) {
@@ -2281,9 +2379,10 @@ function clearSelectedDrawnAnnotation() {
     if (window.AnchoredAnnotations?.clearSelected?.()) {
       recordMiniEditorHistorySnapshot();
       scheduleMiniEditorSave();
+      return true;
     }
 
-    return;
+    return false;
   }
 
   selectedDrawnAnnotation.remove();
@@ -2291,6 +2390,16 @@ function clearSelectedDrawnAnnotation() {
   updateAnnotationLayoutWarning();
   recordMiniEditorHistorySnapshot();
   scheduleMiniEditorSave();
+
+  return true;
+}
+
+function clearSelectedBibleAnnotation() {
+  if (clearBibleSelectionFormat()) {
+    return true;
+  }
+
+  return clearSelectedDrawnAnnotation();
 }
 
 function clearDrawnAnnotations() {
