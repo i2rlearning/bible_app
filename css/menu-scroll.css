@@ -1,17 +1,29 @@
 @media only screen and (min-width: 1101px) {
   .overlay {
-    position: fixed !important;
+    /* If possible, change to absolute if container is position: relative */
+    position: fixed !important; 
     z-index: 6450 !important;
-    top: 22.55vh !important;
-    left: 115px !important;
+    
+    /* 1. Tweak top percentage to center vertically inside the scroll rolls */
+    top: 10.5vh !important; 
+    
+    /* 2. Replace static 115px with a calculation if the main body is centered, 
+       or use an absolute layout approach inside the left column */
+    left: 145px !important; 
+    
     width: 0 !important;
-    height: 95vh !important;
+    /* 3. Reduced height so it doesn't bleed out past the bottom scroll roll */
+    height: 78vh !important; 
+    
     overflow-x: hidden !important;
     overflow-y: hidden !important;
     background-color: transparent !important;
     background-image: url("../img/scrollpaper.png") !important;
     background-repeat: no-repeat !important;
-    background-size: 270px 95vh !important;
+    
+    /* 4. Match background width to final open menu width (225px) to prevent squishing */
+    background-size: 225px 78vh !important; 
+    
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -27,9 +39,10 @@
 
   .overlay-content {
     position: relative !important;
-    top: -8px !important;
+    /* 5. Center content within the corrected height bounds */
+    top: 0 !important; 
     width: 225px !important;
-    height: 95vh !important;
+    height: 78vh !important; 
     margin: 0 !important;
     padding: 0 !important;
     display: flex !important;
