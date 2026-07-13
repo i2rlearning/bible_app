@@ -264,7 +264,9 @@
       return false;
     }
 
-    return unwrapElement(selectedAnnotation);
+    const removed = unwrapElement(selectedAnnotation);
+    selectedAnnotation = null;
+    return removed;
   }
 
   function clearIntersectingRange(range) {
@@ -290,6 +292,7 @@
 
     matches.forEach((element) => unwrapElement(element));
     savedSelectionOffsets = null;
+    selectedAnnotation = null;
 
     return true;
   }
@@ -450,6 +453,7 @@
 
         if (annotation) {
           selectAnnotation(annotation);
+          window.clearSavedBibleSelection?.();
           return;
         }
 
