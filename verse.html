@@ -346,7 +346,7 @@
           <button type="button" onclick="undoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Undo" aria-label="Undo"><i class="fa fa-undo" aria-hidden="true"></i></button>
           <button type="button" onclick="redoMiniEditorChange()" class="mini-toolbar-icon-button undo-redo-button" title="Redo" aria-label="Redo"><i class="fa fa-repeat" aria-hidden="true"></i></button>
           <button onclick="setDrawingTool(null)" id="textToolButton" class="text-tool-button" data-drawing-tool="text" title="Text / Select">T</button>
-          <button onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation();" class="clear-format-button" title="Clear Format" aria-label="Clear Format">Clear</button>
+          <button type="button" onmousedown="event.preventDefault(); rememberCurrentSelectionOffsets();" onclick="clearSelectedBibleAnnotation();" class="clear-format-button" title="Clear selected formatting" aria-label="Clear selected formatting">Clear</button>
         </div>
 
         <div class="mobile-mini-toolbar" aria-label="Mobile annotation toolbar">
@@ -420,7 +420,7 @@
               <button type="button" class="select-text-action" onclick="setDrawingTool(null); closeMobileToolbarMenus();" data-drawing-tool="text" title="Return to Text Selection" aria-label="Return to Text Selection"><span class="action-letter" aria-hidden="true">T</span><span>Select</span></button>
               <button type="button" onclick="undoMiniEditorChange(); closeMobileToolbarMenus();" title="Undo" aria-label="Undo"><i class="fa fa-undo" aria-hidden="true"></i><span>Undo</span></button>
               <button type="button" onclick="redoMiniEditorChange(); closeMobileToolbarMenus();" title="Redo" aria-label="Redo"><i class="fa fa-repeat" aria-hidden="true"></i><span>Redo</span></button>
-              <button type="button" onclick="clearBibleSelectionFormat(); clearSelectedDrawnAnnotation(); closeMobileToolbarMenus();" title="Clear Format" aria-label="Clear Format"><span>Clear</span></button>
+              <button type="button" onpointerdown="rememberCurrentSelectionOffsets();" onclick="clearSelectedBibleAnnotation(); closeMobileToolbarMenus();" title="Clear selected formatting" aria-label="Clear selected formatting"><span>Clear</span></button>
             </div>
           </div>
         </div>
