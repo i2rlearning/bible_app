@@ -5,15 +5,15 @@
     top: 25vh !important; /* Controls top pos for parchment */
     left: 115px !important; /* Left position for parchment */
     width: 0 !important;    
-    height: 55.5vh !important; /* Menu height  */ 
-    
+    height: 55.5vh !important; /* Menu height */ 
+
     overflow-x: hidden !important;
     overflow-y: hidden !important;
     background-color: transparent !important;
     background-image: url("../img/scrollpaper.png") !important;
     background-repeat: no-repeat !important;
-    background-size: 250px 55.5vh !important;     /* Needs to match height above */ 
-    
+    background-size: 250px 55.5vh !important; /* Needs to match height above */ 
+
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -31,7 +31,7 @@
     position: relative !important;
     top: -8px !important; 
     width: 225px !important;
-    height: 55vh !important; /* controls text in menu location - mataches height above  */
+    height: 55vh !important; /* Controls text in menu location - matches height above */
     margin: 0 !important;
     padding: 0 !important;
     display: flex !important;
@@ -44,11 +44,21 @@
 
   body:not(.landing-page) .leftcol {
     z-index: 6600 !important;
-    pointer-events: none !important;
+    pointer-events: auto !important;
   }
 
   body:not(.landing-page) .rightcol {
-    pointer-events: none !important;
+    pointer-events: auto !important;
+  }
+
+  body:not(.landing-page) .leftcol a,
+  body:not(.landing-page) .rightcol a,
+  body:not(.landing-page) #prevURL,
+  body:not(.landing-page) #nextURL,
+  body:not(.landing-page) #imgleft,
+  body:not(.landing-page) #imgright {
+    pointer-events: auto !important;
+    cursor: pointer !important;
   }
 
   .overlay a {
