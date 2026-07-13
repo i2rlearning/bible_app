@@ -2,26 +2,17 @@
   .overlay {
     position: fixed !important; 
     z-index: 6450 !important;
-    
-    /* 1. Nudged down slightly to clear the top wood frame */
-    top: 25vh !important; 
-    
-    /* Left position remains locked in where you like it */
-    left: 115px !important; 
-    
-    width: 0 !important;
-    
-    /* 2. Shrunk container height so it doesn't overflow the bottom */
-    height: 55.5vh !important; 
+    top: 25vh !important; /* Controls top pos for parchment */
+    left: 115px !important; /* Left position for parchment */
+    width: 0 !important;    
+    height: 55.5vh !important; /* Menu height  */ 
     
     overflow-x: hidden !important;
     overflow-y: hidden !important;
     background-color: transparent !important;
     background-image: url("../img/scrollpaper.png") !important;
     background-repeat: no-repeat !important;
-    
-    /* 3. Matched background texture height to container */
-    background-size: 250px 55.5vh !important; 
+    background-size: 250px 55.5vh !important;     /* Needs to match height above */ 
     
     border: 0 !important;
     border-radius: 0 !important;
@@ -40,10 +31,7 @@
     position: relative !important;
     top: -8px !important; 
     width: 225px !important;
-    
-    /* 4. Match the inner content height to the wrapper */
-    height: 55vh !important; 
-    
+    height: 55vh !important; /* controls text in menu location - mataches height above  */
     margin: 0 !important;
     padding: 0 !important;
     display: flex !important;
