@@ -1,17 +1,19 @@
 @media only screen and (min-width: 1101px) {
   .overlay {
-    position: fixed !important;
+    position: fixed !important; 
     z-index: 6450 !important;
     top: 25vh !important; /* Controls top pos for parchment */
     left: 115px !important; /* Left position for parchment */
-    width: 0 !important;
-    height: 55.5vh !important; /* Menu height */
+    width: 0 !important;    
+    height: 55.5vh !important; /* Menu height */ 
+
     overflow-x: hidden !important;
     overflow-y: hidden !important;
     background-color: transparent !important;
     background-image: url("../img/scrollpaper.png") !important;
     background-repeat: no-repeat !important;
-    background-size: 250px 55.5vh !important; /* Needs to match height above */
+    background-size: 250px 55.5vh !important; /* Needs to match height above */ 
+
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -27,7 +29,7 @@
 
   .overlay-content {
     position: relative !important;
-    top: -8px !important;
+    top: -8px !important; 
     width: 225px !important;
     height: 55vh !important; /* Controls text in menu location - matches height above */
     margin: 0 !important;
@@ -40,23 +42,23 @@
     text-align: center !important;
   }
 
-  .leftcol {
+  body:not(.landing-page) .leftcol {
     z-index: 6600 !important;
     pointer-events: auto !important;
   }
 
-  .rightcol {
+  body:not(.landing-page) .rightcol {
     pointer-events: auto !important;
   }
 
-  .leftcol a,
-  .rightcol a,
-  #prevURL,
-  #nextURL,
-  #imgleft,
-  #imgright {
+  body:not(.landing-page) .leftcol a,
+  body:not(.landing-page) .rightcol a,
+  body:not(.landing-page) #prevURL,
+  body:not(.landing-page) #nextURL,
+  body:not(.landing-page) #imgleft,
+  body:not(.landing-page) #imgright {
     pointer-events: auto !important;
-    cursor: pointer;
+    cursor: pointer !important;
   }
 
   .overlay a {
@@ -64,28 +66,28 @@
     padding: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
-    color: black;
-    font-family: Arima, sans-serif;
-    font-size: 28px;
-    font-weight: 400;
-    line-height: 1.08;
-    text-align: center;
-    text-decoration: none;
-    transition: color 0.3s ease;
+    color: black !important;
+    font-family: Arima, sans-serif !important;
+    font-size: 28px !important;
+    font-weight: 400 !important;
+    line-height: 1.08 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    transition: color 0.3s ease !important;
   }
 
   .overlay a:hover,
   .overlay a:focus {
-    color: white;
-    background: transparent;
+    color: white !important;
+    background: transparent !important;
   }
 
   .overlay a.disabled {
-    color: darkgray;
+    color: darkgray !important;
   }
 
   .overlay a.current {
-    color: white;
+    color: white !important;
   }
 
   .overlay .mobile-passage-link {
@@ -98,25 +100,25 @@
     margin: 0 auto 5px !important;
     padding: 0 0 6px !important;
     border-bottom: 2px solid rgba(70, 40, 15, 0.24) !important;
-    color: rgba(42, 27, 10, 0.78);
-    font-family: Arima, sans-serif;
-    text-align: center;
-    line-height: 1.05;
+    color: rgba(42, 27, 10, 0.78) !important;
+    font-family: Arima, sans-serif !important;
+    text-align: center !important;
+    line-height: 1.05 !important;
   }
 
   .overlay .menu-current-passage-title {
     display: block !important;
-    margin-bottom: 1px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    margin-bottom: 1px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em !important;
   }
 
   .overlay .menu-current-passage-value {
     display: block !important;
-    font-size: 15px;
-    font-weight: 600;
-    color: rgba(23, 74, 139, 0.82);
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: rgba(23, 74, 139, 0.82) !important;
   }
 }
 
