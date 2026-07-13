@@ -1625,10 +1625,7 @@ let activePointerType = null;
 const ANCHORED_DRAWING_TOOL_LABELS = {
   circle: "Circle",
   square: "Square",
-  line: "Line",
-  "arrow-left": "Arrow Left",
-  "arrow-right": "Arrow Right",
-  "arrow-both": "Arrow Both Directions"
+  bracket: "Bracket"
 };
 
 const ANCHORED_DRAWING_TOOLS =
