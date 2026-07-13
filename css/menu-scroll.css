@@ -1,54 +1,52 @@
 @media only screen and (min-width: 1101px) {
-  .overlay {
-    position: fixed !important; 
-    z-index: 6450 !important;
-    top: 25vh !important; /* Controls top pos for parchment */
-    left: 115px !important; /* Left position for parchment */
-    width: 0 !important;    
-    height: 55.5vh !important; /* Menu height */ 
-
-    overflow-x: hidden !important;
-    overflow-y: hidden !important;
-    background-color: transparent !important;
-    background-image: url("../img/scrollpaper.png") !important;
-    background-repeat: no-repeat !important;
-    background-size: 250px 55.5vh !important; /* Needs to match height above */ 
-
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    transform: none !important;
-    transition: width 0.65s ease !important;
+  body:not(.landing-page) .overlay {
+    position: fixed;
+    z-index: 6450;
+    top: 25vh; /* Controls top pos for parchment */
+    left: 115px; /* Left position for parchment */
+    width: 0 !important;
+    height: 55.5vh; /* Menu height */
+    overflow-x: hidden;
+    overflow-y: hidden;
+    background-color: transparent;
+    background-image: url("../img/scrollpaper.png");
+    background-repeat: no-repeat;
+    background-size: 250px 55.5vh; /* Needs to match height above */
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    transition: width 0.65s ease;
   }
 
-  .overlay.menu-open {
+  body:not(.landing-page) .overlay.menu-open {
     width: 225px !important;
   }
 
-  .overlay-content {
-    position: relative !important;
-    top: -8px !important; 
-    width: 225px !important;
-    height: 55vh !important; /* Controls text in menu location - matches height above */
-    margin: 0 !important;
-    padding: 0 !important;
+  body:not(.landing-page) .overlay-content {
+    position: relative;
+    top: -8px;
+    width: 225px;
+    height: 55vh; /* Controls text in menu location - matches height above */
+    margin: 0;
+    padding: 0;
     display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 8px !important;
-    text-align: center !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
   }
 
   body:not(.landing-page) .leftcol {
-    z-index: 6600 !important;
-    pointer-events: auto !important;
+    z-index: 6600;
+    pointer-events: auto;
   }
 
   body:not(.landing-page) .rightcol {
-    pointer-events: auto !important;
+    pointer-events: auto;
   }
 
   body:not(.landing-page) .leftcol a,
@@ -57,83 +55,83 @@
   body:not(.landing-page) #nextURL,
   body:not(.landing-page) #imgleft,
   body:not(.landing-page) #imgright {
-    pointer-events: auto !important;
-    cursor: pointer !important;
+    pointer-events: auto;
+    cursor: pointer;
   }
 
-  .overlay a {
+  body:not(.landing-page) .overlay a {
+    display: block;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: black;
+    font-family: Arima, sans-serif;
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1.08;
+    text-align: center;
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+
+  body:not(.landing-page) .overlay a:hover,
+  body:not(.landing-page) .overlay a:focus {
+    color: white;
+    background: transparent;
+  }
+
+  body:not(.landing-page) .overlay a.disabled {
+    color: darkgray;
+  }
+
+  body:not(.landing-page) .overlay a.current {
+    color: white;
+  }
+
+  body:not(.landing-page) .overlay .mobile-passage-link {
     display: block !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    color: black !important;
-    font-family: Arima, sans-serif !important;
-    font-size: 28px !important;
-    font-weight: 400 !important;
-    line-height: 1.08 !important;
-    text-align: center !important;
-    text-decoration: none !important;
-    transition: color 0.3s ease !important;
   }
 
-  .overlay a:hover,
-  .overlay a:focus {
-    color: white !important;
-    background: transparent !important;
-  }
-
-  .overlay a.disabled {
-    color: darkgray !important;
-  }
-
-  .overlay a.current {
-    color: white !important;
-  }
-
-  .overlay .mobile-passage-link {
+  body:not(.landing-page) .overlay .menu-current-passage {
     display: block !important;
+    width: 58%;
+    margin: 0 auto 5px;
+    padding: 0 0 6px;
+    border-bottom: 2px solid rgba(70, 40, 15, 0.24);
+    color: rgba(42, 27, 10, 0.78);
+    font-family: Arima, sans-serif;
+    text-align: center;
+    line-height: 1.05;
   }
 
-  .overlay .menu-current-passage {
+  body:not(.landing-page) .overlay .menu-current-passage-title {
     display: block !important;
-    width: 58% !important;
-    margin: 0 auto 5px !important;
-    padding: 0 0 6px !important;
-    border-bottom: 2px solid rgba(70, 40, 15, 0.24) !important;
-    color: rgba(42, 27, 10, 0.78) !important;
-    font-family: Arima, sans-serif !important;
-    text-align: center !important;
-    line-height: 1.05 !important;
+    margin-bottom: 1px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
 
-  .overlay .menu-current-passage-title {
+  body:not(.landing-page) .overlay .menu-current-passage-value {
     display: block !important;
-    margin-bottom: 1px !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.02em !important;
-  }
-
-  .overlay .menu-current-passage-value {
-    display: block !important;
-    font-size: 15px !important;
-    font-weight: 600 !important;
-    color: rgba(23, 74, 139, 0.82) !important;
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(23, 74, 139, 0.82);
   }
 }
 
 @media only screen and (min-width: 1101px) and (max-height: 450px) {
-  .overlay {
-    height: 65vh !important;
-    background-size: 270px 65vh !important;
+  body:not(.landing-page) .overlay {
+    height: 65vh;
+    background-size: 270px 65vh;
   }
 
-  .overlay-content {
-    height: 65vh !important;
-    gap: 4px !important;
+  body:not(.landing-page) .overlay-content {
+    height: 65vh;
+    gap: 4px;
   }
 
-  .overlay a {
-    font-size: 20px !important;
+  body:not(.landing-page) .overlay a {
+    font-size: 20px;
   }
 }
