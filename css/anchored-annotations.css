@@ -1,9 +1,8 @@
 /**************************************************************
   Anchored annotations
-  Week 3 parallel system for responsive circle and square
 
-  Adds deletion support. Click an anchored circle/square to select it,
-  then press Clear. Or select/highlight the annotated words and press Clear.
+  Click an anchored mark to select it, then press Clear or Delete.
+  Selecting the marked words and pressing Clear also removes the mark.
 **************************************************************/
 
 #display-text {
@@ -33,15 +32,17 @@
   display: inline !important;
   color: inherit !important;
   background: transparent !important;
-
   border: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
+  cursor: pointer;
+}
 
+.anchored-inline-circle,
+.anchored-inline-square {
   box-shadow: 0 0 0 1.8px var(--anchored-inline-color) !important;
   box-decoration-break: clone !important;
   -webkit-box-decoration-break: clone !important;
-  cursor: pointer;
 }
 
 .anchored-inline-circle {
@@ -54,18 +55,65 @@
   border-radius: 0.14em !important;
 }
 
+.anchored-inline-line,
+.anchored-inline-arrow-left,
+.anchored-inline-arrow-right,
+.anchored-inline-arrow-both {
+  text-decoration-line: underline !important;
+  text-decoration-style: solid !important;
+  text-decoration-color: var(--anchored-inline-color) !important;
+  text-decoration-thickness: 2px !important;
+  text-underline-offset: 0.18em !important;
+}
+
+.anchored-inline-line {
+  --anchored-inline-color: #8a4b00;
+}
+
+.anchored-inline-arrow-left,
+.anchored-inline-arrow-right,
+.anchored-inline-arrow-both {
+  --anchored-inline-color: #174a8b;
+}
+
+.anchored-inline-arrow-left::before,
+.anchored-inline-arrow-both::before {
+  content: "←";
+  color: var(--anchored-inline-color);
+  font-weight: 700;
+  margin-right: 0.12em;
+  text-decoration: none;
+}
+
+.anchored-inline-arrow-right::after,
+.anchored-inline-arrow-both::after {
+  content: "→";
+  color: var(--anchored-inline-color);
+  font-weight: 700;
+  margin-left: 0.12em;
+  text-decoration: none;
+}
+
 .anchored-inline-selected {
+  background: rgba(255, 193, 7, 0.22) !important;
+}
+
+.anchored-inline-circle.anchored-inline-selected,
+.anchored-inline-square.anchored-inline-selected {
+  background: transparent !important;
   box-shadow:
     0 0 0 1.8px var(--anchored-inline-color),
     0 0 0 4px rgba(255, 193, 7, 0.45) !important;
 }
 
 @media only screen and (max-width: 640px) {
-  .anchored-inline-annotation {
+  .anchored-inline-circle,
+  .anchored-inline-square {
     box-shadow: 0 0 0 1.9px var(--anchored-inline-color) !important;
   }
 
-  .anchored-inline-selected {
+  .anchored-inline-circle.anchored-inline-selected,
+  .anchored-inline-square.anchored-inline-selected {
     box-shadow:
       0 0 0 1.9px var(--anchored-inline-color),
       0 0 0 4px rgba(255, 193, 7, 0.45) !important;
