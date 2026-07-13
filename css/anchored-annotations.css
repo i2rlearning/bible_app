@@ -57,30 +57,29 @@
 
 .anchored-inline-bracket {
   --anchored-inline-color: #8a4b00;
-  padding: 0 0.18em !important;
-  box-decoration-break: clone !important;
-  -webkit-box-decoration-break: clone !important;
+  padding: 0 0.08em !important;
 }
 
 .anchored-inline-bracket::before,
 .anchored-inline-bracket::after {
   content: "";
-  position: absolute;
+  display: inline-block;
   width: 0.45em;
   height: 0.68em;
   pointer-events: none;
+  position: relative;
 }
 
 .anchored-inline-bracket::before {
-  left: -0.02em;
   top: -0.12em;
+  margin-right: 0.08em;
   border-left: 2px solid var(--anchored-inline-color);
   border-top: 2px solid var(--anchored-inline-color);
 }
 
 .anchored-inline-bracket::after {
-  right: -0.02em;
-  bottom: -0.12em;
+  top: 0.12em;
+  margin-left: 0.08em;
   border-right: 2px solid var(--anchored-inline-color);
   border-bottom: 2px solid var(--anchored-inline-color);
 }
