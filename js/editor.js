@@ -1532,7 +1532,7 @@ let annotationLayoutWarningDismissed = false;
 let annotationLayoutBaselineWidth = null;
 let annotationLayoutBaselineViewportWidth = null;
 const LAYOUT_SENSITIVE_ANNOTATION_SELECTOR =
-  ".drawn-annotation.circle, .drawn-annotation.square, .freehand-group";
+  ".freehand-group";
 
 const ANNOTATION_METADATA_ATTRIBUTE_NAMES = new Set([
   "data-annotation-id",
@@ -2243,7 +2243,7 @@ function setDrawingTool(tool, options = {}) {
     finalizeFreehandGroup({ recordHistory: true });
   }
 
-  activeDrawingTool = tool;
+  activeDrawingTool = tool === "freehand" ? "freehand" : null;
 
   document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
     button.classList.remove("active-tool");
@@ -2313,7 +2313,9 @@ function clearDrawnAnnotations() {
 }
 
 function handleDrawingPointerDown(event) {
-  if (!activeDrawingTool || !drawingArea || !annotationLayer) return;
+  if (activeDrawingTool !== "freehand" || !drawingArea || !annotationLayer) {
+    return;
+  }
 
   if (event.pointerType === "mouse" && event.button !== 0) {
     return;
@@ -2337,74 +2339,37 @@ function handleDrawingPointerDown(event) {
   isDrawing = true;
   selectedDrawnAnnotation = null;
 
-  document.querySelectorAll(".drawn-annotation").forEach((shape) => {
-    shape.classList.remove("selected-annotation");
-  });
+  document
+    .querySelectorAll(".drawn-annotation, .freehand-group")
+    .forEach((shape) => {
+      shape.classList.remove("selected-annotation");
+    });
 
   const point = getDrawingCoordinates(event);
   startX = point.x;
   startY = point.y;
+  freehandPoints = [`M ${startX} ${startY}`];
 
-  if (activeDrawingTool === "circle") {
-    currentShape = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "ellipse"
-    );
-    currentShape.classList.add("drawn-annotation", "circle");
-    addAnnotationMetadata(currentShape, { type: "circle" });
-  } else if (activeDrawingTool === "square") {
-    currentShape = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "rect"
-    );
-    currentShape.classList.add("drawn-annotation", "square");
-    addAnnotationMetadata(currentShape, { type: "square" });
-  } else if (activeDrawingTool === "freehand") {
-    freehandPoints = [`M ${startX} ${startY}`];
-    currentShape = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "path"
-    );
-    currentShape.classList.add("freehand");
-    currentShape.setAttribute("d", freehandPoints.join(" "));
-  }
+  currentShape = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "path"
+  );
 
-  if (currentShape) {
-    annotationLayer.appendChild(currentShape);
-  }
+  currentShape.classList.add("freehand");
+  currentShape.setAttribute("d", freehandPoints.join(" "));
+  annotationLayer.appendChild(currentShape);
 }
 
 function handleDrawingPointerMove(event) {
   if (!isDrawing || !currentShape) return;
   if (event.pointerId !== activePointerId) return;
+  if (activeDrawingTool !== "freehand") return;
 
   event.preventDefault();
 
   const point = getDrawingCoordinates(event);
-  const currentX = point.x;
-  const currentY = point.y;
-
-  const x = Math.min(startX, currentX);
-  const y = Math.min(startY, currentY);
-  const width = Math.abs(currentX - startX);
-  const height = Math.abs(currentY - startY);
-
-  if (activeDrawingTool === "circle") {
-    currentShape.setAttribute("cx", x + width / 2);
-    currentShape.setAttribute("cy", y + height / 2);
-    currentShape.setAttribute("rx", width / 2);
-    currentShape.setAttribute("ry", height / 2);
-    updateAnnotationBoundsMetadata(currentShape);
-  } else if (activeDrawingTool === "square") {
-    currentShape.setAttribute("x", x);
-    currentShape.setAttribute("y", y);
-    currentShape.setAttribute("width", width);
-    currentShape.setAttribute("height", height);
-    updateAnnotationBoundsMetadata(currentShape);
-  } else if (activeDrawingTool === "freehand") {
-    freehandPoints.push(`L ${currentX} ${currentY}`);
-    currentShape.setAttribute("d", freehandPoints.join(" "));
-  }
+  freehandPoints.push(`L ${point.x} ${point.y}`);
+  currentShape.setAttribute("d", freehandPoints.join(" "));
 }
 
 function releaseActivePointer(event) {
@@ -2482,15 +2447,19 @@ if (drawingArea && annotationLayer) {
       finalizeFreehandGroup({ recordHistory: true });
     }
 
-    const clickedAnnotation = event.target.closest(".drawn-annotation");
+    const clickedAnnotation = event.target.closest(
+      ".drawn-annotation, .freehand-group"
+    );
 
     if (!clickedAnnotation) return;
 
     selectedDrawnAnnotation = clickedAnnotation;
 
-    document.querySelectorAll(".drawn-annotation").forEach((shape) => {
-      shape.classList.remove("selected-annotation");
-    });
+    document
+      .querySelectorAll(".drawn-annotation, .freehand-group")
+      .forEach((shape) => {
+        shape.classList.remove("selected-annotation");
+      });
 
     selectedDrawnAnnotation.classList.add("selected-annotation");
   });
