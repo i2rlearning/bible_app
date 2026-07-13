@@ -337,17 +337,11 @@
               <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('square'); closeDrawMenu();" data-drawing-tool="square" title="Square selected text" aria-label="Square selected text" class="draw-tool-choice">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
               </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('line'); closeDrawMenu();" data-drawing-tool="line" title="Line under selected text" aria-label="Line under selected text" class="draw-tool-choice">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 12h16"/></svg>
-              </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('arrow-left'); closeDrawMenu();" data-drawing-tool="arrow-left" title="Left arrow on selected text" aria-label="Left arrow on selected text" class="draw-tool-choice">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h14"/><path d="M11 7l-5 5 5 5"/></svg>
-              </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('arrow-right'); closeDrawMenu();" data-drawing-tool="arrow-right" title="Right arrow on selected text" aria-label="Right arrow on selected text" class="draw-tool-choice">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h14"/><path d="M13 7l5 5-5 5"/></svg>
-              </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('arrow-both'); closeDrawMenu();" data-drawing-tool="arrow-both" title="Two-way arrow on selected text" aria-label="Two-way arrow on selected text" class="draw-tool-choice">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 12h10"/><path d="M11 7l-5 5 5 5"/><path d="M13 7l5 5-5 5"/></svg>
+              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('bracket'); closeDrawMenu();" data-drawing-tool="bracket" title="Bracket selected text" aria-label="Bracket selected text" class="draw-tool-choice">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M5 11V5h6"/>
+                  <path d="M13 19h6v-6"/>
+                </svg>
               </button>
               <button type="button" onclick="setDrawingTool('freehand'); closeDrawMenu();" data-drawing-tool="freehand" title="Freehand drawing" aria-label="Freehand drawing" class="draw-tool-choice">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -415,28 +409,10 @@
                   <rect x="7" y="7" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
                 </svg>
               </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('line'); closeMobileToolbarMenus();" data-drawing-tool="line" title="Line under selected text" aria-label="Line under selected text">
+              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('bracket'); closeMobileToolbarMenus();" data-drawing-tool="bracket" title="Bracket selected text" aria-label="Bracket selected text">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
-                </svg>
-              </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('arrow-left'); closeMobileToolbarMenus();" data-drawing-tool="arrow-left" title="Left arrow on selected text" aria-label="Left arrow on selected text">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M6 12h13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                  <path d="M11 7l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                </svg>
-              </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('arrow-right'); closeMobileToolbarMenus();" data-drawing-tool="arrow-right" title="Right arrow on selected text" aria-label="Right arrow on selected text">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M5 12h13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                  <path d="M13 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                </svg>
-              </button>
-              <button type="button" onmousedown="event.preventDefault();" onclick="setDrawingTool('arrow-both'); closeMobileToolbarMenus();" data-drawing-tool="arrow-both" title="Two-way arrow on selected text" aria-label="Two-way arrow on selected text">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M7 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                  <path d="M11 7l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                  <path d="M13 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <path d="M5 11V5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <path d="M13 19h6v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
               </button>
               <button type="button" onclick="setDrawingTool('freehand'); closeMobileToolbarMenus();" data-drawing-tool="freehand" title="Freehand drawing" aria-label="Freehand drawing">
