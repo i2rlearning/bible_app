@@ -3,16 +3,16 @@
     position: fixed !important; 
     z-index: 6450 !important;
     
-    /* 1. Shifted up from 22.55vh to 13.5vh to sit under the top roller */
-    top: 13.5vh !important; 
+    /* 1. Nudged down slightly to clear the top wood frame */
+    top: 15vh !important; 
     
-    /* Left looks pretty solid, adjusted minutely if needed */
+    /* Left position remains locked in where you like it */
     left: 115px !important; 
     
     width: 0 !important;
     
-    /* 2. Reduced height from 95vh to 74vh so it stops before the bottom roller */
-    height: 74vh !important; 
+    /* 2. Shrunk container height so it doesn't overflow the bottom */
+    height: 68vh !important; 
     
     overflow-x: hidden !important;
     overflow-y: hidden !important;
@@ -20,8 +20,8 @@
     background-image: url("../img/scrollpaper.png") !important;
     background-repeat: no-repeat !important;
     
-    /* 3. Matched background height to the new layout height */
-    background-size: 270px 74vh !important; 
+    /* 3. Matched background texture height to container */
+    background-size: 270px 68vh !important; 
     
     border: 0 !important;
     border-radius: 0 !important;
@@ -41,8 +41,8 @@
     top: -8px !important; 
     width: 225px !important;
     
-    /* 4. Match this height to the overlay height as well */
-    height: 74vh !important; 
+    /* 4. Match the inner content height to the wrapper */
+    height: 68vh !important; 
     
     margin: 0 !important;
     padding: 0 !important;
