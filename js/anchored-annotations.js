@@ -467,6 +467,7 @@
     rememberCurrentSelection,
     clearSelected,
     clearIntersectingCurrentSelection,
+    clearIntersectingRange,
     clearAtEventTarget,
     getState,
     setState,
