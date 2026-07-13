@@ -1622,6 +1622,18 @@ let freehandGroupCounter = 0;
 let activePointerId = null;
 let activePointerType = null;
 
+const ANCHORED_DRAWING_TOOL_LABELS = {
+  circle: "Circle",
+  square: "Square",
+  line: "Line",
+  "arrow-left": "Arrow Left",
+  "arrow-right": "Arrow Right",
+  "arrow-both": "Arrow Both Directions"
+};
+
+const ANCHORED_DRAWING_TOOLS =
+  new Set(Object.keys(ANCHORED_DRAWING_TOOL_LABELS));
+
 const FREEHAND_GROUP_TOUCH_PADDING = 10;
 const FREEHAND_ACTIVE_SESSION_PADDING = 28;
 const ANNOTATION_LAYOUT_WARNING_THRESHOLD = 40;
@@ -2258,10 +2270,7 @@ function showFreehandWarningDialog() {
 function setDrawingTool(tool, options = {}) {
   if (!drawingArea) return;
 
-  if (
-    tool === "circle" ||
-    tool === "square"
-  ) {
+  if (ANCHORED_DRAWING_TOOLS.has(tool)) {
     if (!window.AnchoredAnnotations?.createFromCurrentSelection) {
       window.alert(
         "The responsive annotation tool is not loaded yet. Please refresh the page and try again."
@@ -2275,10 +2284,11 @@ function setDrawingTool(tool, options = {}) {
       window.AnchoredAnnotations.createFromCurrentSelection(tool);
 
     if (!anchoredResult?.created) {
+      const toolLabel =
+        ANCHORED_DRAWING_TOOL_LABELS[tool] || "this tool";
+
       window.alert(
-        tool === "circle"
-          ? "Select Bible text first, then click Circle."
-          : "Select Bible text first, then click Square."
+        `Select Bible text first, then click ${toolLabel}.`
       );
 
       activeDrawingTool = null;
