@@ -380,6 +380,7 @@
   max-width: 100%;
 }
 
+/* Legacy SVG circle/square annotations can still display if an old saved page contains them. */
 .drawn-annotation {
   fill: transparent;
   stroke-width: 2;
