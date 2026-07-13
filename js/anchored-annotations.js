@@ -6,19 +6,13 @@
   const TYPE_CLASSES = {
     circle: "anchored-inline-circle",
     square: "anchored-inline-square",
-    line: "anchored-inline-line",
-    "arrow-left": "anchored-inline-arrow-left",
-    "arrow-right": "anchored-inline-arrow-right",
-    "arrow-both": "anchored-inline-arrow-both"
+    bracket: "anchored-inline-bracket"
   };
 
   const TOOL_LABELS = {
     circle: "Circle",
     square: "Square",
-    line: "Line",
-    "arrow-left": "Arrow Left",
-    "arrow-right": "Arrow Right",
-    "arrow-both": "Arrow Both Directions"
+    bracket: "Bracket"
   };
 
   const SUPPORTED_TYPES = new Set(Object.keys(TYPE_CLASSES));
@@ -213,8 +207,7 @@
 
   function getAnnotationColor(type) {
     if (type === "square") return "#0066cc";
-    if (type === "line") return "#8a4b00";
-    if (type.startsWith("arrow")) return "#174a8b";
+    if (type === "bracket") return "#8a4b00";
     return "#c40000";
   }
 
@@ -240,10 +233,11 @@
       return;
     }
 
-    wrapper.style.textDecorationLine = "underline";
-    wrapper.style.textDecorationColor = color;
-    wrapper.style.textDecorationThickness = "2px";
-    wrapper.style.textUnderlineOffset = "0.18em";
+    if (type === "bracket") {
+      wrapper.style.padding = "0 0.18em";
+      wrapper.style.boxDecorationBreak = "clone";
+      wrapper.style.webkitBoxDecorationBreak = "clone";
+    }
   }
 
   function createWrapper(type) {
