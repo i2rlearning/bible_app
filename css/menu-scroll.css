@@ -1,19 +1,15 @@
-/* ==========================================================================
-   Parchment pull-out menu
-   Used when scroll artwork is visible.
-   Breakpoint: 1101px and above.
-   ========================================================================== */
 
-@media only screen and (min-width: 1101px) {
-  .overlay {
-    position: fixed !important;
     z-index: 6450 !important;
     top: 22.55vh !important;
     left: 115px !important;
     width: 0 !important;
-    height: 60vh !important;
-    overflow: visible !important;
-    background: none !important;
+    height: 95vh !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    background-color: transparent !important;
+    background-image: url("../img/scrollpaper.png") !important;
+    background-repeat: no-repeat !important;
+    background-size: 270px 95vh !important;
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -23,36 +19,15 @@
     transition: width 0.65s ease !important;
   }
 
-  .overlay::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 270px;
-    height: 95vh;
-    background-image: url("../img/scrollpaper.png");
-    background-repeat: no-repeat;
-    background-size: 270px 95vh;
-    z-index: 0;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
-
   .overlay.menu-open {
     width: 225px !important;
   }
 
-  .overlay.menu-open::before {
-    opacity: 1;
-  }
-
   .overlay-content {
     position: relative !important;
-    z-index: 1 !important;
     top: -8px !important;
     width: 225px !important;
-    height: 60vh !important;
+    height: 95vh !important;
     margin: 0 !important;
     padding: 0 !important;
     display: flex !important;
@@ -65,6 +40,10 @@
 
   body:not(.landing-page) .leftcol {
     z-index: 6600 !important;
+    pointer-events: none !important;
+  }
+
+  body:not(.landing-page) .rightcol {
     pointer-events: none !important;
   }
 
@@ -114,6 +93,7 @@
   }
 
   .overlay .menu-current-passage-title {
+    display: block !important;
     margin-bottom: 1px !important;
     font-size: 12px !important;
     font-weight: 600 !important;
@@ -121,117 +101,25 @@
   }
 
   .overlay .menu-current-passage-value {
+    display: block !important;
     font-size: 15px !important;
     font-weight: 600 !important;
     color: rgba(23, 74, 139, 0.82) !important;
   }
 }
 
-
-/* ========================================================================== 
-   Current passage in scroll menu
-   Open Passage remains available in the slideout menu while scroll artwork is exposed.
-   The current passage is intentionally subtle so it reads as context, not a main action.
-   ========================================================================== */
-@media only screen and (min-width: 1101px) {
-  .overlay .mobile-passage-link {
-    display: block !important;
-  }
-
-  .overlay .menu-current-passage {
-    display: block !important;
-    width: 72% !important;
-    margin: 0 auto 4px !important;
-    padding: 0 0 5px !important;
-    border-bottom: 1px solid rgba(70, 40, 15, 0.16) !important;
-    color: rgba(42, 27, 10, 0.78) !important;
-    font-family: Arima, sans-serif !important;
-    text-align: center !important;
-    line-height: 1.05 !important;
-  }
-
-  .overlay .menu-current-passage-title {
-    margin-bottom: 1px !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.02em !important;
-  }
-
-  .overlay .menu-current-passage-value {
-    font-size: 15px !important;
-    font-weight: 600 !important;
-    color: rgba(23, 74, 139, 0.82) !important;
-  }
-
-  .overlay-content {
-    gap: 5px !important;
-  }
-
-  .overlay a {
-    font-size: 28px !important;
-    line-height: 1.08 !important;
-  }
-}
-
-
-/* ========================================================================== 
-   Scroll menu parchment refinement
-   Makes the parchment feel like it slides out from behind the left scroll.
-   ========================================================================== */
-@media only screen and (min-width: 1101px) {
-  /*
-    The scroll artwork should sit visually above the parchment edge so the
-    menu looks like it is coming out from behind the scroll, not pasted on top.
-  */
-  body:not(.landing-page) .leftcol {
-    z-index: 6600 !important;
-    pointer-events: none !important;
-  }
-
-  body:not(.landing-page) .rightcol {
-    z-index: 1 !important;
-    pointer-events: none !important;
-  }
-
+@media only screen and (min-width: 1101px) and (max-height: 450px) {
   .overlay {
-    z-index: 6450 !important;
-    top: 25vh !important;
-    left: 112px !important;
-    height: 52vh !important;
-    background-size: 250px 52vh !important;
-  }
-
-  .overlay.menu-open {
-    width: 225px !important;
+    height: 65vh !important;
+    background-size: 270px 65vh !important;
   }
 
   .overlay-content {
-    top: -4px !important;
-    width: 225px !important;
-    height: 52vh !important;
-    gap: 5px !important;
-    justify-content: center !important;
-  }
-
-  .overlay .menu-current-passage {
-    width: 58% !important;
-    margin: 0 auto 5px !important;
-    padding: 0 0 6px !important;
-    border-bottom: 2px solid rgba(70, 40, 15, 0.24) !important;
-  }
-
-  .overlay .menu-current-passage-title {
-    font-size: 12px !important;
-    font-weight: 600 !important;
-  }
-
-  .overlay .menu-current-passage-value {
-    font-size: 15px !important;
-    font-weight: 600 !important;
+    height: 65vh !important;
+    gap: 4px !important;
   }
 
   .overlay a {
-    font-size: 28px !important;
-    line-height: 1.08 !important;
+    font-size: 20px !important;
   }
 }
