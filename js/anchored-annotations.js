@@ -5,8 +5,23 @@
   const SELECTED_CLASS = "anchored-inline-selected";
   const TYPE_CLASSES = {
     circle: "anchored-inline-circle",
-    square: "anchored-inline-square"
+    square: "anchored-inline-square",
+    line: "anchored-inline-line",
+    "arrow-left": "anchored-inline-arrow-left",
+    "arrow-right": "anchored-inline-arrow-right",
+    "arrow-both": "anchored-inline-arrow-both"
   };
+
+  const TOOL_LABELS = {
+    circle: "Circle",
+    square: "Square",
+    line: "Line",
+    "arrow-left": "Arrow Left",
+    "arrow-right": "Arrow Right",
+    "arrow-both": "Arrow Both Directions"
+  };
+
+  const SUPPORTED_TYPES = new Set(Object.keys(TYPE_CLASSES));
 
   let savedSelectionOffsets = null;
   let selectedAnnotation = null;
@@ -196,31 +211,39 @@
       .forEach((element) => unwrapElement(element));
   }
 
+  function getAnnotationColor(type) {
+    if (type === "square") return "#0066cc";
+    if (type === "line") return "#8a4b00";
+    if (type.startsWith("arrow")) return "#174a8b";
+    return "#c40000";
+  }
+
   function applyInlineFallbackStyles(wrapper, type) {
-    const color = type === "circle" ? "#c40000" : "#0066cc";
+    const color = getAnnotationColor(type);
 
     wrapper.style.position = "relative";
     wrapper.style.display = "inline";
     wrapper.style.color = "inherit";
     wrapper.style.background = "transparent";
-
-    /*
-      Use a non-layout visual ring instead of a real border.
-      A real border/padding changes the line width and can cause an unwanted
-      scrollbar when the selected text sits near the right edge.
-    */
     wrapper.style.border = "0";
     wrapper.style.padding = "0";
     wrapper.style.margin = "0";
-    wrapper.style.boxShadow = `0 0 0 1.8px ${color}`;
-    wrapper.style.boxDecorationBreak = "clone";
-    wrapper.style.webkitBoxDecorationBreak = "clone";
+    wrapper.style.boxShadow = "none";
+    wrapper.style.borderRadius = "0";
+    wrapper.style.textDecorationLine = "none";
 
-    if (type === "circle") {
-      wrapper.style.borderRadius = "999px";
-    } else {
-      wrapper.style.borderRadius = "0.14em";
+    if (type === "circle" || type === "square") {
+      wrapper.style.boxShadow = `0 0 0 1.8px ${color}`;
+      wrapper.style.boxDecorationBreak = "clone";
+      wrapper.style.webkitBoxDecorationBreak = "clone";
+      wrapper.style.borderRadius = type === "circle" ? "999px" : "0.14em";
+      return;
     }
+
+    wrapper.style.textDecorationLine = "underline";
+    wrapper.style.textDecorationColor = color;
+    wrapper.style.textDecorationThickness = "2px";
+    wrapper.style.textUnderlineOffset = "0.18em";
   }
 
   function createWrapper(type) {
@@ -312,7 +335,7 @@
   }
 
   function createFromCurrentSelection(type) {
-    if (type !== "circle" && type !== "square") {
+    if (!SUPPORTED_TYPES.has(type)) {
       return { created: false, reason: "unsupported-type" };
     }
 
@@ -352,6 +375,7 @@
         annotation: {
           id: wrapper.dataset.anchoredAnnotationId,
           type,
+          label: TOOL_LABELS[type] || type,
           text: selectedText
         }
       };
@@ -396,7 +420,7 @@
 
   function getState() {
     /*
-      State is stored in bibleTextHtml for this first reliable pass.
+      State is stored directly inside bibleTextHtml.
     */
     return [];
   }
