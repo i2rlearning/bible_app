@@ -71,7 +71,7 @@
 }
 
 .anchored-inline-bracket::before {
-  top: -0.09em;
+  top: -0.08em;
   margin-right: 0;
   border-left: 2.5px solid var(--anchored-inline-color);
   border-top: 2.5px solid var(--anchored-inline-color);
