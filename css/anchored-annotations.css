@@ -73,15 +73,15 @@
 .anchored-inline-bracket::before {
   top: -0.07em;
   margin-right: 0;
-  border-left: 2.5px solid var(--anchored-inline-color);
-  border-top: 2.5px solid var(--anchored-inline-color);
+  border-left: 2.6px solid var(--anchored-inline-color);
+  border-top: 2.6px solid var(--anchored-inline-color);
 }
 
 .anchored-inline-bracket::after {
   top: 0.09em;
   margin-left: -0.04em;
-  border-right: 2.5px solid var(--anchored-inline-color);
-  border-bottom: 2.5px solid var(--anchored-inline-color);
+  border-right: 2.6px solid var(--anchored-inline-color);
+  border-bottom: 2.6px solid var(--anchored-inline-color);
 }
 
 .anchored-inline-bracket.anchored-inline-selected {
