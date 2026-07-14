@@ -57,32 +57,37 @@
 
 .anchored-inline-bracket {
   --anchored-inline-color: #8a4b00;
-  padding: 0 !important;
+  /* Add tiny horizontal padding to keep the text from crowding the brackets */
+  padding: 0 0.15em !important; 
+  display: inline;
 }
 
 .anchored-inline-bracket::before,
 .anchored-inline-bracket::after {
   content: "";
   display: inline-block;
-  width: 0.28em;
-  height: 0.58em;
+  width: 0.3em;
+  height: 0.6em;
   pointer-events: none;
-  position: relative;
-  top: 0;
+  box-sizing: border-box; /* Ensures borders don't alter the width/height calculations */
 }
 
+/* Left Bracket (Top-Left Corner) */
 .anchored-inline-bracket::before {
-  margin-right: 0;
+  margin-right: 0.1em;
   border-left: 3px solid var(--anchored-inline-color);
   border-top: 3px solid var(--anchored-inline-color);
-  transform: translateY(-4px);
+  /* Shifts the bracket UP relative to the text baseline */
+  vertical-align: 0.35em; 
 }
 
+/* Right Bracket (Bottom-Right Corner) */
 .anchored-inline-bracket::after {
-  margin-left: -0.05em;
+  margin-left: 0.1em;
   border-right: 3px solid var(--anchored-inline-color);
   border-bottom: 3px solid var(--anchored-inline-color);
-  transform: translateY(4px);
+  /* Shifts the bracket DOWN relative to the text baseline */
+  vertical-align: -0.15em; 
 }
 
 .anchored-inline-bracket.anchored-inline-selected {
