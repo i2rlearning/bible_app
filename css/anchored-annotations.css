@@ -68,20 +68,21 @@
   height: 0.58em;
   pointer-events: none;
   position: relative;
+  top: 0;
 }
 
 .anchored-inline-bracket::before {
-  top: -4px !important;
   margin-right: 0;
-  border-left: 2.6px solid var(--anchored-inline-color);
-  border-top: 2.6px solid var(--anchored-inline-color);
+  border-left: 3px solid var(--anchored-inline-color);
+  border-top: 3px solid var(--anchored-inline-color);
+  transform: translateY(-4px);
 }
 
 .anchored-inline-bracket::after {
-  top: 4px !important;
   margin-left: -0.05em;
-  border-right: 2.6px solid var(--anchored-inline-color);
-  border-bottom: 2.6px solid var(--anchored-inline-color);
+  border-right: 3px solid var(--anchored-inline-color);
+  border-bottom: 3px solid var(--anchored-inline-color);
+  transform: translateY(4px);
 }
 
 .anchored-inline-bracket.anchored-inline-selected {
