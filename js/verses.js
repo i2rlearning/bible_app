@@ -617,6 +617,11 @@ function configureVerseMenuLinks() {
             document.getElementById("bible-text").innerHTML = content;
         
             requestAnimationFrame(() => {
+              if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
+                window.reloadMiniEditorPageAfterChapterRender();
+                return;
+              }
+
               if (typeof window.refreshBibleAnnotationLayout === "function") {
                 window.refreshBibleAnnotationLayout();
               } else {
