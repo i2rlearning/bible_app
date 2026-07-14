@@ -748,6 +748,37 @@ function applyMiniEditorState(miniEditorJson) {
   }, 300);
 }
 
+function clearSavedMiniEditorStateForRenderedChapter() {
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  miniEditorApplyingState = true;
+
+  if (annotationLayer) {
+    annotationLayer.innerHTML = "";
+  }
+
+  window.AnchoredAnnotations?.setState?.([]);
+
+  selectedDrawnAnnotation = null;
+  currentShape = null;
+  currentFreehandGroup = null;
+  freehandSessionHasChanges = false;
+
+  requestAnimationFrame(() => {
+    ensureAllAnnotationMetadata();
+
+    if (typeof refreshBibleAnnotationLayout === "function") {
+      refreshBibleAnnotationLayout();
+    }
+
+    window.AnchoredAnnotations?.render?.();
+  });
+
+  setTimeout(() => {
+    miniEditorApplyingState = false;
+  }, 120);
+}
+
 function getMiniEditorFlags(miniEditorJson) {
   const bibleTextHtml = miniEditorJson?.bibleTextHtml || "";
   const annotationLayerHtml = miniEditorJson?.annotationLayerHtml || "";
@@ -1092,6 +1123,8 @@ async function loadMiniEditorPage() {
           : result.page.mini_editor_json;
 
       applyMiniEditorState(savedState);
+    } else {
+      clearSavedMiniEditorStateForRenderedChapter();
     }
 
     miniEditorLoaded = true;
@@ -1105,6 +1138,25 @@ async function loadMiniEditorPage() {
     startBibleLayoutObservers();
     startMiniEditorObserver();
   }
+}
+
+async function reloadMiniEditorPageAfterChapterRender() {
+  if (!editorToolsUnlocked) return;
+
+  clearTimeout(miniEditorSaveTimer);
+
+  if (miniEditorObserver) {
+    miniEditorObserver.disconnect();
+    miniEditorObserver = null;
+  }
+
+  miniEditorLoaded = false;
+  miniEditorHistoryReady = false;
+  miniEditorUndoStack = [];
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = "";
+
+  await loadMiniEditorPage();
 }
 
 async function saveMiniEditorPage() {
@@ -2816,6 +2868,7 @@ window.toggleDrawMenu = toggleDrawMenu;
 window.closeDrawMenu = closeDrawMenu;
 window.resizeAnnotationLayer = resizeAnnotationLayer;
 window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
+window.reloadMiniEditorPageAfterChapterRender = reloadMiniEditorPageAfterChapterRender;
 window.updateAnnotationLayoutWarning = updateAnnotationLayoutWarning;
 window.undoMiniEditorChange = undoMiniEditorChange;
 window.redoMiniEditorChange = redoMiniEditorChange;
