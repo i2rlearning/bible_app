@@ -10,7 +10,8 @@
     <link href="css/bible-selector.css" rel="stylesheet" />
     <link href="css/scripture.css" rel="stylesheet" />
     <link href="css/editor.css" rel="stylesheet" />
-    <link href="css/anchored-annotations.css?v=bracket-final-1" rel="stylesheet" />
+    <link href="css/anchored-annotations.css" rel="stylesheet" />
+    <link href="css/copyright.css" rel="stylesheet" />
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
     
     <link rel="preload" as="image" href="./img/left_stamp_on.png">
@@ -444,6 +445,14 @@
             <svg id="bible-annotation-layer"></svg>
         </div>
       </div>
+
+      <div id="scripture-license-footer" class="scripture-license-footer" aria-live="polite">
+        <span id="scripture-license-summary">Bible text: Loading...</span>
+        <span class="scripture-license-separator" aria-hidden="true">•</span>
+        <a id="scripture-license-link" href="./copyright.html">Copyright &amp; License</a>
+        <span class="scripture-license-separator" aria-hidden="true">•</span>
+        <a href="https://api.bible" target="_blank" rel="noopener noreferrer">Powered by API.Bible</a>
+      </div>
     
       <div class="leftcol">
         <a id="prevURL">
@@ -473,6 +482,7 @@
     <script src="js/bible-language.js"></script>
     <script src="js/bible-selector.js"></script>
     <script src="js/user-preferences.js"></script>
+    <script src="js/copyright-footer.js"></script>
     <script src="js/verses.js" defer></script>
     <script src="js/anchored-annotations.js"></script>
     <script type="module" src="js/editor.js"></script> 
