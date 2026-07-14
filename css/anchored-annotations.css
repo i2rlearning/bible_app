@@ -71,14 +71,14 @@
 }
 
 .anchored-inline-bracket::before {
-  top: -3px;
+  top: -4px;
   margin-right: 0;
   border-left: 2.6px solid var(--anchored-inline-color);
   border-top: 2.6px solid var(--anchored-inline-color);
 }
 
 .anchored-inline-bracket::after {
-  top: 3px;
+  top: 4px;
   margin-left: -0.05em;
   border-right: 2.6px solid var(--anchored-inline-color);
   border-bottom: 2.6px solid var(--anchored-inline-color);
