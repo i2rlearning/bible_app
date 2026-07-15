@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
         unlockEditorTools();
       }
 
-      startInactivityWatcher();
+      // Inactivity timer is disabled. Clerk handles the active session.
     } else {
       setLoggedOutUI();
 
@@ -94,8 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
         lockEditorTools();
       }
 
-      stopInactivityWatcher();
-      inactivityPromptOpen = false;
+      // Inactivity timer is disabled. Clerk handles the active session.
     }
   };
 
@@ -191,163 +190,23 @@ async function openSignup() {
   window.authGetJson = getJson;
 
   // ==========================================
-  // INACTIVITY LOGIC
+  // INACTIVITY LOGIC - DISABLED
   // ==========================================
-  let lastActivityTime = Date.now();
-  let inactivityInterval = null;
-  let inactivityPromptOpen = false;
-
-  // Testing - 10 seconds:
-  //const INACTIVITY_LIMIT = 10 * 1000;
-
-  // Production - 30 minutes
-   const INACTIVITY_LIMIT = 30 * 60 * 1000;
-
-  function getInactivityLabel() {
-    const totalSeconds = Math.round(INACTIVITY_LIMIT / 1000);
-
-    if (totalSeconds < 60) {
-      return `${totalSeconds} second${totalSeconds === 1 ? "" : "s"}`;
-    }
-
-    const totalMinutes = Math.round(totalSeconds / 60);
-    return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"}`;
-  }
-
-  function markActivityAndResetTimer() {
-    if (inactivityPromptOpen) return;
-
-    lastActivityTime = Date.now();
-  }
-
-  function startInactivityWatcher() {
-    if (inactivityInterval) {
-      return;
-    }
-  
-    lastActivityTime = Date.now();
-  
-    inactivityInterval = setInterval(checkInactivityNow, 10 * 1000);
-  }
-
-  function restartInactivityWatcherAfterUserAction() {
-    stopInactivityWatcher();
-    lastActivityTime = Date.now();
-    inactivityInterval = setInterval(checkInactivityNow, 10 * 1000);
-  }
-  
-  function stopInactivityWatcher() {
-    clearInterval(inactivityInterval);
-    inactivityInterval = null;
-  }
-
-  function checkInactivityNow() {
-    if (inactivityPromptOpen) return;
-
-    const inactiveFor = Date.now() - lastActivityTime;
-
-    if (
-      logoutButton &&
-      logoutButton.style.display !== "none" &&
-      inactiveFor >= INACTIVITY_LIMIT
-    ) {
-      showInactivityPrompt();
-    }
-  }
-
-  function showInactivityPrompt() {
-    if (inactivityPromptOpen) return;
-
-    inactivityPromptOpen = true;
-    stopInactivityWatcher();
-
-    const existingOverlay = document.getElementById("timeout-modal-overlay");
-    if (existingOverlay) {
-      existingOverlay.remove();
-    }
-
-    if (typeof lockEditorTools === "function") {
-      lockEditorTools();
-    }
-
-    const overlay = document.createElement("div");
-    overlay.id = "timeout-modal-overlay";
-    overlay.innerHTML = `
-      <div class="timeout-box">
-        <h2 style="color: #ff4d4d; margin-top: 0;">Still there?</h2>
-        <p>You have been inactive for ${getInactivityLabel()}.</p>
-        <p>For your privacy, editing has been paused.</p>
-        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
-          <button type="button" id="timeout-continue-button" class="timeout-button">Continue Working</button>
-          <button type="button" id="timeout-logout-button" class="timeout-button">Log Out</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    const continueButton = document.getElementById("timeout-continue-button");
-    const logoutButtonFromModal = document.getElementById("timeout-logout-button");
-
-    if (continueButton) {
-      continueButton.addEventListener("click", () => {
-        overlay.remove();
-        inactivityPromptOpen = false;
-
-        if (typeof unlockEditorTools === "function") {
-          unlockEditorTools();
-        }
-
-        restartInactivityWatcherAfterUserAction();
-      });
-    }
-
-    if (logoutButtonFromModal) {
-      logoutButtonFromModal.addEventListener("click", async () => {
-        await logoutFromInactivity();
-      });
-    }
-  }
-
-  async function logoutFromInactivity() {
-    try {
-      stopInactivityWatcher();
-
-      const clerkObj = getClerkObject();
-
-      if (clerkObj && typeof clerkObj.signOut === "function") {
-        await clerkObj.signOut();
-      }
-
-      setLoggedOutUI();
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
-
-      window.location.reload();
-    } catch (error) {
-      console.error("Inactivity logout failed:", error);
-      window.location.reload();
-    }
-  }
-
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
-      checkInactivityNow();
-    }
-  });
-
-  window.addEventListener("focus", checkInactivityNow);
-  window.addEventListener("pageshow", checkInactivityNow);
-
-  // Mousemove is intentionally disabled because it can be noisy and keep the session alive.
-  // window.addEventListener("mousemove", markActivityAndResetTimer);
-  window.addEventListener("keypress", markActivityAndResetTimer);
-  window.addEventListener("mousedown", markActivityAndResetTimer);
-  window.addEventListener("touchstart", markActivityAndResetTimer);
-  window.addEventListener("click", markActivityAndResetTimer);
-  window.addEventListener("scroll", markActivityAndResetTimer, true);
+  // The previous 30-minute inactivity timer has been disabled.
+  // Users now stay logged in until they manually log out or Clerk ends the session.
+  //
+  // Disabled timer features from the old version:
+  // - lastActivityTime
+  // - inactivityInterval
+  // - inactivityPromptOpen
+  // - INACTIVITY_LIMIT
+  // - startInactivityWatcher()
+  // - stopInactivityWatcher()
+  // - checkInactivityNow()
+  // - markActivityAndResetTimer()
+  // - showInactivityPrompt()
+  // - logoutFromInactivity()
+  // - visibility/focus/pageshow/activity listeners for inactivity tracking
 
   // ==========================================
   // NOTES MANAGEMENT & RENDERING LOGIC
@@ -670,7 +529,7 @@ async function openSignup() {
       event.stopPropagation();
 
       try {
-        stopInactivityWatcher();
+        // Inactivity timer is disabled. Manual logout continues normally.
 
         const clerkObj = getClerkObject();
 
