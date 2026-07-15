@@ -1321,7 +1321,7 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
 }
 
 .landing-footer .privacy-link:hover
-  text-decoration: bold;
+  font-weight: bold;
 }
 
 /*
