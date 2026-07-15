@@ -1320,7 +1320,7 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
   text-decoration: none;
 }
 
-.landing-footer .privacy-link:hover
+.landing-footer .privacy-link:hover {
   font-weight: bold;
 }
 
