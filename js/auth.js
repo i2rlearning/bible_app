@@ -1,5 +1,5 @@
 // =========================================================================
-//  1. CORE DOM LOGIC & API SETUP (Runs Instantly)
+//  CORE DOM LOGIC & API SETUP (Runs Instantly)
 // =========================================================================
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM fully loaded. Core scripts and API.bible can execute now.");
@@ -552,7 +552,7 @@ async function openSignup() {
 });
 
 // =========================================================================
-//  2. CLERK LOADER WITH UI COMPONENTS
+//  CLERK LOADER WITH UI COMPONENTS
 // =========================================================================
 const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
 
