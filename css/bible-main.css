@@ -1322,10 +1322,6 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
   text-decoration: none;
 }
 
-.landing-footer .privacy-link:hover {
-  text-decoration: underline;
-}
-
 /*
   The old rule hid the full passage picker below 1100px.
   Restore it from 561px to 1100px because there is still enough room there.
