@@ -1118,7 +1118,6 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
   }
 }
 
-
 /* ========================================================================== 
    Permanent responsive rule - compact passage picker access
    This matches the breakpoint where the side scroll artwork disappears.
@@ -1171,9 +1170,8 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
   }
 }
 
-
 /* ========================================================================== 
-   Stage 2G - mobile save status navbar refinement
+   Mobile save status navbar refinement
    Keep the save status inside the navbar when the mini-editor switches to
    compact mode, instead of letting it drop onto the mini-editor.
    ========================================================================== */
@@ -1320,6 +1318,10 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
 .landing-footer .privacy-link {
   color: #000;
   text-decoration: none;
+}
+
+.landing-footer .privacy-link:hover
+  text-decoration: bold;
 }
 
 /*
