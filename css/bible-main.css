@@ -1263,7 +1263,7 @@ body:not(.landing-page) .verse-auth-buttons button#logout i {
 
 
 /* ========================================================================== 
-   Stage 3B - navbar passage visibility and current passage chip
+   Navbar passage visibility and current passage chip
    Keep the full passage button until the navbar truly runs out of room.
    Then show a compact current passage chip so the user still knows where they are.
    ========================================================================== */
@@ -1307,6 +1307,23 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
 
 .menu-current-passage {
   display: none;
+}
+
+/*
+  Privacy footer
+*/
+.landing-footer {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.landing-footer .privacy-link {
+  color: #fff;
+  text-decoration: none;
+}
+
+.landing-footer .privacy-link:hover {
+  text-decoration: underline;
 }
 
 /*
