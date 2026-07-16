@@ -355,8 +355,8 @@
     }
   }
 
-  document.addEventListener("click", (event) => {
-    const referenceElement = event.target.closest(REFERENCE_SELECTOR);
+  function handleDocumentClick(event) {
+    const referenceElement = event.target.closest?.(REFERENCE_SELECTOR);
 
     if (referenceElement) {
       event.preventDefault();
@@ -365,8 +365,14 @@
       return;
     }
 
-    closePopup();
-  });
+    if (!popup || popup.hidden) return;
+
+    if (!event.target.closest?.(".scripture-reference-popup")) {
+      closePopup();
+    }
+  }
+
+  document.addEventListener("click", handleDocumentClick, true);
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
@@ -415,7 +421,7 @@
     }
   });
 
-  document.addEventListener("DOMContentLoaded", () => {
+  function initializeReferenceEnhancements() {
     enhanceReferenceElements();
 
     const bibleText = document.getElementById("bible-text");
@@ -430,5 +436,11 @@
       childList: true,
       subtree: true
     });
-  });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeReferenceEnhancements);
+  } else {
+    initializeReferenceEnhancements();
+  }
 })();
