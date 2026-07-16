@@ -72,7 +72,8 @@
 
 .scripture-reference-popup-close:hover,
 .scripture-reference-popup-close:focus-visible {
-  color: #8a4b00;
+  color: ##e60000; /*#8a4b00;*/
+  font-weight: bold;
 }
 
 .scripture-reference-popup-body {
