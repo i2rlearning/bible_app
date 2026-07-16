@@ -8,8 +8,9 @@
   };
 
   const PAGE_SIZE = 10;
-  const MAX_RESULTS_PER_QUERY = 240;
+  const MAX_RESULTS_PER_QUERY = 50;
   const API_PAGE_SIZE = 10;
+  const MAX_SEARCH_QUERIES = 5;
   const STOP_WORDS = new Set([
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "by",
     "for", "from", "had", "has", "have", "he", "her", "his", "i", "in",
@@ -240,7 +241,7 @@
       terms.slice(0, 5).forEach((term) => queries.add(term));
     }
 
-    return Array.from(queries).filter(Boolean).slice(0, 8);
+    return Array.from(queries).filter(Boolean).slice(0, MAX_SEARCH_QUERIES);
   }
 
   function buildWordVariants(word) {
@@ -308,7 +309,10 @@
       renderResults();
     } catch (error) {
       console.error("Search failed:", error);
-      setStatus(error.message || "Search failed. Please try again.", true);
+      setStatus(
+        "Search did not return results. Try removing quotes, using fewer words, or checking the spelling.",
+        true
+      );
       clearResults();
     }
   }
@@ -368,35 +372,44 @@
 
   async function fetchAllQueries(queries) {
     const combined = [];
+    const errors = [];
 
     for (const query of queries) {
-      const queryResults = await fetchAllResultsForQuery(query);
-      combined.push(...queryResults);
+      try {
+        const queryResults = await fetchAllResultsForQuery(query);
+        combined.push(...queryResults);
+      } catch (error) {
+        errors.push({ query, error });
+        console.warn(`Search query failed: ${query}`, error);
+      }
+    }
+
+    if (!combined.length && errors.length) {
+      throw errors[0].error;
     }
 
     return combined;
   }
 
   async function fetchAllResultsForQuery(query) {
-    const firstPage = await fetchSearchPage(query, 0);
-    const results = normalizeApiData(firstPage.data);
+    const results = [];
 
-    const total = Math.min(
-      Number(firstPage.data?.total || results.length || 0),
-      MAX_RESULTS_PER_QUERY
-    );
+    for (let offset = 0; offset < MAX_RESULTS_PER_QUERY; offset += API_PAGE_SIZE) {
+      const page = await fetchSearchPage(query, offset);
+      const pageResults = normalizeApiData(page.data);
 
-    const requests = [];
+      if (!pageResults.length) {
+        break;
+      }
 
-    for (let offset = API_PAGE_SIZE; offset < total; offset += API_PAGE_SIZE) {
-      requests.push(fetchSearchPage(query, offset));
+      results.push(...pageResults);
+
+      const total = Number(page.data?.total || results.length || 0);
+
+      if (results.length >= total) {
+        break;
+      }
     }
-
-    const pages = await Promise.all(requests);
-
-    pages.forEach((page) => {
-      results.push(...normalizeApiData(page.data));
-    });
 
     return results.map((result) => ({
       ...result,
@@ -645,7 +658,7 @@
     if (elements.resultsSummary) {
       const bibleLabel = state.bible.bibleAbbr || state.bible.bibleName || "selected Bible";
       elements.resultsSummary.textContent =
-        `${start + 1}-${end} of ${total} distinct result${total === 1 ? "" : "s"} in ${bibleLabel}`;
+        `${start + 1}-${end} of ${total} loaded distinct result${total === 1 ? "" : "s"} in ${bibleLabel}`;
     }
 
     if (!elements.resultsList) return;
