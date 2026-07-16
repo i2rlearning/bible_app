@@ -156,7 +156,7 @@
 .scripture-reference-popup-actions button:focus-visible,
 .scripture-reference-popup-actions a:hover,
 .scripture-reference-popup-actions a:focus-visible {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: 5px 5px 7px rgba(0, 0, 0, 0.6);
 }
 
