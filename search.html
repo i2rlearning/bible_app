@@ -3,538 +3,111 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
-    
-    <link href="css/menu.css" rel="stylesheet" />    
+
+    <link href="css/menu.css" rel="stylesheet">
+    <link href="css/menu-scroll.css" rel="stylesheet">
+    <link href="css/menu-popover.css" rel="stylesheet">
     <link href="css/bible-main.css" rel="stylesheet">
-    <link href="css/search.css" rel="stylesheet">
     <link href="css/scripture.css" rel="stylesheet">
+    <link href="css/search.css" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
-    <title>Branch of Israel - Bible App</title>
+
+    <title>Branch of Israel - Scripture Search</title>
   </head>
 
   <body class="basic basic_search">
     <div class="subheader" id="stickyHeader">
-      <div class="container flex">
-        <div class="subheadings">               
-            <div class="row">
-              <div class="column">
-                <div class="hamburger">
-                    <button
-                    type="button"
-                    id="menuToggle"
-                    class="main-nav-toggle"
-                    aria-label="Toggle menu"
-                    aria-expanded="false"
-                  >
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </button>
-                </div>
-              </div>
-              <div class="column">
-                <span id="viewing"></span>
-              </div>
-              <div class="column">
-                <span id="resultstring"></span>
-              </div>
-            </div>          
+      <div class="search-topbar">
+        <div class="hamburger">
+          <button
+            type="button"
+            id="menuToggle"
+            class="main-nav-toggle"
+            aria-label="Toggle menu"
+            aria-expanded="false"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
         </div>
-          <div class="search-area flex">
-              <button class="search-area" onclick="searchButton()"><h2>🔎</h2></button>     
-              <input type="text" id="search-input" size="30" onkeydown = "if (event.keyCode == 13) searchButton()" >  <!-- placeholder="ex. 'John 3:16-19' OR 'kingdom'" -->
-              <!-- <input type="button" onclick="call(document.getElementById('name'))" value="Click me"> -->
-              <a href="javascript:void(0)" id="clearBtn" class="clearbtn" style="color:lightgray;" onclick="clearSearch()">&times;</a>
-          </div>
+
+        <div class="search-current-bible" id="search-current-bible">
+          Loading Bible...
+        </div>
       </div>
     </div>
 
     <header>
       <div id="menuNav" class="overlay">
         <div class="overlay-content">
-          <a href="./index.html">Home</a>
-          <a href="#" class="disabled">Books</a>
-          <a href="#" class="disabled">Chapter</a>
-          <a href="#" class="current">Search</a>
-          <!--<a href="#">Preferences</a>-->
+          <a href="./index.html?stay=home">Home</a>
+          <a href="#" class="disabled" aria-disabled="true">Books</a>
+          <a href="#" class="disabled" aria-disabled="true">Chapter</a>
+          <a href="./search.html" class="current">Search</a>
         </div>
       </div>
     </header>
 
-    <main class="container">
-        <div id="search-nav-top" class="search-nav search-nav-top"></div>
-        <div id="results-list" class="search-results-list list-container"></div>
-        <div id="search-nav-bottom" class="search-nav search-nav-bottom"></div>
-        <div class="leftcol">
-            <img class="left-button" src="./img/orig_left_stamp.png" />
-        </div>      
-        <div class="rightcol">
-            <img class="right-button" src="./img/orig_right_stamp.png" />
+    <main class="search-page">
+      <section class="search-card" aria-labelledby="search-title">
+        <p class="search-eyebrow">Scripture Search</p>
+        <h1 id="search-title">Find a verse or passage</h1>
+
+        <form id="scripture-search-form" class="scripture-search-form">
+          <label class="search-input-label" for="search-input">
+            Search words or reference
+          </label>
+
+          <div class="scripture-search-row">
+            <input
+              type="search"
+              id="search-input"
+              autocomplete="off"
+              placeholder='Try "kingdom of heaven", east, or John 3:16'
+            >
+
+            <button type="submit" class="scripture-search-button">
+              Search
+            </button>
+          </div>
+
+          <div class="search-options">
+            <label class="search-option">
+              <input type="checkbox" id="exact-word-only">
+              <span>Exact word only</span>
+            </label>
+
+            <button type="button" id="clear-search" class="search-clear-button">
+              Clear
+            </button>
+          </div>
+        </form>
+
+        <p class="search-help">
+          Smart search shows exact matches first and then close word forms. Use quotes for an exact phrase.
+        </p>
+      </section>
+
+      <section class="search-results-panel" aria-live="polite">
+        <div class="search-results-header">
+          <div>
+            <h2 id="search-results-title">Results</h2>
+            <p id="search-results-summary">Enter a word, phrase, or reference to begin.</p>
+          </div>
         </div>
+
+        <div id="search-status" class="search-status"></div>
+        <div id="results-list" class="search-results-list"></div>
+
+        <div class="search-pagination" id="search-pagination"></div>
+      </section>
     </main>
 
     <script src="js/my_key.js"></script>
-    <script src="js/menu.js" defer></script>
-    <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
     <script src="https://cdn.scripture.api.bible/fums/fumsv2.min.js"></script>
-    <script>
-      const resultsList = document.querySelector(`#results-list`);
-      const searchInput = document.querySelector(`#search-input`);
-      const searchNavTop = document.querySelector(`#search-nav-top`);
-      const searchNavBottom = document.querySelector(`#search-nav-bottom`);
-    
-      const bibleVersionID = getParameterByName(`version`) || `06125adad2d5898a-01`;
-      const abbreviation = getParameterByName(`abbr`) || `ASV`;
-      const query = getParameterByName(`query`);
-    
-      const PAGE_SIZE = 10;
-      let bibleBookOrder = [];
-    
-      if (query) {
-        const normalizedQuery = normalizeBibleSearch(query);
-    
-        document.querySelector(`#viewing`).textContent = `Searched: ` + normalizedQuery;
-    
-        loadBibleBookOrder()
-          .then(() => {
-            search(normalizedQuery, 0);
-          })
-          .catch((error) => {
-            console.error(`Could not load Bible book order:`, error);
-            search(normalizedQuery, 0);
-          });
-      }
-    
-      function normalizeBibleSearch(input) {
-        return input
-          .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, `-`)
-          .replace(/\s+/g, ` `)
-          .trim();
-      }
-    
-      function loadBibleBookOrder() {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.withCredentials = false;
-    
-          xhr.addEventListener(`readystatechange`, function() {
-            if (this.readyState === this.DONE) {
-              try {
-                const response = JSON.parse(this.responseText);
-                const data = response.data || [];
-    
-                bibleBookOrder = data.map((book, index) => ({
-                  id: book.id,
-                  name: book.name,
-                  abbreviation: book.abbreviation,
-                  order: index
-                }));
-    
-                resolve(bibleBookOrder);
-              } catch (error) {
-                reject(error);
-              }
-            }
-          });
-    
-          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/books`);
-          xhr.setRequestHeader(`api-key`, API_KEY);
-    
-          xhr.onerror = () => reject(xhr.statusText);
-          xhr.send();
-        });
-      }
-    
-      function searchButton() {
-        if (searchInput.value) {
-          const normalizedQuery = normalizeBibleSearch(searchInput.value);
-    
-          window.location.href = `./search.html?&version=${bibleVersionID}&abbr=${abbreviation}&query=${encodeURIComponent(normalizedQuery)}`;
-        } else {
-          swal(`Text Required!`, `Please enter some text (ex. John 3:16-19 or wisdom)`, `error`);
-        }
-      }
-    
-      function search(searchText, pageOffset = 0) {
-        searchInput.value = searchText;
-    
-        getResults(searchText, pageOffset)
-          .then((data) => {
-            let resultsHTML = ``;
-    
-            const hasVerses = data.verses && data.verses.length > 0;
-            const hasPassages = data.passages && data.passages.length > 0;
-    
-            if (!hasVerses && !hasPassages) {
-              searchNavTop.innerHTML = ``;
-              searchNavBottom.innerHTML = ``;
-              document.querySelector(`#resultstring`).innerHTML = ``;
-    
-              resultsHTML = `<div class="no-results">☹️ No results. Try another <a href="index.html">search or version</a></div>`;
-              resultsList.innerHTML = resultsHTML;
-              return;
-            }
-    
-            if (hasVerses) {
-              const searchNavHTML = buildNav(pageOffset, data.total || data.verses.length, searchText);
-              searchNavBottom.innerHTML = searchNavHTML;
-    
-              resultsHTML += `<ul>`;
-    
-              for (let verse of data.verses) {
-                resultsHTML += `<li>
-                  <h5>${verse.reference}</h5>
-                  <div class="text not-eb-container">${verse.text}</div>
-                  <a href="verse.html?version=${bibleVersionID}&abbr=${abbreviation}&chapter=${verse.chapterId}">view chapter</a>
-                </li>`;
-              }
-    
-              resultsHTML += `</ul>`;
-            }
-    
-            if (hasPassages) {
-              searchNavTop.innerHTML = ``;
-              searchNavBottom.innerHTML = ``;
-              document.querySelector(`#resultstring`).innerHTML = ``;
-    
-              resultsHTML += `<ul>`;
-    
-              for (let passage of data.passages) {
-                resultsHTML += `<li>
-                  <h5>${passage.reference}</h5>
-                  <div class="text eb-container">${passage.content}</div>
-                  <a href="verse.html?version=${bibleVersionID}&abbr=${abbreviation}&chapter=${passage.chapterIds[0]}">view chapter</a>
-                  <br>
-                </li>`;
-              }
-    
-              resultsHTML += `</ul>`;
-            }
-    
-            resultsList.innerHTML = resultsHTML;
-          })
-          .catch((error) => {
-            console.error(`Search error:`, error);
-    
-            searchNavTop.innerHTML = ``;
-            searchNavBottom.innerHTML = ``;
-            document.querySelector(`#resultstring`).innerHTML = ``;
-            resultsList.innerHTML = `<div class="no-results">☹️ Search failed. Please try again.</div>`;
-          });
-      }
-    
-      function getResults(searchText, pageOffset = 0) {
-        const normalizedSearchText = normalizeBibleSearch(searchText);
-    
-        const searchParts = normalizedSearchText
-          .split(/[;；]+/)
-          .map(part => part.trim())
-          .filter(Boolean);
-    
-        if (searchParts.length > 1) {
-          return Promise.all(searchParts.map(part => getSingleResult(part, 0)))
-            .then(results => {
-              const combinedData = {
-                verses: [],
-                passages: [],
-                total: 0
-              };
-    
-              for (const data of results) {
-                if (data.verses && data.verses.length > 0) {
-                  combinedData.verses.push(...data.verses);
-                }
-    
-                if (data.passages && data.passages.length > 0) {
-                  combinedData.passages.push(...data.passages);
-                }
-    
-                if (data.total) {
-                  combinedData.total += data.total;
-                }
-              }
-    
-              if (combinedData.verses.length > 0) {
-                combinedData.verses = sortBibleResults(combinedData.verses);
-              }
-    
-              if (combinedData.passages.length > 0) {
-                combinedData.passages = sortBibleResults(combinedData.passages);
-              }
-    
-              return combinedData;
-            });
-        }
-    
-        return getAllResults(normalizedSearchText).then((allData) => {
-          const start = pageOffset * PAGE_SIZE;
-          const end = start + PAGE_SIZE;
-    
-          if (allData.verses && allData.verses.length > 0) {
-            const sortedVerses = sortBibleResults(allData.verses);
-    
-            return {
-              verses: sortedVerses.slice(start, end),
-              passages: [],
-              total: sortedVerses.length
-            };
-          }
-    
-          if (allData.passages && allData.passages.length > 0) {
-            const sortedPassages = sortBibleResults(allData.passages);
-    
-            return {
-              verses: [],
-              passages: sortedPassages.slice(start, end),
-              total: sortedPassages.length
-            };
-          }
-    
-          return {
-            verses: [],
-            passages: [],
-            total: 0
-          };
-        });
-      }
-    
-      function getAllResults(searchText) {
-        return getSingleResult(searchText, 0).then((firstData) => {
-          const total = firstData.total || 0;
-    
-          const allData = {
-            verses: firstData.verses ? [...firstData.verses] : [],
-            passages: firstData.passages ? [...firstData.passages] : [],
-            total: total
-          };
-    
-          if (total <= PAGE_SIZE) {
-            return allData;
-          }
-    
-          const requests = [];
-    
-          for (let apiOffset = PAGE_SIZE; apiOffset < total; apiOffset += PAGE_SIZE) {
-            requests.push(getSingleResult(searchText, apiOffset));
-          }
-    
-          return Promise.all(requests).then((pages) => {
-            for (const pageData of pages) {
-              if (pageData.verses && pageData.verses.length > 0) {
-                allData.verses.push(...pageData.verses);
-              }
-    
-              if (pageData.passages && pageData.passages.length > 0) {
-                allData.passages.push(...pageData.passages);
-              }
-            }
-    
-            return allData;
-          });
-        });
-      }
-    
-      function getSingleResult(searchText, apiOffset = 0) {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.withCredentials = false;
-    
-          xhr.addEventListener(`readystatechange`, function() {
-            if (this.readyState === this.DONE) {
-              try {
-                const response = JSON.parse(this.responseText);
-                const data = response.data || {};
-                const meta = response.meta || {};
-    
-                if (meta && meta.fumsId) {
-                  _BAPI.t(meta.fumsId);
-                }
-    
-                resolve(data);
-              } catch (error) {
-                reject(error);
-              }
-            }
-          });
-    
-          const normalizedSearchText = normalizeBibleSearch(searchText);
-          const encodedSearchText = encodeURIComponent(normalizedSearchText);
-    
-          xhr.open(`GET`, `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/search?query=${encodedSearchText}&offset=${apiOffset}`);
-          xhr.setRequestHeader(`api-key`, API_KEY);
-    
-          xhr.onerror = () => reject(xhr.statusText);
-          xhr.send();
-        });
-      }
-    
-      function getBookOrderFromReference(reference) {
-        if (!reference || !bibleBookOrder.length) {
-          return 9999;
-        }
-    
-        const normalizedReference = reference.toLowerCase();
-    
-        const matchedBook = bibleBookOrder.find(book => {
-          const bookName = book.name ? book.name.toLowerCase() : ``;
-          const bookAbbreviation = book.abbreviation ? book.abbreviation.toLowerCase() : ``;
-    
-          return normalizedReference.startsWith(bookName + ` `) ||
-                 normalizedReference.startsWith(bookName + `.`) ||
-                 normalizedReference === bookName ||
-                 normalizedReference.startsWith(bookAbbreviation + ` `) ||
-                 normalizedReference.startsWith(bookAbbreviation + `.`) ||
-                 normalizedReference === bookAbbreviation;
-        });
-    
-        return matchedBook ? matchedBook.order : 9999;
-      }
-    
-      function getChapterNumber(reference) {
-        if (!reference) {
-          return 0;
-        }
-    
-        const match = reference.match(/\s(\d+):/);
-        return match ? parseInt(match[1], 10) : 0;
-      }
-    
-      function getVerseNumber(reference) {
-        if (!reference) {
-          return 0;
-        }
-    
-        const match = reference.match(/:(\d+)/);
-        return match ? parseInt(match[1], 10) : 0;
-      }
-    
-      function sortBibleResults(results) {
-        return results.sort((a, b) => {
-          const bookOrderA = getBookOrderFromReference(a.reference);
-          const bookOrderB = getBookOrderFromReference(b.reference);
-    
-          if (bookOrderA !== bookOrderB) {
-            return bookOrderA - bookOrderB;
-          }
-    
-          const chapterA = getChapterNumber(a.reference);
-          const chapterB = getChapterNumber(b.reference);
-    
-          if (chapterA !== chapterB) {
-            return chapterA - chapterB;
-          }
-    
-          const verseA = getVerseNumber(a.reference);
-          const verseB = getVerseNumber(b.reference);
-    
-          return verseA - verseB;
-        });
-      }
-    
-      function buildNav(pageOffset, total, searchText) {
-        const startResult = pageOffset * PAGE_SIZE + 1;
-        const endResult = Math.min((pageOffset + 1) * PAGE_SIZE, total);
-    
-        const searchResults = `<span>Results: <strong>${startResult}-${endResult}</strong> of <strong>${total}</strong></span>`;
-        document.querySelector(`#resultstring`).innerHTML = searchResults;
-    
-        let searchNavHTML = `<span class="results-current-page"></span>`;
-    
-        if (pageOffset > 0 || total / PAGE_SIZE > pageOffset + 1) {
-          searchNavHTML += `<span class="results-nav">`;
-        }
-    
-        if (pageOffset == 0) {
-          searchNavHTML += `<img name="imgleft" class="left-button" src="./img/orig_left_stamp.png" style="z-index: 100;" />`;
-        }
-    
-        if (pageOffset > 0) {
-          const previousQuery = encodeURIComponent(searchText);
-          searchNavHTML += `<a onMouseOver="document.imgleft.src='./img/left_stamp_on.png';" onMouseOut="document.imgleft.src='./img/orig_left_stamp.png';"><img name="imgleft" class="left-button" src="./img/orig_left_stamp.png" onclick="search(decodeURIComponent('${previousQuery}'), ${pageOffset - 1})" style="z-index: 100;cursor: pointer;" /></a>`;
-        }
-    
-        if (total / PAGE_SIZE > pageOffset + 1) {
-          const nextQuery = encodeURIComponent(searchText);
-          searchNavHTML += `<a onMouseOver="document.imgright.src='./img/right_stamp_on.png';" onMouseOut="document.imgright.src='./img/orig_right_stamp.png';"><img name="imgright" class="right-button" src="./img/orig_right_stamp.png" onclick="search(decodeURIComponent('${nextQuery}'), ${pageOffset + 1})" style="z-index: 100;cursor: pointer;" /></a>`;
-        }
-    
-        if (pageOffset > 0 || total / PAGE_SIZE > pageOffset + 1) {
-          searchNavHTML += `</span>`;
-        }
-    
-        return searchNavHTML;
-      }
-    
-      function getParameterByName(name) {
-        const url = window.location.href;
-        name = name.replace(/[\[\]]/g, `\\$&`);
-    
-        const regex = new RegExp(`[?&]` + name + `(=([^&#]*)|&|#|$)`);
-        const results = regex.exec(url);
-    
-        if (!results) {
-          return null;
-        }
-    
-        if (!results[2]) {
-          return ``;
-        }
-    
-        return decodeURIComponent(results[2].replace(/\+/g, ` `));
-      }
-    
-      function openNav() {
-        document.getElementById(`menuNav`).style.width = `225px`;
-      }
-    
-      function closeNav() {
-        document.getElementById(`menuNav`).style.width = `0px`;
-      }
-    
-      function clearSearch() {
-        const resetURL = `./search.html`;
-        window.location.href = resetURL;
-        document.getElementById(`clearBtn`).setAttribute(`style`, `color:lightgray;`);
-      }
-    
-      const key_pressed = document.getElementById(`search-input`);
-    
-      key_pressed.addEventListener(`keydown`, onKeyDown);
-    
-      function onKeyDown(event) {
-        document.getElementById(`clearBtn`).setAttribute(`style`, `color:red;`);
-      }
-    
-      function sortVersionsByLanguage(bibleVersionList) {
-        let sortedVersions = {};
-    
-        for (const version of bibleVersionList) {
-          if (!sortedVersions[version.language]) {
-            sortedVersions[version.language] = [];
-          }
-    
-          sortedVersions[version.language].push(version);
-        }
-    
-        for (const version in sortedVersions) {
-          sortedVersions[version].sort((a, b) => {
-            const nameA = a.abbreviation.toUpperCase();
-            const nameB = b.abbreviation.toUpperCase();
-    
-            if (nameA < nameB) {
-              return -1;
-            }
-    
-            if (nameA > nameB) {
-              return 1;
-            }
-    
-            return 0;
-          });
-        }
-    
-        return sortedVersions;
-      }
-    </script>
+    <script src="js/user-preferences.js"></script>
+    <script src="js/menu.js" defer></script>
+    <script src="js/search.js" defer></script>
   </body>
 </html>
