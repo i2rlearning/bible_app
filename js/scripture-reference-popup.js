@@ -273,7 +273,7 @@
     if (!activePlainText) return;
 
     try {
-      await navigator.clipboard.writeText(activePlainText);
+      await navigator.clipboard.writeText(activePlainText & title);
       updateCopyButton("Copied");
     } catch (error) {
       fallbackCopyText(activePlainText);
