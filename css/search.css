@@ -1,132 +1,361 @@
-/*  overall search box */
-.search-area {
-  background: #fff;
-  border: 1px solid lightgray;
-  border-radius: 50px;
-  margin-left:auto;
+:root {
+  --search-panel-bg: rgba(255, 253, 247, 0.93);
+  --search-text: #2f271d;
+  --search-muted: #6f6254;
+  --search-border: rgba(83, 56, 28, 0.22);
+  --search-blue: #123f7c;
+  --search-blue-dark: #082f63;
+  --search-mark: rgba(255, 213, 79, 0.72);
 }
 
-@media only screen and (max-width: 600px) {
-  .search-area {
-    width: 40%;
+body.basic_search {
+  min-height: 100vh;
+  color: var(--search-text);
+  background:
+    url("../img/scrollbarleft.png") left 5.5rem top 5.25rem / 130px auto no-repeat,
+    url("../img/scrollbar.png") right 5.5rem top 5.25rem / 130px auto no-repeat,
+    url("../img/wedding-paper.jpg") center top / cover repeat;
+}
+
+.search-topbar {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  justify-items: center;
+  padding: 4px 18px;
+  background: rgba(244, 252, 255, 0.92);
+  box-shadow: 0 1px 7px rgba(0, 0, 0, 0.12);
+}
+
+.search-topbar .hamburger {
+  grid-column: 2;
+}
+
+.search-current-bible {
+  grid-column: 3;
+  justify-self: end;
+  color: #34404d;
+  font-family: Arial, sans-serif;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.search-page {
+  width: min(920px, calc(100vw - 240px));
+  margin: 0 auto;
+  padding: 42px 0 80px;
+}
+
+.search-card,
+.search-results-panel {
+  background: var(--search-panel-bg);
+  border: 1px solid var(--search-border);
+  border-radius: 18px;
+  box-shadow: 0 12px 34px rgba(42, 30, 18, 0.16);
+  backdrop-filter: blur(2px);
+}
+
+.search-card {
+  padding: 28px;
+}
+
+.search-eyebrow {
+  margin: 0 0 8px;
+  color: var(--search-blue);
+  font-family: Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.search-card h1 {
+  margin: 0 0 20px;
+  color: #201915;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+  line-height: 1.12;
+}
+
+.scripture-search-form {
+  margin: 0;
+}
+
+.search-input-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--search-muted);
+  font-family: Arial, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.scripture-search-row {
+  display: flex;
+  gap: 10px;
+}
+
+#search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 46px;
+  border: 1px solid rgba(18, 63, 124, 0.28);
+  border-radius: 999px;
+  padding: 0 18px;
+  background: #fff;
+  color: #1e2633;
+  font-family: Arial, sans-serif;
+  font-size: 1rem;
+  outline: none;
+}
+
+#search-input:focus {
+  border-color: var(--search-blue);
+  box-shadow: 0 0 0 3px rgba(18, 63, 124, 0.15);
+}
+
+.scripture-search-button,
+.search-clear-button,
+.search-result-action,
+.search-page-button {
+  border: 1px solid #123f7c;
+  background: linear-gradient(180deg, #185294 0%, #0a3976 100%);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-family: Arial, sans-serif;
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    background 0.14s ease;
+}
+
+.scripture-search-button {
+  min-width: 108px;
+}
+
+.scripture-search-button:hover,
+.scripture-search-button:focus-visible,
+.search-clear-button:hover,
+.search-clear-button:focus-visible,
+.search-result-action:hover,
+.search-result-action:focus-visible,
+.search-page-button:hover,
+.search-page-button:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(8, 47, 99, 0.28);
+}
+
+.search-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.search-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--search-muted);
+  font-family: Arial, sans-serif;
+  font-size: 0.95rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.search-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--search-blue);
+}
+
+.search-clear-button {
+  min-height: 34px;
+  padding: 0 14px;
+  background: #fff;
+  color: var(--search-blue);
+}
+
+.search-help {
+  margin: 16px 0 0;
+  color: var(--search-muted);
+  font-family: Arial, sans-serif;
+  font-size: 0.9rem;
+}
+
+.search-results-panel {
+  margin-top: 22px;
+  padding: 24px 28px 28px;
+}
+
+.search-results-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid rgba(83, 56, 28, 0.16);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+
+.search-results-header h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.45rem;
+}
+
+#search-results-summary {
+  margin: 6px 0 0;
+  color: var(--search-muted);
+  font-family: Arial, sans-serif;
+  font-size: 0.94rem;
+}
+
+.search-status {
+  color: var(--search-muted);
+  font-family: Arial, sans-serif;
+  font-size: 0.98rem;
+}
+
+.search-status.is-error {
+  color: #9b1b1b;
+}
+
+.search-result {
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(83, 56, 28, 0.13);
+}
+
+.search-result:last-child {
+  border-bottom: none;
+}
+
+.search-result-reference {
+  margin: 0 0 8px;
+  color: #1e2633;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.13rem;
+  font-weight: 700;
+}
+
+.search-result-text {
+  margin: 0;
+  color: #2f271d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.08rem;
+  line-height: 1.65;
+}
+
+.search-result-text mark {
+  background: var(--search-mark);
+  color: inherit;
+  border-radius: 0.18em;
+  padding: 0.02em 0.08em;
+}
+
+.search-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.search-result-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 0.86rem;
+}
+
+.search-result-action.is-secondary {
+  background: #fff;
+  color: var(--search-blue);
+}
+
+.search-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.search-page-button {
+  min-height: 36px;
+}
+
+.search-page-button[disabled] {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.search-page-count {
+  color: var(--search-muted);
+  font-family: Arial, sans-serif;
+  font-size: 0.92rem;
+  padding: 0 6px;
+}
+
+@media (max-width: 1100px) {
+  body.basic_search {
+    background:
+      url("../img/wedding-paper.jpg") center top / cover repeat;
+  }
+
+  .search-page {
+    width: min(860px, calc(100vw - 64px));
   }
 }
-.search-area input {
-  font-size: 0.875rem;
 
-  border: 0;
-  margin-left: .75em;
-}
+@media (max-width: 640px) {
+  .search-current-bible {
+    display: none;
+  }
 
-.search-area button {
-  border: 0;
-  background: none;
-  cursor: pointer;
-  width: 2.8rem;
-  border-right: 1px solid lightgray; /*vertical bar between button and text */
-}
+  .search-page {
+    width: calc(100vw - 28px);
+    padding-top: 24px;
+  }
 
-.search-area input {
-  width: calc(100% - 2.8rem);
-  padding: 0 0.5em 0 0;
-}
-body.basic_index .search-area {
-  display: none;
-}
+  .search-card,
+  .search-results-panel {
+    border-radius: 14px;
+    padding: 20px 16px;
+  }
 
-.search-nav {
-  margin-bottom: 2rem;
-}
-.search-nav > * {
-  display: block;
-}
+  .scripture-search-row {
+    flex-direction: column;
+  }
 
-.search-nav .results-current-page {
-  margin-bottom: 1rem;
-}
-.search-nav .results-nav button {
-  font-size: 1rem;
-  line-height: 2em;
-  cursor: pointer;
-  border: 1px solid lightgray;
-  background: #fff;
-}
-.search-nav .results-nav button:hover {
-  border-color: #31ACFF;
-  color: #31ACFF;
-}
-.search-nav .results-nav button + button {
-  margin-left: 1rem;
-}
-.search-nav.search-nav-top {
-  margin-bottom: 2rem;
-}
-.search-nav.search-nav-top .results-count {
-  padding-bottom: 2rem;
-  border-bottom: 1px solid lightgray;
-}
-.search-nav.search-nav-top .results-current-page,
-.search-nav.search-nav-top .results-nav {
-  display: none;
-}
-.search-nav.search-nav-bottom .results-count {
-  display: none;
-}
+  .scripture-search-button {
+    height: 42px;
+  }
 
-.search-area
-.subheader .subheadings h3 i {
-  font-style: normal;
-}
+  .search-options {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 
-.list-container.search-results-list li {
-  padding: 0 0 0.5rem;
-  border-bottom: none;
-  margin-bottom: 0.75rem;
-}
+  .search-result-text {
+    font-size: 1rem;
+  }
 
-.list-container.search-results-list li > * {
-  line-height: 1.35rem;
-  margin-bottom: 0.15em;
-}
+  .search-result-actions {
+    flex-direction: column;
+  }
 
-.list-container.search-results-list li:after {
-  content: "";
-  display: table;
-  clear: both;
+  .search-result-action {
+    width: 100%;
+  }
 }
-.list-container.search-results-list li > * {
-  line-height: 1.5rem;
-  margin-bottom: 0.3em;
-}
-.list-container.search-results-list li h5 {
-  font-size: 1.125rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.list-container.search-results-list li .text {
-  font-size: 1.125rem;
-  font-weight: 300;
-}
-.list-container.search-results-list li > a {
-  float: left;
-  font-size: 1rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #31ACFF;
-  border-bottom: solid 1px #31ACFF;
-}
-.list-container.search-results-list li > a:hover {
-  border-color: transparent;
-}
-
-
-
-/***** Clear button for search section "X" located inside search bar *****/
-.clearbtn {
-  position: relative;
-  top: 4px;
-  right: 15px;
-  font-size: 40px;
-  z-index: 1;
-}
-
