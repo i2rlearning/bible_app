@@ -157,7 +157,7 @@
 .scripture-reference-popup-actions a:hover,
 .scripture-reference-popup-actions a:focus-visible {
   /*background: #eadcc7;*/
-  gap: 10px;
+  gap: 15px;
   transform: translateY(-2px);
   box-shadow: 5px 5px 7px rgba(0, 0, 0, 0.6);
 }
