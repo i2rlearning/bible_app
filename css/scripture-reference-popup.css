@@ -1,0 +1,148 @@
+/* Scripture reference popup */
+
+.eb-container .r span[id],
+.scripture-styles .r span[id] {
+  cursor: pointer;
+  color: blue;
+  text-decoration: none;
+  text-underline-offset: 0.16em;
+}
+
+.eb-container .r span[id]:hover,
+.eb-container .r span[id]:focus-visible,
+.scripture-styles .r span[id]:hover,
+.scripture-styles .r span[id]:focus-visible {
+  text-decoration: underline;
+}
+
+.eb-container .r span[id]:focus-visible,
+.scripture-styles .r span[id]:focus-visible {
+  outline: 2px solid rgba(40, 89, 166, 0.45);
+  outline-offset: 2px;
+  border-radius: 0.15em;
+}
+
+.scripture-reference-popup {
+  position: fixed;
+  z-index: 9200;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(480px, calc(100vh - 72px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fffdf7;
+  color: #2c2418;
+  border: 1px solid rgba(90, 62, 31, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.scripture-reference-popup[hidden] {
+  display: none;
+}
+
+.scripture-reference-popup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid rgba(90, 62, 31, 0.18);
+}
+
+.scripture-reference-popup-title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: bold;
+  color: #2c2418;
+}
+
+.scripture-reference-popup-close {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #2c2418;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.scripture-reference-popup-close:hover,
+.scripture-reference-popup-close:focus-visible {
+  color: #8a4b00;
+}
+
+.scripture-reference-popup-body {
+  padding: 12px 14px;
+  overflow-y: auto;
+  line-height: 1.55;
+  font-size: 0.96rem;
+}
+
+.scripture-reference-popup-body p {
+  margin: 0 0 0.85em;
+}
+
+.scripture-reference-popup-body p:last-child {
+  margin-bottom: 0;
+}
+
+.scripture-reference-popup-status {
+  font-style: italic;
+  color: #6f604e;
+}
+
+.scripture-reference-popup-error {
+  color: #8a1f11;
+}
+
+.scripture-reference-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 14px 12px;
+  border-top: 1px solid rgba(90, 62, 31, 0.18);
+}
+
+.scripture-reference-popup-actions button,
+.scripture-reference-popup-actions a {
+  border: 1px solid rgba(90, 62, 31, 0.35);
+  background: #f7efe1;
+  color: #2c2418;
+  border-radius: 7px;
+  padding: 6px 10px;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+  font-size: 0.88rem;
+}
+
+.scripture-reference-popup-actions button:hover,
+.scripture-reference-popup-actions button:focus-visible,
+.scripture-reference-popup-actions a:hover,
+.scripture-reference-popup-actions a:focus-visible {
+  background: #eadcc7;
+}
+
+@media (max-width: 520px) {
+  .scripture-reference-popup {
+    left: 12px !important;
+    right: 12px !important;
+    width: auto;
+    max-height: min(520px, calc(100vh - 48px));
+  }
+
+  .scripture-reference-popup-actions {
+    justify-content: stretch;
+  }
+
+  .scripture-reference-popup-actions button,
+  .scripture-reference-popup-actions a {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}
