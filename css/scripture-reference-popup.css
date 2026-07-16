@@ -140,17 +140,17 @@
 
 .scripture-reference-popup-actions button,
 .scripture-reference-popup-actions a {
-  border: 1px solid rgba(90, 62, 31, 0.35);
-  background: #f7efe1;
-  color: #2c2418;
-  border-radius: 7px;
-  padding: 6px 10px;
+  border: 1px solid #123f7c;
+  background: linear-gradient(180deg, #185294 0%, #0a3976 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: 7px 12px;
   text-decoration: none;
   cursor: pointer;
   font-family: Arial, sans-serif;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
-
 .scripture-reference-popup-actions button:hover,
 .scripture-reference-popup-actions button:focus-visible,
 .scripture-reference-popup-actions a:hover,
