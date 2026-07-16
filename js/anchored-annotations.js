@@ -1,3 +1,10 @@
+//*****************************************
+// anchored-annotations.js - Makes 
+// drawings/marks stay connected to 
+// selected Bible words instead of  
+// floating loosely on the page.
+//*****************************************
+
 (() => {
   "use strict";
 
