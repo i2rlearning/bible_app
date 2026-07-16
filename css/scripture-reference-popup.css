@@ -25,20 +25,17 @@
 .scripture-reference-popup {
   position: fixed;
   z-index: 9200;
-  width: min(520px, calc(100vw - 32px));
-  max-height: min(560px, calc(100vh - 72px));
+  width: min(365px, calc(100vw - 32px));
+  max-height: min(480px, calc(100vh - 72px));
   overflow: hidden;
   display: flex;
   flex-direction: column;
-
-  background: #fff;
-  color: #172033;
-  border: 1px solid #888;
-  border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-
-  font-family: Arial, sans-serif;
-  box-sizing: border-box;
+  background: #fffdf7;
+  color: #2c2418;
+  border: 1px solid rgba(90, 62, 31, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+  font-family: Georgia, "Times New Roman", serif;
 }
 
 .scripture-reference-popup[hidden] {
@@ -56,9 +53,10 @@
 
 .scripture-reference-popup-title {
   margin: 0;
-  font-size: 20px;
-  line-height: 1.25;
-  color: #172033;
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: bold;
+  color: #2c2418;
 }
 
 .scripture-reference-popup-close {
@@ -92,6 +90,36 @@
   margin-bottom: 0;
 }
 
+.scripture-reference-popup-body .v,
+.scripture-reference-popup-body .vp,
+.scripture-reference-popup-body sup[class^="v"],
+.scripture-reference-popup-body sub[class^="v"],
+.scripture-reference-popup-body .verse-number {
+  color: #474747;
+  font-size: 0.7em;
+  letter-spacing: 0.02em;
+  padding-right: 0.25em;
+  vertical-align: 0.4em;
+  line-height: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  font-weight: bold;
+  position: relative;
+  top: inherit;
+}
+
+.scripture-reference-popup-body .v::after,
+.scripture-reference-popup-body .vp::after,
+.scripture-reference-popup-body sup[class^="v"]::after,
+.scripture-reference-popup-body sub[class^="v"]::after,
+.scripture-reference-popup-body .verse-number::after {
+  content: "\a0";
+}
+
+.scripture-reference-popup-body sup + sup::before,
+.scripture-reference-popup-body sub + sub::before {
+  content: "\a0";
+}
+
 .scripture-reference-popup-status {
   font-style: italic;
   color: #6f604e;
@@ -112,16 +140,15 @@
 
 .scripture-reference-popup-actions button,
 .scripture-reference-popup-actions a {
-  border: 1px solid #123f7c;
-  background: linear-gradient(180deg, #185294 0%, #0a3976 100%);
-  color: #fff;
-  border-radius: 6px;
-  padding: 7px 12px;
+  border: 1px solid rgba(90, 62, 31, 0.35);
+  background: #f7efe1;
+  color: #2c2418;
+  border-radius: 7px;
+  padding: 6px 10px;
   text-decoration: none;
   cursor: pointer;
   font-family: Arial, sans-serif;
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.88rem;
 }
 
 .scripture-reference-popup-actions button:hover,
