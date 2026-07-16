@@ -182,7 +182,7 @@
     const label = state.bible.bibleAbbr || state.bible.bibleName || "Selected Bible";
 
     if (elements.currentBible) {
-      elements.currentBible.textContent = `Bible: ${label}`;
+      elements.currentBible.textContent = label;
     }
   }
 
@@ -904,8 +904,9 @@
       let match;
 
       while ((match = regex.exec(text)) !== null) {
-        const value = match[1] || match[0];
-        const start = match.index + (match[1] ? match[0].indexOf(match[1]) : 0);
+        const value = match[2] || match[1] || match[0];
+        const offsetInsideMatch = match[0].indexOf(value);
+        const start = match.index + Math.max(offsetInsideMatch, 0);
         const end = start + value.length;
 
         matches.push({ start, end });
@@ -987,7 +988,7 @@
     }
 
     return new RegExp(
-      `(^|[^A-Za-z0-9])(${escaped}[A-Za-z]{0,8})(?=[^A-Za-z0-9]|$)`,
+      `(^|[^A-Za-z0-9])(${escaped}(?:s|es|ed|ing|er|est|ful|fulness|ward|wards|ern)?)(?=[^A-Za-z0-9]|$)`,
       "gi"
     );
   }
