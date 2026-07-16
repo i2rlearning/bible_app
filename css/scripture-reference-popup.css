@@ -155,7 +155,8 @@
 .scripture-reference-popup-actions button:focus-visible,
 .scripture-reference-popup-actions a:hover,
 .scripture-reference-popup-actions a:focus-visible {
-  background: #eadcc7;
+  /*background: #eadcc7;*/
+  transform: translateY(-2px);
 }
 
 @media (max-width: 520px) {
