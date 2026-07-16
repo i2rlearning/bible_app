@@ -8,6 +8,7 @@
   let popup = null;
   let activeReferenceElement = null;
   let activePlainText = "";
+  let activeReferenceTitle = "";
 
   function getCurrentBibleId() {
     const params = new URLSearchParams(window.location.search);
@@ -142,6 +143,7 @@
     popup.hidden = true;
     activeReferenceElement = null;
     activePlainText = "";
+    activeReferenceTitle = "";
   }
 
   function setPopupStatus(message, isError = false) {
@@ -269,14 +271,23 @@
     return passage;
   }
 
+  function getActiveCopyText() {
+    return [activeReferenceTitle, activePlainText]
+      .map((part) => (part || "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
   async function copyActivePassage() {
-    if (!activePlainText) return;
+    const copyText = getActiveCopyText();
+
+    if (!copyText) return;
 
     try {
-      await navigator.clipboard.writeText(activePlainText & title);
+      await navigator.clipboard.writeText(copyText);
       updateCopyButton("Copied");
     } catch (error) {
-      fallbackCopyText(activePlainText);
+      fallbackCopyText(copyText);
       updateCopyButton("Copied");
     }
   }
@@ -324,8 +335,10 @@
 
     activeReferenceElement = referenceElement;
 
+    activeReferenceTitle = label || passageId;
+
     if (title) {
-      title.textContent = label || passageId;
+      title.textContent = activeReferenceTitle;
     }
 
     if (chapterLink) {
@@ -340,8 +353,12 @@
 
       if (activeReferenceElement !== referenceElement) return;
 
-      if (title && passage.reference) {
-        title.textContent = passage.reference;
+      if (passage.reference) {
+        activeReferenceTitle = passage.reference;
+      }
+
+      if (title) {
+        title.textContent = activeReferenceTitle;
       }
 
       setPopupContent(passage.content);
