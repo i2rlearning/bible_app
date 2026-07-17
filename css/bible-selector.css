@@ -1123,6 +1123,7 @@ body.passage-picker-is-open::before {
 
 .passage-picker-open:hover:not(:disabled) {
   background: #0e3363;
+  translate: 1px;
 }
 
 .passage-picker-open:disabled {
