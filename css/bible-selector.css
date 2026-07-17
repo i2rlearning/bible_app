@@ -1109,7 +1109,7 @@ body.passage-picker-is-open::before {
 }
 
 .passage-picker-open {
-  min-width: 150px;
+  min-width: auto;
   height: 42px;
   padding: 0 16px;
   border: 1px solid #123f7c;
