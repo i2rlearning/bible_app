@@ -5,9 +5,8 @@
     <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
 
     <link href="css/menu.css" rel="stylesheet">
-    <link href="css/menu-scroll.css" rel="stylesheet">
-    <link href="css/menu-popover.css" rel="stylesheet">
     <link href="css/bible-main.css" rel="stylesheet">
+    <link href="css/bible-selector.css" rel="stylesheet">
     <link href="css/scripture.css" rel="stylesheet">
     <link href="css/search.css" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
@@ -36,13 +35,128 @@
       </div>
     </div>
 
+
+    <div class="passage-picker search-passage-picker" id="passage-picker">
+      <button
+        type="button"
+        id="passage-picker-toggle"
+        class="passage-picker-toggle"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="passage-picker-panel"
+      >
+        <span id="current-passage-label">Open Passage</span>
+        <span class="passage-picker-chevron" aria-hidden="true">▼</span>
+      </button>
+
+      <div
+        id="passage-picker-panel"
+        class="passage-picker-panel"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="passage-picker-title"
+        hidden
+      >
+        <div class="passage-picker-header">
+          <h2 id="passage-picker-title">Open a Passage</h2>
+          <button
+            type="button"
+            id="passage-picker-close"
+            class="passage-picker-close"
+            aria-label="Close passage picker"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div class="passage-picker-fields">
+          <label class="passage-picker-field" for="language-select">
+            <span>Language</span>
+            <select id="language-select"></select>
+          </label>
+
+          <label class="passage-picker-field" for="bible-select">
+            <span>Bible</span>
+            <select id="bible-select">
+              <option value="">Loading Bibles...</option>
+            </select>
+          </label>
+
+          <label class="passage-picker-field" for="book-select">
+            <span>Book</span>
+            <select id="book-select" disabled>
+              <option value="">Loading Books...</option>
+            </select>
+          </label>
+
+          <label class="passage-picker-field" for="chapter-select">
+            <span>Chapter</span>
+            <select id="chapter-select" disabled>
+              <option value="">...</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="passage-picker-actions">
+          <button
+            type="button"
+            id="passage-picker-open"
+            class="passage-picker-open"
+            disabled
+          >
+            View Chapter
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="preferencesModal" class="preferences-modal" style="display: none;">
+      <div class="preferences-dialog" role="dialog" aria-modal="true" aria-labelledby="preferences-title">
+        <button type="button" id="closePreferences" class="preferences-close" aria-label="Close preferences">&times;</button>
+
+        <h2 id="preferences-title">Preferences</h2>
+
+        <label class="preferences-field" for="preferences-language">
+          <span>Preferred Language</span>
+          <select id="preferences-language"></select>
+        </label>
+
+        <label class="preferences-field" for="preferences-bible">
+          <span>Preferred Bible</span>
+          <select id="preferences-bible" disabled>
+            <option value="">Loading Bibles...</option>
+          </select>
+        </label>
+
+        <label class="preferences-field" for="preferences-landing-page">
+          <span>Starting Page</span>
+          <select id="preferences-landing-page">
+            <option value="index">Home</option>
+            <option value="verse">Passage Page</option>
+          </select>
+        </label>
+
+        <label class="preferences-field preferences-checkbox-field" for="preferences-freehand-warning">
+          <input type="checkbox" id="preferences-freehand-warning">
+          <span>Show freehand drawing warning</span>
+        </label>
+
+        <div id="preferences-status" class="preferences-status" aria-live="polite"></div>
+
+        <div class="preferences-actions">
+          <button type="button" id="cancelPreferences" class="preferences-cancel">Cancel</button>
+          <button type="button" id="savePreferences" class="preferences-save">Save Preferences</button>
+        </div>
+      </div>
+    </div>
+
     <header>
       <div id="menuNav" class="overlay">
         <div class="overlay-content">
-          <a href="./">Home</a>
-          <a href="https://bible.branchofisrael.com/search.html?bible=bba9f40183526463-01&bibleAbbr=BSB&bibleName=Berean+Standard+Bible&book=HEB&bookName=Hebrews&chapter=HEB.1#">Open Passage</a>
-          <a href="#" class="current">Search</a>
-          <a href="https://bible.branchofisrael.com/verse.html?bible=bba9f40183526463-01&bibleAbbr=BSB&bibleName=Berean+Standard+Bible&book=HEB&bookName=Hebrews&chapter=HEB.1#">Preferences</a>
+          <a href="./index.html?stay=home">Home</a>
+          <a href="#" id="openPassagePickerFromMenu">Open Passage</a>
+          <a href="./search.html" class="current">Search</a>
+          <a href="#" id="openPreferences">Preferences</a>
         </div>
       </div>
     </header>
@@ -69,7 +183,7 @@
               type="search"
               id="search-input"
               autocomplete="off"
-              placeholder='Example: "kingdom of heaven", east, or John 3:16'
+              placeholder='Try "kingdom of heaven", east, or John 3:16'
             >
 
             <button type="submit" class="scripture-search-button">
@@ -111,6 +225,8 @@
 
     <script src="js/my_key.js"></script>
     <script src="https://cdn.scripture.api.bible/fums/fumsv2.min.js"></script>
+    <script src="js/bible-language.js"></script>
+    <script src="js/bible-selector.js"></script>
     <script src="js/user-preferences.js"></script>
     <script src="js/menu.js" defer></script>
     <script src="js/search.js" defer></script>
