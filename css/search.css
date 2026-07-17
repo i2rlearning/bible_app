@@ -8,6 +8,89 @@
   --search-mark: rgba(255, 213, 79, 0.72);
 }
 
+
+/* Search page uses a simple dropdown menu instead of the parchment scroll menu. */
+.basic_search .overlay {
+  position: fixed !important;
+  z-index: 6500 !important;
+  top: 62px !important;
+  left: 50% !important;
+  width: min(250px, calc(100vw - 24px)) !important;
+  height: auto !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  background-image: none !important;
+  border: 1px solid rgba(19, 57, 93, 0.16) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 14px 34px rgba(11, 22, 34, 0.18) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translate(-50%, -8px) !important;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    max-height 0.18s ease !important;
+}
+
+.basic_search .overlay.menu-open {
+  max-height: 360px !important;
+  padding: 8px !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translate(-50%, 0) !important;
+}
+
+.basic_search .overlay-content {
+  position: static !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.basic_search .overlay-content a {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 10px 12px !important;
+  color: #14243a !important;
+  border-radius: 9px !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 0.98rem !important;
+  line-height: 1.2 !important;
+  text-decoration: none !important;
+  text-align: left !important;
+}
+
+.basic_search .overlay-content a:hover,
+.basic_search .overlay-content a:focus-visible,
+.basic_search .overlay-content a.current {
+  background: rgba(18, 63, 124, 0.1) !important;
+  color: #0a3976 !important;
+}
+
+.basic_search .search-passage-picker .passage-picker-toggle {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+.basic_search .preferences-modal {
+  z-index: 7000;
+}
+
+
 body.basic_search {
   min-height: 100vh;
   color: var(--search-text);
