@@ -1,4 +1,4 @@
-"use strict";
+
 
 (function () {
   const DEFAULT_BIBLE = {
@@ -27,7 +27,8 @@
     page: 0,
     allResults: [],
     bookOrder: [],
-    activeHighlightPatterns: []
+    activeHighlightPatterns: [],
+    passagePicker: null
   };
 
   document.addEventListener("DOMContentLoaded", initializeSearchPage);
@@ -59,6 +60,7 @@
 
     updateCurrentBibleLabel();
     bindEvents();
+    initializePassagePicker();
 
     loadBibleBookOrder()
       .catch((error) => {
@@ -124,6 +126,74 @@
       copyResult(result, copyButton);
     });
   }
+
+  function initializePassagePicker() {
+    const root = document.getElementById("passage-picker");
+    const menuLink = document.getElementById("openPassagePickerFromMenu");
+
+    if (!root || !window.BibleSelector || !window.BibleLanguage) {
+      return;
+    }
+
+    try {
+      state.passagePicker = window.BibleSelector.createPassagePicker({
+        root,
+        languageController: window.BibleLanguage,
+        current: {
+          bibleId: state.bible.bibleId,
+          bibleAbbr: state.bible.bibleAbbr,
+          bibleName: state.bible.bibleName,
+          bookId: "",
+          bookName: "",
+          chapterId: ""
+        }
+      });
+    } catch (error) {
+      console.error("Search passage picker failed to initialize:", error);
+      return;
+    }
+
+    menuLink?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      window.closeNav?.();
+
+      window.setTimeout(() => {
+        state.passagePicker?.setOpen?.(true);
+      }, 0);
+    });
+  }
+
+  window.addEventListener("bible-preferences-changed", (event) => {
+    const next = event.detail || {};
+
+    state.bible = {
+      bibleId: next.bibleId || state.bible.bibleId,
+      bibleAbbr: next.bibleAbbr || state.bible.bibleAbbr,
+      bibleName: next.bibleName || state.bible.bibleName
+    };
+
+    updateCurrentBibleLabel();
+
+    state.passagePicker?.applyPreferences?.({
+      languageApiUrl: next.languageApiUrl,
+      bibleId: state.bible.bibleId,
+      bibleAbbr: state.bible.bibleAbbr,
+      bibleName: state.bible.bibleName
+    });
+
+    if (state.query) {
+      state.bookOrder = [];
+      loadBibleBookOrder()
+        .catch((error) => {
+          console.warn("Could not reload Bible book order:", error);
+        })
+        .finally(() => {
+          runSearch(0, true);
+        });
+    }
+  });
 
   function getInitialBibleState() {
     const params = new URLSearchParams(window.location.search);
