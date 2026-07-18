@@ -255,7 +255,7 @@
   border-top: 2px solid currentColor; 
   
   /* Adjust this value to bring the upper line closer or further away */
-  padding-top: 1.5px; 
+  padding-top: 2.5px; 
   
   /* Optional: Ensures the border fits tightly to the text width */
   display: inline-block;
