@@ -250,12 +250,12 @@
 .eb-container .bible-user-format.overline-underline {
   text-decoration-line: underline !important;
   text-decoration-thickness: 2px;
-
+  
   /* Create a custom overline using a top border */
   border-top: 2px solid currentColor; 
   
   /* Adjust this value to bring the upper line closer or further away */
-  padding-top: 3.5px; 
+  padding-top: 3px; 
   
   /* Optional: Ensures the border fits tightly to the text width */
   display: inline-block;
