@@ -251,13 +251,18 @@
   text-decoration-line: underline !important;
   text-decoration-thickness: 2px;
   
-  /* Create a custom overline using a top border */
-  border-top: 2px solid currentColor; 
-  
-  /* Adjust this value to bring the upper line closer or further away */
-  padding-top: -2px; 
-  
-  /* Optional: Ensures the border fits tightly to the text width */
+  /* Remove the border-top and padding-top entirely */
+  border-top: none;
+  padding-top: 0;
+
+  /* Use an internal box-shadow to simulate a top line */
+  /* The -2px at the end controls the line thickness */
+  box-shadow: inset 0 2px 0 0 currentColor;
+
+  /* Shift the line down by reducing the line-height */
+  /* This pulls the top boundary of the element closer to the letters */
+  line-height: 1.1; 
+
   display: inline-block;
 }
 
