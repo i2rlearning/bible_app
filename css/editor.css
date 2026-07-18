@@ -263,7 +263,7 @@
   /* This pulls the top boundary of the element closer to the letters */
   line-height: 1.3; 
 
-  display: inline-block;
+  /*display: inline-block;*/
 }
 
 .eb-container .bible-user-format.strike-through {
