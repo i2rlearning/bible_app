@@ -261,7 +261,7 @@
 
   /* Shift the line down by reducing the line-height */
   /* This pulls the top boundary of the element closer to the letters */
-  line-height: 1.1; 
+  line-height: 0.9; 
 
   /*display: inline-block;*/
 }
