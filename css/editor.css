@@ -250,20 +250,18 @@
 .eb-container .bible-user-format.overline-underline {
   text-decoration-line: underline !important;
   text-decoration-thickness: 2px;
-  
-  /* Remove the border-top and padding-top entirely */
+  text-underline-offset: 0.14em;
+
   border-top: none;
   padding-top: 0;
 
-  /* Use an internal box-shadow to simulate a top line */
-  /* The -2px at the end controls the line thickness */
-  box-shadow: inset 0 2px 0 0 currentColor;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-size: 100% 2px;
+  background-position: 0 0.12em;
 
-  /* Shift the line down by reducing the line-height */
-  /* This pulls the top boundary of the element closer to the letters */
-  line-height: 0.9; 
-
-  /*display: inline-block;*/
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .eb-container .bible-user-format.strike-through {
