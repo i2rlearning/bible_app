@@ -497,7 +497,10 @@
 
   async function fetchAllResultsForQuery(query) {
     const results = [];
-    const requestedResults = Math.min(state.pageSize, MAX_RESULTS_PER_QUERY);
+    const requestedResults = Math.min(
+      Math.max(state.pageSize * 2, state.pageSize),
+      MAX_RESULTS_PER_QUERY
+    );
     const offsets = [];
 
     for (let offset = 0; offset < requestedResults; offset += API_PAGE_SIZE) {
@@ -657,18 +660,26 @@
   }
 
   function resultMatchesQueryMode(result, query) {
-    if (!state.exactWordOnly) {
-      return true;
+    const exactPhrase = getExactPhrase(query);
+    const text = `${result.reference} ${result.text}`;
+
+    if (exactPhrase) {
+      return normalizeComparableText(text).includes(
+        normalizeComparableText(exactPhrase)
+      );
     }
 
     const terms = getSearchTerms(query);
-    const text = `${result.reference} ${result.text}`;
 
     if (!terms.length) {
       return true;
     }
 
-    return terms.some((term) => exactWordRegex(term).test(text));
+    if (state.exactWordOnly) {
+      return terms.some((term) => exactWordRegex(term).test(text));
+    }
+
+    return terms.some((term) => wordFamilyRegex(term).test(text));
   }
 
   function scoreResult(result, query) {
