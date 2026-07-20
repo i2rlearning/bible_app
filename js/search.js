@@ -46,6 +46,7 @@
     elements.resultsList = document.getElementById("results-list");
     elements.pagination = document.getElementById("search-pagination");
     elements.pageSize = document.getElementById("results-page-size");
+    elements.resultsPanel = document.querySelector(".search-results-panel");
 
     const params = new URLSearchParams(window.location.search);
     state.query = normalizeSearchText(params.get("query") || "");
@@ -68,6 +69,10 @@
     updateCurrentBibleLabel();
     bindEvents();
     initializePassagePicker();
+
+    if (!state.query) {
+      renderEmptyState("");
+    }
 
     loadBibleBookOrder()
       .catch((error) => {
@@ -395,6 +400,7 @@
       updateUrl();
     }
 
+    showResultsPanel();
     setStatus("Searching...");
     clearResults();
 
@@ -779,9 +785,7 @@
     }
 
     if (elements.resultsSummary) {
-      const bibleLabel = state.bible.bibleAbbr || state.bible.bibleName || "selected Bible";
-      elements.resultsSummary.textContent =
-        `${start + 1}-${end} of ${total} loaded distinct result${total === 1 ? "" : "s"} in ${bibleLabel}`;
+      elements.resultsSummary.textContent = `${start + 1}-${end} of ${total}`;
     }
 
     if (!elements.resultsList) return;
@@ -881,16 +885,37 @@
   }
 
   function renderEmptyState(message) {
+    if (!state.query) {
+      hideResultsPanel();
+      clearStatus();
+      clearResults();
+      return;
+    }
+
+    showResultsPanel();
+
     if (elements.resultsTitle) {
       elements.resultsTitle.textContent = "Results";
     }
 
     if (elements.resultsSummary) {
-      elements.resultsSummary.textContent = message;
+      elements.resultsSummary.textContent = message || "";
     }
 
     clearStatus();
     clearResults();
+  }
+
+  function showResultsPanel() {
+    if (elements.resultsPanel) {
+      elements.resultsPanel.hidden = false;
+    }
+  }
+
+  function hideResultsPanel() {
+    if (elements.resultsPanel) {
+      elements.resultsPanel.hidden = true;
+    }
   }
 
   function clearResults() {
