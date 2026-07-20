@@ -104,7 +104,7 @@
             class="passage-picker-open"
             disabled
           >
-            Open
+            View Chapter
           </button>
         </div>
       </div>
@@ -214,6 +214,15 @@
             <h2 id="search-results-title">Results</h2>
             <p id="search-results-summary">Enter a word, phrase, or reference to begin.</p>
           </div>
+
+          <label class="search-page-size-control" for="results-page-size">
+            <span>Show</span>
+            <select id="results-page-size">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </label>
         </div>
 
         <div id="search-status" class="search-status"></div>
