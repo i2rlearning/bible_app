@@ -1,4 +1,4 @@
-
+"use strict";
 
 (function () {
   const DEFAULT_BIBLE = {
@@ -321,34 +321,58 @@
       return Array.from(variants);
     }
 
-    variants.add(`${word}s`);
-    variants.add(`${word}es`);
-    variants.add(`${word}ed`);
-    variants.add(`${word}ing`);
-    variants.add(`${word}er`);
-    variants.add(`${word}est`);
-    variants.add(`${word}ful`);
-    variants.add(`${word}fulness`);
-    variants.add(`${word}ward`);
-    variants.add(`${word}wards`);
+    getWordFamilyForms(word).forEach((variant) => variants.add(variant));
+
+    return Array.from(variants);
+  }
+
+  function getWordFamilyForms(word) {
+    const forms = new Set([word]);
+
+    forms.add(`${word}s`);
+    forms.add(`${word}es`);
+    forms.add(`${word}ed`);
+    forms.add(`${word}ing`);
+    forms.add(`${word}er`);
+    forms.add(`${word}ers`);
+    forms.add(`${word}est`);
+    forms.add(`${word}ful`);
+    forms.add(`${word}fulness`);
+    forms.add(`${word}ward`);
+    forms.add(`${word}wards`);
 
     if (word.endsWith("e")) {
-      variants.add(`${word}d`);
-      variants.add(`${word.slice(0, -1)}ing`);
+      forms.add(`${word}d`);
+      forms.add(`${word.slice(0, -1)}ing`);
     }
 
     if (word.endsWith("y")) {
-      variants.add(`${word.slice(0, -1)}ies`);
-      variants.add(`${word.slice(0, -1)}ied`);
+      forms.add(`${word.slice(0, -1)}ies`);
+      forms.add(`${word.slice(0, -1)}ied`);
+    }
+
+    if (word.endsWith("ain")) {
+      const stem = word.slice(0, -3);
+
+      forms.add(`${stem}ain`);
+      forms.add(`${stem}ains`);
+      forms.add(`${stem}ained`);
+      forms.add(`${stem}aining`);
+      forms.add(`${stem}ainer`);
+      forms.add(`${stem}ainers`);
+      forms.add(`${stem}inence`);
+      forms.add(`${stem}inences`);
+      forms.add(`${stem}inent`);
+      forms.add(`${stem}inently`);
     }
 
     if (word === "east" || word === "west" || word === "north" || word === "south") {
-      variants.add(`${word}ern`);
-      variants.add(`${word}ward`);
-      variants.add(`${word}wards`);
+      forms.add(`${word}ern`);
+      forms.add(`${word}ward`);
+      forms.add(`${word}wards`);
     }
 
-    return Array.from(variants);
+    return Array.from(forms).filter(Boolean);
   }
 
   async function runSearch(page, shouldUpdateUrl) {
@@ -1064,14 +1088,16 @@
   }
 
   function wordFamilyRegex(word) {
-    const escaped = escapeRegExp(word);
-
     if (state.exactWordOnly) {
       return exactWordRegex(word);
     }
 
+    const forms = getWordFamilyForms(word)
+      .sort((a, b) => b.length - a.length)
+      .map(escapeRegExp);
+
     return new RegExp(
-      `(^|[^A-Za-z0-9])(${escaped}(?:s|es|ed|ing|er|est|ful|fulness|ward|wards|ern)?)(?=[^A-Za-z0-9]|$)`,
+      `(^|[^A-Za-z0-9])(${forms.join("|")})(?=[^A-Za-z0-9]|$)`,
       "gi"
     );
   }
