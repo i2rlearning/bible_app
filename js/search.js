@@ -7,7 +7,8 @@
     bibleName: "Berean Standard Bible"
   };
 
-  const PAGE_SIZE = 10;
+  const DEFAULT_PAGE_SIZE = 10;
+  const PAGE_SIZE_OPTIONS = new Set([10, 25, 50]);
   const MAX_RESULTS_PER_QUERY = 50;
   const API_PAGE_SIZE = 10;
   const MAX_SEARCH_QUERIES = 5;
@@ -25,6 +26,7 @@
     query: "",
     exactWordOnly: false,
     page: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
     allResults: [],
     bookOrder: [],
     activeHighlightPatterns: [],
@@ -44,10 +46,12 @@
     elements.status = document.getElementById("search-status");
     elements.resultsList = document.getElementById("results-list");
     elements.pagination = document.getElementById("search-pagination");
+    elements.pageSize = document.getElementById("results-page-size");
 
     const params = new URLSearchParams(window.location.search);
     state.query = normalizeSearchText(params.get("query") || "");
     state.exactWordOnly = params.get("exact") === "1";
+    state.pageSize = getValidPageSize(params.get("pageSize"));
 
     if (elements.input) {
       elements.input.value = state.query;
@@ -56,6 +60,10 @@
 
     if (elements.exactWordOnly) {
       elements.exactWordOnly.checked = state.exactWordOnly;
+    }
+
+    if (elements.pageSize) {
+      elements.pageSize.value = String(state.pageSize);
     }
 
     updateCurrentBibleLabel();
@@ -114,6 +122,17 @@
       renderEmptyState("Enter a word, phrase, or reference to begin.");
     });
 
+    elements.pageSize?.addEventListener("change", () => {
+      state.pageSize = getValidPageSize(elements.pageSize.value);
+      state.page = 0;
+      updateUrl();
+
+      if (state.allResults.length) {
+        renderResults();
+        scrollToResults();
+      }
+    });
+
     elements.resultsList?.addEventListener("click", (event) => {
       const copyButton = event.target.closest("[data-copy-result]");
 
@@ -125,6 +144,14 @@
 
       copyResult(result, copyButton);
     });
+  }
+
+  function getValidPageSize(value) {
+    const numericValue = Number(value);
+
+    return PAGE_SIZE_OPTIONS.has(numericValue)
+      ? numericValue
+      : DEFAULT_PAGE_SIZE;
   }
 
   function initializePassagePicker() {
@@ -430,6 +457,10 @@
 
     if (state.exactWordOnly) {
       params.set("exact", "1");
+    }
+
+    if (state.pageSize !== DEFAULT_PAGE_SIZE) {
+      params.set("pageSize", String(state.pageSize));
     }
 
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
@@ -739,8 +770,8 @@
       return;
     }
 
-    const start = state.page * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, total);
+    const start = state.page * state.pageSize;
+    const end = Math.min(start + state.pageSize, total);
     const pageResults = state.allResults.slice(start, end);
 
     clearStatus();
@@ -810,7 +841,7 @@
   function renderPagination(total) {
     if (!elements.pagination) return;
 
-    const totalPages = Math.ceil(total / PAGE_SIZE);
+    const totalPages = Math.ceil(total / state.pageSize);
 
     elements.pagination.innerHTML = "";
 
