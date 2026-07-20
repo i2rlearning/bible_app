@@ -9,7 +9,7 @@
 
   const DEFAULT_PAGE_SIZE = 10;
   const PAGE_SIZE_OPTIONS = new Set([10, 25, 50]);
-  const MAX_RESULTS_PER_QUERY = 50;
+  const RAW_RESULTS_FETCH_STEP = 50;
   const API_PAGE_SIZE = 10;
   const STOP_WORDS = new Set([
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "by",
@@ -27,9 +27,14 @@
     page: 0,
     pageSize: DEFAULT_PAGE_SIZE,
     allResults: [],
+    rawResults: [],
     bookOrder: [],
     activeHighlightPatterns: [],
-    passagePicker: null
+    passagePicker: null,
+    activeApiQuery: "",
+    nextApiOffset: 0,
+    apiTotal: null,
+    loadedAllRawResults: false
   };
 
   document.addEventListener("DOMContentLoaded", initializeSearchPage);
@@ -111,7 +116,12 @@
       state.query = "";
       state.page = 0;
       state.allResults = [];
+      state.rawResults = [];
       state.activeHighlightPatterns = [];
+      state.activeApiQuery = "";
+      state.nextApiOffset = 0;
+      state.apiTotal = null;
+      state.loadedAllRawResults = false;
 
       if (elements.input) {
         elements.input.value = "";
@@ -126,10 +136,16 @@
       renderEmptyState("Enter a word, phrase, or reference to begin.");
     });
 
-    elements.pageSize?.addEventListener("change", () => {
+    elements.pageSize?.addEventListener("change", async () => {
       state.pageSize = getValidPageSize(elements.pageSize.value);
       state.page = 0;
       updateUrl();
+
+      if (state.activeApiQuery) {
+        setStatus("Loading more results...");
+        await loadMoreResultsForCurrentSearch(state.pageSize);
+        clearStatus();
+      }
 
       if (state.allResults.length) {
         renderResults();
@@ -392,7 +408,7 @@
     state.exactWordOnly = !!elements.exactWordOnly?.checked;
 
     if (!state.query) {
-      renderEmptyState("Enter a word, phrase, or reference to begin.");
+      renderEmptyState("");
       return;
     }
 
@@ -403,15 +419,10 @@
     showResultsPanel();
     setStatus("Searching...");
     clearResults();
+    resetSearchProgress(buildSearchQueries(state.query)[0] || state.query);
 
     try {
-      const searchQueries = buildSearchQueries(state.query);
-      const rawResults = await fetchAllQueries(searchQueries);
-      const prepared = prepareResults(rawResults, state.query);
-
-      state.allResults = prepared.results;
-      state.activeHighlightPatterns = prepared.highlightPatterns;
-
+      await loadMoreResultsForCurrentSearch((page + 1) * state.pageSize);
       renderResults();
     } catch (error) {
       console.error("Search failed:", error);
@@ -480,62 +491,104 @@
     return state.bookOrder;
   }
 
-  async function fetchAllQueries(queries) {
-    const combined = [];
-    const errors = [];
-
-    for (const query of queries) {
-      try {
-        const queryResults = await fetchAllResultsForQuery(query);
-        combined.push(...queryResults);
-      } catch (error) {
-        errors.push({ query, error });
-        console.warn(`Search query failed: ${query}`, error);
-      }
-    }
-
-    if (!combined.length && errors.length) {
-      throw errors[0].error;
-    }
-
-    return combined;
+  function resetSearchProgress(query) {
+    state.activeApiQuery = query;
+    state.rawResults = [];
+    state.allResults = [];
+    state.activeHighlightPatterns = [];
+    state.nextApiOffset = 0;
+    state.apiTotal = null;
+    state.loadedAllRawResults = false;
   }
 
-  async function fetchAllResultsForQuery(query) {
-    const results = [];
-    const requestedResults = Math.min(
-      Math.max(state.pageSize * 2, state.pageSize),
-      MAX_RESULTS_PER_QUERY
-    );
-    const offsets = [];
+  async function loadMoreResultsForCurrentSearch(targetFilteredCount) {
+    if (!state.activeApiQuery || state.loadedAllRawResults) {
+      return;
+    }
 
-    for (let offset = 0; offset < requestedResults; offset += API_PAGE_SIZE) {
+    let lastLoadedCount = -1;
+
+    while (
+      !state.loadedAllRawResults &&
+      state.allResults.length < targetFilteredCount &&
+      state.allResults.length !== lastLoadedCount
+    ) {
+      lastLoadedCount = state.allResults.length;
+
+      const pages = await fetchNextRawResultBatch(state.activeApiQuery);
+      const batchResults = [];
+
+      pages.forEach((page) => {
+        batchResults.push(...normalizeApiData(page.data));
+      });
+
+      state.rawResults.push(
+        ...batchResults.map((result) => ({
+          ...result,
+          matchedQuery: state.activeApiQuery
+        }))
+      );
+
+      const prepared = prepareResults(state.rawResults, state.query);
+      state.allResults = prepared.results;
+      state.activeHighlightPatterns = prepared.highlightPatterns;
+    }
+  }
+
+  async function fetchNextRawResultBatch(query) {
+    const offsets = [];
+    const batchLimit = state.nextApiOffset + RAW_RESULTS_FETCH_STEP;
+
+    for (
+      let offset = state.nextApiOffset;
+      offset < batchLimit;
+      offset += API_PAGE_SIZE
+    ) {
+      if (state.apiTotal !== null && offset >= state.apiTotal) break;
+
       offsets.push(offset);
+    }
+
+    if (!offsets.length) {
+      state.loadedAllRawResults = true;
+      return [];
     }
 
     const pages = await Promise.allSettled(
       offsets.map((offset) => fetchSearchPage(query, offset))
     );
 
+    const fulfilledPages = [];
     let firstError = null;
 
     pages.forEach((page) => {
       if (page.status === "fulfilled") {
-        results.push(...normalizeApiData(page.value.data));
+        fulfilledPages.push(page.value);
+
+        if (state.apiTotal === null) {
+          state.apiTotal = Number(page.value.data?.total || 0);
+        }
+
         return;
       }
 
       firstError ||= page.reason;
     });
 
-    if (!results.length && firstError) {
+    state.nextApiOffset = offsets[offsets.length - 1] + API_PAGE_SIZE;
+
+    if (
+      !fulfilledPages.length ||
+      (state.apiTotal !== null && state.nextApiOffset >= state.apiTotal)
+    ) {
+      state.loadedAllRawResults = true;
+    }
+
+    if (!fulfilledPages.length && firstError) {
       throw firstError;
     }
 
-    return results.map((result) => ({
-      ...result,
-      matchedQuery: query
-    }));
+    return fulfilledPages;
   }
 
   async function fetchSearchPage(query, offset) {
@@ -785,7 +838,9 @@
     }
 
     if (elements.resultsSummary) {
-      elements.resultsSummary.textContent = `${start + 1}-${end} of ${total}`;
+      const moreMarker = state.loadedAllRawResults ? "" : "+";
+      elements.resultsSummary.textContent =
+        `${start + 1}-${end} of ${total}${moreMarker}`;
     }
 
     if (!elements.resultsList) return;
@@ -844,10 +899,11 @@
     if (!elements.pagination) return;
 
     const totalPages = Math.ceil(total / state.pageSize);
+    const canLoadMore = !state.loadedAllRawResults;
 
     elements.pagination.innerHTML = "";
 
-    if (totalPages <= 1) {
+    if (totalPages <= 1 && !canLoadMore) {
       return;
     }
 
@@ -868,18 +924,34 @@
     nextButton.type = "button";
     nextButton.className = "search-page-button";
     nextButton.textContent = "Next";
-    nextButton.disabled = state.page >= totalPages - 1;
-    nextButton.addEventListener("click", () => {
-      if (state.page < totalPages - 1) {
-        state.page += 1;
-        renderResults();
-        scrollToResults();
+    nextButton.disabled = state.page >= totalPages - 1 && !canLoadMore;
+    nextButton.addEventListener("click", async () => {
+      const nextPage = state.page + 1;
+      const requiredResultCount = (nextPage + 1) * state.pageSize;
+
+      if (
+        state.allResults.length < requiredResultCount &&
+        !state.loadedAllRawResults
+      ) {
+        nextButton.disabled = true;
+        setStatus("Loading more results...");
+        await loadMoreResultsForCurrentSearch(requiredResultCount);
+        clearStatus();
       }
+
+      if (state.allResults.length > nextPage * state.pageSize) {
+        state.page = nextPage;
+      }
+
+      renderResults();
+      scrollToResults();
     });
 
     const pageCount = document.createElement("span");
     pageCount.className = "search-page-count";
-    pageCount.textContent = `Page ${state.page + 1} of ${totalPages}`;
+    pageCount.textContent = state.loadedAllRawResults
+      ? `Page ${state.page + 1} of ${Math.max(totalPages, 1)}`
+      : `Page ${state.page + 1}`;
 
     elements.pagination.append(previousButton, pageCount, nextButton);
   }
