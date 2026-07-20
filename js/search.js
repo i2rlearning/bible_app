@@ -34,7 +34,9 @@
     activeApiQuery: "",
     nextApiOffset: 0,
     apiTotal: null,
-    loadedAllRawResults: false
+    loadedAllRawResults: false,
+    backgroundLoadToken: 0,
+    backgroundLoadInProgress: false
   };
 
   document.addEventListener("DOMContentLoaded", initializeSearchPage);
@@ -122,6 +124,8 @@
       state.nextApiOffset = 0;
       state.apiTotal = null;
       state.loadedAllRawResults = false;
+      state.backgroundLoadToken += 1;
+      state.backgroundLoadInProgress = false;
 
       if (elements.input) {
         elements.input.value = "";
@@ -424,6 +428,7 @@
     try {
       await loadMoreResultsForCurrentSearch((page + 1) * state.pageSize);
       renderResults();
+      startBackgroundResultCount();
     } catch (error) {
       console.error("Search failed:", error);
       setStatus(
@@ -499,6 +504,8 @@
     state.nextApiOffset = 0;
     state.apiTotal = null;
     state.loadedAllRawResults = false;
+    state.backgroundLoadToken += 1;
+    state.backgroundLoadInProgress = false;
   }
 
   async function loadMoreResultsForCurrentSearch(targetFilteredCount) {
@@ -533,6 +540,75 @@
       state.allResults = prepared.results;
       state.activeHighlightPatterns = prepared.highlightPatterns;
     }
+  }
+
+  async function startBackgroundResultCount() {
+    if (!state.activeApiQuery || state.loadedAllRawResults) {
+      return;
+    }
+
+    if (state.backgroundLoadInProgress) {
+      return;
+    }
+
+    const token = state.backgroundLoadToken;
+    state.backgroundLoadInProgress = true;
+
+    try {
+      while (
+        token === state.backgroundLoadToken &&
+        !state.loadedAllRawResults
+      ) {
+        const pages = await fetchNextRawResultBatch(state.activeApiQuery);
+
+        if (token !== state.backgroundLoadToken) {
+          break;
+        }
+
+        if (!pages.length) {
+          break;
+        }
+
+        const batchResults = [];
+
+        pages.forEach((page) => {
+          batchResults.push(...normalizeApiData(page.data));
+        });
+
+        state.rawResults.push(
+          ...batchResults.map((result) => ({
+            ...result,
+            matchedQuery: state.activeApiQuery
+          }))
+        );
+
+        const prepared = prepareResults(state.rawResults, state.query);
+        state.allResults = prepared.results;
+        state.activeHighlightPatterns = prepared.highlightPatterns;
+
+        renderResults();
+
+        await waitForIdleFrame();
+      }
+    } catch (error) {
+      console.warn("Background search count stopped:", error);
+    } finally {
+      if (token === state.backgroundLoadToken) {
+        state.backgroundLoadInProgress = false;
+        renderResults();
+      }
+    }
+  }
+
+  function waitForIdleFrame() {
+    return new Promise((resolve) => {
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(resolve, { timeout: 250 });
+        return;
+      }
+
+      setTimeout(resolve, 0);
+    });
   }
 
   async function fetchNextRawResultBatch(query) {
@@ -838,9 +914,9 @@
     }
 
     if (elements.resultsSummary) {
-      const moreMarker = state.loadedAllRawResults ? "" : "+";
-      elements.resultsSummary.textContent =
-        `${start + 1}-${end} of ${total}${moreMarker}`;
+      elements.resultsSummary.textContent = state.loadedAllRawResults
+        ? `${start + 1}-${end} of ${total}`
+        : `${start + 1}-${end} of ${total} loaded`;
     }
 
     if (!elements.resultsList) return;
