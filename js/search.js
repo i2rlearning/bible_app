@@ -11,7 +11,6 @@
   const PAGE_SIZE_OPTIONS = new Set([10, 25, 50]);
   const MAX_RESULTS_PER_QUERY = 50;
   const API_PAGE_SIZE = 10;
-  const MAX_SEARCH_QUERIES = 5;
   const STOP_WORDS = new Set([
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "by",
     "for", "from", "had", "has", "have", "he", "her", "his", "i", "in",
@@ -318,27 +317,7 @@
     const normalized = normalizeSearchText(query);
     const exactPhrase = getExactPhrase(normalized);
 
-    if (exactPhrase) {
-      return [exactPhrase];
-    }
-
-    const terms = getSearchTerms(normalized);
-
-    if (!terms.length) {
-      return [normalized];
-    }
-
-    const queries = new Set([normalized]);
-
-    if (terms.length === 1 && !state.exactWordOnly) {
-      buildWordVariants(terms[0]).forEach((variant) => queries.add(variant));
-    }
-
-    if (terms.length > 1) {
-      terms.slice(0, 5).forEach((term) => queries.add(term));
-    }
-
-    return Array.from(queries).filter(Boolean).slice(0, MAX_SEARCH_QUERIES);
+    return [exactPhrase || normalized].filter(Boolean);
   }
 
   function buildWordVariants(word) {
@@ -518,22 +497,30 @@
 
   async function fetchAllResultsForQuery(query) {
     const results = [];
+    const requestedResults = Math.min(state.pageSize, MAX_RESULTS_PER_QUERY);
+    const offsets = [];
 
-    for (let offset = 0; offset < MAX_RESULTS_PER_QUERY; offset += API_PAGE_SIZE) {
-      const page = await fetchSearchPage(query, offset);
-      const pageResults = normalizeApiData(page.data);
+    for (let offset = 0; offset < requestedResults; offset += API_PAGE_SIZE) {
+      offsets.push(offset);
+    }
 
-      if (!pageResults.length) {
-        break;
+    const pages = await Promise.allSettled(
+      offsets.map((offset) => fetchSearchPage(query, offset))
+    );
+
+    let firstError = null;
+
+    pages.forEach((page) => {
+      if (page.status === "fulfilled") {
+        results.push(...normalizeApiData(page.value.data));
+        return;
       }
 
-      results.push(...pageResults);
+      firstError ||= page.reason;
+    });
 
-      const total = Number(page.data?.total || results.length || 0);
-
-      if (results.length >= total) {
-        break;
-      }
+    if (!results.length && firstError) {
+      throw firstError;
     }
 
     return results.map((result) => ({
