@@ -1292,6 +1292,10 @@ function startMiniEditorObserver() {
         return false;
       }
 
+      if (isSelectionOnlyClassMutation(mutation)) {
+        return false;
+      }
+
       return true;
     });
 
@@ -1304,6 +1308,7 @@ function startMiniEditorObserver() {
     childList: true,
     subtree: true,
     attributes: true,
+    attributeOldValue: true,
     characterData: true
   });
 
@@ -1312,6 +1317,7 @@ function startMiniEditorObserver() {
       childList: true,
       subtree: true,
       attributes: true,
+      attributeOldValue: true,
       characterData: true
     });
   }
@@ -1728,6 +1734,62 @@ function isAnnotationMetadataOnlyMutation(mutation) {
     mutation.target instanceof Element &&
     mutation.target.matches?.(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
   );
+}
+
+const ANNOTATION_SELECTION_CLASS_NAMES = new Set([
+  "selected-annotation",
+  "anchored-inline-selected"
+]);
+
+function getClassSetFromValue(classValue = "") {
+  return new Set(
+    String(classValue)
+      .split(/\s+/)
+      .map((className) => className.trim())
+      .filter(Boolean)
+  );
+}
+
+function areClassSetsEqual(firstSet, secondSet) {
+  if (firstSet.size !== secondSet.size) return false;
+
+  for (const value of firstSet) {
+    if (!secondSet.has(value)) return false;
+  }
+
+  return true;
+}
+
+function removeSelectionClassesFromSet(classSet) {
+  const result = new Set(classSet);
+
+  ANNOTATION_SELECTION_CLASS_NAMES.forEach((className) => {
+    result.delete(className);
+  });
+
+  return result;
+}
+
+function isSelectionOnlyClassMutation(mutation) {
+  if (
+    mutation.type !== "attributes" ||
+    mutation.attributeName !== "class" ||
+    !(mutation.target instanceof Element)
+  ) {
+    return false;
+  }
+
+  const previousClasses = getClassSetFromValue(mutation.oldValue || "");
+  const currentClasses = getClassSetFromValue(
+    mutation.target.getAttribute("class") || ""
+  );
+
+  const previousWithoutSelection =
+    removeSelectionClassesFromSet(previousClasses);
+  const currentWithoutSelection =
+    removeSelectionClassesFromSet(currentClasses);
+
+  return areClassSetsEqual(previousWithoutSelection, currentWithoutSelection);
 }
 
 const drawingArea = document.getElementById("bible-drawing-area");
