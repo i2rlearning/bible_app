@@ -94,8 +94,11 @@
 body.basic_search {
   min-height: 100vh;
   color: var(--search-text);
-  background:
-    url("../img/wedding-paper.jpg") center top / cover repeat;
+  background-color: #efe6d4;
+  background-image: url("../img/wedding-paper.jpg");
+  background-repeat: repeat;
+  background-position: center top;
+  background-size: auto;
 }
 
 .search-topbar {
@@ -143,7 +146,7 @@ body.basic_search {
 .search-page {
   width: min(980px, calc(100vw - 72px));
   margin: 0 auto;
-  padding: 42px 0 80px;
+  padding: 82px 0 80px;
 }
 
 .search-card,
@@ -152,7 +155,6 @@ body.basic_search {
   border: 1px solid var(--search-border);
   border-radius: 18px;
   box-shadow: 0 12px 34px rgba(42, 30, 18, 0.16);
-  backdrop-filter: blur(2px);
 }
 
 .search-card {
