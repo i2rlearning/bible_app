@@ -855,6 +855,8 @@ window.BibleSelector = (() => {
         true
       );
 
+      updateOpenButton();
+
       try {
         availableBibles =
           await loadBibles(apiUrl);
@@ -958,6 +960,8 @@ window.BibleSelector = (() => {
         "Loading Chapters...",
         true
       );
+
+      updateOpenButton();
 
       try {
         availableBooks =
@@ -1069,6 +1073,8 @@ window.BibleSelector = (() => {
         "Loading Chapters...",
         true
       );
+
+      updateOpenButton();
 
       try {
         availableChapters =
