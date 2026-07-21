@@ -723,6 +723,26 @@ window.BibleSelector = (() => {
         !chapterSelect.value;
     }
 
+    async function syncSelectionsToCurrentPassage() {
+      const apiUrl =
+        languageSelect.value ||
+        languageController.getSelectedApiUrl();
+
+      await populateBibles(
+        apiUrl,
+        true
+      );
+
+      if (bibleSelect.value) {
+        await populateBooks(
+          bibleSelect.value,
+          true
+        );
+      }
+
+      updateOpenButton();
+    }
+
     function getSelectedBible() {
       return availableBibles.find(
         (bible) =>
@@ -806,9 +826,18 @@ window.BibleSelector = (() => {
       );
 
       if (isOpen) {
-        requestAnimationFrame(() => {
-          languageSelect.focus();
-        });
+        syncSelectionsToCurrentPassage()
+          .catch((error) => {
+            console.warn(
+              "Unable to sync passage picker with current page:",
+              error
+            );
+          })
+          .finally(() => {
+            requestAnimationFrame(() => {
+              languageSelect.focus();
+            });
+          });
       }
     }
 
@@ -1280,6 +1309,22 @@ window.BibleSelector = (() => {
       }
     );
 
+    window.addEventListener(
+      "pageshow",
+      () => {
+        if (!isOpen()) {
+          return;
+        }
+
+        syncSelectionsToCurrentPassage().catch((error) => {
+          console.warn(
+            "Unable to restore passage picker state:",
+            error
+          );
+        });
+      }
+    );
+
     updateCurrentLabel();
     updateOpenButton();
 
@@ -1312,22 +1357,17 @@ window.BibleSelector = (() => {
       }
     );
 
-    const initialApiUrl =
-      languageController
-        .getSelectedApiUrl();
+    syncSelectionsToCurrentPassage().catch((error) => {
+      console.error(
+        "Unable to initialize passage picker:",
+        error
+      );
 
-    populateBibles(
-      initialApiUrl,
-      true
-    ).then(() => {
-      if (bibleSelect.value) {
-        return populateBooks(
-          bibleSelect.value,
-          true
-        );
-      }
-
-      return undefined;
+      resetSelect(
+        bibleSelect,
+        "Unable to load Bibles",
+        true
+      );
     });
 
     async function applyPreferences(preferences = {}) {
