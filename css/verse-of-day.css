@@ -397,20 +397,7 @@ body.passage-picker-is-open::before {
 }
 
 .verse-of-day-close {
-  position: relative;
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #16355c;
-  font-size: 0;
-  line-height: 1;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-/*  position: absolute;
+  position: absolute;
   top: 12px;
   right: 14px;
   width: 36px;
@@ -418,14 +405,42 @@ body.passage-picker-is-open::before {
   border: 0;
   background: transparent;
   color: #536477;
-  font-family: Arial, sans-serif;
-  font-size: 1.8rem;
+  font-size: 0;
   line-height: 1;
-  cursor: pointer; */
+  cursor: pointer;
 }
 
-.verse-of-day-close:hover {
-  color: #e60000;  /*#123f7c; */
+.verse-of-day-close::before,
+.verse-of-day-close::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.verse-of-day-close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.verse-of-day-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.verse-of-day-close:hover,
+.verse-of-day-close:focus-visible {
+  color: #e60000;
+}
+
+.verse-of-day-close:hover::before,
+.verse-of-day-close:hover::after,
+.verse-of-day-close:focus-visible::before,
+.verse-of-day-close:focus-visible::after {
+  height: 3px;
 }
 
 .verse-of-day-holiday {
