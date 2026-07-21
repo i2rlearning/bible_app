@@ -397,7 +397,20 @@ body.passage-picker-is-open::before {
 }
 
 .verse-of-day-close {
-  position: absolute;
+  position: relative;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #16355c;
+  font-size: 0;
+  line-height: 1;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+/*  position: absolute;
   top: 12px;
   right: 14px;
   width: 36px;
@@ -408,7 +421,7 @@ body.passage-picker-is-open::before {
   font-family: Arial, sans-serif;
   font-size: 1.8rem;
   line-height: 1;
-  cursor: pointer;
+  cursor: pointer; */
 }
 
 .verse-of-day-close:hover {
