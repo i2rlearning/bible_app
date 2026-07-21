@@ -1019,12 +1019,11 @@ body.passage-picker-is-open::before {
 .passage-picker-close {
   position: relative;
   flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: 1px solid rgba(19, 57, 93, 0.22);
-  border-radius: 50%;
-  background: #fff;
+  border: 0;
+  background: transparent;
   color: #16355c;
   font-size: 0;
   line-height: 1;
@@ -1039,7 +1038,7 @@ body.passage-picker-is-open::before {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 17px;
+  width: 18px;
   height: 2px;
   border-radius: 999px;
   background: currentColor;
@@ -1054,8 +1053,16 @@ body.passage-picker-is-open::before {
   transform: translate(-50%, -50%) rotate(-45deg);
 }
 
-.passage-picker-close:hover {
-  background: #eef4fb;
+.passage-picker-close:hover,
+.passage-picker-close:focus-visible {
+  color: #e60000;
+}
+
+.passage-picker-close:hover::before,
+.passage-picker-close:hover::after,
+.passage-picker-close:focus-visible::before,
+.passage-picker-close:focus-visible::after {
+  height: 3px;
 }
 
 .passage-picker-fields {
