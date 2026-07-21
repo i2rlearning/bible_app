@@ -50,7 +50,11 @@
               </div>
               <!-- Compact passage picker -->
               <div class="column passage-picker-column">
-                <div class="passage-picker" id="passage-picker">
+              <div
+                class="passage-picker"
+                id="passage-picker"
+                data-passage-picker-open-label="Open"
+              >
                 <button
                   type="button"
                   id="passage-picker-toggle"
@@ -62,69 +66,8 @@
                   <span id="current-passage-label">Loading passage...</span>
                   <span class="passage-picker-chevron" aria-hidden="true">▼</span>
                 </button>
-
-                <div
-                  id="passage-picker-panel"
-                  class="passage-picker-panel"
-                  role="dialog"
-                  aria-modal="false"
-                  aria-labelledby="passage-picker-title"
-                  hidden
-                >
-                  <div class="passage-picker-header">
-                    <h2 id="passage-picker-title">Open a Passage</h2>
-                    <button
-                      type="button"
-                      id="passage-picker-close"
-                      class="passage-picker-close"
-                      aria-label="Close passage picker"
-                    >
-                      &times;
-                    </button>
-                  </div>
-
-                  <div class="passage-picker-fields">
-                    <label class="passage-picker-field" for="language-select">
-                      <span>Language</span>
-                      <select id="language-select"></select>
-                    </label>
-
-                    <label class="passage-picker-field" for="bible-select">
-                      <span>Bible</span>
-                      <select id="bible-select">
-                        <option value="">Loading Bibles...</option>
-                      </select>
-                    </label>
-
-                    <label class="passage-picker-field" for="book-select">
-                      <span>Book</span>
-                      <select id="book-select" disabled>
-                        <option value="">Loading Books...</option>
-                      </select>
-                    </label>
-
-                    <label class="passage-picker-field" for="chapter-select">
-                      <span>Chapter</span>
-                      <select id="chapter-select" disabled>
-                        <option value="">...</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div class="passage-picker-actions">
-                    <button
-                      type="button"
-                      id="passage-picker-open"
-                      class="passage-picker-open"
-                      disabled
-                    >
-                      Open
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
-
             <div class="column mobile-current-passage-column">
               <button
                 type="button"
