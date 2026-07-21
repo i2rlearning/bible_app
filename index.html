@@ -349,6 +349,7 @@
           <div
             class="passage-picker passage-picker--landing"
             id="passage-picker"
+            data-passage-picker-open-label="Open"
           >
             <button
               type="button"
@@ -371,75 +372,6 @@
                 &rsaquo;
               </span>
             </button>
-
-            <div
-              id="passage-picker-panel"
-              class="passage-picker-panel landing-passage-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="passage-picker-title"
-              hidden
-            >
-              <div class="passage-picker-header">
-                <h2 id="passage-picker-title">
-                  Open a Passage
-                </h2>
-
-                <button
-                  type="button"
-                  id="passage-picker-close"
-                  class="passage-picker-close"
-                  aria-label="Close passage picker"
-                >
-                  &times;
-                </button>
-              </div>
-
-              <div class="passage-picker-fields">
-                <label class="passage-picker-field" for="language-select">
-                  <span>Language</span>
-                  <select id="language-select"></select>
-                </label>
-
-                <label class="passage-picker-field" for="bible-select">
-                  <span>Bible</span>
-                  <select id="bible-select">
-                    <option value="">
-                      Loading...
-                    </option>
-                  </select>
-                </label>
-
-                <label class="passage-picker-field" for="book-select">
-                  <span>Book</span>
-                  <select id="book-select" disabled>
-                    <option value="">
-                      Loading...
-                    </option>
-                  </select>
-                </label>
-
-                <label class="passage-picker-field" for="chapter-select">
-                  <span>Chapter</span>
-                  <select id="chapter-select" disabled>
-                    <option value="">
-                      Loading...
-                    </option>
-                  </select>
-                </label>
-              </div>
-
-              <div class="passage-picker-actions">
-                <button
-                  type="button"
-                  id="passage-picker-open"
-                  class="passage-picker-open"
-                  disabled
-                >
-                  Open
-                </button>
-              </div>
-            </div>
           </div>
 
           <button
