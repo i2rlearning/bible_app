@@ -458,6 +458,130 @@ window.BibleSelector = (() => {
     selectElement.disabled = disabled;
   }
 
+  function getPassagePickerOpenLabel(root, options = {}) {
+    return (
+      options.openButtonLabel ||
+      root.dataset.passagePickerOpenLabel ||
+      "Open"
+    );
+  }
+
+  function ensurePassagePickerToggle(root) {
+    if (root.querySelector("#passage-picker-toggle")) {
+      return;
+    }
+
+    const toggle = document.createElement("button");
+
+    toggle.type = "button";
+    toggle.id = "passage-picker-toggle";
+    toggle.className = "passage-picker-toggle";
+    toggle.setAttribute("aria-haspopup", "dialog");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", "passage-picker-panel");
+    toggle.innerHTML = `
+      <span id="current-passage-label">Open Passage</span>
+      <span class="passage-picker-chevron" aria-hidden="true">▼</span>
+    `;
+
+    root.prepend(toggle);
+  }
+
+  function ensurePassagePickerMarkup(root, options = {}) {
+    ensurePassagePickerToggle(root);
+
+    const openButtonLabel =
+      getPassagePickerOpenLabel(root, options);
+
+    let panel =
+      root.querySelector("#passage-picker-panel");
+
+    if (!panel) {
+      const panelClass =
+        root.dataset.passagePickerPanelClass || "";
+
+      const panelClassName =
+        ["passage-picker-panel", panelClass]
+          .filter(Boolean)
+          .join(" ");
+
+      root.insertAdjacentHTML(
+        "beforeend",
+        `
+          <div
+            id="passage-picker-panel"
+            class="${panelClassName}"
+            role="dialog"
+            aria-modal="false"
+            aria-labelledby="passage-picker-title"
+            hidden
+          >
+            <div class="passage-picker-header">
+              <h2 id="passage-picker-title">Open a Passage</h2>
+              <button
+                type="button"
+                id="passage-picker-close"
+                class="passage-picker-close"
+                aria-label="Close passage picker"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div class="passage-picker-fields">
+              <label class="passage-picker-field" for="language-select">
+                <span>Language</span>
+                <select id="language-select"></select>
+              </label>
+
+              <label class="passage-picker-field" for="bible-select">
+                <span>Bible</span>
+                <select id="bible-select">
+                  <option value="">Loading Bibles...</option>
+                </select>
+              </label>
+
+              <label class="passage-picker-field" for="book-select">
+                <span>Book</span>
+                <select id="book-select" disabled>
+                  <option value="">Loading Books...</option>
+                </select>
+              </label>
+
+              <label class="passage-picker-field" for="chapter-select">
+                <span>Chapter</span>
+                <select id="chapter-select" disabled>
+                  <option value="">...</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="passage-picker-actions">
+              <button
+                type="button"
+                id="passage-picker-open"
+                class="passage-picker-open"
+                disabled
+              ></button>
+            </div>
+          </div>
+        `
+      );
+
+      panel =
+        root.querySelector("#passage-picker-panel");
+    }
+
+    const openButton =
+      root.querySelector("#passage-picker-open");
+
+    if (openButton) {
+      openButton.textContent = openButtonLabel;
+    }
+
+    return panel;
+  }
+
   function createPassagePicker(options = {}) {
     const root =
       options.root ||
@@ -495,6 +619,8 @@ window.BibleSelector = (() => {
       chapterId:
         options.current?.chapterId || ""
     };
+
+    ensurePassagePickerMarkup(root, options);
 
     const toggle =
       root.querySelector(
@@ -1306,6 +1432,7 @@ window.BibleSelector = (() => {
     loadChapters,
     getChapterState,
     buildVerseUrl,
+    ensurePassagePickerMarkup,
     createPassagePicker,
     clearCache
   };
