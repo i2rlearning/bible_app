@@ -412,7 +412,7 @@ body.passage-picker-is-open::before {
 }
 
 .verse-of-day-close:hover {
-  color: #123f7c;
+  color: #e60000;  /*#123f7c; */
 }
 
 .verse-of-day-holiday {
