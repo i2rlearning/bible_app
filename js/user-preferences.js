@@ -162,6 +162,25 @@ window.UserPreferences = (() => {
     });
   }
 
+  function cleanStayHomeUrl() {
+    const url = new URL(window.location.href);
+
+    if (url.searchParams.get("stay") !== "home") {
+      return;
+    }
+
+    url.searchParams.delete("stay");
+
+    const cleanPath = url.pathname.replace(/index\.html$/i, "");
+    const queryString = url.searchParams.toString();
+    const cleanUrl =
+      (cleanPath || "/") +
+      (queryString ? `?${queryString}` : "") +
+      url.hash;
+
+    window.history.replaceState({}, "", cleanUrl);
+  }
+
   async function redirectFromIndexIfNeeded() {
     if (!/index\.html$|\/$/i.test(window.location.pathname)) {
       return false;
@@ -170,6 +189,7 @@ window.UserPreferences = (() => {
     const params = new URLSearchParams(window.location.search);
 
     if (params.get("stay") === "home") {
+      cleanStayHomeUrl();
       return false;
     }
 
