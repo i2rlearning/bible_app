@@ -589,14 +589,50 @@ button#logout:focus-visible {
   position: absolute;
   top: 12px;
   right: 14px;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: #4d5d70;
-  font-size: 1.8rem;
+  font-size: 0;
   line-height: 1;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.preferences-close::before,
+.preferences-close::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.preferences-close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.preferences-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.preferences-close:hover,
+.preferences-close:focus-visible {
+  color: #e60000;
+}
+
+.preferences-close:hover::before,
+.preferences-close:hover::after,
+.preferences-close:focus-visible::before,
+.preferences-close:focus-visible::after {
+  height: 3px;
 }
 
 .preferences-field {
