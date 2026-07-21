@@ -1075,8 +1075,6 @@ window.BibleSelector = (() => {
 
         const currentChapterExists =
           preserveCurrent &&
-          selectedBibleId ===
-            current.bibleId &&
           selectedBookId ===
             current.bookId &&
           availableChapters.some(
