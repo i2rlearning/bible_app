@@ -235,8 +235,8 @@
   z-index: 9200;
   left: 0;
   top: 0;
-  width: 300px;
-  max-width: calc(100vw - 32px);
+  width: fit-content;
+  max-width: min(420px, calc(100vw - 32px));
   padding: 10px 12px;
   border: 1px solid rgba(19, 57, 93, 0.18);
   border-radius: 10px;
@@ -247,7 +247,7 @@
   line-height: 1.35;
   text-align: center;
   white-space: normal;
-  overflow-wrap: normal;
+  overflow-wrap: break-word;
   word-break: normal;
   box-sizing: border-box;
 }
