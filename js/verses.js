@@ -2,8 +2,6 @@
 
 // Page-level Bible loading, zoom, chapter navigation, and swipe navigation.
 // Load this file before editor.js.
-
-// Ensure API_KEY exists globally or define fallback
 const SCRIPT_API_KEY = typeof API_KEY !== "undefined" ? API_KEY : "";
 
 const searchInput = document.querySelector("#search-input");
