@@ -703,7 +703,7 @@ function configureVerseMenuLinks() {
         
             xhr.open(
               "GET",
-              `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}`
+              `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}?content-type=html&include-notes=true`
             );
         
             xhr.setRequestHeader("api-key", API_KEY);
