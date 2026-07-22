@@ -230,7 +230,7 @@
   left: 0;
   top: 1.4em;
   min-width: 180px;
-  max-width: 280px;
+  max-width: auto;
   padding: 10px 12px;
   border: 1px solid rgba(19, 57, 93, 0.18);
   border-radius: 10px;
