@@ -530,7 +530,76 @@ function configureVerseMenuLinks() {
   }
 }
 
-    
+// ********* Hide footnotes and make viewable *********
+// ********* when the user clicks on "+"      *********
+function prepareApiBibleFootnotes() {
+  document.querySelectorAll(".eb-container .f").forEach((footnote) => {
+    const text = footnote.querySelector(".ft")?.textContent?.trim();
+
+    if (!text) {
+      footnote.remove();
+      return;
+    }
+
+    const wrapper = document.createElement("span");
+    wrapper.className = "api-footnote";
+
+    const marker = document.createElement("button");
+    marker.type = "button";
+    marker.className = "api-footnote-marker";
+    marker.textContent = "+";
+    marker.setAttribute("aria-label", "Show footnote");
+    marker.setAttribute("aria-expanded", "false");
+
+    const popup = document.createElement("span");
+    popup.className = "api-footnote-popup";
+    popup.textContent = text;
+    popup.hidden = true;
+
+    marker.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      const isOpen = marker.classList.contains("is-open");
+
+      closeApiBibleFootnotes();
+
+      if (!isOpen) {
+        marker.classList.add("is-open");
+        marker.textContent = "−";
+        marker.setAttribute("aria-label", "Hide footnote");
+        marker.setAttribute("aria-expanded", "true");
+        popup.hidden = false;
+      }
+    });
+
+    wrapper.append(marker, popup);
+    footnote.replaceWith(wrapper);
+  });
+}
+
+function closeApiBibleFootnotes() {
+  document.querySelectorAll(".api-footnote-marker.is-open").forEach((marker) => {
+    marker.classList.remove("is-open");
+    marker.textContent = "+";
+    marker.setAttribute("aria-label", "Show footnote");
+    marker.setAttribute("aria-expanded", "false");
+
+    const popup = marker.parentElement?.querySelector(".api-footnote-popup");
+    if (popup) {
+      popup.hidden = true;
+    }
+  });
+}
+
+document.addEventListener("click", closeApiBibleFootnotes);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeApiBibleFootnotes();
+  }
+});
+
+
       // ******************* Bible zoom state *********************
       // The visible navbar zoom slider has been removed for now.
       // Keep this logic optional so a future zoom control can reuse it
