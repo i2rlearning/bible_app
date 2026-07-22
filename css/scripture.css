@@ -204,16 +204,17 @@
 .eb-container .api-footnote-marker {
   display: inline-block;
   position: relative;
-  top: -0.45em;
-  min-width: 0.75em;
+  top: -0.5em;
+  transform: translateX(-0.18em);
+  min-width: 0.65em;
   border: 0;
   background: transparent;
   color: #7b4b16;
-  font-size: 0.72em;
-  font-weight: 700;
+  font-size: 0.82em;
+  font-weight: 800;
   line-height: 1;
-  padding: 0 0.08em;
-  margin: 0 0.03em;
+  padding: 0 0.04em;
+  margin: 0 0.02em 0 0;
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
