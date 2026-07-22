@@ -334,16 +334,28 @@ function positionApiBibleFootnotePopup(marker, popup) {
 }
 
 function prepareApiBibleFootnotes() {
-  document.querySelectorAll(".eb-container .f").forEach((footnote) => {
-    const text = footnote.querySelector(".ft")?.textContent?.trim();
+  // Target footnotes using all common API.Bible HTML structures:
+  // .f, .footnote, .note, or elements with class/data attributes for footnotes
+  const selector = ".f, .footnote, .note, span[data-number], .eb-container .f";
+  const footnotes = document.querySelectorAll(selector);
+
+  footnotes.forEach((footnote) => {
+    // Avoid double-processing if called multiple times
+    if (footnote.dataset.footnotePrepared === "true") return;
+    footnote.dataset.footnotePrepared = "true";
+
+    // Grab footnote text (either from .ft child or direct textContent)
+    const textElement = footnote.querySelector(".ft, .footnote-text, .note-text");
+    const text = (textElement ? textElement.textContent : footnote.textContent)?.trim();
 
     if (!text) {
       footnote.remove();
       return;
     }
 
-    const wrapper = document.createElement("span");
-    wrapper.className = "api-footnote";
+    // Clear original visible HTML inside footnote wrapper
+    footnote.innerHTML = "";
+    footnote.classList.add("api-footnote");
 
     const marker = document.createElement("button");
     marker.type = "button";
@@ -357,8 +369,12 @@ function prepareApiBibleFootnotes() {
     popup.textContent = text;
     popup.hidden = true;
 
+    footnote.appendChild(marker);
+    footnote.appendChild(popup);
+
     marker.addEventListener("click", (event) => {
       event.stopPropagation();
+
       const isOpen = marker.classList.contains("is-open");
 
       closeApiBibleFootnotes();
@@ -375,11 +391,12 @@ function prepareApiBibleFootnotes() {
         popup.style.top = "0px";
 
         positionApiBibleFootnotePopup(marker, popup);
+
         popup.style.visibility = "visible";
       }
     });
   });
-} // <-- Fixed: Function was not closed previously
+}
 
 document.addEventListener("click", closeApiBibleFootnotes);
 document.addEventListener("keydown", (event) => {
