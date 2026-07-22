@@ -211,8 +211,8 @@
   background: transparent;
   color: #7b4b16;
   font-size: 0.72em;
-  font-weight: bold;
-  /*vertical-align: super;*/
+  font-weight: 700;
+  vertical-align: super;
   line-height: 1;
   padding: 0 0.12em;
   cursor: pointer;
@@ -225,10 +225,10 @@
 }
 
 .eb-container .api-footnote-popup {
-  position: absolute;
+  position: fixed;
   z-index: 9200;
   left: 0;
-  top: 1.4em;
+  top: 0;
   width: max-content;
   min-width: 180px;
   max-width: min(360px, calc(100vw - 32px));
@@ -747,5 +747,3 @@
 .eb-container [class^=p] + .s, .eb-container [class^=p] + .s1, .eb-container [class^=q] + .s, .eb-container [class^=q] + .s1 {
   margin-top: 1.5em;
 }
-
-/*# sourceMappingURL=eb-scripture-style.css.map */
