@@ -5,7 +5,7 @@ window.BibleLanguage = {
     {
       label: "All",
       apiUrl:
-        "https://api.scripture.api.bible/v1/bibles?include-full-details=false"
+        "https://api.scripture.api.bible/v1/bibles?include-full-details=true"
     },
     {
       label: "English",
@@ -15,12 +15,12 @@ window.BibleLanguage = {
     {
       label: "Greek",
       apiUrl:
-        "https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=false"
+        "https://api.scripture.api.bible/v1/bibles?language=grc&include-full-details=true"
     },
     {
       label: "Hebrew",
       apiUrl:
-        "https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=false"
+        "https://api.scripture.api.bible/v1/bibles?ids=a8a97eebae3c98e4-01%2C%202c500771ea16da93-01%2C%200b262f1ed7f084a6-01&include-full-details=true"
     }
   ],
 
