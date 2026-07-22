@@ -520,7 +520,7 @@ if (bibleChapterID) {
     .then((content) => {
       const el = document.getElementById("bible-text");
       if (el) el.innerHTML = content;
-      prepareApiBibleFootnotes();
+      //prepareApiBibleFootnotes();
 
       requestAnimationFrame(() => {
         if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
