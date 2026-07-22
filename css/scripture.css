@@ -200,6 +200,48 @@
   content: "\a0";
 }
 
+/****** show/hide footnotes ******/
+.eb-container .api-footnote {
+  position: relative;
+  display: inline;
+}
+
+.eb-container .api-footnote-marker {
+  border: 0;
+  background: transparent;
+  color: #7b4b16;
+  font-size: 0.72em;
+  font-weight: 700;
+  vertical-align: super;
+  line-height: 1;
+  padding: 0 0.12em;
+  cursor: pointer;
+}
+
+.eb-container .api-footnote-marker:hover,
+.eb-container .api-footnote-marker:focus-visible,
+.eb-container .api-footnote-marker.is-open {
+  color: #e60000;
+}
+
+.eb-container .api-footnote-popup {
+  position: absolute;
+  z-index: 9200;
+  left: 0;
+  top: 1.4em;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 10px 12px;
+  border: 1px solid rgba(19, 57, 93, 0.18);
+  border-radius: 10px;
+  background: #fffdf7;
+  color: #1f2f3f;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+/********************************/
+
 .eb-container .h {
   text-align: center;
   font-style: italic;
