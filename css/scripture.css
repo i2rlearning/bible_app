@@ -207,15 +207,21 @@
 }
 
 .eb-container .api-footnote-marker {
+  display: inline-block;
+  position: relative;
+  top: -0.45em;
+  min-width: 0.75em;
   border: 0;
   background: transparent;
   color: #7b4b16;
   font-size: 0.72em;
   font-weight: 700;
-  vertical-align: super;
   line-height: 1;
-  padding: 0 0.12em;
+  padding: 0 0.08em;
+  margin: 0 0.03em;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .eb-container .api-footnote-marker:hover,
@@ -747,3 +753,5 @@
 .eb-container [class^=p] + .s, .eb-container [class^=p] + .s1, .eb-container [class^=q] + .s, .eb-container [class^=q] + .s1 {
   margin-top: 1.5em;
 }
+
+/*# sourceMappingURL=eb-scripture-style.css.map */
