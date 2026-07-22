@@ -212,7 +212,7 @@
   color: #7b4b16;
   font-size: 0.72em;
   font-weight: 700;
-  vertical-align: super;
+  /*vertical-align: super;*/
   line-height: 1;
   padding: 0 0.12em;
   cursor: pointer;
