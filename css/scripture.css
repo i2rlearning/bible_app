@@ -235,9 +235,10 @@
   z-index: 9200;
   left: 0;
   top: 0;
-  width: max-content;
   min-width: 180px;
-  max-width: min(360px, calc(100vw - 32px));
+  
+  width: 300px;   /*max-content;
+  max-width: min(360px, calc(100vw - 32px));  */
   padding: 10px 12px;
   border: 1px solid rgba(19, 57, 93, 0.18);
   border-radius: 10px;
