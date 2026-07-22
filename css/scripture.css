@@ -245,7 +245,7 @@
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
   font-size: 0.9rem;
   line-height: 1.35;
-  text-align: center;
+  text-align: center !important;
   white-space: normal;
   overflow-wrap: break-word;
   word-break: normal;
