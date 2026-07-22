@@ -200,10 +200,11 @@
   content: "\a0";
 }
 
-/****** show/hide footnotes ******/
+/****** Show/hide footnotes ******/
+.eb-container span.f.api-footnote,
 .eb-container .api-footnote {
   position: relative;
-  display: inline;
+  display: inline !important;
 }
 
 .eb-container .api-footnote-marker {
@@ -236,7 +237,7 @@
   left: 0;
   top: 0;
   width: fit-content;
-  /*max-width: min(420px, calc(100vw - 32px)); */
+  max-width: min(420px, calc(100vw - 32px));
   padding: 10px 12px;
   border: 1px solid rgba(19, 57, 93, 0.18);
   border-radius: 10px;
@@ -245,11 +246,15 @@
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
   font-size: 0.9rem;
   line-height: 1.35;
-  text-align: center !important;
+  text-align: center;
   white-space: normal;
   overflow-wrap: break-word;
   word-break: normal;
   box-sizing: border-box;
+}
+
+.eb-container .api-footnote-popup[hidden] {
+  display: none !important;
 }
 /********************************/
 
