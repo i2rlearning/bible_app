@@ -334,29 +334,32 @@ function positionApiBibleFootnotePopup(marker, popup) {
 }
 
 function prepareApiBibleFootnotes() {
-  // Target footnotes using all common API.Bible HTML structures:
-  // .f, .footnote, .note, or elements with class/data attributes for footnotes
-  const selector = ".f, .footnote, .note, span[data-number], .eb-container .f";
-  const footnotes = document.querySelectorAll(selector);
-
-  footnotes.forEach((footnote) => {
-    // Avoid double-processing if called multiple times
+  // Target class "f" directly as returned by API.Bible
+  document.querySelectorAll(".f").forEach((footnote) => {
     if (footnote.dataset.footnotePrepared === "true") return;
-    footnote.dataset.footnotePrepared = "true";
 
-    // Grab footnote text (either from .ft child or direct textContent)
-    const textElement = footnote.querySelector(".ft, .footnote-text, .note-text");
-    const text = (textElement ? textElement.textContent : footnote.textContent)?.trim();
+    // Look for class "ft" (footnote text) inside, or fall back to text content
+    const textElement = footnote.querySelector(".ft");
+    let text = textElement ? textElement.textContent.trim() : "";
+
+    // If no .ft element exists, grab text content but strip out caller symbols like '+' or numbers
+    if (!text) {
+      text = footnote.textContent.replace(/^[+\d\*\s]+/, "").trim();
+    }
 
     if (!text) {
       footnote.remove();
       return;
     }
 
-    // Clear original visible HTML inside footnote wrapper
+    // Mark as prepared BEFORE clearing innerHTML
+    footnote.dataset.footnotePrepared = "true";
+
+    // 1. Completely wipe the original API contents (removes data-caller symbol / extra +)
     footnote.innerHTML = "";
     footnote.classList.add("api-footnote");
 
+    // 2. Build custom marker button
     const marker = document.createElement("button");
     marker.type = "button";
     marker.className = "api-footnote-marker";
@@ -364,6 +367,7 @@ function prepareApiBibleFootnotes() {
     marker.setAttribute("aria-label", "Show footnote");
     marker.setAttribute("aria-expanded", "false");
 
+    // 3. Build popup container with ONLY the footnote text
     const popup = document.createElement("span");
     popup.className = "api-footnote-popup";
     popup.textContent = text;
@@ -372,6 +376,7 @@ function prepareApiBibleFootnotes() {
     footnote.appendChild(marker);
     footnote.appendChild(popup);
 
+    // 4. Click event listener
     marker.addEventListener("click", (event) => {
       event.stopPropagation();
 
