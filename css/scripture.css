@@ -201,12 +201,6 @@
 }
 
 /****** Show/hide footnotes ******/
-.eb-container span.f.api-footnote,
-.eb-container .api-footnote {
-  position: relative;
-  display: inline !important;
-}
-
 .eb-container .api-footnote-marker {
   display: inline-block;
   position: relative;
@@ -231,7 +225,7 @@
   color: #e60000;
 }
 
-.eb-container .api-footnote-popup {
+.api-footnote-popup {
   position: fixed;
   z-index: 9200;
   left: 0;
@@ -253,7 +247,7 @@
   box-sizing: border-box;
 }
 
-.eb-container .api-footnote-popup[hidden] {
+.api-footnote-popup[hidden] {
   display: none !important;
 }
 /********************************/
