@@ -763,10 +763,10 @@ function configureVerseMenuLinks() {
       }
     
       function getParameterByName(name) {
-  return new URLSearchParams(
-    window.location.search
-  ).get(name);
-}    
+        return new URLSearchParams(
+          window.location.search
+        ).get(name);
+      }    
          
       // ******************* Left/Right Seals *********************
       const imageLeft = document.getElementById("imgleft");
