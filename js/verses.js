@@ -684,6 +684,7 @@ document.addEventListener("keydown", (event) => {
       getChapterText(bibleChapterID)
           .then((content) => {
             document.getElementById("bible-text").innerHTML = content;
+            prepareApiBibleFootnotes();
         
             requestAnimationFrame(() => {
               if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
