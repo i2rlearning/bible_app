@@ -569,12 +569,53 @@ function prepareApiBibleFootnotes() {
         marker.setAttribute("aria-label", "Hide footnote");
         marker.setAttribute("aria-expanded", "true");
         popup.hidden = false;
+        positionApiBibleFootnotePopup(marker, popup);
       }
     });
 
     wrapper.append(marker, popup);
     footnote.replaceWith(wrapper);
   });
+}
+
+function positionApiBibleFootnotePopup(marker, popup) {
+  const margin = 12;
+
+  popup.style.left = "0px";
+  popup.style.top = "0px";
+
+  const markerRect = marker.getBoundingClientRect();
+  const popupRect = popup.getBoundingClientRect();
+
+  let left =
+    markerRect.left +
+    markerRect.width / 2 -
+    popupRect.width / 2;
+
+  left = Math.max(
+    margin,
+    Math.min(
+      left,
+      window.innerWidth - popupRect.width - margin
+    )
+  );
+
+  const belowTop =
+    markerRect.bottom + 8;
+
+  const aboveTop =
+    markerRect.top - popupRect.height - 8;
+
+  const hasRoomBelow =
+    belowTop + popupRect.height <=
+    window.innerHeight - margin;
+
+  const top = hasRoomBelow
+    ? belowTop
+    : Math.max(margin, aboveTop);
+
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
 }
 
 function closeApiBibleFootnotes() {
@@ -587,6 +628,8 @@ function closeApiBibleFootnotes() {
     const popup = marker.parentElement?.querySelector(".api-footnote-popup");
     if (popup) {
       popup.hidden = true;
+      popup.style.left = "";
+      popup.style.top = "";
     }
   });
 }
@@ -598,6 +641,9 @@ document.addEventListener("keydown", (event) => {
     closeApiBibleFootnotes();
   }
 });
+
+window.addEventListener("resize", closeApiBibleFootnotes);
+window.addEventListener("scroll", closeApiBibleFootnotes, true);
 
 
       // ******************* Bible zoom state *********************
@@ -684,7 +730,6 @@ document.addEventListener("keydown", (event) => {
       getChapterText(bibleChapterID)
           .then((content) => {
             document.getElementById("bible-text").innerHTML = content;
-            prepareApiBibleFootnotes();
         
             requestAnimationFrame(() => {
               if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
