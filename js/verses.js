@@ -730,6 +730,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
       getChapterText(bibleChapterID)
           .then((content) => {
             document.getElementById("bible-text").innerHTML = content;
+            prepareApiBibleFootnotes();
         
             requestAnimationFrame(() => {
               if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
