@@ -201,7 +201,8 @@
 }
 
 /****** Show/hide footnotes ******/
-.eb-container .api-footnote-marker {
+.eb-container .api-footnote-marker,
+.eb-container .api-crossref-marker {
   display: inline-block;
   position: relative;
   top: -0.5em;
@@ -209,7 +210,7 @@
   min-width: 0.65em;
   border: 0;
   background: transparent;
-  color:#ff0000;
+  color: #ff0000;
   font-size: 0.82em;
   font-weight: 800;
   line-height: 1;
@@ -222,7 +223,10 @@
 
 .eb-container .api-footnote-marker:hover,
 .eb-container .api-footnote-marker:focus-visible,
-.eb-container .api-footnote-marker.is-open {
+.eb-container .api-footnote-marker.is-open,
+.eb-container .api-crossref-marker:hover,
+.eb-container .api-crossref-marker:focus-visible,
+.eb-container .api-crossref-marker.is-open {
   color: #e60000;
 }
 
