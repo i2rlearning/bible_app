@@ -650,6 +650,11 @@ function prepareApiBibleCrossReferences() {
   });
 }
 
+function prepareApiBibleInlineMarkers() {
+  prepareApiBibleFootnotes();
+  prepareApiBibleCrossReferences();
+}
+
 function positionApiBibleFootnotePopup(marker, popup) {
   const margin = 12;
 
@@ -818,8 +823,13 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
             prepareApiBibleFootnotes();
         
             requestAnimationFrame(() => {
+              prepareApiBibleInlineMarkers();
+
               if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
                 window.reloadMiniEditorPageAfterChapterRender();
+
+                setTimeout(prepareApiBibleInlineMarkers, 0);
+                setTimeout(prepareApiBibleInlineMarkers, 150);
                 return;
               }
 
@@ -828,6 +838,8 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
               } else {
                 updateBibleZoomLayout();
               }
+
+              setTimeout(prepareApiBibleInlineMarkers, 0);
             });
           })
           .catch((error) => {
