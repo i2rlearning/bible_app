@@ -565,6 +565,14 @@ function prepareApiBibleFootnotes() {
     marker.setAttribute("aria-label", "Show footnote");
     marker.setAttribute("aria-expanded", "false");
 
+    marker.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+
+    marker.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+    });
+
     marker.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -607,6 +615,14 @@ function prepareApiBibleCrossReferences() {
     marker.dataset.footnoteText = text;
     marker.setAttribute("aria-label", "Show cross-reference");
     marker.setAttribute("aria-expanded", "false");
+
+    marker.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+
+    marker.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+    });
 
     marker.addEventListener("click", (event) => {
       event.preventDefault();
@@ -675,12 +691,23 @@ function positionApiBibleFootnotePopup(marker, popup) {
 }
 
 function closeApiBibleFootnotes() {
-  document.querySelectorAll(".api-footnote-marker.is-open").forEach((marker) => {
-    marker.classList.remove("is-open");
-    marker.textContent = "+";
-    marker.setAttribute("aria-label", "Show footnote");
-    marker.setAttribute("aria-expanded", "false");
-  });
+  document
+    .querySelectorAll(
+      ".api-footnote-marker.is-open, .api-crossref-marker.is-open"
+    )
+    .forEach((marker) => {
+      marker.classList.remove("is-open");
+      marker.setAttribute("aria-expanded", "false");
+
+      if (marker.classList.contains("api-crossref-marker")) {
+        marker.textContent = "x";
+        marker.setAttribute("aria-label", "Show cross-reference");
+        return;
+      }
+
+      marker.textContent = "+";
+      marker.setAttribute("aria-label", "Show footnote");
+    });
 
   const popup = document.getElementById("apiBibleFootnotePopup");
 
@@ -789,7 +816,6 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
           .then((content) => {
             document.getElementById("bible-text").innerHTML = content;
             prepareApiBibleFootnotes();
-            prepareApiBibleCrossReferences();
         
             requestAnimationFrame(() => {
               if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
