@@ -591,6 +591,49 @@ function prepareApiBibleFootnotes() {
   });
 }
 
+function prepareApiBibleCrossReferences() {
+  document.querySelectorAll(".eb-container .x").forEach((crossReference) => {
+    const text = crossReference.querySelector(".xt")?.textContent?.trim();
+
+    if (!text) {
+      crossReference.remove();
+      return;
+    }
+
+    const marker = document.createElement("button");
+    marker.type = "button";
+    marker.className = "api-crossref-marker";
+    marker.textContent = "x";
+    marker.dataset.footnoteText = text;
+    marker.setAttribute("aria-label", "Show cross-reference");
+    marker.setAttribute("aria-expanded", "false");
+
+    marker.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const isOpen = marker.classList.contains("is-open");
+
+      closeApiBibleFootnotes();
+
+      if (!isOpen) {
+        marker.classList.add("is-open");
+        marker.textContent = "x";
+        marker.setAttribute("aria-label", "Hide cross-reference");
+        marker.setAttribute("aria-expanded", "true");
+
+        const popup = getApiBibleFootnotePopup();
+        popup.textContent = text;
+        popup.hidden = false;
+
+        positionApiBibleFootnotePopup(marker, popup);
+      }
+    });
+
+    crossReference.replaceWith(marker);
+  });
+}
+
 function positionApiBibleFootnotePopup(marker, popup) {
   const margin = 12;
 
