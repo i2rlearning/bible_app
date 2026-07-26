@@ -789,6 +789,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
           .then((content) => {
             document.getElementById("bible-text").innerHTML = content;
             prepareApiBibleFootnotes();
+            prepareApiBibleCrossReferences();
         
             requestAnimationFrame(() => {
               if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
