@@ -256,10 +256,23 @@ window.UserPreferences = (() => {
 
       bibles.forEach((bible) => {
         const option = document.createElement("option");
+        const bibleName =
+          window.BibleSelector.getBibleTitle(bible).trim();
+
+        const bibleAbbr =
+          window.BibleSelector.getBibleAbbreviation(bible).trim();
+
+        const namesAreDifferent =
+          bibleName.toLowerCase() !== bibleAbbr.toLowerCase();
+
         option.value = bible.id;
-        option.textContent = window.BibleSelector.getBibleAbbreviation(bible);
-        option.dataset.name = window.BibleSelector.getBibleTitle(bible);
-        option.dataset.abbr = window.BibleSelector.getBibleAbbreviation(bible);
+        option.textContent =
+          bibleName && bibleAbbr && namesAreDifferent
+            ? `${bibleName} (${bibleAbbr})`
+            : bibleName || bibleAbbr || bible.id;
+
+        option.dataset.name = bibleName;
+        option.dataset.abbr = bibleAbbr;
         option.title = window.BibleSelector.getBibleTooltip(bible);
         bibleSelect.appendChild(option);
       });
