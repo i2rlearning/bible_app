@@ -1277,7 +1277,9 @@
       const wrapper = document.createElement("div");
       wrapper.innerHTML = result.html;
 
-      if (!isScriptureReferenceQuery(state.query)) {
+      if (isScriptureReferenceQuery(state.query)) {
+        removeHighlightMarks(wrapper);
+      } else {
         highlightElementText(wrapper, state.activeHighlightPatterns);
       }
 
@@ -1506,6 +1508,14 @@
     highlightElementText(root, patterns);
 
     return root.innerHTML;
+  }
+
+  function removeHighlightMarks(root) {
+    root.querySelectorAll("mark").forEach((mark) => {
+      mark.replaceWith(document.createTextNode(mark.textContent || ""));
+    });
+
+    root.normalize();
   }
 
   function highlightElementText(root, patterns) {
