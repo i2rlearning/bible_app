@@ -143,6 +143,31 @@ body.basic_search {
   font-weight: 800;
 }
 
+.search-current-bible-select {
+  max-width: min(420px, calc(100vw - 170px));
+  border: 0;
+  background: transparent;
+  color: var(--search-blue);
+  font-family: Arial, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 0 20px 0 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.search-current-bible-select:focus-visible {
+  outline: 2px solid rgba(18, 63, 124, 0.35);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+.search-current-bible-select:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .search-page {
   width: min(980px, calc(100vw - 72px));
   margin: 0 auto;
@@ -511,5 +536,12 @@ body.basic_search {
 
   .search-result-action {
     width: 100%;
+  }
+}
+
+
+@media (max-width: 560px) {
+  .search-current-bible-select {
+    max-width: calc(100vw - 120px);
   }
 }
