@@ -137,7 +137,7 @@
       }
 
       updateUrl();
-      renderEmptyState("Enter a word, phrase, or reference to begin.");
+      renderEmptyState("Enter a word, phrase, reference, or wildcard such as priest*.");
     });
 
     elements.pageSize?.addEventListener("change", async () => {
@@ -315,17 +315,35 @@
       .trim();
   }
 
-  function getSearchTerms(query) {
+  function getSearchTokens(query) {
     const withoutQuotes = query.replace(/^"|"$/g, "");
-    const terms = withoutQuotes
+    const tokens = withoutQuotes
       .toLowerCase()
-      .match(/[a-z0-9]+(?:'[a-z0-9]+)?/gi);
+      .match(/[a-z0-9]+(?:'[a-z0-9]+)?\*?/gi);
 
-    if (!terms) return [];
+    if (!tokens) return [];
 
-    const meaningful = terms.filter((term) => !STOP_WORDS.has(term));
+    const meaningful = tokens.filter((token) => {
+      const term = getWildcardBase(token);
 
-    return meaningful.length ? meaningful : terms;
+      return term && !STOP_WORDS.has(term);
+    });
+
+    return meaningful.length ? meaningful : tokens;
+  }
+
+  function getSearchTerms(query) {
+    return getSearchTokens(query)
+      .map(getWildcardBase)
+      .filter(Boolean);
+  }
+
+  function getWildcardBase(token) {
+    return String(token || "").replace(/\*+$/g, "");
+  }
+
+  function isWildcardToken(token) {
+    return /\*$/.test(String(token || "")) && getWildcardBase(token).length >= 2;
   }
 
   function isQuotedPhrase(query) {
@@ -342,7 +360,17 @@
     const normalized = normalizeSearchText(query);
     const exactPhrase = getExactPhrase(normalized);
 
-    return [exactPhrase || normalized].filter(Boolean);
+    if (exactPhrase) {
+      return [exactPhrase].filter(Boolean);
+    }
+
+    return [removeWildcardOperators(normalized)].filter(Boolean);
+  }
+
+  function removeWildcardOperators(query) {
+    return normalizeSearchText(query)
+      .replace(/\b([a-z0-9]+(?:'[a-z0-9]+)?)\*/gi, "$1")
+      .trim();
   }
 
   function buildWordVariants(word) {
@@ -804,24 +832,36 @@
       );
     }
 
-    const terms = getSearchTerms(query);
+    const tokens = getSearchTokens(query);
 
-    if (!terms.length) {
+    if (!tokens.length) {
       return true;
     }
 
-    if (state.exactWordOnly) {
-      return terms.some((term) => exactWordRegex(term).test(text));
-    }
+    return tokens.some((token) => {
+      const term = getWildcardBase(token);
 
-    return terms.some((term) => wordFamilyRegex(term).test(text));
+      if (!term) return false;
+
+      if (isWildcardToken(token)) {
+        return prefixWordRegex(term).test(text);
+      }
+
+      if (state.exactWordOnly) {
+        return exactWordRegex(term).test(text);
+      }
+
+      return wordFamilyRegex(term).test(text);
+    });
   }
 
   function scoreResult(result, query) {
     const text = `${result.reference} ${result.text}`;
     const normalizedText = normalizeComparableText(text);
-    const normalizedQuery = normalizeComparableText(query.replace(/^"|"$/g, ""));
-    const terms = getSearchTerms(query);
+    const normalizedQuery = normalizeComparableText(
+      removeWildcardOperators(query.replace(/^"|"$/g, ""))
+    );
+    const tokens = getSearchTokens(query);
 
     let score = 0;
 
@@ -829,8 +869,14 @@
       score += 1000;
     }
 
-    terms.forEach((term) => {
-      if (exactWordRegex(term).test(text)) {
+    tokens.forEach((token) => {
+      const term = getWildcardBase(token);
+
+      if (!term) return;
+
+      if (isWildcardToken(token) && prefixWordRegex(term).test(text)) {
+        score += 130;
+      } else if (exactWordRegex(term).test(text)) {
         score += 120;
       } else if (!state.exactWordOnly && wordFamilyRegex(term).test(text)) {
         score += 55;
@@ -838,8 +884,16 @@
     });
 
     if (
-      terms.length > 1 &&
-      terms.every((term) => exactWordRegex(term).test(text))
+      tokens.length > 1 &&
+      tokens.every((token) => {
+        const term = getWildcardBase(token);
+
+        if (!term) return false;
+
+        return isWildcardToken(token)
+          ? prefixWordRegex(term).test(text)
+          : exactWordRegex(term).test(text);
+      })
     ) {
       score += 500;
     }
@@ -889,9 +943,17 @@
       return patterns;
     }
 
-    getSearchTerms(query).forEach((term) => {
+    getSearchTokens(query).forEach((token) => {
+      const term = getWildcardBase(token);
+
+      if (!term) return;
+
       patterns.push({
-        type: state.exactWordOnly ? "exact" : "family",
+        type: isWildcardToken(token)
+          ? "prefix"
+          : state.exactWordOnly
+            ? "exact"
+            : "family",
         value: term
       });
     });
@@ -1337,6 +1399,10 @@
       return new RegExp(escapeRegExp(pattern.value), "gi");
     }
 
+    if (pattern.type === "prefix") {
+      return prefixWordRegex(pattern.value);
+    }
+
     if (pattern.type === "exact") {
       return exactWordRegex(pattern.value);
     }
@@ -1359,6 +1425,13 @@
 
     return new RegExp(
       `(^|[^A-Za-z0-9])(${forms.join("|")})(?=[^A-Za-z0-9]|$)`,
+      "gi"
+    );
+  }
+
+  function prefixWordRegex(prefix) {
+    return new RegExp(
+      `(^|[^A-Za-z0-9])(${escapeRegExp(prefix)}[A-Za-z0-9']*)(?=[^A-Za-z0-9]|$)`,
       "gi"
     );
   }
