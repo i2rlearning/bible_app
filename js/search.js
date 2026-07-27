@@ -1277,9 +1277,9 @@
       const wrapper = document.createElement("div");
       wrapper.innerHTML = result.html;
 
-      if (isScriptureReferenceQuery(state.query)) {
-        removeHighlightMarks(wrapper);
-      } else {
+      removeHighlightMarks(wrapper);
+
+      if (!isScriptureReferenceQuery(state.query)) {
         highlightElementText(wrapper, state.activeHighlightPatterns);
       }
 
