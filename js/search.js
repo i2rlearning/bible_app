@@ -451,6 +451,7 @@
     showResultsPanel();
     setStatus("Searching...");
     clearResults();
+    renderSearchHeader();
     resetSearchProgress(buildSearchQueries(state.query)[0] || state.query);
 
     try {
@@ -459,11 +460,20 @@
       startBackgroundResultCount();
     } catch (error) {
       console.error("Search failed:", error);
+
+      state.allResults = [];
+      state.rawResults = [];
+      state.activeHighlightPatterns = [];
+      state.loadedAllRawResults = true;
+      state.backgroundLoadInProgress = false;
+
+      renderSearchHeader();
+      clearResults();
+
       setStatus(
         "Search did not return results. Try removing quotes, using fewer words, or checking the spelling.",
         true
       );
-      clearResults();
     }
   }
 
@@ -1006,6 +1016,20 @@
 
       return possibleNames.includes(normalizedReferenceName);
     });
+  }
+
+  function renderSearchHeader() {
+    if (elements.resultsTitle) {
+      elements.resultsTitle.textContent = `Results for “${state.query}”`;
+    }
+
+    if (elements.resultsSummary) {
+      elements.resultsSummary.textContent = "";
+    }
+
+    if (elements.pagination) {
+      elements.pagination.innerHTML = "";
+    }
   }
 
   function renderResults() {
