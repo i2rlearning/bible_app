@@ -1179,37 +1179,7 @@
     const referenceLikePattern =
       /^(?:[1-3]\s*)?[A-Za-z][A-Za-z .'-]*\s+\d+(?::\d+(?:\s*-\s*\d+)?)?$/;
 
-    if (!referenceLikePattern.test(normalizedQuery)) {
-      return false;
-    }
-
-    if (!state.bookOrder.length) {
-      return true;
-    }
-
-    const normalizedReferenceName = normalizedQuery
-      .replace(/\s+\d+(?::\d+(?:\s*-\s*\d+)?)?$/, "")
-      .replace(/\.$/, "")
-      .toLowerCase()
-      .trim();
-
-    return state.bookOrder.some((book) => {
-      const possibleNames = [
-        book.name,
-        book.abbreviation,
-        ...(book.alternateNames || [])
-      ]
-        .filter(Boolean)
-        .map((name) =>
-          String(name)
-            .toLowerCase()
-            .replace(/\.$/, "")
-            .trim()
-        )
-        .filter(Boolean);
-
-      return possibleNames.includes(normalizedReferenceName);
-    });
+    return referenceLikePattern.test(normalizedQuery);
   }
 
   function renderSearchHeader() {
