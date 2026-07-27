@@ -874,6 +874,10 @@
   }
 
   function buildHighlightPatterns(query) {
+    if (isScriptureReferenceQuery(query)) {
+      return [];
+    }
+
     const exactPhrase = getExactPhrase(query);
     const patterns = [];
 
@@ -893,6 +897,45 @@
     });
 
     return patterns;
+  }
+
+  function isScriptureReferenceQuery(query) {
+    const normalizedQuery = normalizeSearchText(query)
+      .replace(/^"|"$/g, "")
+      .replace(/[.;,]+$/g, "")
+      .trim()
+      .toLowerCase();
+
+    if (!normalizedQuery || !state.bookOrder.length) {
+      return false;
+    }
+
+    return state.bookOrder.some((book) => {
+      const possibleNames = [
+        book.name,
+        book.abbreviation,
+        ...(book.alternateNames || [])
+      ]
+        .filter(Boolean)
+        .map((name) =>
+          String(name)
+            .toLowerCase()
+            .replace(/\.$/, "")
+            .trim()
+        )
+        .filter(Boolean);
+
+      return possibleNames.some((name) => {
+        const escapedName = escapeRegExp(name);
+
+        const referencePattern = new RegExp(
+          `^${escapedName}\\.?\\s+\\d+(?::\\d+(?:\\s*-\\s*\\d+)?)?$`,
+          "i"
+        );
+
+        return referencePattern.test(normalizedQuery);
+      });
+    });
   }
 
   function renderResults() {
