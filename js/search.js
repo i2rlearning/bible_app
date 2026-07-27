@@ -903,12 +903,29 @@
     const normalizedQuery = normalizeSearchText(query)
       .replace(/^"|"$/g, "")
       .replace(/[.;,]+$/g, "")
-      .trim()
-      .toLowerCase();
+      .replace(/\s+/g, " ")
+      .trim();
 
-    if (!normalizedQuery || !state.bookOrder.length) {
+    if (!normalizedQuery) {
       return false;
     }
+
+    const referenceLikePattern =
+      /^(?:[1-3]\s*)?[A-Za-z][A-Za-z .'-]*\s+\d+(?::\d+(?:\s*-\s*\d+)?)?$/;
+
+    if (!referenceLikePattern.test(normalizedQuery)) {
+      return false;
+    }
+
+    if (!state.bookOrder.length) {
+      return true;
+    }
+
+    const normalizedReferenceName = normalizedQuery
+      .replace(/\s+\d+(?::\d+(?:\s*-\s*\d+)?)?$/, "")
+      .replace(/\.$/, "")
+      .toLowerCase()
+      .trim();
 
     return state.bookOrder.some((book) => {
       const possibleNames = [
@@ -925,16 +942,7 @@
         )
         .filter(Boolean);
 
-      return possibleNames.some((name) => {
-        const escapedName = escapeRegExp(name);
-
-        const referencePattern = new RegExp(
-          `^${escapedName}\\.?\\s+\\d+(?::\\d+(?:\\s*-\\s*\\d+)?)?$`,
-          "i"
-        );
-
-        return referencePattern.test(normalizedQuery);
-      });
+      return possibleNames.includes(normalizedReferenceName);
     });
   }
 
@@ -988,10 +996,18 @@
     if (result.type === "passage" && result.html) {
       const wrapper = document.createElement("div");
       wrapper.innerHTML = result.html;
-      highlightElementText(wrapper, state.activeHighlightPatterns);
+
+      if (!isScriptureReferenceQuery(state.query)) {
+        highlightElementText(wrapper, state.activeHighlightPatterns);
+      }
+
       text.innerHTML = wrapper.innerHTML;
     } else {
-      text.innerHTML = highlightPlainText(result.text || "", state.activeHighlightPatterns);
+      const patterns = isScriptureReferenceQuery(state.query)
+        ? []
+        : state.activeHighlightPatterns;
+
+      text.innerHTML = highlightPlainText(result.text || "", patterns);
     }
 
     const actions = document.createElement("div");
