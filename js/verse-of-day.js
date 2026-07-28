@@ -24,6 +24,13 @@
 
 window.VerseOfDay = (() => {
   const API_BASE_URL = "https://api.scripture.api.bible/v1";
+  const FIRST_TIME_FALLBACK_BIBLE = {
+    id: "bba9f40183526463-018",
+    abbreviation: "BSB",
+    name: "Berean Standard Bible"
+  };
+  const PREFERRED_BIBLE_WAIT_ATTEMPTS = 6;
+  const PREFERRED_BIBLE_WAIT_MS = 250;
 
   /*
    * Holiday definitions will be added gradually after review.
@@ -389,6 +396,10 @@ window.VerseOfDay = (() => {
     }
 
     return API_KEY;
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   async function requestJson(url) {
@@ -847,44 +858,88 @@ window.VerseOfDay = (() => {
     );
   }
 
-  async function resolveBible() {
-    const preferences = window.UserPreferences?.getAll?.() ||
+  function readStoredPreferencesDirectly() {
+    try {
+      return JSON.parse(
+        localStorage.getItem("branchOfIsraelPreferences") || "{}"
+      );
+    } catch (error) {
+      console.warn("Unable to read saved Bible preferences:", error);
+      return {};
+    }
+  }
+
+  function getPreferredBibleFromAvailableState() {
+    const preferences =
+      window.UserPreferences?.getAll?.() ||
       window.UserPreferences?.read?.() ||
-      null;
+      readStoredPreferencesDirectly();
 
     const saved = preferences || {};
     const preferredState =
       window.UserPreferences?.getPreferredBibleState?.() || {};
 
-    if (preferredState.bibleId) {
-      return {
-        id: preferredState.bibleId,
-        abbreviation:
-          preferredState.bibleAbbr ||
-          saved.bibleAbbr ||
-          preferredState.bibleName ||
-          "",
-        name:
-          preferredState.bibleName ||
-          saved.bibleName ||
-          preferredState.bibleAbbr ||
-          ""
-      };
+    const savedBible =
+      saved.bible ||
+      saved.preferredBible ||
+      {};
+
+    const bibleId =
+      preferredState.bibleId ||
+      saved.bibleId ||
+      savedBible.bibleId ||
+      savedBible.id ||
+      "";
+
+    if (!bibleId) {
+      return null;
     }
 
-    const language =
-      window.UserPreferences?.getPreferredLanguage?.() ||
-      window.BibleSelector?.getSavedLanguage?.() ||
-      window.BibleSelector?.languageOptions?.[0];
+    const bibleAbbr =
+      preferredState.bibleAbbr ||
+      saved.bibleAbbr ||
+      savedBible.bibleAbbr ||
+      savedBible.abbreviation ||
+      preferredState.bibleName ||
+      saved.bibleName ||
+      savedBible.name ||
+      "";
 
-    const bibles = await window.BibleSelector.loadBibles(language?.apiUrl);
-    const firstBible = bibles[0];
+    const bibleName =
+      preferredState.bibleName ||
+      saved.bibleName ||
+      savedBible.bibleName ||
+      savedBible.name ||
+      preferredState.bibleAbbr ||
+      saved.bibleAbbr ||
+      savedBible.abbreviation ||
+      "";
 
-    if (!firstBible) {
-      throw new Error("No Bible is available for the selected language.");
+    return {
+      id: bibleId,
+      abbreviation: bibleAbbr,
+      name: bibleName
+    };
+  }
+
+  async function resolveBible() {
+    for (let attempt = 0; attempt < PREFERRED_BIBLE_WAIT_ATTEMPTS; attempt += 1) {
+      const preferredBible = getPreferredBibleFromAvailableState();
+
+      if (preferredBible?.id) {
+        return preferredBible;
+      }
+
+      await wait(PREFERRED_BIBLE_WAIT_MS);
     }
 
-    return firstBible;
+    const preferredBible = getPreferredBibleFromAvailableState();
+
+    if (preferredBible?.id) {
+      return preferredBible;
+    }
+
+    return { ...FIRST_TIME_FALLBACK_BIBLE };
   }
 
   function htmlToPlainText(html) {
@@ -1012,6 +1067,33 @@ window.VerseOfDay = (() => {
       book,
       chapterId: verse.chapterId
     });
+  }
+
+  async function loadVerseOfDayPayload() {
+    const effectiveDate = getEffectiveDate();
+    const definition = await getTodayDefinition(effectiveDate);
+    const bible = await resolveBible();
+    const verse = await resolveVerseForBible(bible, definition);
+
+    return {
+      effectiveDate,
+      definition,
+      bible,
+      verse
+    };
+  }
+
+  function applyLoadedVerseOfDay(payload) {
+    const { effectiveDate, definition, bible, verse } = payload;
+
+    state.dateKey = getLocalDateKey(effectiveDate);
+    state.holidayLabels = definition.labels || [];
+    state.bible = bible;
+    state.verse = verse;
+    state.openChapterUrl = buildOpenChapterUrl(bible, verse);
+    state.loaded = true;
+
+    renderVerse();
   }
 
   function resetLoadedState() {
@@ -1163,42 +1245,17 @@ window.VerseOfDay = (() => {
     renderLoading();
 
     try {
-      const effectiveDate = getEffectiveDate();
-      const definition = await getTodayDefinition(effectiveDate);
-      const bible = await resolveBible();
-      const verse = await resolveVerseForBible(bible, definition);
-
-      state.dateKey = getLocalDateKey(effectiveDate);
-      state.holidayLabels = definition.labels || [];
-      state.bible = bible;
-      state.verse = verse;
-      state.openChapterUrl = buildOpenChapterUrl(bible, verse);
-      state.loaded = true;
-
-      renderVerse();
-      } catch (error) {
-      console.warn("Verse of the Day first attempt failed. Retrying:", error?.message, error);
+      applyLoadedVerseOfDay(await loadVerseOfDayPayload());
+    } catch (error) {
+      console.warn("Verse of the Day first attempt failed. Retrying:", error);
 
       try {
-        await new Promise((resolve) => window.setTimeout(resolve, 700));
-
-        const effectiveDate = getEffectiveDate();
-        const definition = await getTodayDefinition(effectiveDate);
-        const bible = await resolveBible();
-        const verse = await resolveVerseForBible(bible, definition);
-
-        state.dateKey = getLocalDateKey(effectiveDate);
-        state.holidayLabels = definition.labels || [];
-        state.bible = bible;
-        state.verse = verse;
-        state.openChapterUrl = buildOpenChapterUrl(bible, verse);
-        state.loaded = true;
-
-        renderVerse();
+        await wait(700);
+        applyLoadedVerseOfDay(await loadVerseOfDayPayload());
       } catch (retryError) {
         console.error("Verse of the Day failed after retry:", retryError);
         renderError(
-          `Today’s verse could not be loaded: ${retryError?.message || "Unknown error"}`
+          "Today’s verse could not be loaded. Please try again in a moment."
         );
       }
     } finally {
