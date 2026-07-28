@@ -364,7 +364,7 @@ window.VerseOfDay = (() => {
     { primary: "2CH.7.14", fallbacks: ["MAT.18.20"] },          //FEB 25
     { primary: "PSA.37.5", fallbacks: ["PRO.16.9"] },           //FEB 26
     { primary: "EPH.2.8-EPH.2.9", fallbacks: ["ROM.3.23"] },    //FEB 27
-    { primary: "MAT.5.16", fallbacks: ["PHI.2.15"] }           //FEB 28
+    { primary: "MAT.5.16", fallbacks: ["PHP.2.15"] }           //FEB 28
   ];
 
   const LEAP_DAY_PASSAGE = {
@@ -1176,11 +1176,31 @@ window.VerseOfDay = (() => {
       state.loaded = true;
 
       renderVerse();
-    } catch (error) {
-      console.error("Verse of the Day failed:", error);
-      renderError(
-        "Today’s verse could not be loaded. Please try again in a moment."
-      );
+      } catch (error) {
+      console.warn("Verse of the Day first attempt failed. Retrying:", error);
+
+      try {
+        await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+        const effectiveDate = getEffectiveDate();
+        const definition = await getTodayDefinition(effectiveDate);
+        const bible = await resolveBible();
+        const verse = await resolveVerseForBible(bible, definition);
+
+        state.dateKey = getLocalDateKey(effectiveDate);
+        state.holidayLabels = definition.labels || [];
+        state.bible = bible;
+        state.verse = verse;
+        state.openChapterUrl = buildOpenChapterUrl(bible, verse);
+        state.loaded = true;
+
+        renderVerse();
+      } catch (retryError) {
+        console.error("Verse of the Day failed after retry:", retryError);
+        renderError(
+          "Today’s verse could not be loaded. Please try again in a moment."
+        );
+      }
     } finally {
       state.loading = false;
     }
