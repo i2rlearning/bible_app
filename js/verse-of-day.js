@@ -303,37 +303,68 @@ window.VerseOfDay = (() => {
    * Bible is selected and the primary daily reference is from the New Testament.
    */
   const DAILY_PASSAGES = [
-    { primary: "2COR.5.17", fallbacks: ["ISA.40.31"] },  // Jan 1
-    { primary: "JHN.3.16", fallbacks: ["GEN.22.14"] },  // Jan 2
-    { primary: "ISA.41.10", fallbacks: ["PSA.46.1"] },  // Jan 3
-    { primary: "PHP.4.6", fallbacks: ["PSA.55.22"] },  // Jan 4
-    { primary: "ROM.8.28", fallbacks: ["GEN.50.20"] },  // Jan 5
-    { primary: "PRO.3.5", fallbacks: ["PSA.37.5"] },  // Jan 6
-    { primary: "MAT.11.28", fallbacks: ["ISA.40.29"] },
-    { primary: "PSA.119.105", fallbacks: ["PRO.6.23"] },
-    { primary: "JOS.1.9", fallbacks: ["DEU.31.8"] },
-    { primary: "1CO.13.13", fallbacks: ["MIC.6.8"] },
-    { primary: "ISA.40.31", fallbacks: ["PSA.27.14"] },
-    { primary: "JHN.14.6", fallbacks: ["ISA.35.8"] },
-    { primary: "PSA.46.1", fallbacks: ["NAH.1.7"] },
-    { primary: "GAL.5.22", fallbacks: ["PSA.1.3"] },
-    { primary: "HEB.11.1", fallbacks: ["HAB.2.4"] },
-    { primary: "PSA.34.8", fallbacks: ["JER.17.7"] },
-    { primary: "EPH.2.10", fallbacks: ["ISA.43.7"] },
-    { primary: "LAM.3.22", fallbacks: ["PSA.103.8"] },
-    { primary: "JHN.8.12", fallbacks: ["ISA.60.1"] },
-    { primary: "PSA.121.2", fallbacks: ["PSA.124.8"] },
-    { primary: "COL.3.15", fallbacks: ["ISA.26.3"] },
-    { primary: "MIC.6.8", fallbacks: ["DEU.10.12"] },
-    { primary: "1PE.5.7", fallbacks: ["PSA.55.22"] },
-    { primary: "NUM.6.24", fallbacks: ["PSA.67.1"] },
-    { primary: "REV.21.4", fallbacks: ["ISA.25.8"] },
-    { primary: "PSA.19.14", fallbacks: ["PSA.51.10"] },
-    { primary: "MAT.5.16", fallbacks: ["ISA.58.8"] },
-    { primary: "ISA.43.2", fallbacks: ["PSA.66.12"] },
-    { primary: "PHP.4.13", fallbacks: ["HAB.3.19"] },
-    { primary: "PSA.118.24", fallbacks: ["ECC.3.12"] },
-    { primary: "JER.29.11", fallbacks: ["DEU.30.9"] }
+    // January
+    { primary: "2CO.5.17", fallbacks: ["ISA.40.31"] },     //JAN 1
+    { primary: "JHN.3.16", fallbacks: ["GEN.22.14"] },      //JAN 2
+    { primary: "ISA.41.10", fallbacks: ["PSA.46.1"] },      //JAN 3
+    { primary: "PHP.4.6", fallbacks: ["PSA.55.22"] },       //JAN 4
+    { primary: "ROM.8.28", fallbacks: ["GEN.50.20"] },      //JAN 5
+    { primary: "PRO.3.5", fallbacks: ["PSA.37.5"] },        //JAN 6
+    { primary: "MAT.11.28", fallbacks: ["ISA.40.29"] },     //JAN 7
+    { primary: "PSA.119.105", fallbacks: ["PRO.6.23"] },    //JAN 8
+    { primary: "JOS.1.9", fallbacks: ["DEU.31.8"] },        //JAN 9
+    { primary: "1CO.13.13", fallbacks: ["MIC.6.8"] },       //JAN 10
+    { primary: "ISA.40.31", fallbacks: ["PSA.27.14"] },     //JAN 11
+    { primary: "JHN.14.6", fallbacks: ["ISA.35.8"] },       //JAN 12
+    { primary: "PSA.46.1", fallbacks: ["NAH.1.7"] },        //JAN 13
+    { primary: "GAL.5.22", fallbacks: ["PSA.1.3"] },        //JAN 14
+    { primary: "HEB.11.1", fallbacks: ["HAB.2.4"] },        //JAN 15
+    { primary: "PSA.34.8", fallbacks: ["JER.17.7"] },       //JAN 16
+    { primary: "EPH.2.10", fallbacks: ["ISA.43.7"] },       //JAN 17
+    { primary: "LAM.3.22", fallbacks: ["PSA.103.8"] },      //JAN 18
+    { primary: "JHN.8.12", fallbacks: ["ISA.60.1"] },       //JAN 19
+    { primary: "PSA.121.2", fallbacks: ["PSA.124.8"] },     //JAN 20
+    { primary: "COL.3.15", fallbacks: ["ISA.26.3"] },       //JAN 21
+    { primary: "MIC.6.8", fallbacks: ["DEU.10.12"] },       //JAN 22
+    { primary: "1PE.5.7", fallbacks: ["PSA.55.22"] },       //JAN 23
+    { primary: "NUM.6.24", fallbacks: ["PSA.67.1"] },       //JAN 24
+    { primary: "REV.21.4", fallbacks: ["ISA.25.8"] },       //JAN 25
+    { primary: "PSA.19.14", fallbacks: ["PSA.51.10"] },     //JAN 26
+    { primary: "MAT.5.16", fallbacks: ["ISA.58.8"] },       //JAN 27
+    { primary: "ISA.43.2", fallbacks: ["PSA.66.12"] },      //JAN 28
+    { primary: "PHP.4.13", fallbacks: ["HAB.3.19"] },       //JAN 29
+    { primary: "PSA.118.24", fallbacks: ["ECC.3.12"] },     //JAN 30
+    { primary: "JER.29.11", fallbacks: ["DEU.30.9"] },      //JAN 31
+
+    // February
+    { primary: "ISA.41.10", fallbacks: ["PSA.46.1"] },          //FEB 1
+    { primary: "PRO.3.5-PRO.3.6", fallbacks: ["PSA.51.10"] },   //FEB 2
+    { primary: "ROM.8.28", fallbacks: ["2CO.5.7"] },           //FEB 3
+    { primary: "1CO.16.14", fallbacks: ["1JN.4.19"] },         //FEB 4
+    { primary: "PSA.119.105", fallbacks: ["PRO.2.6"] },         //FEB 5
+    { primary: "MAT.11.28", fallbacks: ["ISA.40.29"] },         //FEB 6
+    { primary: "JHN.14.27", fallbacks: ["PHP.4.7"] },           //FEB 7
+    { primary: "EPH.3.20", fallbacks: ["COL.3.23"] },           //FEB 8
+    { primary: "2TI.1.7", fallbacks: ["PSA.27.1"] },            //FEB 9
+    { primary: "DEU.31.6", fallbacks: ["PSA.23.4"] },           //FEB 10
+    { primary: "GAL.5.22", fallbacks: ["ROM.15.13"] },          //FEB 11
+    { primary: "JAS.1.5", fallbacks: ["PRO.4.7"] },             //FEB 12
+    { primary: "1CO.13.4-1CO.13.5", fallbacks: ["ROM.13.10"] }, //FEB 13
+    { primary: "PSA.37.4", fallbacks: ["MAT.7.7"] },            //FEB 14
+    { primary: "1PE.5.7", fallbacks: ["PSA.55.22"] },           //FEB 15
+    { primary: "COL.3.2", fallbacks: ["PHP.4.8"] },             //FEB 16
+    { primary: "HEB.12.1", fallbacks: ["ISA.40.31"] },          //FEB 17
+    { primary: "PRO.4.23", fallbacks: ["EPH.6.12"] },           //FEB 18
+    { primary: "MAT.11.28", fallbacks: ["PSA.62.1"] },          //FEB 19
+    { primary: "PSA.139.14", fallbacks: ["JER.1.5"] },          //FEB 20
+    { primary: "ISA.43.2", fallbacks: ["ROM.8.39"] },           //FEB 21
+    { primary: "PRO.18.10", fallbacks: ["PSA.91.2"] },          //FEB 22
+    { primary: "ACT.10.34", fallbacks: ["GAL.3.28"] },          //FEB 23
+    { primary: "ROM.12.12", fallbacks: ["1JN.2.27"] },          //FEB 24
+    { primary: "2CH.7.14", fallbacks: ["MAT.18.20"] },          //FEB 25
+    { primary: "PSA.37.5", fallbacks: ["PRO.16.9"] },           //FEB 26
+    { primary: "EPH.2.8-EPH.2.9", fallbacks: ["ROM.3.23"] },    //FEB 27
+    { primary: "MAT.5.16", fallbacks: ["PHI.2.15"] }           //FEB 28
   ];
 
   const LEAP_DAY_PASSAGE = {
