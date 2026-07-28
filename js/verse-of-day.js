@@ -1177,7 +1177,7 @@ window.VerseOfDay = (() => {
 
       renderVerse();
       } catch (error) {
-      console.warn("Verse of the Day first attempt failed. Retrying:", error);
+      console.warn("Verse of the Day first attempt failed. Retrying:", error?.message, error);
 
       try {
         await new Promise((resolve) => window.setTimeout(resolve, 700));
@@ -1198,7 +1198,7 @@ window.VerseOfDay = (() => {
       } catch (retryError) {
         console.error("Verse of the Day failed after retry:", retryError);
         renderError(
-          "Today’s verse could not be loaded. Please try again in a moment."
+          `Today’s verse could not be loaded: ${retryError?.message || "Unknown error"}`
         );
       }
     } finally {
