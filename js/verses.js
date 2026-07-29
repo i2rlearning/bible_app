@@ -543,6 +543,7 @@ let latestApiBibleInlineMarkerSourceHtml = "";
 let apiBibleInlineMarkerObserver = null;
 let apiBibleInlineMarkerRestoreQueued = false;
 let apiBibleInlineMarkerRestoring = false;
+let activeApiBibleInlineMarker = null;
 
 function getApiBibleFootnotePopup() {
   let popup = document.getElementById("apiBibleFootnotePopup");
@@ -731,23 +732,7 @@ function positionApiBibleFootnotePopup(marker, popup) {
 }
 
 function closeApiBibleFootnotes() {
-  document
-    .querySelectorAll(
-      ".api-footnote-marker.is-open, .api-crossref-marker.is-open"
-    )
-    .forEach((marker) => {
-      marker.classList.remove("is-open");
-      marker.setAttribute("aria-expanded", "false");
-
-      if (marker.classList.contains("api-crossref-marker")) {
-        marker.textContent = "x";
-        marker.setAttribute("aria-label", "Show cross-reference");
-        return;
-      }
-
-      marker.textContent = "+";
-      marker.setAttribute("aria-label", "Show footnote");
-    });
+  activeApiBibleInlineMarker = null;
 
   const popup = document.getElementById("apiBibleFootnotePopup");
 
@@ -766,26 +751,15 @@ function toggleApiBibleInlineMarker(marker) {
     return;
   }
 
-  const isOpen = marker.classList.contains("is-open");
-  const isCrossReference =
-    marker.classList.contains("api-crossref-marker");
+  const wasOpen = activeApiBibleInlineMarker === marker;
 
   closeApiBibleFootnotes();
 
-  if (isOpen) {
+  if (wasOpen) {
     return;
   }
 
-  marker.classList.add("is-open");
-  marker.setAttribute("aria-expanded", "true");
-
-  if (isCrossReference) {
-    marker.textContent = "x";
-    marker.setAttribute("aria-label", "Hide cross-reference");
-  } else {
-    marker.textContent = "−";
-    marker.setAttribute("aria-label", "Hide footnote");
-  }
+  activeApiBibleInlineMarker = marker;
 
   const popup = getApiBibleFootnotePopup();
 
