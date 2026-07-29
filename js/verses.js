@@ -1128,6 +1128,39 @@ function hasApiBibleInlineMarkerKey(root, markerKey) {
   ).some((marker) => marker.dataset.apiMarkerKey === markerKey);
 }
 
+function removeLegacyApiBibleInlineMarkers(root) {
+  root
+    .querySelectorAll(API_BIBLE_INLINE_MARKER_SELECTOR)
+    .forEach((marker) => {
+      if (marker.dataset.apiMarkerKey) {
+        return;
+      }
+
+      marker.remove();
+    });
+}
+
+function removeDuplicateApiBibleInlineMarkers(root) {
+  const seenKeys = new Set();
+
+  root
+    .querySelectorAll(API_BIBLE_INLINE_MARKER_SELECTOR)
+    .forEach((marker) => {
+      const markerKey = marker.dataset.apiMarkerKey || "";
+
+      if (!markerKey) {
+        return;
+      }
+
+      if (seenKeys.has(markerKey)) {
+        marker.remove();
+        return;
+      }
+
+      seenKeys.add(markerKey);
+    });
+}
+
 function restoreApiBibleInlineMarkersFromSource() {
   if (
     apiBibleInlineMarkerRestoring ||
@@ -1146,6 +1179,8 @@ function restoreApiBibleInlineMarkersFromSource() {
 
   try {
     prepareApiBibleInlineMarkers();
+    removeLegacyApiBibleInlineMarkers(bibleText);
+    removeDuplicateApiBibleInlineMarkers(bibleText);
 
     const sourceItems = getApiBibleInlineMarkerSourceItems(
       latestApiBibleInlineMarkerSourceHtml
@@ -1164,6 +1199,8 @@ function restoreApiBibleInlineMarkersFromSource() {
 
       insertMarkerInLiveVerse(bibleText, item, marker);
     });
+
+    removeDuplicateApiBibleInlineMarkers(bibleText);
   } finally {
     apiBibleInlineMarkerRestoring = false;
   }
