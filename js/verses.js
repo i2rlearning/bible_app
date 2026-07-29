@@ -534,9 +534,15 @@ function configureVerseMenuLinks() {
 const API_BIBLE_INLINE_MARKER_SELECTOR =
   ".api-footnote-marker, .api-crossref-marker";
 
-let apiBibleInlineMarkersBound = false;
+const API_BIBLE_SOURCE_MARKER_SELECTOR = ".f, .x";
+
+const API_BIBLE_INLINE_MARKER_SAFE_WRAPPER_SELECTOR =
+  ".anchored-inline-annotation, .bible-user-format";
+
+let latestApiBibleInlineMarkerSourceHtml = "";
 let apiBibleInlineMarkerObserver = null;
-let apiBibleInlineMarkerRefreshTimer = null;
+let apiBibleInlineMarkerRestoreQueued = false;
+let apiBibleInlineMarkerRestoring = false;
 
 function getApiBibleFootnotePopup() {
   let popup = document.getElementById("apiBibleFootnotePopup");
@@ -555,216 +561,131 @@ function getApiBibleFootnotePopup() {
   return popup;
 }
 
-function createApiBibleInlineMarker({
-  className,
-  markerText,
-  noteText,
-  label
-}) {
+function getApiBibleSourceMarkerType(sourceMarker) {
+  return sourceMarker.classList.contains("x") ? "crossref" : "footnote";
+}
+
+function getApiBibleSourceMarkerText(sourceMarker) {
+  if (sourceMarker.classList.contains("x")) {
+    return sourceMarker.querySelector(".xt")?.textContent?.trim() || "";
+  }
+
+  return sourceMarker.querySelector(".ft")?.textContent?.trim() || "";
+}
+
+function getApiBibleSourceVerseId(sourceMarker) {
+  const verseId = sourceMarker.getAttribute("data-verse-id");
+
+  if (verseId) {
+    return verseId;
+  }
+
+  const markerId = sourceMarker.id || "";
+
+  return markerId.split("!")[0] || "";
+}
+
+function getApiBibleSourceMarkerKey(sourceMarker, type, verseId, offset) {
+  return [
+    type,
+    sourceMarker.id || "",
+    verseId || "",
+    String(offset)
+  ].join("|");
+}
+
+function createApiBibleInlineMarker(type, text, markerKey) {
   const marker = document.createElement("button");
 
   marker.type = "button";
-  marker.className = className;
-  marker.textContent = markerText;
-  marker.dataset.footnoteText = noteText;
-  marker.setAttribute("aria-label", label);
+
+  if (type === "crossref") {
+    marker.className = "api-crossref-marker";
+    marker.textContent = "x";
+    marker.dataset.footnoteText = text;
+    marker.setAttribute("aria-label", "Show cross-reference");
+  } else {
+    marker.className = "api-footnote-marker";
+    marker.textContent = "+";
+    marker.dataset.footnoteText = text;
+    marker.setAttribute("aria-label", "Show footnote");
+  }
+
+  if (markerKey) {
+    marker.dataset.apiMarkerKey = markerKey;
+  }
+
   marker.setAttribute("aria-expanded", "false");
 
   return marker;
 }
 
+function getApiBibleLiveSourceMarkerKey(sourceMarker, type, verseId) {
+  const bibleText = document.getElementById("bible-text");
+  const verseStart = bibleText
+    ? findSourceVerseStart(bibleText, verseId)
+    : null;
+
+  const offset = verseStart && bibleText
+    ? getTextOffsetFromVerseStart(bibleText, verseStart, sourceMarker)
+    : 0;
+
+  return getApiBibleSourceMarkerKey(
+    sourceMarker,
+    type,
+    verseId,
+    offset
+  );
+}
+
 function prepareApiBibleFootnotes() {
   document.querySelectorAll(".eb-container .f").forEach((footnote) => {
-    const text = footnote.querySelector(".ft")?.textContent?.trim();
+    const text = getApiBibleSourceMarkerText(footnote);
 
     if (!text) {
       footnote.remove();
       return;
     }
 
+    const verseId = getApiBibleSourceVerseId(footnote);
+    const markerKey = getApiBibleLiveSourceMarkerKey(
+      footnote,
+      "footnote",
+      verseId
+    );
+
     footnote.replaceWith(
-      createApiBibleInlineMarker({
-        className: "api-footnote-marker",
-        markerText: "+",
-        noteText: text,
-        label: "Show footnote"
-      })
+      createApiBibleInlineMarker("footnote", text, markerKey)
     );
   });
 }
 
 function prepareApiBibleCrossReferences() {
   document.querySelectorAll(".eb-container .x").forEach((crossReference) => {
-    const text = crossReference.querySelector(".xt")?.textContent?.trim();
+    const text = getApiBibleSourceMarkerText(crossReference);
 
     if (!text) {
       crossReference.remove();
       return;
     }
 
+    const verseId = getApiBibleSourceVerseId(crossReference);
+    const markerKey = getApiBibleLiveSourceMarkerKey(
+      crossReference,
+      "crossref",
+      verseId
+    );
+
     crossReference.replaceWith(
-      createApiBibleInlineMarker({
-        className: "api-crossref-marker",
-        markerText: "x",
-        noteText: text,
-        label: "Show cross-reference"
-      })
+      createApiBibleInlineMarker("crossref", text, markerKey)
     );
   });
 }
 
-function getApiBibleInlineMarkerFromEvent(event) {
-  if (!(event.target instanceof Element)) {
-    return null;
-  }
-
-  const marker = event.target.closest(API_BIBLE_INLINE_MARKER_SELECTOR);
-
-  if (!marker) {
-    return null;
-  }
-
-  const bibleText = document.getElementById("bible-text");
-
-  if (bibleText && !bibleText.contains(marker)) {
-    return null;
-  }
-
-  return marker;
-}
-
-function stopApiBibleInlineMarkerPointerEvent(event) {
-  const marker = getApiBibleInlineMarkerFromEvent(event);
-
-  if (!marker) {
-    return;
-  }
-
-  event.stopPropagation();
-}
-
-function openApiBibleInlineMarker(marker) {
-  const text = marker.dataset.footnoteText || "";
-
-  if (!text) {
-    return;
-  }
-
-  marker.classList.add("is-open");
-  marker.setAttribute("aria-expanded", "true");
-
-  if (marker.classList.contains("api-crossref-marker")) {
-    marker.textContent = "x";
-    marker.setAttribute("aria-label", "Hide cross-reference");
-  } else {
-    marker.textContent = "−";
-    marker.setAttribute("aria-label", "Hide footnote");
-  }
-
-  const popup = getApiBibleFootnotePopup();
-  popup.textContent = text;
-  popup.hidden = false;
-
-  positionApiBibleFootnotePopup(marker, popup);
-}
-
-function handleApiBibleInlineMarkerClick(event) {
-  const marker = getApiBibleInlineMarkerFromEvent(event);
-
-  if (!marker) {
-    return;
-  }
-
-  event.preventDefault();
-  event.stopPropagation();
-
-  const isOpen = marker.classList.contains("is-open");
-
-  closeApiBibleFootnotes();
-
-  if (!isOpen) {
-    openApiBibleInlineMarker(marker);
-  }
-}
-
-function bindApiBibleInlineMarkerEvents() {
-  if (apiBibleInlineMarkersBound) {
-    return;
-  }
-
-  apiBibleInlineMarkersBound = true;
-
-  document.addEventListener(
-    "pointerdown",
-    stopApiBibleInlineMarkerPointerEvent,
-    true
-  );
-
-  document.addEventListener(
-    "mousedown",
-    stopApiBibleInlineMarkerPointerEvent,
-    true
-  );
-
-  document.addEventListener(
-    "click",
-    handleApiBibleInlineMarkerClick,
-    true
-  );
-}
-
-function nodeContainsApiBibleInlineMarkup(node) {
-  if (!(node instanceof Element)) {
-    return false;
-  }
-
-  return Boolean(
-    node.matches(".f, .x, .eb-container .f, .eb-container .x") ||
-    node.querySelector(".f, .x")
-  );
-}
-
-function scheduleApiBibleInlineMarkerPreparation() {
-  if (apiBibleInlineMarkerRefreshTimer) {
-    window.clearTimeout(apiBibleInlineMarkerRefreshTimer);
-  }
-
-  apiBibleInlineMarkerRefreshTimer = window.setTimeout(() => {
-    apiBibleInlineMarkerRefreshTimer = null;
-    prepareApiBibleInlineMarkers();
-  }, 0);
-}
-
-function observeApiBibleInlineMarkers() {
-  const bibleText = document.getElementById("bible-text");
-
-  if (!bibleText || apiBibleInlineMarkerObserver) {
-    return;
-  }
-
-  apiBibleInlineMarkerObserver = new MutationObserver((mutations) => {
-    const shouldPrepare = mutations.some((mutation) => {
-      return Array.from(mutation.addedNodes).some(
-        nodeContainsApiBibleInlineMarkup
-      );
-    });
-
-    if (shouldPrepare) {
-      scheduleApiBibleInlineMarkerPreparation();
-    }
-  });
-
-  apiBibleInlineMarkerObserver.observe(bibleText, {
-    childList: true,
-    subtree: true
-  });
-}
-
 function prepareApiBibleInlineMarkers() {
-  bindApiBibleInlineMarkerEvents();
+  bindApiBibleInlineMarkerClicks();
   prepareApiBibleFootnotes();
   prepareApiBibleCrossReferences();
-  observeApiBibleInlineMarkers();
 }
 
 window.prepareApiBibleInlineMarkers = prepareApiBibleInlineMarkers;
@@ -838,6 +759,482 @@ function closeApiBibleFootnotes() {
   }
 }
 
+function toggleApiBibleInlineMarker(marker) {
+  const text = marker.dataset.footnoteText || "";
+
+  if (!text) {
+    return;
+  }
+
+  const isOpen = marker.classList.contains("is-open");
+  const isCrossReference =
+    marker.classList.contains("api-crossref-marker");
+
+  closeApiBibleFootnotes();
+
+  if (isOpen) {
+    return;
+  }
+
+  marker.classList.add("is-open");
+  marker.setAttribute("aria-expanded", "true");
+
+  if (isCrossReference) {
+    marker.textContent = "x";
+    marker.setAttribute("aria-label", "Hide cross-reference");
+  } else {
+    marker.textContent = "−";
+    marker.setAttribute("aria-label", "Hide footnote");
+  }
+
+  const popup = getApiBibleFootnotePopup();
+
+  popup.textContent = text;
+  popup.hidden = false;
+
+  positionApiBibleFootnotePopup(marker, popup);
+}
+
+function bindApiBibleInlineMarkerClicks() {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText || bibleText.dataset.apiInlineMarkerClicksBound === "true") {
+    return;
+  }
+
+  bibleText.dataset.apiInlineMarkerClicksBound = "true";
+
+  bibleText.addEventListener("pointerdown", (event) => {
+    const marker = event.target.closest(
+      API_BIBLE_INLINE_MARKER_SELECTOR
+    );
+
+    if (!marker || !bibleText.contains(marker)) {
+      return;
+    }
+
+    event.stopPropagation();
+  });
+
+  bibleText.addEventListener("mousedown", (event) => {
+    const marker = event.target.closest(
+      API_BIBLE_INLINE_MARKER_SELECTOR
+    );
+
+    if (!marker || !bibleText.contains(marker)) {
+      return;
+    }
+
+    event.stopPropagation();
+  });
+
+  bibleText.addEventListener("click", (event) => {
+    const marker = event.target.closest(
+      API_BIBLE_INLINE_MARKER_SELECTOR
+    );
+
+    if (!marker || !bibleText.contains(marker)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    toggleApiBibleInlineMarker(marker);
+  });
+}
+
+function findSourceVerseStart(root, verseId) {
+  if (!verseId) {
+    return null;
+  }
+
+  const sid = apiBibleVerseIdToSid(verseId);
+
+  return Array.from(root.querySelectorAll(".v")).find((verseNumber) => {
+    return (
+      verseNumber.getAttribute("data-sid") === sid ||
+      verseNumber.getAttribute("id") === verseId ||
+      verseNumber.getAttribute("data-verse-id") === verseId
+    );
+  }) || null;
+}
+
+function apiBibleVerseIdToSid(verseId) {
+  const parts = String(verseId || "").split(".");
+
+  if (parts.length < 3) {
+    return verseId;
+  }
+
+  const bookId = parts[0];
+  const chapterNumber = parts[1];
+  const verseNumber = parts.slice(2).join("-");
+
+  return `${bookId} ${chapterNumber}:${verseNumber}`;
+}
+
+function getTextOffsetFromVerseStart(root, verseStart, targetNode) {
+  let active = false;
+  let done = false;
+  let offset = 0;
+
+  function walk(node) {
+    if (done) {
+      return;
+    }
+
+    if (node === verseStart) {
+      active = true;
+      return;
+    }
+
+    if (node === targetNode) {
+      done = true;
+      return;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (active) {
+        offset += node.nodeValue.length;
+      }
+
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return;
+    }
+
+    if (active && node.matches(".v")) {
+      done = true;
+      return;
+    }
+
+    if (
+      active &&
+      node.matches(API_BIBLE_SOURCE_MARKER_SELECTOR)
+    ) {
+      return;
+    }
+
+    Array.from(node.childNodes).forEach(walk);
+  }
+
+  walk(root);
+
+  return offset;
+}
+
+function getApiBibleInlineMarkerSourceItems(sourceHtml) {
+  if (!sourceHtml) {
+    return [];
+  }
+
+  const sourceRoot = document.createElement("div");
+  sourceRoot.innerHTML = sourceHtml;
+
+  return Array.from(
+    sourceRoot.querySelectorAll(API_BIBLE_SOURCE_MARKER_SELECTOR)
+  )
+    .map((sourceMarker) => {
+      const type = getApiBibleSourceMarkerType(sourceMarker);
+      const text = getApiBibleSourceMarkerText(sourceMarker);
+      const verseId = getApiBibleSourceVerseId(sourceMarker);
+      const verseStart = findSourceVerseStart(sourceRoot, verseId);
+      const offset = verseStart
+        ? getTextOffsetFromVerseStart(
+            sourceRoot,
+            verseStart,
+            sourceMarker
+          )
+        : 0;
+
+      return {
+        type,
+        text,
+        verseId,
+        offset,
+        key: getApiBibleSourceMarkerKey(
+          sourceMarker,
+          type,
+          verseId,
+          offset
+        )
+      };
+    })
+    .filter((item) => item.text && item.verseId)
+    .sort((a, b) => {
+      if (a.verseId !== b.verseId) {
+        return a.verseId.localeCompare(b.verseId);
+      }
+
+      return b.offset - a.offset;
+    });
+}
+
+function findLiveVerseStart(root, verseId) {
+  return findSourceVerseStart(root, verseId);
+}
+
+function isFirstTextNodeInsideWrapper(textNode, wrapper) {
+  let firstTextNode = null;
+
+  const walker = document.createTreeWalker(
+    wrapper,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        return node.nodeValue.length
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
+      }
+    }
+  );
+
+  firstTextNode = walker.nextNode();
+
+  return firstTextNode === textNode;
+}
+
+function isLastTextNodeInsideWrapper(textNode, wrapper) {
+  let lastTextNode = null;
+
+  const walker = document.createTreeWalker(
+    wrapper,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        return node.nodeValue.length
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
+      }
+    }
+  );
+
+  let currentNode = walker.nextNode();
+
+  while (currentNode) {
+    lastTextNode = currentNode;
+    currentNode = walker.nextNode();
+  }
+
+  return lastTextNode === textNode;
+}
+
+function insertMarkerAtTextNodeOffset(textNode, offset, marker) {
+  const wrapper = textNode.parentElement?.closest(
+    API_BIBLE_INLINE_MARKER_SAFE_WRAPPER_SELECTOR
+  );
+
+  if (
+    wrapper &&
+    offset <= 0 &&
+    isFirstTextNodeInsideWrapper(textNode, wrapper)
+  ) {
+    wrapper.before(marker);
+    return true;
+  }
+
+  if (
+    wrapper &&
+    offset >= textNode.nodeValue.length &&
+    isLastTextNodeInsideWrapper(textNode, wrapper)
+  ) {
+    wrapper.after(marker);
+    return true;
+  }
+
+  if (offset <= 0) {
+    textNode.parentNode.insertBefore(marker, textNode);
+    return true;
+  }
+
+  if (offset >= textNode.nodeValue.length) {
+    textNode.parentNode.insertBefore(marker, textNode.nextSibling);
+    return true;
+  }
+
+  const afterText = textNode.splitText(offset);
+  textNode.parentNode.insertBefore(marker, afterText);
+
+  return true;
+}
+
+function insertMarkerInLiveVerse(root, item, marker) {
+  const verseStart = findLiveVerseStart(root, item.verseId);
+
+  if (!verseStart) {
+    return false;
+  }
+
+  let active = false;
+  let currentOffset = 0;
+  let inserted = false;
+
+  function walk(node) {
+    if (inserted) {
+      return;
+    }
+
+    if (node === verseStart) {
+      active = true;
+      return;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!active) {
+        return;
+      }
+
+      const textLength = node.nodeValue.length;
+      const nextOffset = currentOffset + textLength;
+
+      if (item.offset <= nextOffset) {
+        const localOffset = Math.max(
+          0,
+          Math.min(textLength, item.offset - currentOffset)
+        );
+
+        inserted = insertMarkerAtTextNodeOffset(
+          node,
+          localOffset,
+          marker
+        );
+        return;
+      }
+
+      currentOffset = nextOffset;
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return;
+    }
+
+    if (active && node.matches(".v")) {
+      inserted = true;
+      return;
+    }
+
+    if (active && node.matches(API_BIBLE_INLINE_MARKER_SELECTOR)) {
+      return;
+    }
+
+    Array.from(node.childNodes).forEach(walk);
+  }
+
+  walk(root);
+
+  if (inserted) {
+    return marker.isConnected;
+  }
+
+  const nextVerseNumber = Array.from(root.querySelectorAll(".v")).find(
+    (verseNumber) =>
+      verseNumber !== verseStart &&
+      Boolean(
+        verseStart.compareDocumentPosition(verseNumber) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      )
+  );
+
+  if (nextVerseNumber) {
+    nextVerseNumber.before(marker);
+    return true;
+  }
+
+  verseStart.parentNode.appendChild(marker);
+  return true;
+}
+
+function hasApiBibleInlineMarkerKey(root, markerKey) {
+  return Array.from(
+    root.querySelectorAll(API_BIBLE_INLINE_MARKER_SELECTOR)
+  ).some((marker) => marker.dataset.apiMarkerKey === markerKey);
+}
+
+function restoreApiBibleInlineMarkersFromSource() {
+  if (
+    apiBibleInlineMarkerRestoring ||
+    !latestApiBibleInlineMarkerSourceHtml
+  ) {
+    return;
+  }
+
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText) {
+    return;
+  }
+
+  apiBibleInlineMarkerRestoring = true;
+
+  try {
+    prepareApiBibleInlineMarkers();
+
+    const sourceItems = getApiBibleInlineMarkerSourceItems(
+      latestApiBibleInlineMarkerSourceHtml
+    );
+
+    sourceItems.forEach((item) => {
+      if (hasApiBibleInlineMarkerKey(bibleText, item.key)) {
+        return;
+      }
+
+      const marker = createApiBibleInlineMarker(
+        item.type,
+        item.text,
+        item.key
+      );
+
+      insertMarkerInLiveVerse(bibleText, item, marker);
+    });
+  } finally {
+    apiBibleInlineMarkerRestoring = false;
+  }
+}
+
+function queueApiBibleInlineMarkerRestore() {
+  if (
+    apiBibleInlineMarkerRestoreQueued ||
+    apiBibleInlineMarkerRestoring
+  ) {
+    return;
+  }
+
+  apiBibleInlineMarkerRestoreQueued = true;
+
+  requestAnimationFrame(() => {
+    apiBibleInlineMarkerRestoreQueued = false;
+    restoreApiBibleInlineMarkersFromSource();
+  });
+}
+
+function observeApiBibleInlineMarkerContainer() {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText) {
+    return;
+  }
+
+  if (apiBibleInlineMarkerObserver) {
+    apiBibleInlineMarkerObserver.disconnect();
+  }
+
+  apiBibleInlineMarkerObserver = new MutationObserver(() => {
+    queueApiBibleInlineMarkerRestore();
+  });
+
+  apiBibleInlineMarkerObserver.observe(bibleText, {
+    childList: true,
+    subtree: true
+  });
+}
+
+window.restoreApiBibleInlineMarkersFromSource =
+  restoreApiBibleInlineMarkersFromSource;
+
 document.addEventListener("click", closeApiBibleFootnotes);
 
 document.addEventListener("keydown", (event) => {
@@ -850,7 +1247,8 @@ window.addEventListener("resize", closeApiBibleFootnotes);
 window.addEventListener("scroll", closeApiBibleFootnotes, true);
 
 
-      // ******************* Bible zoom state *********************
+
+// ******************* Bible zoom state *********************
       // The visible navbar zoom slider has been removed for now.
       // Keep this logic optional so a future zoom control can reuse it
       // without breaking chapter loading when #font-size-slider is absent.
@@ -933,32 +1331,53 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
       // ******************* Load chapter text *********************
       getChapterText(bibleChapterID)
           .then((content) => {
-            document.getElementById("bible-text").innerHTML = content;
-        
-            requestAnimationFrame(() => {
-              prepareApiBibleInlineMarkers();
+            const bibleText = document.getElementById("bible-text");
 
-              if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
-                const reloadResult = window.reloadMiniEditorPageAfterChapterRender();
+            latestApiBibleInlineMarkerSourceHtml = content;
+            bibleText.innerHTML = content;
 
-                if (reloadResult && typeof reloadResult.finally === "function") {
-                  reloadResult.finally(prepareApiBibleInlineMarkers);
-                }
+            prepareApiBibleInlineMarkers();
+            observeApiBibleInlineMarkerContainer();
 
-                [0, 150, 500, 1000, 2000].forEach((delay) => {
-                  setTimeout(prepareApiBibleInlineMarkers, delay);
-                });
-
-                return;
-              }
+            const restoreMarkersAndRefreshLayout = () => {
+              restoreApiBibleInlineMarkersFromSource();
 
               if (typeof window.refreshBibleAnnotationLayout === "function") {
                 window.refreshBibleAnnotationLayout();
               } else {
                 updateBibleZoomLayout();
               }
+            };
 
-              setTimeout(prepareApiBibleInlineMarkers, 0);
+            requestAnimationFrame(() => {
+              restoreApiBibleInlineMarkersFromSource();
+
+              if (typeof window.reloadMiniEditorPageAfterChapterRender === "function") {
+                const reloadResult =
+                  window.reloadMiniEditorPageAfterChapterRender();
+
+                Promise
+                  .resolve(reloadResult)
+                  .then(restoreMarkersAndRefreshLayout)
+                  .catch((error) => {
+                    console.error(
+                      "Failed to reload saved editor markings:",
+                      error
+                    );
+
+                    restoreMarkersAndRefreshLayout();
+                  });
+
+                setTimeout(restoreMarkersAndRefreshLayout, 0);
+                setTimeout(restoreMarkersAndRefreshLayout, 150);
+                setTimeout(restoreMarkersAndRefreshLayout, 600);
+                return;
+              }
+
+              restoreMarkersAndRefreshLayout();
+
+              setTimeout(restoreMarkersAndRefreshLayout, 0);
+              setTimeout(restoreMarkersAndRefreshLayout, 150);
             });
           })
           .catch((error) => {
@@ -966,7 +1385,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
             document.getElementById("bible-text").innerHTML =
               "<p>Could not load chapter text. Please try again later.</p>";
           });
-    
+
       /**
        * Gets verses from API.Bible
        */
