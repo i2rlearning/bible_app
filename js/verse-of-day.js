@@ -346,8 +346,8 @@ window.VerseOfDay = (() => {
     // February
     { primary: "ISA.41.10", fallbacks: ["PSA.46.1"] },          //FEB 1
     { primary: "PRO.3.5-PRO.3.6", fallbacks: ["PSA.51.10"] },   //FEB 2
-    { primary: "ROM.8.28", fallbacks: ["2CO.5.7"] },           //FEB 3
-    { primary: "1CO.16.13-1CO.16.14", fallbacks: ["1JN.4.19"] },         //FEB 4
+    { primary: "ROM.8.28", fallbacks: ["2CO.5.7"] },            //FEB 3
+    { primary: "1CO.16.13-1CO.16.14", fallbacks: ["1JN.4.19"] }, //FEB 4
     { primary: "PSA.119.105", fallbacks: ["PRO.2.6"] },         //FEB 5
     { primary: "MAT.11.28", fallbacks: ["ISA.40.29"] },         //FEB 6
     { primary: "JHN.14.27", fallbacks: ["PHP.4.7"] },           //FEB 7
