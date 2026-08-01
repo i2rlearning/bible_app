@@ -1140,8 +1140,46 @@ function removeLegacyApiBibleInlineMarkers(root) {
     });
 }
 
+function getApiBibleInlineMarkerIdentityFromKey(markerKey) {
+  const keyParts = String(markerKey || "").split("|");
+  const type = keyParts[0] || "";
+  const sourceId = keyParts[1] || "";
+  const verseId = keyParts[2] || "";
+
+  if (!type || !sourceId || !verseId) {
+    return "";
+  }
+
+  return `${type}|${sourceId}|${verseId}`;
+}
+
+function getApiBibleInlineMarkerIdentity(marker) {
+  return getApiBibleInlineMarkerIdentityFromKey(
+    marker.dataset.apiMarkerKey || ""
+  );
+}
+
+function getApiBibleSourceItemIdentity(item) {
+  return getApiBibleInlineMarkerIdentityFromKey(item.key || "");
+}
+
+function hasApiBibleInlineMarkerIdentity(root, item) {
+  const itemIdentity = getApiBibleSourceItemIdentity(item);
+
+  if (!itemIdentity) {
+    return false;
+  }
+
+  return Array.from(
+    root.querySelectorAll(API_BIBLE_INLINE_MARKER_SELECTOR)
+  ).some((marker) => {
+    return getApiBibleInlineMarkerIdentity(marker) === itemIdentity;
+  });
+}
+
 function removeDuplicateApiBibleInlineMarkers(root) {
   const seenKeys = new Set();
+  const seenIdentities = new Set();
 
   root
     .querySelectorAll(API_BIBLE_INLINE_MARKER_SELECTOR)
@@ -1152,12 +1190,22 @@ function removeDuplicateApiBibleInlineMarkers(root) {
         return;
       }
 
-      if (seenKeys.has(markerKey)) {
+      const markerIdentity =
+        getApiBibleInlineMarkerIdentity(marker);
+
+      if (
+        seenKeys.has(markerKey) ||
+        (markerIdentity && seenIdentities.has(markerIdentity))
+      ) {
         marker.remove();
         return;
       }
 
       seenKeys.add(markerKey);
+
+      if (markerIdentity) {
+        seenIdentities.add(markerIdentity);
+      }
     });
 }
 
@@ -1187,7 +1235,10 @@ function restoreApiBibleInlineMarkersFromSource() {
     );
 
     sourceItems.forEach((item) => {
-      if (hasApiBibleInlineMarkerKey(bibleText, item.key)) {
+      if (
+        hasApiBibleInlineMarkerKey(bibleText, item.key) ||
+        hasApiBibleInlineMarkerIdentity(bibleText, item)
+      ) {
         return;
       }
 
