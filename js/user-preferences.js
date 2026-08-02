@@ -14,13 +14,14 @@
 
 window.UserPreferences = (() => {
   const STORAGE_KEY = "branchOfIsraelPreferences";
+  const BSB_BIBLE_ID = "bba9f40183526463-01";
 
   const DEFAULTS = {
     languageApiUrl: "",
     languageName: "All",
-    bibleId: "",
-    bibleAbbr: "",
-    bibleName: "",
+    bibleId: BSB_BIBLE_ID, // <-- Default to BSB instead of ""
+    bibleAbbr: "BSB",
+    bibleName: "Berean Standard Bible",
     landingPage: "index",
     freehandWarningEnabled: true,
     lastPassage: null
