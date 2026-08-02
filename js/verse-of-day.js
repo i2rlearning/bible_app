@@ -25,7 +25,7 @@
 window.VerseOfDay = (() => {
   const API_BASE_URL = "https://api.scripture.api.bible/v1";
   const FIRST_TIME_FALLBACK_BIBLE = {
-    id: "bba9f40183526463-018",
+    id: "bba9f40183526463-01",
     abbreviation: "BSB",
     name: "Berean Standard Bible"
   };
