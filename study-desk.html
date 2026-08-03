@@ -69,7 +69,7 @@
 
         <section id="study-auth-message" class="study-auth-message" hidden>
           <h2>Please log in to use Study Desk</h2>
-          <p>Your studies are private and saved to your account.</p>
+          <p>Your studies, categories, tags, and notes are private and saved to your account.</p>
           <button type="button" id="study-login-button" class="study-primary-button">Login</button>
         </section>
 
@@ -83,13 +83,7 @@
               </button>
             </div>
 
-            <div class="study-filter-tabs" aria-label="Filter studies by type">
-              <button type="button" class="active" data-study-filter="all">All</button>
-              <button type="button" data-study-filter="sermon">Sermons</button>
-              <button type="button" data-study-filter="study">Studies</button>
-              <button type="button" data-study-filter="teaching">Teachings</button>
-            </div>
-
+            <div id="study-filter-tabs" class="study-filter-tabs" aria-label="Filter studies by category"></div>
             <div id="study-list-status" class="study-list-status" aria-live="polite">Loading...</div>
             <div id="study-list" class="study-list"></div>
           </aside>
@@ -127,17 +121,17 @@
               <div class="study-field-grid">
                 <label>
                   <span>Study Title <strong>*</strong></span>
-                  <input type="text" id="study-title" required placeholder="Title">
+                  <input type="text" id="study-title" required placeholder="Faith in Difficult Times">
                 </label>
 
                 <label>
                   <span>Speaker / Teacher</span>
-                  <input type="text" id="study-speaker" placeholder="Speaker">
+                  <input type="text" id="study-speaker" placeholder="Pastor David">
                 </label>
 
                 <label>
                   <span>Location</span>
-                  <input type="text" id="study-location" placeholder="Location">
+                  <input type="text" id="study-location" placeholder="Grace Fellowship">
                 </label>
 
                 <label>
@@ -146,15 +140,9 @@
                 </label>
 
                 <label>
-                  <span>Category</span>
-                  <select id="study-type">
-                    <option value="study">Study</option>
-                    <option value="sermon">Sermon</option>
-                    <option value="lesson">Lesson</option>
-                    <option value="teaching">Teaching</option>
-                    <option value="personal-study">Personal Study</option>
-                    <option value="journal">Journal</option>
-                    <option value="other">Other</option>
+                  <span>Type / Category</span>
+                  <select id="study-category">
+                    <option value="">Loading categories...</option>
                   </select>
                 </label>
 
@@ -222,16 +210,18 @@
                     </div>
 
                     <div class="study-tag-entry">
-                      <input type="text" id="tag-input" placeholder="Add tag...">
+                      <input type="text" id="tag-input" list="study-tag-options" placeholder="Add or choose tag...">
+                      <datalist id="study-tag-options"></datalist>
                       <button type="button" id="add-tag-button" class="study-secondary-button">Add</button>
                     </div>
 
+                    <p class="study-tool-note">Type a new tag or choose an existing one. Tags stay private to your account.</p>
                     <div id="tag-list" class="study-tag-list"></div>
                   </section>
 
                   <section class="study-help-card">
                     <h3>Keep it simple</h3>
-                    <p>Start with a title, Scripture, and your notes. Add tags and linked Scriptures only when they help.</p>
+                    <p>Start with a title, Scripture, and your notes. Use Preview whenever you want to see the clean reading version.</p>
                   </section>
                 </aside>
               </div>
@@ -266,6 +256,28 @@
           </section>
         </div>
       </main>
+    </div>
+
+    <div id="category-manager-modal" class="study-modal" hidden>
+      <div class="study-modal-panel" role="dialog" aria-modal="true" aria-labelledby="category-manager-title">
+        <div class="study-modal-header">
+          <div>
+            <p class="study-eyebrow">Your private list</p>
+            <h2 id="category-manager-title">Manage Categories</h2>
+          </div>
+          <button type="button" id="close-category-manager" class="study-icon-button" aria-label="Close category manager">×</button>
+        </div>
+
+        <p class="study-modal-intro">Add, remove, or color-code the categories that appear in your Study Desk dropdown.</p>
+
+        <div class="study-manager-add-row">
+          <input type="text" id="new-category-name" placeholder="New category name">
+          <input type="color" id="new-category-color" value="#dbeafe" aria-label="Category color">
+          <button type="button" id="add-category-button" class="study-primary-button">Add Category</button>
+        </div>
+
+        <div id="category-manager-list" class="study-manager-list"></div>
+      </div>
     </div>
 
     <script src="js/auth.js"></script>
