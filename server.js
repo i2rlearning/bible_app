@@ -1,6 +1,3 @@
-//***********************************************************
-// This file handles back-end protected API/database routes
-//***********************************************************
 const express = require("express");
 const path = require("path");
 const { Pool } = require("pg");
@@ -460,6 +457,275 @@ app.delete("/api/my-notes/:pageKey", requireAuth(), async (req, res) => {
     await pool.query('ROLLBACK');
     console.error("Delete full note error:", error);
     res.status(500).json({ ok: false, message: "Failed to delete note" });
+  }
+});
+
+
+// ----------------------------------------------------
+// Study Desk routes
+// ----------------------------------------------------
+function normalizeText(value) {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+function normalizeOptionalText(value) {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+function normalizeJsonArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeStudyDate(value) {
+  if (!value) return null;
+  if (typeof value !== "string") return null;
+  return value;
+}
+
+function buildPreviewText(value) {
+  if (typeof value !== "string") return "";
+
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
+function mapStudyRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    studyType: row.study_type,
+    speaker: row.speaker,
+    location: row.location,
+    studyDate: row.study_date,
+    mainScripture: row.main_scripture,
+    tags: row.tags || [],
+    linkedScriptures: row.linked_scriptures || [],
+    contentHtml: row.content_html || "",
+    previewText: row.preview_text || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+app.get("/api/studies", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        user_id,
+        title,
+        study_type,
+        speaker,
+        location,
+        study_date,
+        main_scripture,
+        tags,
+        linked_scriptures,
+        content_html,
+        preview_text,
+        created_at,
+        updated_at
+      FROM saved_studies
+      WHERE user_id = $1
+      ORDER BY updated_at DESC
+      `,
+      [userId]
+    );
+
+    res.json({ ok: true, studies: result.rows.map(mapStudyRow) });
+  } catch (error) {
+    console.error("Get studies error:", error);
+    res.status(500).json({ ok: false, message: "Failed to load studies" });
+  }
+});
+
+app.get("/api/studies/:id", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        user_id,
+        title,
+        study_type,
+        speaker,
+        location,
+        study_date,
+        main_scripture,
+        tags,
+        linked_scriptures,
+        content_html,
+        preview_text,
+        created_at,
+        updated_at
+      FROM saved_studies
+      WHERE user_id = $1
+        AND id = $2
+      LIMIT 1
+      `,
+      [userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: "Study not found" });
+    }
+
+    res.json({ ok: true, study: mapStudyRow(result.rows[0]) });
+  } catch (error) {
+    console.error("Get study error:", error);
+    res.status(500).json({ ok: false, message: "Failed to load study" });
+  }
+});
+
+app.post("/api/studies", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const title = normalizeText(req.body.title);
+    const contentHtml = typeof req.body.contentHtml === "string" ? req.body.contentHtml : "";
+    const previewText = normalizeOptionalText(req.body.previewText) || buildPreviewText(contentHtml);
+
+    if (!title) {
+      return res.status(400).json({ ok: false, message: "Study title is required" });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO saved_studies (
+        user_id,
+        title,
+        study_type,
+        speaker,
+        location,
+        study_date,
+        main_scripture,
+        tags,
+        linked_scriptures,
+        content_html,
+        preview_text,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, NOW(), NOW())
+      RETURNING *
+      `,
+      [
+        userId,
+        title,
+        normalizeOptionalText(req.body.studyType) || "study",
+        normalizeOptionalText(req.body.speaker),
+        normalizeOptionalText(req.body.location),
+        normalizeStudyDate(req.body.studyDate),
+        normalizeOptionalText(req.body.mainScripture),
+        JSON.stringify(normalizeJsonArray(req.body.tags)),
+        JSON.stringify(normalizeJsonArray(req.body.linkedScriptures)),
+        contentHtml,
+        previewText
+      ]
+    );
+
+    res.status(201).json({ ok: true, message: "Study saved", study: mapStudyRow(result.rows[0]) });
+  } catch (error) {
+    console.error("Create study error:", error);
+    res.status(500).json({ ok: false, message: "Failed to save study" });
+  }
+});
+
+app.put("/api/studies/:id", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { id } = req.params;
+    const title = normalizeText(req.body.title);
+    const contentHtml = typeof req.body.contentHtml === "string" ? req.body.contentHtml : "";
+    const previewText = normalizeOptionalText(req.body.previewText) || buildPreviewText(contentHtml);
+
+    if (!title) {
+      return res.status(400).json({ ok: false, message: "Study title is required" });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE saved_studies
+      SET
+        title = $3,
+        study_type = $4,
+        speaker = $5,
+        location = $6,
+        study_date = $7,
+        main_scripture = $8,
+        tags = $9::jsonb,
+        linked_scriptures = $10::jsonb,
+        content_html = $11,
+        preview_text = $12,
+        updated_at = NOW()
+      WHERE user_id = $1
+        AND id = $2
+      RETURNING *
+      `,
+      [
+        userId,
+        id,
+        title,
+        normalizeOptionalText(req.body.studyType) || "study",
+        normalizeOptionalText(req.body.speaker),
+        normalizeOptionalText(req.body.location),
+        normalizeStudyDate(req.body.studyDate),
+        normalizeOptionalText(req.body.mainScripture),
+        JSON.stringify(normalizeJsonArray(req.body.tags)),
+        JSON.stringify(normalizeJsonArray(req.body.linkedScriptures)),
+        contentHtml,
+        previewText
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: "Study not found" });
+    }
+
+    res.json({ ok: true, message: "Study updated", study: mapStudyRow(result.rows[0]) });
+  } catch (error) {
+    console.error("Update study error:", error);
+    res.status(500).json({ ok: false, message: "Failed to update study" });
+  }
+});
+
+app.delete("/api/studies/:id", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM saved_studies WHERE user_id = $1 AND id = $2 RETURNING id`,
+      [userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: "Study not found" });
+    }
+
+    res.json({ ok: true, message: "Study deleted" });
+  } catch (error) {
+    console.error("Delete study error:", error);
+    res.status(500).json({ ok: false, message: "Failed to delete study" });
   }
 });
 
