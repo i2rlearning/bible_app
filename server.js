@@ -1,3 +1,6 @@
+//***********************************************************
+// This file handles back-end protected API/database routes
+//***********************************************************
 const express = require("express");
 const path = require("path");
 const { Pool } = require("pg");
