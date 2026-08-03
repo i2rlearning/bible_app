@@ -1,4 +1,4 @@
-<!doctype html>
+
 <html lang="en">
   <head>
     <meta charset="UTF-8">
@@ -273,23 +273,20 @@
 
         <p class="study-modal-intro">Add, remove, or color-code the categories that appear in your Study Desk dropdown.</p>
 
-        <div class="study-manager-add-row">
-          <input type="text" id="new-category-name" placeholder="New category name">
-          <select id="new-category-color" aria-label="Optional category color">
-            <option value="">Choose color optional</option>
-            <option value="#dbeafe">Blue</option>
-            <option value="#dcfce7">Green</option>
-            <option value="#ede9fe">Purple</option>
-            <option value="#fef3c7">Gold</option>
-            <option value="#fce7f3">Rose</option>
-            <option value="#ccfbf1">Teal</option>
-            <option value="#fee2e2">Red</option>
-            <option value="#e5e7eb">Gray</option>
-          </select>
-          <button type="button" id="add-category-button" class="study-primary-button">Add Category</button>
+        <div class="study-manager-add-card">
+          <div class="study-manager-add-row">
+            <input type="text" id="new-category-name" placeholder="New category name">
+            <button type="button" id="add-category-button" class="study-primary-button">Add Category</button>
+          </div>
+          <div class="study-manager-color-section">
+            <p class="study-manager-small-label">Choose a color, or enter your own</p>
+            <div id="new-category-color-picker" class="study-manager-color-picker" aria-label="Category color choices"></div>
+            <input type="text" id="new-category-custom-color" class="study-manager-custom-color-input" placeholder="Custom color, e.g. #dbeafe" maxlength="7" spellcheck="false">
+          </div>
         </div>
 
         <div id="category-manager-list" class="study-manager-list"></div>
+        <div id="category-manager-editor" class="study-manager-editor" hidden></div>
       </div>
     </div>
 
@@ -305,23 +302,20 @@
 
         <p class="study-modal-intro">Add, rename, delete, or color-code the tags you use across your Study Desk.</p>
 
-        <div class="study-manager-add-row">
-          <input type="text" id="new-tag-name" placeholder="New tag name">
-          <select id="new-tag-color" aria-label="Optional tag color">
-            <option value="">Choose color optional</option>
-            <option value="#dbeafe">Blue</option>
-            <option value="#dcfce7">Green</option>
-            <option value="#ede9fe">Purple</option>
-            <option value="#fef3c7">Gold</option>
-            <option value="#fce7f3">Rose</option>
-            <option value="#ccfbf1">Teal</option>
-            <option value="#fee2e2">Red</option>
-            <option value="#e5e7eb">Gray</option>
-          </select>
-          <button type="button" id="add-managed-tag-button" class="study-primary-button">Add Tag</button>
+        <div class="study-manager-add-card">
+          <div class="study-manager-add-row">
+            <input type="text" id="new-tag-name" placeholder="New tag name">
+            <button type="button" id="add-managed-tag-button" class="study-primary-button">Add Tag</button>
+          </div>
+          <div class="study-manager-color-section">
+            <p class="study-manager-small-label">Choose a color, or enter your own</p>
+            <div id="new-tag-color-picker" class="study-manager-color-picker" aria-label="Tag color choices"></div>
+            <input type="text" id="new-tag-custom-color" class="study-manager-custom-color-input" placeholder="Custom color, e.g. #dbeafe" maxlength="7" spellcheck="false">
+          </div>
         </div>
 
         <div id="tag-manager-list" class="study-manager-list"></div>
+        <div id="tag-manager-editor" class="study-manager-editor" hidden></div>
       </div>
     </div>
 
