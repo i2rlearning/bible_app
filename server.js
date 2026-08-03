@@ -834,23 +834,37 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
 });
 
 app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
 
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    await client.query(
+      `UPDATE saved_studies SET category_id = NULL WHERE user_id = $1 AND category_id = $2`,
+      [userId, id]
+    );
+
+    const result = await client.query(
       `DELETE FROM user_study_categories WHERE user_id = $1 AND id = $2 RETURNING id`,
       [userId, id]
     );
 
     if (!result.rows.length) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ ok: false, message: "Category not found" });
     }
 
+    await client.query("COMMIT");
     res.json({ ok: true, message: "Category deleted" });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("Delete study category error:", error);
     res.status(500).json({ ok: false, message: "Failed to delete category" });
+  } finally {
+    client.release();
   }
 });
 
@@ -874,7 +888,7 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
       return res.status(400).json({ ok: false, message: "Tag name is required" });
     }
 
-    const color = normalizeColor(req.body.color, DEFAULT_TAG_COLORS[Math.floor(Math.random() * DEFAULT_TAG_COLORS.length)]);
+    const color = normalizeColor(req.body.color);
 
     const result = await pool.query(
       `
