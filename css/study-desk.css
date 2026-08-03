@@ -130,14 +130,8 @@ body.study-desk-page {
   gap: 12px;
 }
 
-.study-desk-hero {
-  text-align: left;
-}
-
-.study-desk-hero h1,
-.study-desk-hero-title,
-.study-desk-tagline,
-.study-desk-subtitle {
+.study-page-title {
+  margin: 0;
   text-align: left;
 }
 
