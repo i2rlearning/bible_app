@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="css/menu.css" rel="stylesheet">
+    <link href="css/bible-main.css" rel="stylesheet">
+    <link href="css/study-desk.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+    <title>Branch of Israel - Study Desk</title>
+  </head>
+
+  <body class="study-desk-page">
+    <div class="study-shell">
+      <aside class="study-nav" aria-label="Main navigation">
+        <a class="study-brand" href="./index.html?stay=home" aria-label="Branch of Israel home">
+          <img src="img/logo.png" alt="Branch of Israel">
+        </a>
+
+        <nav class="study-nav-links" aria-label="Study Desk navigation">
+          <a href="./index.html?stay=home">
+            <i class="fa fa-home" aria-hidden="true"></i>
+            <span>Home</span>
+          </a>
+          <a href="./verse.html">
+            <i class="fa fa-book" aria-hidden="true"></i>
+            <span>Bible</span>
+          </a>
+          <a href="./search.html">
+            <i class="fa fa-search" aria-hidden="true"></i>
+            <span>Search</span>
+          </a>
+          <a href="./study-desk.html" class="current">
+            <i class="fa fa-pencil-square-o" aria-hidden="true"></i>
+            <span>Study Desk</span>
+          </a>
+        </nav>
+      </aside>
+
+      <main class="study-main">
+        <header class="study-header">
+          <div>
+            <p class="study-eyebrow">Create. Study. Teach. Remember.</p>
+            <h1>Study Desk</h1>
+            <p class="study-header-intro">Create a study, sermon, lesson, or teaching page with Scripture and notes.</p>
+          </div>
+
+          <div class="study-header-actions">
+            <label class="study-search-label" for="study-search">
+              <i class="fa fa-search" aria-hidden="true"></i>
+              <input type="search" id="study-search" placeholder="Search studies...">
+            </label>
+
+            <button type="button" id="login" class="auth-button">
+              <i class="fa fa-user-o" aria-hidden="true"></i>
+              <span>Login</span>
+            </button>
+
+            <button type="button" id="logout" class="auth-button" style="display: none;">
+              <i class="fa fa-sign-out" aria-hidden="true"></i>
+              <span>Logout</span>
+            </button>
+          </div>
+        </header>
+
+        <section id="study-auth-message" class="study-auth-message" hidden>
+          <h2>Please log in to use Study Desk</h2>
+          <p>Your studies are private and saved to your account.</p>
+          <button type="button" id="study-login-button" class="study-primary-button">Login</button>
+        </section>
+
+        <div id="study-app" class="study-app" hidden>
+          <aside class="study-list-panel" aria-label="Saved studies">
+            <div class="study-list-header">
+              <h2>My Studies</h2>
+              <button type="button" id="new-study-button" class="study-primary-button">
+                <i class="fa fa-plus" aria-hidden="true"></i>
+                New Study
+              </button>
+            </div>
+
+            <div class="study-filter-tabs" aria-label="Filter studies by type">
+              <button type="button" class="active" data-study-filter="all">All</button>
+              <button type="button" data-study-filter="sermon">Sermons</button>
+              <button type="button" data-study-filter="study">Studies</button>
+              <button type="button" data-study-filter="teaching">Teachings</button>
+            </div>
+
+            <div id="study-list-status" class="study-list-status" aria-live="polite">Loading...</div>
+            <div id="study-list" class="study-list"></div>
+          </aside>
+
+          <section class="study-editor-panel" aria-label="Study editor">
+            <div class="study-editor-topline">
+              <div>
+                <p id="study-mode-label" class="study-mode-label">New Study</p>
+                <h2 id="study-editor-title">Untitled Study</h2>
+              </div>
+
+              <div class="study-editor-actions">
+                <button type="button" id="study-preview-button" class="study-secondary-button">
+                  <i class="fa fa-eye" aria-hidden="true"></i>
+                  Preview
+                </button>
+                <button type="button" id="study-edit-button" class="study-secondary-button" hidden>
+                  <i class="fa fa-pencil" aria-hidden="true"></i>
+                  Edit
+                </button>
+                <button type="button" id="save-study-button" class="study-primary-button">
+                  <i class="fa fa-floppy-o" aria-hidden="true"></i>
+                  Save Study
+                </button>
+                <button type="button" id="delete-study-button" class="study-danger-button" hidden>
+                  <i class="fa fa-trash" aria-hidden="true"></i>
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <div id="study-status" class="study-status" aria-live="polite"></div>
+
+            <form id="study-form" class="study-form">
+              <div class="study-field-grid">
+                <label>
+                  <span>Study Title <strong>*</strong></span>
+                  <input type="text" id="study-title" required placeholder="Faith in Difficult Times">
+                </label>
+
+                <label>
+                  <span>Speaker / Teacher</span>
+                  <input type="text" id="study-speaker" placeholder="Pastor David">
+                </label>
+
+                <label>
+                  <span>Location</span>
+                  <input type="text" id="study-location" placeholder="Grace Fellowship">
+                </label>
+
+                <label>
+                  <span>Date</span>
+                  <input type="date" id="study-date">
+                </label>
+
+                <label>
+                  <span>Type / Category</span>
+                  <select id="study-type">
+                    <option value="study">Study</option>
+                    <option value="sermon">Sermon</option>
+                    <option value="lesson">Lesson</option>
+                    <option value="teaching">Teaching</option>
+                    <option value="personal-study">Personal Study</option>
+                    <option value="journal">Journal</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Main Scripture</span>
+                  <input type="text" id="study-main-scripture" placeholder="Romans 8:28">
+                </label>
+              </div>
+
+              <div class="study-body-layout">
+                <section class="study-writing-card" aria-label="Study notes editor">
+                  <div id="study-quill-toolbar">
+                    <span class="ql-formats">
+                      <select class="ql-header">
+                        <option value="1">Heading 1</option>
+                        <option value="2">Heading 2</option>
+                        <option selected>Paragraph</option>
+                      </select>
+                    </span>
+                    <span class="ql-formats">
+                      <button class="ql-bold" type="button"></button>
+                      <button class="ql-italic" type="button"></button>
+                      <button class="ql-underline" type="button"></button>
+                      <button class="ql-strike" type="button"></button>
+                    </span>
+                    <span class="ql-formats">
+                      <button class="ql-list" value="ordered" type="button"></button>
+                      <button class="ql-list" value="bullet" type="button"></button>
+                      <button class="ql-blockquote" type="button"></button>
+                      <button class="ql-link" type="button"></button>
+                    </span>
+                    <span class="ql-formats">
+                      <button class="ql-clean" type="button"></button>
+                    </span>
+                  </div>
+
+                  <div id="study-editor" class="study-quill-editor"></div>
+
+                  <div class="study-editor-footer">
+                    <span id="study-word-count">0 words</span>
+                    <span id="study-save-state">Draft not saved yet</span>
+                  </div>
+                </section>
+
+                <aside class="study-side-tools" aria-label="Study organization tools">
+                  <section class="study-tool-card">
+                    <div class="study-tool-heading">
+                      <h3>Linked Scriptures</h3>
+                      <span id="linked-scripture-count">0</span>
+                    </div>
+
+                    <div class="study-inline-fields">
+                      <input type="text" id="scripture-reference-input" placeholder="Reference, e.g. John 3:16">
+                      <textarea id="scripture-note-input" rows="2" placeholder="Optional note or short reminder"></textarea>
+                      <button type="button" id="add-scripture-button" class="study-secondary-button">Add Scripture</button>
+                    </div>
+
+                    <div id="linked-scripture-list" class="linked-scripture-list"></div>
+                  </section>
+
+                  <section class="study-tool-card">
+                    <div class="study-tool-heading">
+                      <h3>Tags</h3>
+                      <span id="tag-count">0</span>
+                    </div>
+
+                    <div class="study-tag-entry">
+                      <input type="text" id="tag-input" placeholder="Add tag...">
+                      <button type="button" id="add-tag-button" class="study-secondary-button">Add</button>
+                    </div>
+
+                    <div id="tag-list" class="study-tag-list"></div>
+                  </section>
+
+                  <section class="study-help-card">
+                    <h3>Keep it simple</h3>
+                    <p>Start with a title, Scripture, and your notes. Add tags and linked Scriptures only when they help.</p>
+                  </section>
+                </aside>
+              </div>
+            </form>
+
+            <section id="study-preview" class="study-preview" hidden>
+              <div class="study-preview-document">
+                <div class="study-preview-meta-row">
+                  <span id="preview-type"></span>
+                  <span id="preview-date"></span>
+                  <span id="preview-speaker"></span>
+                  <span id="preview-location"></span>
+                </div>
+
+                <h2 id="preview-title">Untitled Study</h2>
+
+                <div class="study-preview-detail-row">
+                  <span id="preview-main-scripture"></span>
+                </div>
+
+                <div id="preview-tags" class="study-tag-list preview-tags"></div>
+                <div id="preview-content" class="study-preview-content"></div>
+              </div>
+
+              <aside class="study-preview-side">
+                <section>
+                  <h3>Linked Scriptures</h3>
+                  <div id="preview-linked-scriptures" class="preview-linked-scriptures"></div>
+                </section>
+              </aside>
+            </section>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+    <script src="js/study-desk.js" defer></script>
+  </body>
+</html>
