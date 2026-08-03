@@ -1,12 +1,17 @@
 "use strict";
 
 (function () {
+  const MANAGE_CATEGORY_VALUE = "__manage_categories__";
+
   const state = {
     studies: [],
+    categories: [],
+    availableTags: [],
     activeStudyId: null,
-    tags: [],
+    selectedTags: [],
     linkedScriptures: [],
     filter: "all",
+    lastCategoryId: "",
     quill: null,
     isPreview: false,
     hasLoaded: false,
@@ -24,6 +29,7 @@
     els.app = byId("study-app");
     els.loginButton = byId("study-login-button");
     els.search = byId("study-search");
+    els.filterTabs = byId("study-filter-tabs");
     els.list = byId("study-list");
     els.listStatus = byId("study-list-status");
     els.newButton = byId("new-study-button");
@@ -42,7 +48,7 @@
     els.speaker = byId("study-speaker");
     els.location = byId("study-location");
     els.date = byId("study-date");
-    els.type = byId("study-type");
+    els.category = byId("study-category");
     els.mainScripture = byId("study-main-scripture");
     els.scriptureReference = byId("scripture-reference-input");
     els.scriptureNote = byId("scripture-note-input");
@@ -50,6 +56,7 @@
     els.scriptureList = byId("linked-scripture-list");
     els.scriptureCount = byId("linked-scripture-count");
     els.tagInput = byId("tag-input");
+    els.tagOptions = byId("study-tag-options");
     els.addTag = byId("add-tag-button");
     els.tagList = byId("tag-list");
     els.tagCount = byId("tag-count");
@@ -62,6 +69,12 @@
     els.previewTags = byId("preview-tags");
     els.previewContent = byId("preview-content");
     els.previewLinkedScriptures = byId("preview-linked-scriptures");
+    els.categoryModal = byId("category-manager-modal");
+    els.categoryList = byId("category-manager-list");
+    els.closeCategoryManager = byId("close-category-manager");
+    els.newCategoryName = byId("new-category-name");
+    els.newCategoryColor = byId("new-category-color");
+    els.addCategory = byId("add-category-button");
   }
 
   function setStatus(message, type) {
@@ -127,20 +140,6 @@
     return result;
   }
 
-  function formatType(value) {
-    const map = {
-      study: "Study",
-      sermon: "Sermon",
-      lesson: "Lesson",
-      teaching: "Teaching",
-      "personal-study": "Personal Study",
-      journal: "Journal",
-      other: "Other"
-    };
-
-    return map[value] || value || "Study";
-  }
-
   function toDateInput(value) {
     if (!value) return "";
 
@@ -169,6 +168,15 @@
     });
   }
 
+  function getCategoryById(id) {
+    return state.categories.find((category) => category.id === id) || null;
+  }
+
+  function getCategoryName(id) {
+    const category = getCategoryById(id);
+    return category ? category.name : "Study";
+  }
+
   function getWordCount() {
     if (!state.quill) return 0;
 
@@ -193,10 +201,13 @@
   }
 
   function getEmptyStudy() {
+    const firstCategory = state.categories[0] || null;
+
     return {
       id: null,
       title: "",
-      studyType: "study",
+      categoryId: firstCategory ? firstCategory.id : "",
+      category: firstCategory,
       speaker: "",
       location: "",
       studyDate: new Date().toISOString().slice(0, 10),
@@ -211,12 +222,12 @@
   function collectStudyData() {
     return {
       title: els.title.value.trim(),
-      studyType: els.type.value || "study",
+      categoryId: els.category.value || null,
       speaker: els.speaker.value.trim(),
       location: els.location.value.trim(),
       studyDate: els.date.value || null,
       mainScripture: els.mainScripture.value.trim(),
-      tags: state.tags.slice(),
+      tagIds: state.selectedTags.map((tag) => tag.id),
       linkedScriptures: state.linkedScriptures.slice(),
       contentHtml: state.quill ? state.quill.root.innerHTML : "",
       previewText: getPlainPreviewText()
@@ -227,14 +238,17 @@
     const data = study || getEmptyStudy();
 
     state.activeStudyId = data.id || null;
-    state.tags = Array.isArray(data.tags) ? data.tags.slice() : [];
+    state.selectedTags = Array.isArray(data.tags) ? data.tags.slice() : [];
     state.linkedScriptures = Array.isArray(data.linkedScriptures) ? data.linkedScriptures.slice() : [];
+
+    const categoryId = data.categoryId || data.category?.id || state.categories[0]?.id || "";
 
     els.title.value = data.title || "";
     els.speaker.value = data.speaker || "";
     els.location.value = data.location || "";
     els.date.value = toDateInput(data.studyDate) || "";
-    els.type.value = data.studyType || "study";
+    els.category.value = categoryId;
+    state.lastCategoryId = categoryId;
     els.mainScripture.value = data.mainScripture || "";
 
     if (state.quill) {
@@ -254,7 +268,7 @@
     els.editorTitle.textContent = data.title || "Untitled Study";
     els.deleteButton.hidden = !state.activeStudyId;
 
-    renderTags();
+    renderSelectedTags();
     renderLinkedScriptures();
     updateWordCount();
     setSaveState(state.activeStudyId ? "Loaded" : "Draft not saved yet", state.activeStudyId ? "success" : "");
@@ -267,12 +281,13 @@
 
     const text = [
       study.title,
+      study.category?.name,
       study.studyType,
       study.speaker,
       study.location,
       study.mainScripture,
       study.previewText,
-      ...(Array.isArray(study.tags) ? study.tags : []),
+      ...(Array.isArray(study.tags) ? study.tags.map((tag) => tag.name || "") : []),
       ...(Array.isArray(study.linkedScriptures) ? study.linkedScriptures.map((item) => `${item.reference || ""} ${item.note || ""}`) : [])
     ]
       .join(" ")
@@ -285,9 +300,64 @@
     const searchValue = (els.search.value || "").trim().toLowerCase();
 
     return state.studies.filter((study) => {
-      const typeMatches = state.filter === "all" || study.studyType === state.filter;
+      const typeMatches = state.filter === "all" || study.categoryId === state.filter;
       return typeMatches && matchesSearch(study, searchValue);
     });
+  }
+
+  function renderFilterTabs() {
+    if (!els.filterTabs) return;
+
+    els.filterTabs.innerHTML = "";
+
+    const allButton = document.createElement("button");
+    allButton.type = "button";
+    allButton.dataset.studyFilter = "all";
+    allButton.textContent = "All";
+    allButton.classList.toggle("active", state.filter === "all");
+    els.filterTabs.appendChild(allButton);
+
+    state.categories.forEach((category) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.studyFilter = category.id;
+      button.textContent = category.name;
+      button.classList.toggle("active", state.filter === category.id);
+      els.filterTabs.appendChild(button);
+    });
+  }
+
+  function renderCategoryDropdown() {
+    const currentValue = els.category.value || state.lastCategoryId || "";
+
+    els.category.innerHTML = "";
+
+    state.categories.forEach((category) => {
+      const option = document.createElement("option");
+      option.value = category.id;
+      option.textContent = category.name;
+      els.category.appendChild(option);
+    });
+
+    const manageOption = document.createElement("option");
+    manageOption.value = MANAGE_CATEGORY_VALUE;
+    manageOption.textContent = "Manage categories...";
+    els.category.appendChild(manageOption);
+
+    if (currentValue && state.categories.some((category) => category.id === currentValue)) {
+      els.category.value = currentValue;
+    } else if (state.categories.length) {
+      els.category.value = state.categories[0].id;
+    } else {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "No categories yet";
+      els.category.insertBefore(option, els.category.firstChild);
+      els.category.value = "";
+    }
+
+    state.lastCategoryId = els.category.value;
+    renderFilterTabs();
   }
 
   function renderStudyList() {
@@ -315,7 +385,7 @@
       title.textContent = study.title || "Untitled Study";
 
       const meta = document.createElement("span");
-      meta.textContent = [formatDate(study.studyDate || study.updatedAt), formatType(study.studyType), study.mainScripture]
+      meta.textContent = [formatDate(study.studyDate || study.updatedAt), study.category?.name || study.studyType, study.mainScripture]
         .filter(Boolean)
         .join(" • ");
 
@@ -336,10 +406,28 @@
     });
   }
 
+  async function loadCategories() {
+    const result = await fetchJson("/api/study-categories");
+    state.categories = Array.isArray(result.categories) ? result.categories : [];
+    renderCategoryDropdown();
+  }
+
+  async function loadAvailableTags() {
+    const result = await fetchJson("/api/study-tags");
+    state.availableTags = Array.isArray(result.tags) ? result.tags : [];
+    renderTagOptions();
+  }
+
+  async function loadSetup() {
+    await loadCategories();
+    await loadAvailableTags();
+  }
+
   async function loadStudies() {
     setListStatus("Loading...");
 
     try {
+      await loadSetup();
       const result = await fetchJson("/api/studies");
       state.studies = Array.isArray(result.studies) ? result.studies : [];
       state.hasLoaded = true;
@@ -446,24 +534,38 @@
     }
   }
 
-  function renderTags() {
-    els.tagList.innerHTML = "";
-    els.tagCount.textContent = String(state.tags.length);
+  function renderTagOptions() {
+    if (!els.tagOptions) return;
 
-    state.tags.forEach((tag, index) => {
+    els.tagOptions.innerHTML = "";
+
+    state.availableTags.forEach((tag) => {
+      const option = document.createElement("option");
+      option.value = tag.name;
+      els.tagOptions.appendChild(option);
+    });
+  }
+
+  function renderSelectedTags() {
+    els.tagList.innerHTML = "";
+    els.tagCount.textContent = String(state.selectedTags.length);
+
+    state.selectedTags.forEach((tag, index) => {
       const chip = document.createElement("span");
       chip.className = "study-tag";
+      chip.style.backgroundColor = tag.color || "#eef4ff";
+      chip.style.borderColor = tag.color || "#d6e0ff";
 
       const text = document.createElement("span");
-      text.textContent = tag;
+      text.textContent = tag.name || "Tag";
 
       const removeButton = document.createElement("button");
       removeButton.type = "button";
-      removeButton.setAttribute("aria-label", `Remove ${tag}`);
+      removeButton.setAttribute("aria-label", `Remove ${tag.name || "tag"}`);
       removeButton.textContent = "×";
       removeButton.addEventListener("click", () => {
-        state.tags.splice(index, 1);
-        renderTags();
+        state.selectedTags.splice(index, 1);
+        renderSelectedTags();
         markDirty();
       });
 
@@ -472,22 +574,41 @@
     });
   }
 
-  function addTag() {
+  async function addTag() {
     const raw = els.tagInput.value.trim();
 
     if (!raw) return;
 
-    const tag = raw.replace(/\s+/g, " ");
-    const exists = state.tags.some((item) => item.toLowerCase() === tag.toLowerCase());
+    const name = raw.replace(/\s+/g, " ");
+    const existing = state.availableTags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
+    let tag = existing;
 
-    if (!exists) {
-      state.tags.push(tag);
-      renderTags();
-      markDirty();
+    try {
+      if (!tag) {
+        const result = await fetchJson("/api/study-tags", {
+          method: "POST",
+          body: JSON.stringify({ name })
+        });
+
+        tag = result.tag;
+        state.availableTags.push(tag);
+        state.availableTags.sort((a, b) => a.name.localeCompare(b.name));
+        renderTagOptions();
+      }
+
+      const alreadySelected = state.selectedTags.some((item) => item.id === tag.id);
+
+      if (!alreadySelected) {
+        state.selectedTags.push(tag);
+        renderSelectedTags();
+        markDirty();
+      }
+
+      els.tagInput.value = "";
+      els.tagInput.focus();
+    } catch (error) {
+      setStatus(error.message, "error");
     }
-
-    els.tagInput.value = "";
-    els.tagInput.focus();
   }
 
   function renderLinkedScriptures() {
@@ -527,10 +648,7 @@
       return;
     }
 
-    state.linkedScriptures.push({
-      reference,
-      note
-    });
+    state.linkedScriptures.push({ reference, note });
 
     els.scriptureReference.value = "";
     els.scriptureNote.value = "";
@@ -548,7 +666,9 @@
     tags.forEach((tag) => {
       const chip = document.createElement("span");
       chip.className = "study-tag";
-      chip.textContent = tag;
+      chip.style.backgroundColor = tag.color || "#eef4ff";
+      chip.style.borderColor = tag.color || "#d6e0ff";
+      chip.textContent = tag.name || "Tag";
       container.appendChild(chip);
     });
   }
@@ -586,7 +706,7 @@
   function renderPreview() {
     const data = collectStudyData();
 
-    els.previewType.textContent = data.studyType ? formatType(data.studyType) : "";
+    els.previewType.textContent = data.categoryId ? getCategoryName(data.categoryId) : "";
     els.previewDate.textContent = data.studyDate ? formatDate(data.studyDate) : "";
     els.previewSpeaker.textContent = data.speaker || "";
     els.previewLocation.textContent = data.location || "";
@@ -594,7 +714,7 @@
     els.previewMainScripture.textContent = data.mainScripture ? `Main Scripture: ${data.mainScripture}` : "";
     els.previewContent.innerHTML = data.contentHtml || "<p>No study notes yet.</p>";
 
-    renderPreviewTags(els.previewTags, state.tags);
+    renderPreviewTags(els.previewTags, state.selectedTags);
     renderPreviewScriptures();
   }
 
@@ -617,6 +737,120 @@
     els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
   }
 
+  function openCategoryManager() {
+    if (!els.categoryModal) return;
+    renderCategoryManager();
+    els.categoryModal.hidden = false;
+    if (els.newCategoryName) els.newCategoryName.focus();
+  }
+
+  function closeCategoryManager() {
+    if (!els.categoryModal) return;
+    els.categoryModal.hidden = true;
+    renderCategoryDropdown();
+  }
+
+  function renderCategoryManager() {
+    if (!els.categoryList) return;
+
+    els.categoryList.innerHTML = "";
+
+    if (!state.categories.length) {
+      const empty = document.createElement("p");
+      empty.className = "study-manager-empty";
+      empty.textContent = "No categories yet.";
+      els.categoryList.appendChild(empty);
+      return;
+    }
+
+    state.categories.forEach((category) => {
+      const row = document.createElement("div");
+      row.className = "study-manager-row";
+
+      const swatch = document.createElement("span");
+      swatch.className = "study-color-swatch";
+      swatch.style.backgroundColor = category.color || "#dbeafe";
+
+      const name = document.createElement("strong");
+      name.textContent = category.name;
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "study-danger-button";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", () => deleteCategory(category));
+
+      row.append(swatch, name, deleteButton);
+      els.categoryList.appendChild(row);
+    });
+  }
+
+  async function addCategory() {
+    const name = els.newCategoryName.value.trim().replace(/\s+/g, " ");
+    const color = els.newCategoryColor.value || "#dbeafe";
+
+    if (!name) {
+      els.newCategoryName.focus();
+      return;
+    }
+
+    try {
+      const result = await fetchJson("/api/study-categories", {
+        method: "POST",
+        body: JSON.stringify({ name, color, sortOrder: state.categories.length * 10 + 100 })
+      });
+
+      const category = result.category;
+      const index = state.categories.findIndex((item) => item.id === category.id);
+
+      if (index >= 0) {
+        state.categories[index] = category;
+      } else {
+        state.categories.push(category);
+      }
+
+      state.categories.sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+      els.newCategoryName.value = "";
+      renderCategoryDropdown();
+      renderCategoryManager();
+      renderStudyList();
+      setStatus("Category saved.", "success");
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
+  }
+
+  async function deleteCategory(category) {
+    if (!category || !category.id) return;
+
+    if (!confirm(`Delete category ${category.name}? Studies using it will no longer have a category.`)) {
+      return;
+    }
+
+    try {
+      await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
+        method: "DELETE"
+      });
+
+      state.categories = state.categories.filter((item) => item.id !== category.id);
+
+      if (state.filter === category.id) {
+        state.filter = "all";
+      }
+
+      if (els.category.value === category.id) {
+        els.category.value = state.categories[0]?.id || "";
+      }
+
+      renderCategoryDropdown();
+      renderCategoryManager();
+      renderStudyList();
+      markDirty();
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
+  }
+
   function bindEvents() {
     els.loginButton.addEventListener("click", () => {
       const login = byId("login");
@@ -635,13 +869,33 @@
     els.editButton.addEventListener("click", switchToEdit);
     els.addTag.addEventListener("click", addTag);
     els.addScripture.addEventListener("click", addLinkedScripture);
+    els.closeCategoryManager.addEventListener("click", closeCategoryManager);
+    els.addCategory.addEventListener("click", addCategory);
 
     els.search.addEventListener("input", renderStudyList);
+
+    els.category.addEventListener("change", () => {
+      if (els.category.value === MANAGE_CATEGORY_VALUE) {
+        openCategoryManager();
+        els.category.value = state.lastCategoryId || state.categories[0]?.id || "";
+        return;
+      }
+
+      state.lastCategoryId = els.category.value;
+      markDirty();
+    });
 
     els.tagInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
         addTag();
+      }
+    });
+
+    els.newCategoryName.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addCategory();
       }
     });
 
@@ -652,19 +906,28 @@
       }
     });
 
-    document.querySelectorAll("[data-study-filter]").forEach((button) => {
-      button.addEventListener("click", () => {
-        state.filter = button.dataset.studyFilter || "all";
+    els.filterTabs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-study-filter]");
+      if (!button) return;
 
-        document.querySelectorAll("[data-study-filter]").forEach((item) => {
-          item.classList.toggle("active", item === button);
-        });
-
-        renderStudyList();
-      });
+      state.filter = button.dataset.studyFilter || "all";
+      renderFilterTabs();
+      renderStudyList();
     });
 
-    [els.title, els.speaker, els.location, els.date, els.type, els.mainScripture].forEach((field) => {
+    els.categoryModal.addEventListener("click", (event) => {
+      if (event.target === els.categoryModal) {
+        closeCategoryManager();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !els.categoryModal.hidden) {
+        closeCategoryManager();
+      }
+    });
+
+    [els.title, els.speaker, els.location, els.date, els.mainScripture].forEach((field) => {
       field.addEventListener("input", () => {
         els.editorTitle.textContent = els.title.value.trim() || "Untitled Study";
         markDirty();
