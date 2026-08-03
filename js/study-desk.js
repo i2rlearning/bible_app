@@ -12,11 +12,26 @@
     linkedScriptures: [],
     filter: "all",
     lastCategoryId: "",
+    managedCategoryId: "",
+    managedTagId: "",
+    newCategoryColor: "",
+    newTagColor: "",
     quill: null,
     isPreview: false,
     hasLoaded: false,
     isApplying: false
   };
+
+  const MANAGER_COLORS = [
+    { label: "Blue", value: "#dbeafe" },
+    { label: "Green", value: "#dcfce7" },
+    { label: "Purple", value: "#ede9fe" },
+    { label: "Gold", value: "#fef3c7" },
+    { label: "Rose", value: "#fce7f3" },
+    { label: "Teal", value: "#ccfbf1" },
+    { label: "Red", value: "#fee2e2" },
+    { label: "Gray", value: "#e5e7eb" }
+  ];
 
   const els = {};
 
@@ -73,15 +88,19 @@
     els.categoryList = byId("category-manager-list");
     els.closeCategoryManager = byId("close-category-manager");
     els.newCategoryName = byId("new-category-name");
-    els.newCategoryColor = byId("new-category-color");
+    els.newCategoryColorPicker = byId("new-category-color-picker");
+    els.newCategoryCustomColor = byId("new-category-custom-color");
     els.addCategory = byId("add-category-button");
+    els.categoryEditor = byId("category-manager-editor");
     els.manageTags = byId("manage-tags-button");
     els.tagManagerModal = byId("tag-manager-modal");
     els.tagManagerList = byId("tag-manager-list");
     els.closeTagManager = byId("close-tag-manager");
     els.newTagName = byId("new-tag-name");
-    els.newTagColor = byId("new-tag-color");
+    els.newTagColorPicker = byId("new-tag-color-picker");
+    els.newTagCustomColor = byId("new-tag-custom-color");
     els.addManagedTag = byId("add-managed-tag-button");
+    els.tagManagerEditor = byId("tag-manager-editor");
   }
 
   function setStatus(message, type) {
@@ -775,6 +794,10 @@
 
   function openCategoryManager() {
     if (!els.categoryModal) return;
+    if (!state.managedCategoryId && state.categories[0]) {
+      state.managedCategoryId = state.categories[0].id;
+    }
+    renderAddCategoryColorPicker();
     renderCategoryManager();
     els.categoryModal.hidden = false;
     if (els.newCategoryName) els.newCategoryName.focus();
@@ -788,6 +811,10 @@
 
   function openTagManager() {
     if (!els.tagManagerModal) return;
+    if (!state.managedTagId && state.availableTags[0]) {
+      state.managedTagId = state.availableTags[0].id;
+    }
+    renderAddTagColorPicker();
     renderTagManager();
     els.tagManagerModal.hidden = false;
     if (els.newTagName) els.newTagName.focus();
@@ -799,26 +826,191 @@
     renderTagOptions();
   }
 
-  function createManagerColorInput(value, label) {
-    const input = document.createElement("input");
-    input.type = "color";
-    input.className = "study-manager-color-input";
-    input.value = normalizeColorValue(value) || "#dbeafe";
-    input.setAttribute("aria-label", label);
-    return input;
+  function createColorButton(color, activeColor, label, onSelect) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "study-manager-color-choice";
+    button.style.setProperty("--manager-choice-color", color);
+    button.setAttribute("aria-label", label);
+    button.setAttribute("aria-pressed", String(color.toLowerCase() === String(activeColor || "").toLowerCase()));
+    button.addEventListener("click", () => onSelect(color));
+    return button;
   }
 
-  function createManagerTextInput(value, label) {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "study-manager-name-input";
-    input.value = value || "";
-    input.setAttribute("aria-label", label);
-    return input;
+  function renderColorPicker(container, activeColor, onSelect) {
+    if (!container) return;
+    container.innerHTML = "";
+
+    MANAGER_COLORS.forEach((item) => {
+      container.appendChild(createColorButton(item.value, activeColor, item.label, onSelect));
+    });
+  }
+
+  function syncCustomColorInput(input, color) {
+    if (!input) return;
+    input.value = normalizeColorValue(color) || "";
+  }
+
+  function getManagedCategory() {
+    return state.categories.find((item) => item.id === state.managedCategoryId) || null;
+  }
+
+  function getManagedTag() {
+    return state.availableTags.find((item) => item.id === state.managedTagId) || null;
+  }
+
+  function renderAddCategoryColorPicker() {
+    renderColorPicker(els.newCategoryColorPicker, state.newCategoryColor, (color) => {
+      state.newCategoryColor = color;
+      syncCustomColorInput(els.newCategoryCustomColor, color);
+      renderAddCategoryColorPicker();
+    });
+  }
+
+  function renderAddTagColorPicker() {
+    renderColorPicker(els.newTagColorPicker, state.newTagColor, (color) => {
+      state.newTagColor = color;
+      syncCustomColorInput(els.newTagCustomColor, color);
+      renderAddTagColorPicker();
+    });
+  }
+
+  function renderManagerListRow(item, selectedId, label, onSelect) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "study-manager-list-row";
+    row.classList.toggle("is-selected", item.id === selectedId);
+    row.setAttribute("aria-pressed", String(item.id === selectedId));
+
+    const selectDot = document.createElement("span");
+    selectDot.className = "study-manager-select-dot";
+
+    const colorSwatch = document.createElement("span");
+    colorSwatch.className = "study-color-swatch";
+    colorSwatch.style.backgroundColor = item.color || "#dbeafe";
+
+    const name = document.createElement("span");
+    name.className = "study-manager-row-name";
+    name.textContent = item.name || label;
+
+    row.append(selectDot, colorSwatch, name);
+    row.addEventListener("click", () => onSelect(item.id));
+    return row;
+  }
+
+  function createManagerEditor(item, type) {
+    const editor = document.createElement("div");
+    editor.className = "study-manager-editor-card";
+
+    const heading = document.createElement("div");
+    heading.className = "study-manager-editor-heading";
+
+    const title = document.createElement("div");
+    title.innerHTML = `<p class="study-manager-small-label">Selected ${type}</p><h3>Edit ${type}</h3>`;
+
+    const preview = document.createElement("span");
+    preview.className = "study-manager-editor-preview";
+    preview.style.backgroundColor = item.color || "#dbeafe";
+
+    heading.append(title, preview);
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "study-manager-name-input";
+    nameInput.value = item.name || "";
+    nameInput.setAttribute("aria-label", `${type} name`);
+
+    let selectedColor = normalizeColorValue(item.color) || "#dbeafe";
+
+    const picker = document.createElement("div");
+    picker.className = "study-manager-color-picker";
+
+    const customInput = document.createElement("input");
+    customInput.type = "text";
+    customInput.className = "study-manager-custom-color-input";
+    customInput.placeholder = "Custom color, e.g. #dbeafe";
+    customInput.maxLength = 7;
+    customInput.spellcheck = false;
+    customInput.value = selectedColor;
+
+    const rerenderPicker = () => {
+      renderColorPicker(picker, selectedColor, (color) => {
+        selectedColor = color;
+        customInput.value = color;
+        preview.style.backgroundColor = color;
+        rerenderPicker();
+      });
+    };
+
+    customInput.addEventListener("input", () => {
+      const color = normalizeColorValue(customInput.value);
+      if (!color) return;
+      selectedColor = color;
+      preview.style.backgroundColor = color;
+      rerenderPicker();
+    });
+
+    nameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (type === "category") updateCategory(item, nameInput.value, selectedColor);
+        if (type === "tag") updateTag(item, nameInput.value, selectedColor);
+      }
+    });
+
+    rerenderPicker();
+
+    const actions = document.createElement("div");
+    actions.className = "study-manager-editor-actions";
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "study-primary-button";
+    saveButton.textContent = "Save Changes";
+    saveButton.addEventListener("click", () => {
+      const customColor = normalizeColorValue(customInput.value);
+      const finalColor = customColor || selectedColor;
+      if (type === "category") updateCategory(item, nameInput.value, finalColor);
+      if (type === "tag") updateTag(item, nameInput.value, finalColor);
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "study-danger-button";
+    deleteButton.textContent = type === "category" ? "Delete Category" : "Delete Tag";
+    deleteButton.addEventListener("click", () => {
+      if (type === "category") deleteCategory(item);
+      if (type === "tag") deleteTag(item);
+    });
+
+    actions.append(saveButton, deleteButton);
+
+    editor.append(
+      heading,
+      nameInput,
+      document.createElement("hr"),
+      createSmallLabel("Color"),
+      picker,
+      customInput,
+      actions
+    );
+
+    return editor;
+  }
+
+  function createSmallLabel(text) {
+    const label = document.createElement("p");
+    label.className = "study-manager-small-label";
+    label.textContent = text;
+    return label;
   }
 
   function renderCategoryManager() {
     if (!els.categoryList) return;
+
+    if (state.categories.length && !getManagedCategory()) {
+      state.managedCategoryId = state.categories[0].id;
+    }
 
     els.categoryList.innerHTML = "";
 
@@ -827,42 +1019,31 @@
       empty.className = "study-manager-empty";
       empty.textContent = "No categories yet.";
       els.categoryList.appendChild(empty);
+      if (els.categoryEditor) els.categoryEditor.hidden = true;
       return;
     }
 
     state.categories.forEach((category) => {
-      const row = document.createElement("div");
-      row.className = "study-manager-row is-editable";
-
-      const colorInput = createManagerColorInput(category.color, `Color for ${category.name || "category"}`);
-      const nameInput = createManagerTextInput(category.name, "Category name");
-
-      const saveButton = document.createElement("button");
-      saveButton.type = "button";
-      saveButton.className = "study-secondary-button";
-      saveButton.textContent = "Save";
-      saveButton.addEventListener("click", () => updateCategory(category, nameInput.value, colorInput.value));
-
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.className = "study-danger-button";
-      deleteButton.textContent = "Delete";
-      deleteButton.addEventListener("click", () => deleteCategory(category));
-
-      nameInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          updateCategory(category, nameInput.value, colorInput.value);
-        }
-      });
-
-      row.append(colorInput, nameInput, saveButton, deleteButton);
-      els.categoryList.appendChild(row);
+      els.categoryList.appendChild(renderManagerListRow(category, state.managedCategoryId, "Category", (id) => {
+        state.managedCategoryId = id;
+        renderCategoryManager();
+      }));
     });
+
+    const selected = getManagedCategory();
+    if (els.categoryEditor && selected) {
+      els.categoryEditor.innerHTML = "";
+      els.categoryEditor.appendChild(createManagerEditor(selected, "category"));
+      els.categoryEditor.hidden = false;
+    }
   }
 
   function renderTagManager() {
     if (!els.tagManagerList) return;
+
+    if (state.availableTags.length && !getManagedTag()) {
+      state.managedTagId = state.availableTags[0].id;
+    }
 
     els.tagManagerList.innerHTML = "";
 
@@ -871,43 +1052,28 @@
       empty.className = "study-manager-empty";
       empty.textContent = "No tags yet.";
       els.tagManagerList.appendChild(empty);
+      if (els.tagManagerEditor) els.tagManagerEditor.hidden = true;
       return;
     }
 
     state.availableTags.forEach((tag) => {
-      const row = document.createElement("div");
-      row.className = "study-manager-row is-editable";
-
-      const colorInput = createManagerColorInput(tag.color, `Color for ${tag.name || "tag"}`);
-      const nameInput = createManagerTextInput(tag.name, "Tag name");
-
-      const saveButton = document.createElement("button");
-      saveButton.type = "button";
-      saveButton.className = "study-secondary-button";
-      saveButton.textContent = "Save";
-      saveButton.addEventListener("click", () => updateTag(tag, nameInput.value, colorInput.value));
-
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.className = "study-danger-button";
-      deleteButton.textContent = "Delete";
-      deleteButton.addEventListener("click", () => deleteTag(tag));
-
-      nameInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          updateTag(tag, nameInput.value, colorInput.value);
-        }
-      });
-
-      row.append(colorInput, nameInput, saveButton, deleteButton);
-      els.tagManagerList.appendChild(row);
+      els.tagManagerList.appendChild(renderManagerListRow(tag, state.managedTagId, "Tag", (id) => {
+        state.managedTagId = id;
+        renderTagManager();
+      }));
     });
+
+    const selected = getManagedTag();
+    if (els.tagManagerEditor && selected) {
+      els.tagManagerEditor.innerHTML = "";
+      els.tagManagerEditor.appendChild(createManagerEditor(selected, "tag"));
+      els.tagManagerEditor.hidden = false;
+    }
   }
 
   async function addCategory() {
     const name = normalizeName(els.newCategoryName.value);
-    const color = normalizeColorValue(els.newCategoryColor.value);
+    const color = normalizeColorValue(state.newCategoryColor || els.newCategoryCustomColor.value);
 
     if (!name) {
       els.newCategoryName.focus();
@@ -930,8 +1096,11 @@
       }
 
       sortByOrderAndName(state.categories);
+      state.managedCategoryId = category.id;
       els.newCategoryName.value = "";
-      els.newCategoryColor.value = "";
+      state.newCategoryColor = "";
+      if (els.newCategoryCustomColor) els.newCategoryCustomColor.value = "";
+      renderAddCategoryColorPicker();
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
@@ -943,7 +1112,7 @@
 
   async function addManagedTag() {
     const name = normalizeName(els.newTagName.value);
-    const color = normalizeColorValue(els.newTagColor.value);
+    const color = normalizeColorValue(state.newTagColor || els.newTagCustomColor.value);
 
     if (!name) {
       els.newTagName.focus();
@@ -966,8 +1135,11 @@
       }
 
       sortByOrderAndName(state.availableTags);
+      state.managedTagId = tag.id;
       els.newTagName.value = "";
-      els.newTagColor.value = "";
+      state.newTagColor = "";
+      if (els.newTagCustomColor) els.newTagCustomColor.value = "";
+      renderAddTagColorPicker();
       renderTagOptions();
       renderTagManager();
       renderSelectedTags();
@@ -1155,12 +1327,28 @@
       }
     });
 
+    if (els.newCategoryCustomColor) {
+      els.newCategoryCustomColor.addEventListener("input", () => {
+        const color = normalizeColorValue(els.newCategoryCustomColor.value);
+        state.newCategoryColor = color;
+        renderAddCategoryColorPicker();
+      });
+    }
+
     els.newTagName.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
         addManagedTag();
       }
     });
+
+    if (els.newTagCustomColor) {
+      els.newTagCustomColor.addEventListener("input", () => {
+        const color = normalizeColorValue(els.newTagCustomColor.value);
+        state.newTagColor = color;
+        renderAddTagColorPicker();
+      });
+    }
 
     els.scriptureReference.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
