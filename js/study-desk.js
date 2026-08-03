@@ -75,6 +75,13 @@
     els.newCategoryName = byId("new-category-name");
     els.newCategoryColor = byId("new-category-color");
     els.addCategory = byId("add-category-button");
+    els.manageTags = byId("manage-tags-button");
+    els.tagManagerModal = byId("tag-manager-modal");
+    els.tagManagerList = byId("tag-manager-list");
+    els.closeTagManager = byId("close-tag-manager");
+    els.newTagName = byId("new-tag-name");
+    els.newTagColor = byId("new-tag-color");
+    els.addManagedTag = byId("add-managed-tag-button");
   }
 
   function setStatus(message, type) {
@@ -175,6 +182,35 @@
   function getCategoryName(id) {
     const category = getCategoryById(id);
     return category ? category.name : "Study";
+  }
+
+  function normalizeName(value) {
+    return String(value || "").trim().replace(/\s+/g, " ");
+  }
+
+  function normalizeColorValue(value) {
+    const color = String(value || "").trim();
+    return /^#[0-9a-f]{6}$/i.test(color) ? color : "";
+  }
+
+  function sortByOrderAndName(items) {
+    items.sort((a, b) => ((a.sortOrder || 0) - (b.sortOrder || 0)) || String(a.name || "").localeCompare(String(b.name || "")));
+  }
+
+  function updateSelectedCategoryReferences(category) {
+    state.studies = state.studies.map((study) => {
+      if (study.categoryId !== category.id) return study;
+      return { ...study, category };
+    });
+  }
+
+  function updateSelectedTagReferences(tag) {
+    state.availableTags = state.availableTags.map((item) => (item.id === tag.id ? tag : item));
+    state.selectedTags = state.selectedTags.map((item) => (item.id === tag.id ? tag : item));
+    state.studies = state.studies.map((study) => ({
+      ...study,
+      tags: Array.isArray(study.tags) ? study.tags.map((item) => (item.id === tag.id ? tag : item)) : []
+    }));
   }
 
   function getWordCount() {
@@ -750,6 +786,37 @@
     renderCategoryDropdown();
   }
 
+  function openTagManager() {
+    if (!els.tagManagerModal) return;
+    renderTagManager();
+    els.tagManagerModal.hidden = false;
+    if (els.newTagName) els.newTagName.focus();
+  }
+
+  function closeTagManager() {
+    if (!els.tagManagerModal) return;
+    els.tagManagerModal.hidden = true;
+    renderTagOptions();
+  }
+
+  function createManagerColorInput(value, label) {
+    const input = document.createElement("input");
+    input.type = "color";
+    input.className = "study-manager-color-input";
+    input.value = normalizeColorValue(value) || "#dbeafe";
+    input.setAttribute("aria-label", label);
+    return input;
+  }
+
+  function createManagerTextInput(value, label) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "study-manager-name-input";
+    input.value = value || "";
+    input.setAttribute("aria-label", label);
+    return input;
+  }
+
   function renderCategoryManager() {
     if (!els.categoryList) return;
 
@@ -765,14 +832,16 @@
 
     state.categories.forEach((category) => {
       const row = document.createElement("div");
-      row.className = "study-manager-row";
+      row.className = "study-manager-row is-editable";
 
-      const swatch = document.createElement("span");
-      swatch.className = "study-color-swatch";
-      swatch.style.backgroundColor = category.color || "#dbeafe";
+      const colorInput = createManagerColorInput(category.color, `Color for ${category.name || "category"}`);
+      const nameInput = createManagerTextInput(category.name, "Category name");
 
-      const name = document.createElement("strong");
-      name.textContent = category.name;
+      const saveButton = document.createElement("button");
+      saveButton.type = "button";
+      saveButton.className = "study-secondary-button";
+      saveButton.textContent = "Save";
+      saveButton.addEventListener("click", () => updateCategory(category, nameInput.value, colorInput.value));
 
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
@@ -780,14 +849,65 @@
       deleteButton.textContent = "Delete";
       deleteButton.addEventListener("click", () => deleteCategory(category));
 
-      row.append(swatch, name, deleteButton);
+      nameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          updateCategory(category, nameInput.value, colorInput.value);
+        }
+      });
+
+      row.append(colorInput, nameInput, saveButton, deleteButton);
       els.categoryList.appendChild(row);
     });
   }
 
+  function renderTagManager() {
+    if (!els.tagManagerList) return;
+
+    els.tagManagerList.innerHTML = "";
+
+    if (!state.availableTags.length) {
+      const empty = document.createElement("p");
+      empty.className = "study-manager-empty";
+      empty.textContent = "No tags yet.";
+      els.tagManagerList.appendChild(empty);
+      return;
+    }
+
+    state.availableTags.forEach((tag) => {
+      const row = document.createElement("div");
+      row.className = "study-manager-row is-editable";
+
+      const colorInput = createManagerColorInput(tag.color, `Color for ${tag.name || "tag"}`);
+      const nameInput = createManagerTextInput(tag.name, "Tag name");
+
+      const saveButton = document.createElement("button");
+      saveButton.type = "button";
+      saveButton.className = "study-secondary-button";
+      saveButton.textContent = "Save";
+      saveButton.addEventListener("click", () => updateTag(tag, nameInput.value, colorInput.value));
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "study-danger-button";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", () => deleteTag(tag));
+
+      nameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          updateTag(tag, nameInput.value, colorInput.value);
+        }
+      });
+
+      row.append(colorInput, nameInput, saveButton, deleteButton);
+      els.tagManagerList.appendChild(row);
+    });
+  }
+
   async function addCategory() {
-    const name = els.newCategoryName.value.trim().replace(/\s+/g, " ");
-    const color = els.newCategoryColor.value || "#dbeafe";
+    const name = normalizeName(els.newCategoryName.value);
+    const color = normalizeColorValue(els.newCategoryColor.value);
 
     if (!name) {
       els.newCategoryName.focus();
@@ -809,12 +929,111 @@
         state.categories.push(category);
       }
 
-      state.categories.sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+      sortByOrderAndName(state.categories);
       els.newCategoryName.value = "";
+      els.newCategoryColor.value = "";
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
       setStatus("Category saved.", "success");
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
+  }
+
+  async function addManagedTag() {
+    const name = normalizeName(els.newTagName.value);
+    const color = normalizeColorValue(els.newTagColor.value);
+
+    if (!name) {
+      els.newTagName.focus();
+      return;
+    }
+
+    try {
+      const result = await fetchJson("/api/study-tags", {
+        method: "POST",
+        body: JSON.stringify({ name, color, sortOrder: state.availableTags.length * 10 + 100 })
+      });
+
+      const tag = result.tag;
+      const index = state.availableTags.findIndex((item) => item.id === tag.id);
+
+      if (index >= 0) {
+        state.availableTags[index] = tag;
+      } else {
+        state.availableTags.push(tag);
+      }
+
+      sortByOrderAndName(state.availableTags);
+      els.newTagName.value = "";
+      els.newTagColor.value = "";
+      renderTagOptions();
+      renderTagManager();
+      renderSelectedTags();
+      renderStudyList();
+      setStatus("Tag saved.", "success");
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
+  }
+
+  async function updateCategory(category, rawName, rawColor) {
+    if (!category || !category.id) return;
+
+    const name = normalizeName(rawName);
+    const color = normalizeColorValue(rawColor) || category.color || "#dbeafe";
+
+    if (!name) return;
+
+    try {
+      const result = await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, color, sortOrder: category.sortOrder || 0 })
+      });
+
+      const updated = result.category;
+      const index = state.categories.findIndex((item) => item.id === updated.id);
+
+      if (index >= 0) {
+        state.categories[index] = updated;
+      }
+
+      updateSelectedCategoryReferences(updated);
+      sortByOrderAndName(state.categories);
+      renderCategoryDropdown();
+      renderCategoryManager();
+      renderStudyList();
+      markDirty();
+      setStatus("Category updated.", "success");
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
+  }
+
+  async function updateTag(tag, rawName, rawColor) {
+    if (!tag || !tag.id) return;
+
+    const name = normalizeName(rawName);
+    const color = normalizeColorValue(rawColor) || tag.color || "#dbeafe";
+
+    if (!name) return;
+
+    try {
+      const result = await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, color, sortOrder: tag.sortOrder || 0 })
+      });
+
+      const updated = result.tag;
+      updateSelectedTagReferences(updated);
+      sortByOrderAndName(state.availableTags);
+      renderTagOptions();
+      renderTagManager();
+      renderSelectedTags();
+      renderStudyList();
+      markDirty();
+      setStatus("Tag updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -842,8 +1061,42 @@
         els.category.value = state.categories[0]?.id || "";
       }
 
+      state.studies = state.studies.map((study) => {
+        if (study.categoryId !== category.id) return study;
+        return { ...study, categoryId: null, category: null };
+      });
+
       renderCategoryDropdown();
       renderCategoryManager();
+      renderStudyList();
+      markDirty();
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
+  }
+
+  async function deleteTag(tag) {
+    if (!tag || !tag.id) return;
+
+    if (!confirm(`Delete tag ${tag.name}? It will be removed from studies that use it.`)) {
+      return;
+    }
+
+    try {
+      await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
+        method: "DELETE"
+      });
+
+      state.availableTags = state.availableTags.filter((item) => item.id !== tag.id);
+      state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
+      state.studies = state.studies.map((study) => ({
+        ...study,
+        tags: Array.isArray(study.tags) ? study.tags.filter((item) => item.id !== tag.id) : []
+      }));
+
+      renderTagOptions();
+      renderTagManager();
+      renderSelectedTags();
       renderStudyList();
       markDirty();
     } catch (error) {
@@ -871,6 +1124,9 @@
     els.addScripture.addEventListener("click", addLinkedScripture);
     els.closeCategoryManager.addEventListener("click", closeCategoryManager);
     els.addCategory.addEventListener("click", addCategory);
+    els.manageTags.addEventListener("click", openTagManager);
+    els.closeTagManager.addEventListener("click", closeTagManager);
+    els.addManagedTag.addEventListener("click", addManagedTag);
 
     els.search.addEventListener("input", renderStudyList);
 
@@ -899,6 +1155,13 @@
       }
     });
 
+    els.newTagName.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addManagedTag();
+      }
+    });
+
     els.scriptureReference.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -921,9 +1184,21 @@
       }
     });
 
+    els.tagManagerModal.addEventListener("click", (event) => {
+      if (event.target === els.tagManagerModal) {
+        closeTagManager();
+      }
+    });
+
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !els.categoryModal.hidden) {
+      if (event.key !== "Escape") return;
+
+      if (!els.categoryModal.hidden) {
         closeCategoryManager();
+      }
+
+      if (!els.tagManagerModal.hidden) {
+        closeTagManager();
       }
     });
 
