@@ -130,6 +130,17 @@ body.study-desk-page {
   gap: 12px;
 }
 
+.study-desk-hero {
+  text-align: left;
+}
+
+.study-desk-hero h1,
+.study-desk-hero-title,
+.study-desk-tagline,
+.study-desk-subtitle {
+  text-align: left;
+}
+
 .study-search-label {
   width: min(330px, 32vw);
   height: 44px;
