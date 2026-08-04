@@ -155,17 +155,21 @@ async function openSignup() {
   // BACKEND FETCH UTILITIES
   // ==========================================
   async function getJson(url) {
-    const response = await fetch(url, {
+    const requestUrl = new URL(url, window.location.origin);
+    requestUrl.searchParams.set("_", Date.now().toString());
+  
+    const response = await fetch(requestUrl.toString(), {
       method: "GET",
-      credentials: "include"
+      credentials: "include",
+      cache: "no-store"
     });
-
+  
     const result = await response.json();
-
+  
     if (!response.ok) {
       throw new Error(result.message || "Request failed");
     }
-
+  
     return result;
   }
 
