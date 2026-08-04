@@ -369,36 +369,59 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
 
-    const quillResult = await pool.query(
-      `SELECT page_key, bible_version_id, bible_chapter_id, page_url, quill_plain_text, updated_at 
-       FROM saved_quill_notes WHERE user_id = $1`,
+    const result = await pool.query(
+      `
+      SELECT
+        COALESCE(q.page_key, m.page_key) AS page_key,
+        COALESCE(q.bible_version_id, m.bible_version_id) AS bible_version_id,
+        COALESCE(q.bible_chapter_id, m.bible_chapter_id) AS bible_chapter_id,
+        COALESCE(q.page_url, m.page_url) AS page_url,
+        m.bible_name,
+        COALESCE(m.book_chapter_label, q.bible_chapter_id, m.bible_chapter_id) AS book_chapter_label,
+        CASE
+          WHEN q.quill_plain_text IS NOT NULL AND btrim(q.quill_plain_text) <> ''
+          THEN TRUE
+          ELSE FALSE
+        END AS has_quill_notes,
+        COALESCE(m.has_highlights, FALSE) AS has_highlights,
+        COALESCE(m.has_drawings, FALSE) AS has_drawings,
+        COALESCE(m.has_text_formats, FALSE) AS has_text_formats,
+        COALESCE(q.quill_plain_text, '') AS preview,
+        GREATEST(
+          COALESCE(q.updated_at, '1970-01-01'::timestamptz),
+          COALESCE(m.updated_at, '1970-01-01'::timestamptz)
+        ) AS updated_at
+      FROM saved_quill_notes q
+      FULL OUTER JOIN saved_mini_editor_pages m
+        ON m.user_id = q.user_id
+        AND m.page_key = q.page_key
+      WHERE COALESCE(q.user_id, m.user_id) = $1
+      ORDER BY updated_at DESC
+      `,
       [userId]
     );
 
-    const miniEditorResult = await pool.query(
-      `SELECT page_key, bible_version_id, bible_chapter_id, page_url, bible_name, book_chapter_label, has_highlights, has_drawings, has_text_formats, updated_at 
-       FROM saved_mini_editor_pages WHERE user_id = $1`,
-      [userId]
-    );
+    const notes = result.rows.map((row) => ({
+      pageKey: row.page_key,
+      bibleVersionID: row.bible_version_id,
+      bibleChapterID: row.bible_chapter_id,
+      bibleName: getBibleAbbrFromPageUrl(row.page_url) || row.bible_name || "",
+      bookChapterLabel: row.book_chapter_label || row.bible_chapter_id || "",
+      pageUrl: row.page_url,
+      hasQuillNotes: !!row.has_quill_notes,
+      hasHighlights: !!row.has_highlights,
+      hasDrawings: !!row.has_drawings,
+      hasTextFormats: !!row.has_text_formats,
+      preview: row.preview || "",
+      updatedAt: row.updated_at
+    }));
 
-    const notesByPageKey = new Map();
-
-    quillResult.rows.forEach((note) => {
-      notesByPageKey.set(note.page_key, {
-        pageKey: note.page_key,
-        bibleVersionID: note.bible_version_id,
-        bibleChapterID: note.bible_chapter_id,
-        bibleName: getBibleAbbrFromPageUrl(note.page_url),
-        bookChapterLabel: note.bible_chapter_id,
-        pageUrl: note.page_url,
-        hasQuillNotes: !!(note.quill_plain_text && note.quill_plain_text.trim()),
-        hasHighlights: false,
-        hasDrawings: false,
-        hasTextFormats: false,
-        preview: note.quill_plain_text || "",
-        updatedAt: note.updated_at
-      });
-    });
+    res.json({ ok: true, notes });
+  } catch (error) {
+    console.error("Get my notes error:", error);
+    res.status(500).json({ ok: false, message: "Failed to load my notes" });
+  }
+});
 
     miniEditorResult.rows.forEach((page) => {
       const existing = notesByPageKey.get(page.page_key);
