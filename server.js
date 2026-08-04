@@ -423,50 +423,6 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
   }
 });
 
-    miniEditorResult.rows.forEach((page) => {
-      const existing = notesByPageKey.get(page.page_key);
-      if (existing) {
-        existing.bibleVersionID = existing.bibleVersionID || page.bible_version_id;
-        existing.bibleChapterID = existing.bibleChapterID || page.bible_chapter_id;
-        existing.bibleName = getBibleAbbrFromPageUrl(page.page_url) || page.bible_name || existing.bibleName || "";
-        existing.bookChapterLabel = page.book_chapter_label || existing.bookChapterLabel || page.bible_chapter_id;
-        existing.pageUrl = existing.pageUrl || page.page_url;
-        existing.hasHighlights = !!page.has_highlights;
-        existing.hasDrawings = !!page.has_drawings;
-        existing.hasTextFormats = !!page.has_text_formats;
-
-        if (new Date(page.updated_at) > new Date(existing.updatedAt)) {
-          existing.updatedAt = page.updated_at;
-        }
-      } else {
-        notesByPageKey.set(page.page_key, {
-          pageKey: page.page_key,
-          bibleVersionID: page.bible_version_id,
-          bibleChapterID: page.bible_chapter_id,
-          bibleName: getBibleAbbrFromPageUrl(page.page_url) || page.bible_name || "",
-          bookChapterLabel: page.book_chapter_label || page.bible_chapter_id,
-          pageUrl: page.page_url,
-          hasQuillNotes: false,
-          hasHighlights: !!page.has_highlights,
-          hasDrawings: !!page.has_drawings,
-          hasTextFormats: !!page.has_text_formats,
-          preview: "",
-          updatedAt: page.updated_at
-        });
-      }
-    });
-
-    const notes = Array.from(notesByPageKey.values()).sort((a, b) => {
-      return new Date(b.updatedAt) - new Date(a.updatedAt);
-    });
-
-    res.json({ ok: true, notes });
-  } catch (error) {
-    console.error("Get my notes error:", error);
-    res.status(500).json({ ok: false, message: "Failed to load my notes" });
-  }
-});
-
 app.delete("/api/my-notes/:pageKey", requireAuth(), async (req, res) => {
   const { pageKey } = req.params;
   const userId = req.auth.userId;
