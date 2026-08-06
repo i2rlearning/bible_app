@@ -211,10 +211,18 @@ window.BibleSelector = (() => {
     const result =
       await requestJson(apiUrl);
 
-    const bibles =
+    const apiBibles =
       Array.isArray(result.data)
         ? [...result.data]
         : [];
+    
+    const hiddenBibleIds =
+      new Set(window.HiddenBibleVersions || []);
+    
+    const bibles =
+      apiBibles.filter((bible) => {
+        return !hiddenBibleIds.has(bible.id);
+    });
 
     bibles.sort(
       (a, b) =>
@@ -722,7 +730,7 @@ window.BibleSelector = (() => {
         !bookSelect.value ||
         !chapterSelect.value;
     }
-
+    
     async function syncSelectionsToCurrentPassage() {
       const apiUrl =
         languageSelect.value ||
