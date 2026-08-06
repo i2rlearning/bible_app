@@ -169,7 +169,30 @@ window.BibleSelector = (() => {
   }
 
   function getBibleOptionLabel(bible) {
-    return getBibleTooltip(bible);
+    const title =
+      getBibleTitle(bible).trim();
+  
+    const abbreviation =
+      (
+        bible?.abbreviation ||
+        bible?.abbreviationLocal ||
+        ""
+      ).trim();
+  
+    if (!title) {
+      return abbreviation || bible?.id || "";
+    }
+  
+    if (
+      !abbreviation ||
+      title.toLowerCase().includes(
+        `(${abbreviation.toLowerCase()})`
+      )
+    ) {
+      return title;
+    }
+  
+    return `${title} (${abbreviation})`;
   }
 
   function getBookName(book) {
