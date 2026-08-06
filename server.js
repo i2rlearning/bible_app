@@ -10,14 +10,6 @@ if (!rawDatabaseUrl) {
   throw new Error("DATABASE_URL is not set");
 }
 
-app.get("/api/server-version", (req, res) => {
-  res.json({
-    ok: true,
-    version: "my-notes-merged-clean-2026-08-06-1300",
-    time: new Date().toISOString()
-  });
-});
-
 const dbUrl = new URL(rawDatabaseUrl);
 dbUrl.searchParams.delete("sslmode");
 
@@ -31,6 +23,14 @@ const pool = new Pool({
 const app = express();
 
 app.use(express.json({ limit: "10mb" }));
+
+app.get("/api/server-version", (req, res) => {
+  res.json({
+    ok: true,
+    version: "my-notes-merged-clean-2026-08-06-1300",
+    time: new Date().toISOString()
+  });
+});
 
 app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
