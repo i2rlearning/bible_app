@@ -1,3 +1,9 @@
+//****************************************************************************************
+// This file runs the Node/Express backend for the Bible app.
+// It handles authentication-protected API routes for saving and loading user notes, 
+//   Bible page markings, Study Desk records, categories, and tags.
+//****************************************************************************************
+
 const express = require("express");
 const path = require("path");
 const { Pool } = require("pg");
