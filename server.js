@@ -416,16 +416,7 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
       updatedAt: row.updated_at
     }));
 
-   res.json({
-      ok: true,
-      debug: {
-        userId,
-        rowCount: result.rows.length,
-        noteCount: notes.length,
-        routeVersion: "merged-my-notes-sql-2026-08-06"
-      },
-      notes
-    });
+   res.json({ ok: true, notes });
     
   } catch (error) {
     console.error("Get my notes error:", error);
