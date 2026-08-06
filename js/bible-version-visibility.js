@@ -14,3 +14,5 @@ window.HiddenBibleVersions = [
   "7142879509583d59-03",
   "7142879509583d59-04"
 ];
+
+console.log("HiddenBibleVersions loaded:", window.HiddenBibleVersions);
