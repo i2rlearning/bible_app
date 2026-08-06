@@ -1,18 +1,7 @@
 window.HiddenBibleVersions = [
-  "685d1470fe4d5c3b-01",
-  "179568874c45066f-01",
-  "55ec700d9e0d77ea-01",
-  "2f0fd81d7b85b923-01",
-  "de4e12af7f28f599-02",
-  "55212e3cf5d04d49-01",
-  "72f4e6dc683324df-02",
-  "72f4e6dc683324df-03",
-  "32664dc3288a28df-03",
-  "32664dc3288a28df-02",
-  "65eec8e0b60e656b-01",
-  "7142879509583d59-02",
-  "7142879509583d59-03",
-  "7142879509583d59-04"
+    "9879dbb7cfe39e4d-02"
+    "9879dbb7cfe39e4d-03,"
+    "9879dbb7cfe39e4d-04"
 ];
 
 console.log("HiddenBibleVersions loaded:", window.HiddenBibleVersions);
