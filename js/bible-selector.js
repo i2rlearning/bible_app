@@ -217,11 +217,15 @@ window.BibleSelector = (() => {
         : [];
     
     const hiddenBibleIds =
-      new Set(window.HiddenBibleVersions || []);
+      new Set(
+        (window.HiddenBibleVersions || []).map((id) =>
+          String(id).trim()
+        )
+      );
     
     const bibles =
       apiBibles.filter((bible) => {
-        return !hiddenBibleIds.has(bible.id);
+        return !hiddenBibleIds.has(String(bible.id || "").trim());
     });
 
     bibles.sort(
