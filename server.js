@@ -24,14 +24,6 @@ const app = express();
 
 app.use(express.json({ limit: "10mb" }));
 
-app.get("/api/server-version", (req, res) => {
-  res.json({
-    ok: true,
-    version: "my-notes-merged-clean-2026-08-06-1300",
-    time: new Date().toISOString()
-  });
-});
-
 app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Pragma", "no-cache");
@@ -424,7 +416,17 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
       updatedAt: row.updated_at
     }));
 
-    res.json({ ok: true, notes });
+   res.json({
+      ok: true,
+      debug: {
+        userId,
+        rowCount: result.rows.length,
+        noteCount: notes.length,
+        routeVersion: "merged-my-notes-sql-2026-08-06"
+      },
+      notes
+    });
+    
   } catch (error) {
     console.error("Get my notes error:", error);
     res.status(500).json({ ok: false, message: "Failed to load my notes" });
