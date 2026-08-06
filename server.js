@@ -10,6 +10,14 @@ if (!rawDatabaseUrl) {
   throw new Error("DATABASE_URL is not set");
 }
 
+app.get("/api/server-version", (req, res) => {
+  res.json({
+    ok: true,
+    version: "my-notes-merged-clean-2026-08-06-1300",
+    time: new Date().toISOString()
+  });
+});
+
 const dbUrl = new URL(rawDatabaseUrl);
 dbUrl.searchParams.delete("sslmode");
 
