@@ -458,12 +458,12 @@ app.delete("/api/my-notes/:pageKey", requireAuth(), async (req, res) => {
 // Study Desk routes
 // ----------------------------------------------------
 const DEFAULT_CATEGORY_FALLBACKS = [
-  { name: "Study", color: "#dbeafe", sortOrder: 10 },
-  { name: "Sermon", color: "#ede9fe", sortOrder: 20 },
-  { name: "Lesson", color: "#dcfce7", sortOrder: 30 },
-  { name: "Teaching", color: "#fef3c7", sortOrder: 40 },
-  { name: "Personal Study", color: "#fce7f3", sortOrder: 50 },
-  { name: "Prayer", color: "#ccfbf1", sortOrder: 60 }
+  { name: "Studies", sortOrder: 10 },
+  { name: "Sermon", sortOrder: 20 },
+  { name: "Lesson", sortOrder: 30 },
+  { name: "Teaching", sortOrder: 40 },
+  { name: "Personal Study", sortOrder: 50 },
+  { name: "Prayer", sortOrder: 60 }
 ];
 
 const DEFAULT_TAG_COLORS = [
@@ -545,7 +545,6 @@ function mapCategoryRow(row) {
     id: row.id,
     userId: row.user_id,
     name: row.name,
-    color: row.color || "#dbeafe",
     sortOrder: row.sort_order || 0,
     isDefault: !!row.is_default,
     createdAt: row.created_at,
@@ -558,7 +557,6 @@ function mapTagRow(row) {
     id: row.id,
     userId: row.user_id,
     name: row.name,
-    color: row.color || "#dbeafe",
     sortOrder: row.sort_order || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -569,8 +567,7 @@ function mapStudyRow(row) {
   const tags = Array.isArray(row.tags) ? row.tags : [];
   const category = row.category_id ? {
     id: row.category_id,
-    name: row.category_name || "",
-    color: row.category_color || "#dbeafe"
+    name: row.category_name || ""
   } : null;
 
   return {
@@ -603,7 +600,7 @@ async function ensureUserStudyCategories(userId) {
 
   const templates = await pool.query(
     `
-    SELECT name, color, sort_order
+    SELECT name, sort_order
     FROM study_category_templates
     WHERE is_active = TRUE
     ORDER BY sort_order, name
@@ -613,7 +610,6 @@ async function ensureUserStudyCategories(userId) {
   const sourceRows = templates.rows.length
     ? templates.rows.map((row) => ({
         name: row.name,
-        color: row.color,
         sortOrder: row.sort_order
       }))
     : DEFAULT_CATEGORY_FALLBACKS;
@@ -621,11 +617,11 @@ async function ensureUserStudyCategories(userId) {
   for (const row of sourceRows) {
     await pool.query(
       `
-      INSERT INTO user_study_categories (user_id, name, color, sort_order, is_default, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, TRUE, NOW(), NOW())
+      INSERT INTO user_study_categories (user_id, name, sort_order, is_default, created_at, updated_at)
+      VALUES ($1, $2, $3, TRUE, NOW(), NOW())
       ON CONFLICT (user_id, name) DO NOTHING
       `,
-      [userId, row.name, normalizeColor(row.color), normalizeSortOrder(row.sortOrder)]
+      [userId, row.name, normalizeSortOrder(row.sortOrder)]
     );
   }
 }
@@ -635,7 +631,7 @@ async function getUserCategories(userId) {
 
   const result = await pool.query(
     `
-    SELECT id, user_id, name, color, sort_order, is_default, created_at, updated_at
+    SELECT id, user_id, name, sort_order, is_default, created_at, updated_at
     FROM user_study_categories
     WHERE user_id = $1
     ORDER BY sort_order, name
@@ -712,7 +708,6 @@ async function getStudyById(userId, id, client = pool) {
       s.main_scripture,
       s.category_id,
       c.name AS category_name,
-      c.color AS category_color,
       s.linked_scriptures,
       s.content_html,
       s.preview_text,
@@ -773,15 +768,14 @@ app.post("/api/study-categories", requireAuth(), async (req, res) => {
 
     const result = await pool.query(
       `
-      INSERT INTO user_study_categories (user_id, name, color, sort_order, is_default, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, FALSE, NOW(), NOW())
+      INSERT INTO user_study_categories (user_id, name, sort_order, is_default, created_at, updated_at)
+      VALUES ($1, $2, $3, FALSE, NOW(), NOW())
       ON CONFLICT (user_id, name)
       DO UPDATE SET
-        color = EXCLUDED.color,
         updated_at = NOW()
       RETURNING *
       `,
-      [userId, name, normalizeColor(req.body.color), normalizeSortOrder(req.body.sortOrder, 100)]
+      [userId, name, normalizeSortOrder(req.body.sortOrder, 100)]
     );
 
     res.status(201).json({ ok: true, category: mapCategoryRow(result.rows[0]) });
@@ -805,14 +799,13 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
       `
       UPDATE user_study_categories
       SET name = $3,
-          color = $4,
-          sort_order = $5,
+          sort_order = $4,
           updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
       RETURNING *
       `,
-      [userId, id, name, normalizeColor(req.body.color), normalizeSortOrder(req.body.sortOrder)]
+      [userId, id, name, normalizeSortOrder(req.body.sortOrder)]
     );
 
     if (!result.rows.length) {
@@ -978,8 +971,7 @@ app.get("/api/studies", requireAuth(), async (req, res) => {
         s.main_scripture,
         s.category_id,
         c.name AS category_name,
-        c.color AS category_color,
-        s.linked_scriptures,
+          s.linked_scriptures,
         s.content_html,
         s.preview_text,
         s.created_at,
