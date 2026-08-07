@@ -794,6 +794,8 @@
     if (!state.managedCategoryId && state.categories[0]) {
       state.managedCategoryId = state.categories[0].id;
     }
+    ensureCategoryManagerInlineStyles();
+    updateCategoryManagerIntroText();
     hideCategoryColorControls();
     renderCategoryManager();
     els.categoryModal.hidden = false;
@@ -821,6 +823,120 @@
     if (!els.tagManagerModal) return;
     els.tagManagerModal.hidden = true;
     renderTagOptions();
+  }
+
+  function updateCategoryManagerIntroText() {
+    if (!els.categoryModal) return;
+
+    const paragraphs = Array.from(els.categoryModal.querySelectorAll("p"));
+    const intro = paragraphs.find((paragraph) =>
+      /categories that appear/i.test(paragraph.textContent || "")
+    );
+
+    if (intro) {
+      intro.textContent = "Add, rename, or remove the categories that appear in your Study Desk dropdown.";
+    }
+  }
+
+  function ensureCategoryManagerInlineStyles() {
+    if (document.getElementById("study-category-inline-editor-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "study-category-inline-editor-styles";
+    style.textContent = `
+      .study-category-inline-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 0.6rem;
+        align-items: center;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 0.75rem;
+        padding: 0.7rem;
+        border: 1px solid rgba(15, 42, 80, 0.14);
+        border-radius: 0.85rem;
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      .study-category-inline-row.is-dirty {
+        border-color: rgba(37, 99, 235, 0.6);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .study-category-inline-input {
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid rgba(15, 42, 80, 0.16);
+        border-radius: 0.7rem;
+        padding: 0.65rem 0.75rem;
+        font: inherit;
+        font-weight: 700;
+        color: #0f2a50;
+        background: #fff;
+      }
+
+      .study-category-inline-input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+      }
+
+      .study-category-inline-save,
+      .study-category-inline-delete {
+        white-space: nowrap;
+        border-radius: 0.65rem;
+        padding: 0.65rem 0.85rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .study-category-inline-save {
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        color: #64748b;
+        background: #eef2ff;
+      }
+
+      .study-category-inline-save.is-ready {
+        color: #fff;
+        background: #2563eb;
+        border-color: #2563eb;
+        box-shadow: 0 0.55rem 1.15rem rgba(37, 99, 235, 0.22);
+      }
+
+      .study-category-inline-save:disabled {
+        cursor: default;
+        opacity: 0.72;
+      }
+
+      .study-category-inline-delete {
+        border: 1px solid rgba(185, 28, 28, 0.18);
+        color: #991b1b;
+        background: #fff1f2;
+      }
+
+      .study-category-inline-delete:hover {
+        border-color: rgba(185, 28, 28, 0.35);
+        background: #ffe4e6;
+      }
+
+      #category-manager-editor {
+        display: none !important;
+      }
+
+      @media (max-width: 640px) {
+        .study-category-inline-row {
+          grid-template-columns: 1fr;
+        }
+
+        .study-category-inline-save,
+        .study-category-inline-delete {
+          width: 100%;
+        }
+      }
+    `;
+
+    document.head.appendChild(style);
   }
 
   function createColorButton(color, activeColor, label, onSelect) {
@@ -1026,37 +1142,84 @@
     return label;
   }
 
+  function createCategoryInlineEditorRow(category) {
+    const row = document.createElement("div");
+    row.className = "study-category-inline-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "study-category-inline-input";
+    input.value = category.name || "";
+    input.setAttribute("aria-label", `Category name: ${category.name || "category"}`);
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "study-category-inline-save";
+    saveButton.textContent = "Save";
+    saveButton.disabled = true;
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "study-category-inline-delete";
+    deleteButton.textContent = "Delete";
+
+    const updateSaveState = () => {
+      const originalName = normalizeName(category.name);
+      const currentName = normalizeName(input.value);
+      const isDirty = !!currentName && currentName !== originalName;
+
+      row.classList.toggle("is-dirty", isDirty);
+      saveButton.disabled = !isDirty;
+      saveButton.classList.toggle("is-ready", isDirty);
+      saveButton.textContent = isDirty ? "Save Changes" : "Saved";
+    };
+
+    input.addEventListener("input", updateSaveState);
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      if (!saveButton.disabled) updateCategory(category, input.value);
+    });
+
+    saveButton.addEventListener("click", () => {
+      if (!saveButton.disabled) updateCategory(category, input.value);
+    });
+
+    deleteButton.addEventListener("click", () => {
+      deleteCategory(category);
+    });
+
+    updateSaveState();
+    row.append(input, saveButton, deleteButton);
+    return row;
+  }
+
   function renderCategoryManager() {
     if (!els.categoryList) return;
 
-    if (state.categories.length && !getManagedCategory()) {
-      state.managedCategoryId = state.categories[0].id;
-    }
+    ensureCategoryManagerInlineStyles();
+    updateCategoryManagerIntroText();
+    hideCategoryColorControls();
 
     els.categoryList.innerHTML = "";
+
+    if (els.categoryEditor) {
+      els.categoryEditor.innerHTML = "";
+      els.categoryEditor.hidden = true;
+    }
 
     if (!state.categories.length) {
       const empty = document.createElement("p");
       empty.className = "study-manager-empty";
       empty.textContent = "No categories yet.";
       els.categoryList.appendChild(empty);
-      if (els.categoryEditor) els.categoryEditor.hidden = true;
       return;
     }
 
     state.categories.forEach((category) => {
-      els.categoryList.appendChild(renderManagerListRow(category, state.managedCategoryId, "Category", (id) => {
-        state.managedCategoryId = id;
-        renderCategoryManager();
-      }));
+      els.categoryList.appendChild(createCategoryInlineEditorRow(category));
     });
-
-    const selected = getManagedCategory();
-    if (els.categoryEditor && selected) {
-      els.categoryEditor.innerHTML = "";
-      els.categoryEditor.appendChild(createManagerEditor(selected, "category"));
-      els.categoryEditor.hidden = false;
-    }
   }
 
   function renderTagManager() {
