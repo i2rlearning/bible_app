@@ -14,7 +14,6 @@
     lastCategoryId: "",
     managedCategoryId: "",
     managedTagId: "",
-    newCategoryColor: "",
     newTagColor: "",
     quill: null,
     isPreview: false,
@@ -88,8 +87,6 @@
     els.categoryList = byId("category-manager-list");
     els.closeCategoryManager = byId("close-category-manager");
     els.newCategoryName = byId("new-category-name");
-    els.newCategoryColorPicker = byId("new-category-color-picker");
-    els.newCategoryCustomColor = byId("new-category-custom-color");
     els.addCategory = byId("add-category-button");
     els.categoryEditor = byId("category-manager-editor");
     els.manageTags = byId("manage-tags-button");
@@ -797,7 +794,7 @@
     if (!state.managedCategoryId && state.categories[0]) {
       state.managedCategoryId = state.categories[0].id;
     }
-    renderAddCategoryColorPicker();
+    hideCategoryColorControls();
     renderCategoryManager();
     els.categoryModal.hidden = false;
     if (els.newCategoryName) els.newCategoryName.focus();
@@ -851,20 +848,30 @@
     input.value = normalizeColorValue(color) || "";
   }
 
+  function hideCategoryColorControls() {
+    ["new-category-color-picker", "new-category-custom-color"].forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.hidden = true;
+        element.style.display = "none";
+      }
+    });
+
+    const picker = document.getElementById("new-category-color-picker");
+    const label = picker?.previousElementSibling;
+
+    if (label && /color/i.test(label.textContent || "")) {
+      label.hidden = true;
+      label.style.display = "none";
+    }
+  }
+
   function getManagedCategory() {
     return state.categories.find((item) => item.id === state.managedCategoryId) || null;
   }
 
   function getManagedTag() {
     return state.availableTags.find((item) => item.id === state.managedTagId) || null;
-  }
-
-  function renderAddCategoryColorPicker() {
-    renderColorPicker(els.newCategoryColorPicker, state.newCategoryColor, (color) => {
-      state.newCategoryColor = color;
-      syncCustomColorInput(els.newCategoryCustomColor, color);
-      renderAddCategoryColorPicker();
-    });
   }
 
   function renderAddTagColorPicker() {
@@ -885,15 +892,18 @@
     const selectDot = document.createElement("span");
     selectDot.className = "study-manager-select-dot";
 
-    const colorSwatch = document.createElement("span");
-    colorSwatch.className = "study-color-swatch";
-    colorSwatch.style.backgroundColor = item.color || "#dbeafe";
-
     const name = document.createElement("span");
     name.className = "study-manager-row-name";
     name.textContent = item.name || label;
 
-    row.append(selectDot, colorSwatch, name);
+    if (label.toLowerCase() === "tag") {
+      const colorSwatch = document.createElement("span");
+      colorSwatch.className = "study-color-swatch";
+      colorSwatch.style.backgroundColor = item.color || "#dbeafe";
+      row.append(selectDot, colorSwatch, name);
+    } else {
+      row.append(selectDot, name);
+    }
     row.addEventListener("click", () => onSelect(item.id));
     return row;
   }
@@ -912,7 +922,11 @@
     preview.className = "study-manager-editor-preview";
     preview.style.backgroundColor = item.color || "#dbeafe";
 
-    heading.append(title, preview);
+    if (type === "tag") {
+      heading.append(title, preview);
+    } else {
+      heading.append(title);
+    }
 
     const nameInput = document.createElement("input");
     nameInput.type = "text";
@@ -953,7 +967,7 @@
     nameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        if (type === "category") updateCategory(item, nameInput.value, selectedColor);
+        if (type === "category") updateCategory(item, nameInput.value);
         if (type === "tag") updateTag(item, nameInput.value, selectedColor);
       }
     });
@@ -968,10 +982,14 @@
     saveButton.className = "study-primary-button";
     saveButton.textContent = "Save Changes";
     saveButton.addEventListener("click", () => {
+      if (type === "category") {
+        updateCategory(item, nameInput.value);
+        return;
+      }
+
       const customColor = normalizeColorValue(customInput.value);
       const finalColor = customColor || selectedColor;
-      if (type === "category") updateCategory(item, nameInput.value, finalColor);
-      if (type === "tag") updateTag(item, nameInput.value, finalColor);
+      updateTag(item, nameInput.value, finalColor);
     });
 
     const deleteButton = document.createElement("button");
@@ -985,15 +1003,18 @@
 
     actions.append(saveButton, deleteButton);
 
-    editor.append(
-      heading,
-      nameInput,
-      document.createElement("hr"),
-      createSmallLabel("Color"),
-      picker,
-      customInput,
-      actions
-    );
+    editor.append(heading, nameInput);
+
+    if (type === "tag") {
+      editor.append(
+        document.createElement("hr"),
+        createSmallLabel("Color"),
+        picker,
+        customInput
+      );
+    }
+
+    editor.append(actions);
 
     return editor;
   }
@@ -1073,7 +1094,6 @@
 
   async function addCategory() {
     const name = normalizeName(els.newCategoryName.value);
-    const color = normalizeColorValue(state.newCategoryColor || els.newCategoryCustomColor.value);
 
     if (!name) {
       els.newCategoryName.focus();
@@ -1083,7 +1103,7 @@
     try {
       const result = await fetchJson("/api/study-categories", {
         method: "POST",
-        body: JSON.stringify({ name, color, sortOrder: state.categories.length * 10 + 100 })
+        body: JSON.stringify({ name, sortOrder: state.categories.length * 10 + 100 })
       });
 
       const category = result.category;
@@ -1098,9 +1118,6 @@
       sortByOrderAndName(state.categories);
       state.managedCategoryId = category.id;
       els.newCategoryName.value = "";
-      state.newCategoryColor = "";
-      if (els.newCategoryCustomColor) els.newCategoryCustomColor.value = "";
-      renderAddCategoryColorPicker();
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
@@ -1150,18 +1167,17 @@
     }
   }
 
-  async function updateCategory(category, rawName, rawColor) {
+  async function updateCategory(category, rawName) {
     if (!category || !category.id) return;
 
     const name = normalizeName(rawName);
-    const color = normalizeColorValue(rawColor) || category.color || "#dbeafe";
 
     if (!name) return;
 
     try {
       const result = await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
         method: "PUT",
-        body: JSON.stringify({ name, color, sortOrder: category.sortOrder || 0 })
+        body: JSON.stringify({ name, sortOrder: category.sortOrder || 0 })
       });
 
       const updated = result.category;
@@ -1327,14 +1343,6 @@
       }
     });
 
-    if (els.newCategoryCustomColor) {
-      els.newCategoryCustomColor.addEventListener("input", () => {
-        const color = normalizeColorValue(els.newCategoryCustomColor.value);
-        state.newCategoryColor = color;
-        renderAddCategoryColorPicker();
-      });
-    }
-
     els.newTagName.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -1418,6 +1426,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     cacheElements();
+    hideCategoryColorControls();
     initQuill();
     bindEvents();
     applyStudyToForm(getEmptyStudy());
