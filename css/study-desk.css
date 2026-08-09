@@ -1031,7 +1031,7 @@ body.study-desk-page {
 
 .study-manager-list-row {
   display: grid;
-  grid-template-columns: 18px 28px minmax(0, 1fr);
+  grid-template-columns: 18px 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -1070,6 +1070,37 @@ body.study-desk-page {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.study-manager-row-action {
+  min-height: 36px;
+  border: 1px solid rgba(37, 91, 234, 0.22);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--study-blue);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 13px;
+  justify-self: end;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.study-manager-row-action:hover:not(:disabled) {
+  border-color: rgba(37, 91, 234, 0.42);
+  background: var(--study-blue-soft);
+}
+
+.study-manager-row-action:disabled {
+  cursor: default;
+  color: var(--study-success);
+  background: #effaf3;
+  border-color: rgba(19, 115, 51, 0.2);
+}
+
+.study-manager-list-row:focus-visible,
+.study-manager-row-action:focus-visible {
+  outline: 3px solid rgba(37, 91, 234, 0.22);
+  outline-offset: 2px;
 }
 
 .study-manager-editor {
@@ -1129,7 +1160,7 @@ body.study-desk-page {
   }
 
   .study-manager-list-row {
-    grid-template-columns: 18px 28px minmax(0, 1fr);
+    grid-template-columns: 18px 28px minmax(0, 1fr) auto;
   }
 
   .study-manager-editor-actions {
@@ -1198,4 +1229,19 @@ body.study-desk-page {
 
 .study-manager-edit-card .study-manager-name-input {
   margin-top: -4px;
+}
+
+@media (max-width: 400px) {
+  .study-manager-list-row {
+    grid-template-columns: 18px 28px minmax(0, 1fr);
+    row-gap: 10px;
+  }
+
+  .study-manager-row-action {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 40px;
+    justify-content: center;
+    justify-self: stretch;
+  }
 }
