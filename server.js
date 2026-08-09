@@ -557,6 +557,7 @@ function mapTagRow(row) {
     id: row.id,
     userId: row.user_id,
     name: row.name,
+    color: normalizeColor(row.color),
     sortOrder: row.sort_order || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -882,7 +883,8 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
       VALUES ($1, $2, $3, $4, NOW(), NOW())
       ON CONFLICT (user_id, name)
       DO UPDATE SET
-        color = user_tags.color,
+        color = EXCLUDED.color,
+        sort_order = EXCLUDED.sort_order,
         updated_at = NOW()
       RETURNING *
       `,
