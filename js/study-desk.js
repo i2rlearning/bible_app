@@ -830,9 +830,7 @@
 
   function openTagManager() {
     if (!els.tagManagerModal) return;
-    if (!state.managedTagId && state.availableTags[0]) {
-      state.managedTagId = state.availableTags[0].id;
-    }
+    prepareTagManagerCreateSection();
     renderAddTagColorPicker();
     renderTagManager();
     els.tagManagerModal.hidden = false;
@@ -843,6 +841,55 @@
     if (!els.tagManagerModal) return;
     els.tagManagerModal.hidden = true;
     renderTagOptions();
+  }
+
+  function createSectionHeading(eyebrow, title, description) {
+    const heading = document.createElement("div");
+    heading.className = "study-manager-section-heading";
+
+    const small = document.createElement("p");
+    small.className = "study-manager-small-label";
+    small.textContent = eyebrow;
+
+    const headline = document.createElement("h3");
+    headline.textContent = title;
+
+    heading.append(small, headline);
+
+    if (description) {
+      const note = document.createElement("p");
+      note.className = "study-manager-section-note";
+      note.textContent = description;
+      heading.appendChild(note);
+    }
+
+    return heading;
+  }
+
+  function prepareTagManagerCreateSection() {
+    const addCard = els.newTagName?.closest?.(".study-manager-add-card");
+    if (!addCard) return;
+
+    addCard.classList.add("study-manager-section-card", "study-manager-create-card");
+
+    if (!addCard.querySelector("[data-tag-create-heading]")) {
+      const heading = createSectionHeading(
+        "Create New Tag",
+        "Create a new tag",
+        "Choose the name and color for a new tag before adding it to your private list."
+      );
+      heading.setAttribute("data-tag-create-heading", "true");
+      addCard.prepend(heading);
+    }
+
+    const colorLabel = addCard.querySelector(".study-manager-color-section .study-manager-small-label");
+    if (colorLabel) {
+      colorLabel.textContent = "New tag color";
+    }
+
+    if (els.addManagedTag) {
+      els.addManagedTag.textContent = "Add Tag";
+    }
   }
 
   function updateCategoryManagerIntroText() {
@@ -1046,13 +1093,21 @@
 
   function createManagerEditor(item, type) {
     const editor = document.createElement("div");
-    editor.className = "study-manager-editor-card";
+    editor.className = type === "tag"
+      ? "study-manager-editor-card study-manager-section-card study-manager-edit-card"
+      : "study-manager-editor-card";
 
     const heading = document.createElement("div");
     heading.className = "study-manager-editor-heading";
 
     const title = document.createElement("div");
-    title.innerHTML = `<p class="study-manager-small-label">Selected ${type}</p><h3>Edit ${type}</h3>`;
+
+    if (type === "tag") {
+      const tagName = item.name || "selected tag";
+      title.innerHTML = `<p class="study-manager-small-label">Edit Selected Tag</p><h3>${escapeHtml(tagName)}</h3><p class="study-manager-section-note">Changes here apply only to the selected existing tag.</p>`;
+    } else {
+      title.innerHTML = `<p class="study-manager-small-label">Selected ${type}</p><h3>Edit ${type}</h3>`;
+    }
 
     const preview = document.createElement("span");
     preview.className = "study-manager-editor-preview";
@@ -1078,7 +1133,7 @@
     const customInput = document.createElement("input");
     customInput.type = "text";
     customInput.className = "study-manager-custom-color-input";
-    customInput.placeholder = "Custom color, e.g. #dbeafe";
+    customInput.placeholder = type === "tag" ? "Selected tag color, e.g. #dbeafe" : "Custom color, e.g. #dbeafe";
     customInput.maxLength = 7;
     customInput.spellcheck = false;
     customInput.value = selectedColor;
@@ -1116,7 +1171,7 @@
     const saveButton = document.createElement("button");
     saveButton.type = "button";
     saveButton.className = "study-primary-button";
-    saveButton.textContent = "Save Changes";
+    saveButton.textContent = type === "tag" ? "Save Tag Changes" : "Save Changes";
     saveButton.addEventListener("click", () => {
       if (type === "category") {
         updateCategory(item, nameInput.value);
@@ -1124,7 +1179,7 @@
       }
 
       const customColor = normalizeColorValue(customInput.value);
-      const finalColor = customColor || selectedColor;
+      const finalColor = customColor || selectedColor || "#dbeafe";
       updateTag(item, nameInput.value, finalColor);
     });
 
@@ -1139,12 +1194,12 @@
 
     actions.append(saveButton, deleteButton);
 
-    editor.append(heading, nameInput);
+    editor.append(heading, createSmallLabel(type === "tag" ? "Selected tag name" : "Name"), nameInput);
 
     if (type === "tag") {
       editor.append(
         document.createElement("hr"),
-        createSmallLabel("Color"),
+        createSmallLabel("Selected tag color"),
         picker,
         customInput
       );
@@ -1153,6 +1208,25 @@
     editor.append(actions);
 
     return editor;
+  }
+
+  function createEmptyTagEditor() {
+    const editor = document.createElement("div");
+    editor.className = "study-manager-editor-card study-manager-section-card study-manager-edit-card study-manager-empty-editor";
+    editor.appendChild(
+      createSectionHeading(
+        "Edit Selected Tag",
+        "Select a tag to edit",
+        "Choose a tag from the Existing Tags list above to change its name, color, or delete it."
+      )
+    );
+    return editor;
+  }
+
+  function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = String(value || "");
+    return div.innerHTML;
   }
 
   function createSmallLabel(text) {
@@ -1245,34 +1319,50 @@
   function renderTagManager() {
     if (!els.tagManagerList) return;
 
-    if (state.availableTags.length && !getManagedTag()) {
-      state.managedTagId = state.availableTags[0].id;
+    prepareTagManagerCreateSection();
+
+    if (state.managedTagId && !getManagedTag()) {
+      state.managedTagId = "";
     }
 
     els.tagManagerList.innerHTML = "";
 
+    const listCard = document.createElement("div");
+    listCard.className = "study-manager-section-card study-manager-existing-card";
+    listCard.appendChild(
+      createSectionHeading(
+        "Existing Tags",
+        "Choose a tag to edit",
+        "This list shows the tags already saved in your private Study Desk."
+      )
+    );
+
+    const rows = document.createElement("div");
+    rows.className = "study-manager-list-rows";
+
     if (!state.availableTags.length) {
       const empty = document.createElement("p");
       empty.className = "study-manager-empty";
-      empty.textContent = "No tags yet.";
-      els.tagManagerList.appendChild(empty);
-      if (els.tagManagerEditor) els.tagManagerEditor.hidden = true;
-      return;
+      empty.textContent = "No tags yet. Create your first tag above.";
+      rows.appendChild(empty);
+    } else {
+      state.availableTags.forEach((tag) => {
+        rows.appendChild(renderManagerListRow(tag, state.managedTagId, "Tag", (id) => {
+          state.managedTagId = id;
+          renderTagManager();
+        }));
+      });
     }
 
-    state.availableTags.forEach((tag) => {
-      els.tagManagerList.appendChild(renderManagerListRow(tag, state.managedTagId, "Tag", (id) => {
-        state.managedTagId = id;
-        renderTagManager();
-      }));
-    });
+    listCard.appendChild(rows);
+    els.tagManagerList.appendChild(listCard);
 
+    if (!els.tagManagerEditor) return;
+
+    els.tagManagerEditor.innerHTML = "";
     const selected = getManagedTag();
-    if (els.tagManagerEditor && selected) {
-      els.tagManagerEditor.innerHTML = "";
-      els.tagManagerEditor.appendChild(createManagerEditor(selected, "tag"));
-      els.tagManagerEditor.hidden = false;
-    }
+    els.tagManagerEditor.appendChild(selected ? createManagerEditor(selected, "tag") : createEmptyTagEditor());
+    els.tagManagerEditor.hidden = false;
   }
 
   async function addCategory() {
@@ -1312,7 +1402,9 @@
 
   async function addManagedTag() {
     const name = normalizeName(els.newTagName.value);
-    const color = normalizeColorValue(state.newTagColor || els.newTagCustomColor.value);
+    const customColor = normalizeColorValue(els.newTagCustomColor?.value);
+    const selectedColor = normalizeColorValue(state.newTagColor);
+    const color = customColor || selectedColor || "#dbeafe";
 
     if (!name) {
       els.newTagName.focus();
@@ -1460,6 +1552,10 @@
 
       state.availableTags = state.availableTags.filter((item) => item.id !== tag.id);
       state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
+
+      if (state.managedTagId === tag.id) {
+        state.managedTagId = "";
+      }
       state.studies = state.studies.map((study) => ({
         ...study,
         tags: Array.isArray(study.tags) ? study.tags.filter((item) => item.id !== tag.id) : []
