@@ -18,7 +18,8 @@
     quill: null,
     isPreview: false,
     hasLoaded: false,
-    isApplying: false
+    isApplying: false,
+    hasUnsavedChanges: false
   };
 
   const MANAGER_COLORS = [
