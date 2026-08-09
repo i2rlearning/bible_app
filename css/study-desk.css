@@ -429,6 +429,8 @@ body.study-desk-page {
 }
 
 .study-quill-editor {
+  --study-editor-padding-y: 26px;
+  --study-editor-padding-x: 30px;
   min-height: 420px;
   background: #ffffff;
 }
@@ -438,7 +440,12 @@ body.study-desk-page {
   font-size: 17px;
   line-height: 1.72;
   color: #111827;
-  padding: 26px 30px;
+  padding: var(--study-editor-padding-y) var(--study-editor-padding-x);
+}
+
+.study-quill-editor .ql-editor.ql-blank::before {
+  left: var(--study-editor-padding-x);
+  right: var(--study-editor-padding-x);
 }
 
 .study-quill-editor .ql-editor h1,
@@ -730,8 +737,9 @@ body.study-desk-page {
     flex: 1 1 auto;
   }
 
-  .study-quill-editor .ql-editor {
-    padding: 20px 16px;
+  .study-quill-editor {
+    --study-editor-padding-y: 20px;
+    --study-editor-padding-x: 16px;
   }
 }
 
