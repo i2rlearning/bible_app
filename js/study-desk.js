@@ -1172,15 +1172,24 @@
     saveButton.type = "button";
     saveButton.className = "study-primary-button";
     saveButton.textContent = type === "tag" ? "Save Tag Changes" : "Save Changes";
-    saveButton.addEventListener("click", () => {
-      if (type === "category") {
-        updateCategory(item, nameInput.value);
-        return;
-      }
+    saveButton.addEventListener("click", async () => {
+      const originalText = saveButton.textContent;
+      saveButton.disabled = true;
+      saveButton.textContent = type === "tag" ? "Saving tag..." : "Saving...";
 
-      const customColor = normalizeColorValue(customInput.value);
-      const finalColor = customColor || selectedColor || "#dbeafe";
-      updateTag(item, nameInput.value, finalColor);
+      try {
+        if (type === "category") {
+          await updateCategory(item, nameInput.value);
+          return;
+        }
+
+        const customColor = normalizeColorValue(customInput.value);
+        const finalColor = customColor || selectedColor || "#dbeafe";
+        await updateTag(item, nameInput.value, finalColor);
+      } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = originalText;
+      }
     });
 
     const deleteButton = document.createElement("button");
@@ -1467,7 +1476,6 @@
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-      markDirty();
       setStatus("Category updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
@@ -1482,6 +1490,8 @@
 
     if (!name) return;
 
+    setStatus("Saving tag changes...");
+
     try {
       const result = await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
         method: "PUT",
@@ -1495,7 +1505,6 @@
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
-      markDirty();
       setStatus("Tag updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
@@ -1532,7 +1541,7 @@
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-      markDirty();
+      setStatus("Category deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -1565,7 +1574,7 @@
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
-      markDirty();
+      setStatus("Tag deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
