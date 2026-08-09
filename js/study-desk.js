@@ -109,6 +109,24 @@
     els.status.classList.toggle("is-success", type === "success");
   }
 
+  function markDirty() {
+    state.hasUnsavedChanges = true;
+    setSaveState("Unsaved changes");
+  }
+
+  function confirmDiscardUnsavedChanges() {
+    if (!state.hasUnsavedChanges) {
+      return true;
+    }
+  
+    return confirm("You have unsaved changes. Leave without saving?");
+  }
+  
+  function markClean(message = "Saved") {
+    state.hasUnsavedChanges = false;
+    setSaveState(message, "success");
+  }
+  
   function setListStatus(message, type) {
     if (!els.listStatus) return;
 
@@ -324,6 +342,7 @@
     renderSelectedTags();
     renderLinkedScriptures();
     updateWordCount();
+    state.hasUnsavedChanges = false;
     setSaveState(state.activeStudyId ? "Loaded" : "Draft not saved yet", state.activeStudyId ? "success" : "");
     setStatus("", "");
     switchToEdit();
@@ -452,6 +471,10 @@
       }
 
       button.addEventListener("click", () => {
+        if (!confirmDiscardUnsavedChanges()) {
+          return;
+        }
+
         loadStudy(study.id);
       });
 
@@ -548,7 +571,7 @@
       applyStudyToForm(savedStudy);
       renderStudyList();
       setStatus("Study saved successfully.", "success");
-      setSaveState("Saved just now", "success");
+      markClean("Saved just now");
     } catch (error) {
       setStatus(error.message, "error");
       setSaveState("Save failed");
@@ -707,10 +730,6 @@
     els.scriptureNote.value = "";
     renderLinkedScriptures();
     markDirty();
-  }
-
-  function markDirty() {
-    setSaveState("Unsaved changes");
   }
 
   function renderPreviewTags(container, tags) {
@@ -1462,7 +1481,20 @@
       if (login) login.click();
     });
 
+    window.addEventListener("beforeunload", (event) => {
+      if (!state.hasUnsavedChanges) {
+        return;
+      }
+    
+      event.preventDefault();
+      event.returnValue = "";
+    });
+
     els.newButton.addEventListener("click", () => {
+      if (!confirmDiscardUnsavedChanges()) {
+        return;
+      }
+    
       applyStudyToForm(getEmptyStudy());
       renderStudyList();
       els.title.focus();
