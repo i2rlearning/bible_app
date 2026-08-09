@@ -622,6 +622,22 @@
     });
   }
 
+  function isTagSelected(tagId) {
+    return state.selectedTags.some((tag) => tag.id === tagId);
+  }
+
+  function addTagToCurrentStudy(tag) {
+    if (!tag || !tag.id || isTagSelected(tag.id)) {
+      return;
+    }
+
+    state.selectedTags.push(tag);
+    renderSelectedTags();
+    renderTagManager();
+    markDirty();
+    setStatus(`${tag.name || "Tag"} added to this study.`, "success");
+  }
+
   function renderSelectedTags() {
     els.tagList.innerHTML = "";
     els.tagCount.textContent = String(state.selectedTags.length);
@@ -888,7 +904,7 @@
     }
 
     if (els.addManagedTag) {
-      els.addManagedTag.textContent = "Add Tag";
+      els.addManagedTag.textContent = "Create Tag";
     }
   }
 
@@ -1066,10 +1082,11 @@
   }
 
   function renderManagerListRow(item, selectedId, label, onSelect) {
-    const row = document.createElement("button");
-    row.type = "button";
+    const row = document.createElement("div");
     row.className = "study-manager-list-row";
     row.classList.toggle("is-selected", item.id === selectedId);
+    row.setAttribute("role", "button");
+    row.setAttribute("tabindex", "0");
     row.setAttribute("aria-pressed", String(item.id === selectedId));
 
     const selectDot = document.createElement("span");
@@ -1084,10 +1101,44 @@
       colorSwatch.className = "study-color-swatch";
       colorSwatch.style.backgroundColor = item.color || "#dbeafe";
       row.append(selectDot, colorSwatch, name);
+
+      const isAdded = isTagSelected(item.id);
+      const addToStudyButton = document.createElement("button");
+      addToStudyButton.type = "button";
+      addToStudyButton.className = "study-manager-row-action";
+      addToStudyButton.textContent = isAdded ? "Added" : "Add to Study";
+      addToStudyButton.disabled = isAdded;
+      addToStudyButton.setAttribute(
+        "aria-label",
+        isAdded
+          ? `${item.name || "Tag"} is already added to this study`
+          : `Add ${item.name || "tag"} to this study`
+      );
+
+      addToStudyButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        addTagToCurrentStudy(item);
+      });
+
+      row.appendChild(addToStudyButton);
     } else {
       row.append(selectDot, name);
     }
+
     row.addEventListener("click", () => onSelect(item.id));
+    row.addEventListener("keydown", (event) => {
+      if (event.target?.closest?.("button")) {
+        return;
+      }
+
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      onSelect(item.id);
+    });
+
     return row;
   }
 
@@ -1609,6 +1660,11 @@
     els.deleteButton.addEventListener("click", deleteStudy);
     els.previewButton.addEventListener("click", switchToPreview);
     els.editButton.addEventListener("click", switchToEdit);
+
+    if (els.addTag) {
+      els.addTag.textContent = "Add to Study";
+    }
+
     els.addTag.addEventListener("click", addTag);
     els.addScripture.addEventListener("click", addLinkedScripture);
     els.closeCategoryManager.addEventListener("click", closeCategoryManager);
