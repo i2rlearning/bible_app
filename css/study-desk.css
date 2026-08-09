@@ -1140,3 +1140,62 @@ body.study-desk-page {
     flex: 1 1 140px;
   }
 }
+
+.study-manager-section-card {
+  border: 1px solid var(--study-border);
+  background: #fbfdff;
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.study-manager-section-heading {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+
+.study-manager-section-heading h3 {
+  margin: 0;
+  color: var(--study-navy);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+}
+
+.study-manager-section-note {
+  margin: 0;
+  color: var(--study-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.study-manager-create-card {
+  background: #ffffff;
+}
+
+.study-manager-existing-card {
+  background: #fbfdff;
+}
+
+.study-manager-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.study-manager-edit-card {
+  background: #ffffff;
+}
+
+.study-manager-empty-editor {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.study-manager-edit-card .study-manager-editor-heading {
+  margin-bottom: 4px;
+}
+
+.study-manager-edit-card .study-manager-name-input {
+  margin-top: -4px;
+}
