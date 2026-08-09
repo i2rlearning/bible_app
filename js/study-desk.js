@@ -846,6 +846,7 @@
 
   function openTagManager() {
     if (!els.tagManagerModal) return;
+    updateTagManagerHeader();
     prepareTagManagerCreateSection();
     renderAddTagColorPicker();
     renderTagManager();
@@ -857,6 +858,22 @@
     if (!els.tagManagerModal) return;
     els.tagManagerModal.hidden = true;
     renderTagOptions();
+  }
+
+  function updateTagManagerHeader() {
+    if (!els.tagManagerModal) return;
+
+    const eyebrow = els.tagManagerModal.querySelector(".study-modal-header .study-eyebrow");
+    if (eyebrow) {
+      eyebrow.hidden = true;
+      eyebrow.style.display = "none";
+    }
+
+    const intro = els.tagManagerModal.querySelector(".study-modal-intro");
+    if (intro) {
+      intro.hidden = true;
+      intro.style.display = "none";
+    }
   }
 
   function createSectionHeading(eyebrow, title, description) {
@@ -902,6 +919,8 @@
     if (colorLabel) {
       colorLabel.textContent = "New tag color";
     }
+
+    hideTagCustomColorInput();
 
     if (els.addManagedTag) {
       els.addManagedTag.textContent = "Create Tag";
@@ -1042,9 +1061,11 @@
     });
   }
 
-  function syncCustomColorInput(input, color) {
-    if (!input) return;
-    input.value = normalizeColorValue(color) || "";
+  function hideTagCustomColorInput() {
+    if (!els.newTagCustomColor) return;
+    els.newTagCustomColor.value = "";
+    els.newTagCustomColor.hidden = true;
+    els.newTagCustomColor.style.display = "none";
   }
 
   function hideCategoryColorControls() {
@@ -1076,7 +1097,6 @@
   function renderAddTagColorPicker() {
     renderColorPicker(els.newTagColorPicker, state.newTagColor, (color) => {
       state.newTagColor = color;
-      syncCustomColorInput(els.newTagCustomColor, color);
       renderAddTagColorPicker();
     });
   }
@@ -1181,30 +1201,13 @@
     const picker = document.createElement("div");
     picker.className = "study-manager-color-picker";
 
-    const customInput = document.createElement("input");
-    customInput.type = "text";
-    customInput.className = "study-manager-custom-color-input";
-    customInput.placeholder = type === "tag" ? "Selected tag color, e.g. #dbeafe" : "Custom color, e.g. #dbeafe";
-    customInput.maxLength = 7;
-    customInput.spellcheck = false;
-    customInput.value = selectedColor;
-
     const rerenderPicker = () => {
       renderColorPicker(picker, selectedColor, (color) => {
         selectedColor = color;
-        customInput.value = color;
         preview.style.backgroundColor = color;
         rerenderPicker();
       });
     };
-
-    customInput.addEventListener("input", () => {
-      const color = normalizeColorValue(customInput.value);
-      if (!color) return;
-      selectedColor = color;
-      preview.style.backgroundColor = color;
-      rerenderPicker();
-    });
 
     nameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -1234,8 +1237,7 @@
           return;
         }
 
-        const customColor = normalizeColorValue(customInput.value);
-        const finalColor = customColor || selectedColor || "#dbeafe";
+        const finalColor = selectedColor || "#dbeafe";
         await updateTag(item, nameInput.value, finalColor);
       } finally {
         saveButton.disabled = false;
@@ -1260,8 +1262,7 @@
       editor.append(
         document.createElement("hr"),
         createSmallLabel("Selected tag color"),
-        picker,
-        customInput
+        picker
       );
     }
 
@@ -1462,9 +1463,8 @@
 
   async function addManagedTag() {
     const name = normalizeName(els.newTagName.value);
-    const customColor = normalizeColorValue(els.newTagCustomColor?.value);
     const selectedColor = normalizeColorValue(state.newTagColor);
-    const color = customColor || selectedColor || "#dbeafe";
+    const color = selectedColor || "#dbeafe";
 
     if (!name) {
       els.newTagName.focus();
@@ -1490,7 +1490,7 @@
       state.managedTagId = tag.id;
       els.newTagName.value = "";
       state.newTagColor = "";
-      if (els.newTagCustomColor) els.newTagCustomColor.value = "";
+      hideTagCustomColorInput();
       renderAddTagColorPicker();
       renderTagOptions();
       renderTagManager();
@@ -1706,14 +1706,6 @@
         addManagedTag();
       }
     });
-
-    if (els.newTagCustomColor) {
-      els.newTagCustomColor.addEventListener("input", () => {
-        const color = normalizeColorValue(els.newTagCustomColor.value);
-        state.newTagColor = color;
-        renderAddTagColorPicker();
-      });
-    }
 
     els.scriptureReference.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
