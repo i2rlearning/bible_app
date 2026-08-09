@@ -1245,3 +1245,13 @@ body.study-desk-page {
     justify-self: stretch;
   }
 }
+
+#tag-manager-modal .study-modal-header .study-eyebrow,
+#tag-manager-modal .study-modal-intro,
+#new-tag-custom-color {
+  display: none !important;
+}
+
+#tag-manager-modal .study-modal-header {
+  margin-bottom: 16px;
+}
