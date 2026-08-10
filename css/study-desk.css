@@ -62,7 +62,7 @@ body.study-desk-page {
   width: 100%;
 }
 
-/* Bible icon*/
+/* Bible icon */
 .study-nav-links a,
 .study-nav-links button.study-nav-link {
   color: #ffffff;
@@ -74,7 +74,9 @@ body.study-desk-page {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  font-family: inherit;
   font-size: 12px;
+  line-height: 1.2;
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
@@ -85,13 +87,24 @@ body.study-desk-page {
   width: 100%;
   cursor: pointer;
   padding: 0;
-  font: inherit;
 }
 
 .study-nav-links a i,
-.study-nav-links button.study-nav-link i {
-  font-size: 19px;
+.study-nav-links button.study-nav-link i,
+.study-nav-icon {
+  width: 21px;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  font-size: 21px;
   line-height: 1;
+  flex: 0 0 auto;
+}
+
+.study-nav-icon {
+  display: block;
 }
 
 .study-nav-links a:hover,
@@ -103,14 +116,6 @@ body.study-desk-page {
 .study-nav-links a:hover,
 .study-nav-links button.study-nav-link:hover {
   transform: translateY(-1px);
-}
-
-.study-nav-icon {
-  width: 21px;
-  height: 21px;
-  display: block;
-  color: currentColor;
-  flex: 0 0 auto;
 }
 /* End Bible icon */
 
@@ -722,7 +727,8 @@ body.study-desk-page {
     overflow-x: auto;
   }
 
-  .study-nav-links a {
+  .study-nav-links a,
+  .study-nav-links button.study-nav-link {
     min-width: 72px;
     min-height: 48px;
   }
