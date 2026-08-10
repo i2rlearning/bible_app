@@ -555,9 +555,9 @@ body.study-desk-page {
 
 .linked-scripture-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  gap: 12px;
+  align-items: stretch;
 }
 
 .linked-scripture-item.is-editing {
@@ -598,15 +598,14 @@ body.study-desk-page {
   font-size: 11px;
 }
 
-.linked-scripture-actions {
+.linked-scripture-order-controls {
   display: grid;
-  grid-template-columns: repeat(2, 32px);
+  grid-template-rows: 1fr 1fr;
   gap: 6px;
+  align-self: stretch;
 }
 
 .linked-scripture-action-button {
-  width: 32px;
-  min-height: 32px;
   border: 1px solid rgba(37, 91, 234, 0.18);
   border-radius: 10px;
   background: #ffffff;
@@ -619,6 +618,14 @@ body.study-desk-page {
   line-height: 1;
 }
 
+.linked-scripture-order-button {
+  width: 100%;
+  min-height: 44px;
+  font-size: 24px;
+  border-radius: 12px;
+  touch-action: manipulation;
+}
+
 .linked-scripture-action-button:hover:not(:disabled) {
   border-color: rgba(37, 91, 234, 0.38);
   background: var(--study-blue-soft);
@@ -627,12 +634,34 @@ body.study-desk-page {
 
 .linked-scripture-action-button:disabled {
   cursor: default;
-  opacity: 0.34;
+  opacity: 0.28;
 }
 
-.linked-scripture-action-button.is-danger {
+.linked-scripture-card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 7px;
+}
+
+.linked-scripture-text-button {
+  border: 0;
+  background: transparent;
+  color: var(--study-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0;
+}
+
+.linked-scripture-text-button:hover {
+  color: var(--study-blue);
+  text-decoration: underline;
+}
+
+.linked-scripture-text-button.is-danger:hover {
   color: var(--study-danger);
-  border-color: rgba(180, 35, 24, 0.15);
 }
 
 .linked-scripture-action-text {
@@ -1426,16 +1455,12 @@ body.study-desk-page {
 
 @media (max-width: 520px) {
   .linked-scripture-item {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) 52px;
   }
 
-  .linked-scripture-actions {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .linked-scripture-action-button {
-    width: 100%;
-    min-height: 38px;
+  .linked-scripture-order-button {
+    min-height: 48px;
+    font-size: 26px;
   }
 
   .linked-scripture-edit-actions button {
