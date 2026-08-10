@@ -72,7 +72,7 @@
     els.location = byId("study-location");
     els.date = byId("study-date");
     els.category = byId("study-category");
-    //els.mainScripture = byId("study-main-scripture");
+    els.mainScripture = byId("study-main-scripture");
     els.scriptureReference = byId("scripture-reference-input");
     els.scriptureNote = byId("scripture-note-input");
     els.addScripture = byId("add-scripture-button");
@@ -88,7 +88,7 @@
     els.previewSpeaker = byId("preview-speaker");
     els.previewLocation = byId("preview-location");
     els.previewTitle = byId("preview-title");
-    //els.previewMainScripture = byId("preview-main-scripture");
+    els.previewMainScripture = byId("preview-main-scripture");
     els.previewTags = byId("preview-tags");
     els.previewContent = byId("preview-content");
     els.previewLinkedScriptures = byId("preview-linked-scriptures");
