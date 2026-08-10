@@ -1090,8 +1090,14 @@
     popup.style.top = `${Math.round(top)}px`;
   }
 
+  function normalizeScriptureReferenceText(reference) {
+    return normalizeName(reference)
+      .replace(/[–—−]/g, "-")
+      .replace(/\s*-\s*/g, "-");
+  }
+
   function parseLinkedScriptureReference(reference) {
-    const cleanReference = normalizeName(reference).replace(/[–—]/g, "-");
+    const cleanReference = normalizeScriptureReferenceText(reference);
     const match = cleanReference.match(/^(.+?)\s+(\d+)\s*:\s*(\d+)(?:\s*-\s*(?:(\d+)\s*:\s*)?(\d+))?$/);
 
     if (!match) {
@@ -1118,7 +1124,7 @@
   }
 
   function parseVerseReferenceParts(reference) {
-    const cleanReference = normalizeName(reference).replace(/[–—]/g, "-");
+    const cleanReference = normalizeScriptureReferenceText(reference);
     const match = cleanReference.match(/^(.+?)\s+(\d+)\s*:\s*(\d+)$/);
 
     if (!match) {
@@ -1167,6 +1173,32 @@
     return verseParts ? verseParts.verse : "";
   }
 
+  function getExpectedVerseCount(parsedReference) {
+    if (!parsedReference || parsedReference.chapter !== parsedReference.endChapter) {
+      return null;
+    }
+
+    return Math.max(1, parsedReference.endVerse - parsedReference.startVerse + 1);
+  }
+
+  function hasEnoughExactVerses(exactVerses, parsedReference) {
+    if (!parsedReference) {
+      return false;
+    }
+
+    if (!parsedReference.isRange) {
+      return exactVerses.length >= 1;
+    }
+
+    const expectedCount = getExpectedVerseCount(parsedReference);
+
+    if (!expectedCount) {
+      return exactVerses.length > 1;
+    }
+
+    return exactVerses.length >= expectedCount;
+  }
+
   function buildVersePreviewContent(verses) {
     return verses
       .map((verse) => {
@@ -1190,7 +1222,7 @@
   }
 
   async function fetchLinkedScripturePreview(reference) {
-    const cleanReference = normalizeName(reference);
+    const cleanReference = normalizeScriptureReferenceText(reference);
     const parsedReference = parseLinkedScriptureReference(cleanReference);
     const bibleState = getPreviewBibleState();
 
@@ -1248,23 +1280,23 @@
 
     let preview = null;
 
-    if (exactVerses.length) {
+    if (hasEnoughExactVerses(exactVerses, parsedReference)) {
       preview = {
         reference: cleanReference,
         content: buildVersePreviewContent(exactVerses)
-      };
-    } else if (verses[0]) {
-      preview = {
-        reference: verses[0].reference || cleanReference,
-        content: buildVersePreviewContent([verses[0]])
       };
     } else {
       const passage = Array.isArray(result.data?.passages) ? result.data.passages[0] : null;
 
       if (passage) {
         preview = {
-          reference: passage.reference || cleanReference,
+          reference: cleanReference,
           content: cleanApiBiblePassageContent(passage.content || "")
+        };
+      } else if (!parsedReference?.isRange && verses[0]) {
+        preview = {
+          reference: verses[0].reference || cleanReference,
+          content: buildVersePreviewContent([verses[0]])
         };
       }
     }
