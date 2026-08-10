@@ -1631,6 +1631,23 @@
     }
   }
 
+  function bindOpenPassageButton() {
+    document.querySelectorAll("[data-open-passage]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (window.BibleSelector && typeof window.BibleSelector.open === "function") {
+          window.BibleSelector.open();
+          return;
+        }
+  
+        const modal = document.getElementById("bible-selector-modal");
+        if (modal) {
+          modal.hidden = false;
+          modal.classList.add("open");
+        }
+      });
+    });
+  }
+  
   function bindEvents() {
     els.loginButton.addEventListener("click", () => {
       const login = byId("login");
@@ -1778,6 +1795,7 @@
     hideCategoryColorControls();
     initQuill();
     bindEvents();
+    bindOpenPassageButton();
     applyStudyToForm(getEmptyStudy());
     loadStudies();
   });
