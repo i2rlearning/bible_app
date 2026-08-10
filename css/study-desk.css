@@ -553,7 +553,29 @@ body.study-desk-page {
   padding: 11px;
 }
 
-.linked-scripture-item strong,
+.linked-scripture-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.linked-scripture-item.is-editing {
+  grid-template-columns: 1fr;
+  background: #ffffff;
+  border-color: rgba(37, 91, 234, 0.3);
+}
+
+.linked-scripture-main {
+  min-width: 0;
+}
+
+.linked-scripture-item strong {
+  display: block;
+  color: var(--study-blue);
+  margin-bottom: 4px;
+}
+
 .preview-scripture-item strong {
   display: block;
   color: var(--study-blue);
@@ -569,7 +591,192 @@ body.study-desk-page {
   line-height: 1.45;
 }
 
-.linked-scripture-item button,
+.linked-scripture-edit-hint {
+  display: block;
+  margin-top: 5px;
+  color: #8a94a8;
+  font-size: 11px;
+}
+
+.linked-scripture-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 32px);
+  gap: 6px;
+}
+
+.linked-scripture-action-button {
+  width: 32px;
+  min-height: 32px;
+  border: 1px solid rgba(37, 91, 234, 0.18);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--study-navy);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.linked-scripture-action-button:hover:not(:disabled) {
+  border-color: rgba(37, 91, 234, 0.38);
+  background: var(--study-blue-soft);
+  color: var(--study-blue);
+}
+
+.linked-scripture-action-button:disabled {
+  cursor: default;
+  opacity: 0.34;
+}
+
+.linked-scripture-action-button.is-danger {
+  color: var(--study-danger);
+  border-color: rgba(180, 35, 24, 0.15);
+}
+
+.linked-scripture-action-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.linked-scripture-edit-form {
+  display: grid;
+  gap: 10px;
+}
+
+.linked-scripture-edit-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--study-navy);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.linked-scripture-edit-form input,
+.linked-scripture-edit-form textarea {
+  width: 100%;
+  border: 1px solid var(--study-border);
+  background: #ffffff;
+  color: var(--study-text);
+  border-radius: 11px;
+  min-height: 42px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: 0;
+  font: inherit;
+}
+
+.linked-scripture-edit-form textarea {
+  resize: vertical;
+}
+
+.linked-scripture-edit-form input:focus,
+.linked-scripture-edit-form textarea:focus {
+  border-color: var(--study-blue);
+  box-shadow: 0 0 0 3px rgba(37, 91, 234, 0.11);
+}
+
+.linked-scripture-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.linked-scripture-edit-actions button {
+  flex: 1 1 auto;
+}
+
+.study-reference-link {
+  display: inline;
+  border: 0;
+  background: transparent;
+  color: var(--study-blue);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+}
+
+.study-reference-link:hover,
+.study-reference-link:focus-visible {
+  text-decoration: underline;
+}
+
+.study-scripture-popup {
+  position: fixed;
+  z-index: 9500;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(460px, calc(100vh - 24px));
+  overflow: auto;
+  border: 1px solid var(--study-border);
+  border-radius: 14px;
+  background: #fffdf8;
+  color: var(--study-text);
+  box-shadow: 0 24px 70px rgba(7, 29, 58, 0.24);
+}
+
+.study-scripture-popup[hidden] {
+  display: none !important;
+}
+
+.study-scripture-popup-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--study-border);
+  background: #fffdf8;
+}
+
+.study-scripture-popup-header h3 {
+  margin: 0;
+  color: var(--study-navy);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+}
+
+.study-scripture-popup-header button {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--study-border);
+  background: #ffffff;
+  color: var(--study-navy);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.study-scripture-popup-body {
+  padding: 14px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.study-scripture-popup-body p {
+  margin: 0 0 12px;
+}
+
+.study-scripture-popup-error {
+  color: var(--study-danger);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+
 .study-tag button {
   border: 0;
   background: transparent;
@@ -1214,6 +1421,26 @@ body.study-desk-page {
 
 .study-manager-edit-card .study-manager-name-input {
   margin-top: -4px;
+}
+
+
+@media (max-width: 520px) {
+  .linked-scripture-item {
+    grid-template-columns: 1fr;
+  }
+
+  .linked-scripture-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .linked-scripture-action-button {
+    width: 100%;
+    min-height: 38px;
+  }
+
+  .linked-scripture-edit-actions button {
+    flex: 1 1 100%;
+  }
 }
 
 @media (max-width: 400px) {
