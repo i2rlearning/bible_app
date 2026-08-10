@@ -62,7 +62,8 @@ body.study-desk-page {
   width: 100%;
 }
 
-.study-nav-links a {
+.study-nav-links a,
+.study-nav-links button.study-nav-link {
   color: #ffffff;
   text-decoration: none;
   min-height: 58px;
@@ -76,16 +77,28 @@ body.study-desk-page {
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.study-nav-links a i {
+.study-nav-links button.study-nav-link {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.study-nav-links a i,
+.study-nav-links button.study-nav-link i {
   font-size: 19px;
 }
 
 .study-nav-links a:hover,
-.study-nav-links a.current {
+.study-nav-links a.current,
+.study-nav-links button.study-nav-link:hover,
+.study-nav-links button.study-nav-link.current {
   background: rgba(37, 91, 234, 0.92);
 }
 
-.study-nav-links a:hover {
+.study-nav-links a:hover,
+.study-nav-links button.study-nav-link:hover {
   transform: translateY(-1px);
 }
 
@@ -839,16 +852,6 @@ body.study-desk-page {
   outline: 0;
 }
 
-.study-manager-add-row input[type="color"] {
-  width: 52px;
-  height: 42px;
-  border: 1px solid var(--study-border);
-  border-radius: 11px;
-  padding: 4px;
-  background: #ffffff;
-  cursor: pointer;
-}
-
 .study-manager-add-row input[type="text"]:focus {
   border-color: var(--study-blue);
   box-shadow: 0 0 0 3px rgba(37, 91, 234, 0.11);
@@ -886,10 +889,6 @@ body.study-desk-page {
 @media (max-width: 700px) {
   .study-manager-add-row {
     grid-template-columns: 1fr;
-  }
-
-  .study-manager-add-row input[type="color"] {
-    width: 100%;
   }
 }
 
@@ -939,23 +938,9 @@ body.study-desk-page {
   grid-template-columns: 52px minmax(0, 1fr) auto auto;
 }
 
-.study-manager-color-input {
-  width: 52px;
-  height: 42px;
-  border: 1px solid var(--study-border);
-  border-radius: 11px;
-  padding: 4px;
-  background: #ffffff;
-  cursor: pointer;
-}
-
 @media (max-width: 700px) {
   .study-manager-row.is-editable {
     grid-template-columns: 1fr;
-  }
-
-  .study-manager-color-input {
-    width: 100%;
   }
 }
 
@@ -1005,24 +990,6 @@ body.study-desk-page {
 .study-manager-color-choice[aria-pressed="true"] {
   border-color: var(--study-blue);
   box-shadow: 0 0 0 3px rgba(37, 91, 234, 0.16), inset 0 0 0 2px rgba(255, 255, 255, 0.72);
-}
-
-.study-manager-custom-color-input {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid var(--study-border);
-  border-radius: 11px;
-  padding: 10px 12px;
-  color: var(--study-text);
-  font-size: 14px;
-  outline: 0;
-  background: #ffffff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-}
-
-.study-manager-custom-color-input:focus {
-  border-color: var(--study-blue);
-  box-shadow: 0 0 0 3px rgba(37, 91, 234, 0.11);
 }
 
 .study-manager-list {
