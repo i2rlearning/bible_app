@@ -34,6 +34,7 @@
   ];
 
   const els = {};
+  let statusClearTimer = null;
 
   function byId(id) {
     return document.getElementById(id);
@@ -101,12 +102,34 @@
     els.tagManagerEditor = byId("tag-manager-editor");
   }
 
-  function setStatus(message, type) {
+  function setStatus(message, type, autoClearMs) {
     if (!els.status) return;
 
-    els.status.textContent = message || "";
-    els.status.classList.toggle("is-error", type === "error");
-    els.status.classList.toggle("is-success", type === "success");
+    if (statusClearTimer) {
+      clearTimeout(statusClearTimer);
+      statusClearTimer = null;
+    }
+
+    const finalMessage = message || "";
+    const finalType = type || "";
+
+    els.status.textContent = finalMessage;
+    els.status.classList.toggle("is-error", finalType === "error");
+    els.status.classList.toggle("is-success", finalType === "success");
+
+    const shouldAutoClear = typeof autoClearMs === "number"
+      ? autoClearMs > 0
+      : finalType === "success";
+
+    if (finalMessage && shouldAutoClear) {
+      const delay = typeof autoClearMs === "number" ? autoClearMs : 4000;
+
+      statusClearTimer = window.setTimeout(() => {
+        if (els.status && els.status.textContent === finalMessage) {
+          setStatus("", "");
+        }
+      }, delay);
+    }
   }
 
   function markDirty() {
