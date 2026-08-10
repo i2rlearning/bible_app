@@ -10,6 +10,7 @@
     activeStudyId: null,
     selectedTags: [],
     linkedScriptures: [],
+    editingScriptureIndex: null,
     filter: "all",
     lastCategoryId: "",
     managedCategoryId: "",
@@ -32,6 +33,12 @@
     { label: "Red", value: "#fee2e2" },
     { label: "Gray", value: "#e5e7eb" }
   ];
+
+  const PREFERENCES_STORAGE_KEY = "branchOfIsraelPreferences";
+  const DEFAULT_BIBLE_ID = "bba9f40183526463-01";
+  const DEFAULT_BIBLE_ABBR = "BSB";
+  const linkedScripturePreviewCache = new Map();
+  let activeScripturePopupAnchor = null;
 
   const els = {};
   let statusClearTimer = null;
@@ -334,6 +341,7 @@
     state.activeStudyId = data.id || null;
     state.selectedTags = Array.isArray(data.tags) ? data.tags.slice() : [];
     state.linkedScriptures = Array.isArray(data.linkedScriptures) ? data.linkedScriptures.slice() : [];
+    state.editingScriptureIndex = null;
 
     const categoryId = data.categoryId || data.category?.id || state.categories[0]?.id || "";
 
@@ -726,6 +734,145 @@
     }
   }
 
+  function createLinkedScriptureActionButton(label, icon, onClick, options = {}) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `linked-scripture-action-button ${options.extraClass || ""}`.trim();
+    button.innerHTML = `<span aria-hidden="true">${icon}</span><span class="linked-scripture-action-text">${label}</span>`;
+    button.setAttribute("aria-label", options.ariaLabel || label);
+    button.disabled = !!options.disabled;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  function moveLinkedScripture(index, direction) {
+    const nextIndex = index + direction;
+
+    if (nextIndex < 0 || nextIndex >= state.linkedScriptures.length) {
+      return;
+    }
+
+    const [item] = state.linkedScriptures.splice(index, 1);
+    state.linkedScriptures.splice(nextIndex, 0, item);
+
+    if (state.editingScriptureIndex === index) {
+      state.editingScriptureIndex = nextIndex;
+    } else if (state.editingScriptureIndex === nextIndex) {
+      state.editingScriptureIndex = index;
+    }
+
+    renderLinkedScriptures();
+    markDirty();
+  }
+
+  function beginLinkedScriptureEdit(index) {
+    state.editingScriptureIndex = index;
+    renderLinkedScriptures();
+
+    const editor = els.scriptureList.querySelector(`[data-linked-scripture-editor="${index}"]`);
+    const input = editor?.querySelector("input");
+
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  function cancelLinkedScriptureEdit() {
+    state.editingScriptureIndex = null;
+    renderLinkedScriptures();
+  }
+
+  function saveLinkedScriptureEdit(index, referenceInput, noteInput) {
+    const reference = normalizeName(referenceInput.value);
+    const note = noteInput.value.trim();
+
+    if (!reference) {
+      referenceInput.focus();
+      return;
+    }
+
+    state.linkedScriptures[index] = { reference, note };
+    state.editingScriptureIndex = null;
+    renderLinkedScriptures();
+    markDirty();
+    setStatus("Linked Scripture updated.", "success");
+  }
+
+  function deleteLinkedScripture(index) {
+    state.linkedScriptures.splice(index, 1);
+    state.editingScriptureIndex = null;
+    renderLinkedScriptures();
+    markDirty();
+  }
+
+  function renderLinkedScriptureEditor(item, index) {
+    const editor = document.createElement("div");
+    editor.className = "linked-scripture-edit-form";
+    editor.dataset.linkedScriptureEditor = String(index);
+
+    const referenceLabel = document.createElement("label");
+    referenceLabel.textContent = "Reference";
+
+    const referenceInput = document.createElement("input");
+    referenceInput.type = "text";
+    referenceInput.value = item.reference || "";
+    referenceInput.placeholder = "Reference, e.g. John 3:16";
+
+    referenceLabel.appendChild(referenceInput);
+
+    const noteLabel = document.createElement("label");
+    noteLabel.textContent = "Note";
+
+    const noteInput = document.createElement("textarea");
+    noteInput.rows = 3;
+    noteInput.value = item.note || "";
+    noteInput.placeholder = "Optional note or short reminder";
+
+    noteLabel.appendChild(noteInput);
+
+    const actions = document.createElement("div");
+    actions.className = "linked-scripture-edit-actions";
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "study-primary-button";
+    saveButton.textContent = "Save Changes";
+    saveButton.addEventListener("click", () => saveLinkedScriptureEdit(index, referenceInput, noteInput));
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "study-secondary-button";
+    cancelButton.textContent = "Cancel";
+    cancelButton.addEventListener("click", cancelLinkedScriptureEdit);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "study-danger-button";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => deleteLinkedScripture(index));
+
+    actions.append(saveButton, cancelButton, deleteButton);
+
+    editor.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        saveLinkedScriptureEdit(index, referenceInput, noteInput);
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelLinkedScriptureEdit();
+      }
+    });
+
+    editor.append(referenceLabel, noteLabel, actions);
+    return editor;
+  }
+
   function renderLinkedScriptures() {
     els.scriptureList.innerHTML = "";
     els.scriptureCount.textContent = String(state.linkedScriptures.length);
@@ -733,6 +880,16 @@
     state.linkedScriptures.forEach((item, index) => {
       const card = document.createElement("div");
       card.className = "linked-scripture-item";
+      card.classList.toggle("is-editing", state.editingScriptureIndex === index);
+
+      if (state.editingScriptureIndex === index) {
+        card.appendChild(renderLinkedScriptureEditor(item, index));
+        els.scriptureList.appendChild(card);
+        return;
+      }
+
+      const main = document.createElement("div");
+      main.className = "linked-scripture-main";
 
       const reference = document.createElement("strong");
       reference.textContent = item.reference || "Scripture";
@@ -740,22 +897,46 @@
       const note = document.createElement("p");
       note.textContent = item.note || "No note added.";
 
-      const removeButton = document.createElement("button");
-      removeButton.type = "button";
-      removeButton.textContent = "Remove";
-      removeButton.addEventListener("click", () => {
-        state.linkedScriptures.splice(index, 1);
-        renderLinkedScriptures();
-        markDirty();
+      const hint = document.createElement("span");
+      hint.className = "linked-scripture-edit-hint";
+      hint.textContent = "Double-click to edit";
+
+      main.append(reference, note, hint);
+
+      const actions = document.createElement("div");
+      actions.className = "linked-scripture-actions";
+      actions.setAttribute("aria-label", `Actions for ${item.reference || "linked Scripture"}`);
+
+      actions.append(
+        createLinkedScriptureActionButton("Move up", "↑", () => moveLinkedScripture(index, -1), {
+          ariaLabel: `Move ${item.reference || "linked Scripture"} up`,
+          disabled: index === 0
+        }),
+        createLinkedScriptureActionButton("Move down", "↓", () => moveLinkedScripture(index, 1), {
+          ariaLabel: `Move ${item.reference || "linked Scripture"} down`,
+          disabled: index === state.linkedScriptures.length - 1
+        }),
+        createLinkedScriptureActionButton("Edit", "✎", () => beginLinkedScriptureEdit(index), {
+          ariaLabel: `Edit ${item.reference || "linked Scripture"}`
+        }),
+        createLinkedScriptureActionButton("Remove", "×", () => deleteLinkedScripture(index), {
+          ariaLabel: `Remove ${item.reference || "linked Scripture"}`,
+          extraClass: "is-danger"
+        })
+      );
+
+      card.addEventListener("dblclick", (event) => {
+        if (event.target.closest("button")) return;
+        beginLinkedScriptureEdit(index);
       });
 
-      card.append(reference, note, removeButton);
+      card.append(main, actions);
       els.scriptureList.appendChild(card);
     });
   }
 
   function addLinkedScripture() {
-    const reference = els.scriptureReference.value.trim();
+    const reference = normalizeName(els.scriptureReference.value);
     const note = els.scriptureNote.value.trim();
 
     if (!reference) {
@@ -764,11 +945,232 @@
     }
 
     state.linkedScriptures.push({ reference, note });
+    state.editingScriptureIndex = null;
 
     els.scriptureReference.value = "";
     els.scriptureNote.value = "";
     renderLinkedScriptures();
     markDirty();
+  }
+
+  function getPreviewBibleState() {
+    const params = new URLSearchParams(window.location.search);
+    const urlBibleId = params.get("bible") || params.get("version") || params.get("bibleId") || "";
+
+    if (urlBibleId) {
+      return {
+        bibleId: urlBibleId,
+        bibleAbbr: params.get("bibleAbbr") || params.get("abbr") || ""
+      };
+    }
+
+    if (window.UserPreferences && typeof window.UserPreferences.read === "function") {
+      const preferences = window.UserPreferences.read();
+      return {
+        bibleId: preferences.bibleId || DEFAULT_BIBLE_ID,
+        bibleAbbr: preferences.bibleAbbr || DEFAULT_BIBLE_ABBR
+      };
+    }
+
+    try {
+      const preferences = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || "{}");
+      return {
+        bibleId: preferences.bibleId || DEFAULT_BIBLE_ID,
+        bibleAbbr: preferences.bibleAbbr || DEFAULT_BIBLE_ABBR
+      };
+    } catch (error) {
+      return {
+        bibleId: DEFAULT_BIBLE_ID,
+        bibleAbbr: DEFAULT_BIBLE_ABBR
+      };
+    }
+  }
+
+  function createScripturePreviewPopup() {
+    const popup = document.createElement("section");
+    popup.className = "study-scripture-popup";
+    popup.setAttribute("role", "dialog");
+    popup.setAttribute("aria-live", "polite");
+    popup.hidden = true;
+    popup.innerHTML = `
+      <div class="study-scripture-popup-header">
+        <h3></h3>
+        <button type="button" aria-label="Close Scripture preview">×</button>
+      </div>
+      <div class="study-scripture-popup-body">
+        <p>Loading...</p>
+      </div>
+    `;
+
+    popup.querySelector("button")?.addEventListener("click", closeScripturePreviewPopup);
+    popup.addEventListener("click", (event) => event.stopPropagation());
+    document.body.appendChild(popup);
+    return popup;
+  }
+
+  function getScripturePreviewPopup() {
+    let popup = document.getElementById("study-scripture-popup");
+
+    if (!popup) {
+      popup = createScripturePreviewPopup();
+      popup.id = "study-scripture-popup";
+    }
+
+    return popup;
+  }
+
+  function closeScripturePreviewPopup() {
+    const popup = document.getElementById("study-scripture-popup");
+
+    if (!popup) return;
+
+    popup.hidden = true;
+    activeScripturePopupAnchor = null;
+  }
+
+  function setScripturePreviewPopupContent(title, content, isError = false) {
+    const popup = getScripturePreviewPopup();
+    const heading = popup.querySelector("h3");
+    const body = popup.querySelector(".study-scripture-popup-body");
+
+    if (heading) {
+      heading.textContent = title || "Scripture";
+    }
+
+    if (body) {
+      body.innerHTML = isError
+        ? `<p class="study-scripture-popup-error">${escapeHtml(content || "Could not load this Scripture.")}</p>`
+        : content || "<p>No Scripture text was returned.</p>";
+    }
+  }
+
+  function positionScripturePreviewPopup(anchor) {
+    const popup = getScripturePreviewPopup();
+    const rect = anchor.getBoundingClientRect();
+    const margin = 12;
+
+    popup.hidden = false;
+    popup.style.left = "0px";
+    popup.style.top = "0px";
+
+    const popupRect = popup.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.bottom + 8;
+
+    if (left + popupRect.width + margin > window.innerWidth) {
+      left = window.innerWidth - popupRect.width - margin;
+    }
+
+    if (left < margin) {
+      left = margin;
+    }
+
+    if (top + popupRect.height + margin > window.innerHeight) {
+      top = rect.top - popupRect.height - 8;
+    }
+
+    if (top < margin) {
+      top = margin;
+    }
+
+    popup.style.left = `${Math.round(left)}px`;
+    popup.style.top = `${Math.round(top)}px`;
+  }
+
+  async function fetchLinkedScripturePreview(reference) {
+    const cleanReference = normalizeName(reference);
+    const bibleState = getPreviewBibleState();
+
+    if (!cleanReference) {
+      throw new Error("No Scripture reference was provided.");
+    }
+
+    if (!bibleState.bibleId) {
+      throw new Error("No Bible version is selected.");
+    }
+
+    if (typeof API_KEY === "undefined" || !API_KEY) {
+      throw new Error("The Bible API key is not available.");
+    }
+
+    const cacheKey = `${bibleState.bibleId}::${cleanReference}`;
+
+    if (linkedScripturePreviewCache.has(cacheKey)) {
+      return linkedScripturePreviewCache.get(cacheKey);
+    }
+
+    const url =
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
+      `/search?query=${encodeURIComponent(cleanReference)}&limit=5`;
+
+    const response = await fetch(url, {
+      headers: {
+        "api-key": API_KEY
+      }
+    });
+
+    const result = await response.json();
+
+    if (
+      result.meta &&
+      result.meta.fumsId &&
+      window._BAPI &&
+      typeof window._BAPI.t === "function"
+    ) {
+      try {
+        window._BAPI.t(result.meta.fumsId);
+      } catch (error) {
+        console.warn("FUMS tracking failed:", error);
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || "Could not load this Scripture.");
+    }
+
+    const passage = Array.isArray(result.data?.passages) ? result.data.passages[0] : null;
+    const verse = Array.isArray(result.data?.verses) ? result.data.verses[0] : null;
+
+    const preview = passage
+      ? {
+          reference: passage.reference || cleanReference,
+          content: passage.content || ""
+        }
+      : verse
+        ? {
+            reference: verse.reference || cleanReference,
+            content: `<p>${escapeHtml(verse.text || "")}</p>`
+          }
+        : null;
+
+    if (!preview || !preview.content) {
+      throw new Error(`Could not find ${cleanReference} in ${bibleState.bibleAbbr || "the selected Bible"}.`);
+    }
+
+    linkedScripturePreviewCache.set(cacheKey, preview);
+    return preview;
+  }
+
+  async function openLinkedScripturePreview(anchor, item) {
+    const reference = item.reference || "Scripture";
+    activeScripturePopupAnchor = anchor;
+    setScripturePreviewPopupContent(reference, "<p>Loading...</p>");
+    positionScripturePreviewPopup(anchor);
+
+    try {
+      const preview = await fetchLinkedScripturePreview(reference);
+
+      if (activeScripturePopupAnchor !== anchor) return;
+
+      setScripturePreviewPopupContent(preview.reference || reference, preview.content);
+      positionScripturePreviewPopup(anchor);
+    } catch (error) {
+      if (activeScripturePopupAnchor !== anchor) return;
+
+      console.error("Linked Scripture preview failed:", error);
+      setScripturePreviewPopupContent(reference, error.message || "Could not load this Scripture.", true);
+      positionScripturePreviewPopup(anchor);
+    }
   }
 
   function renderPreviewTags(container, tags) {
@@ -798,8 +1200,15 @@
       const card = document.createElement("div");
       card.className = "preview-scripture-item";
 
-      const reference = document.createElement("strong");
+      const reference = document.createElement("button");
+      reference.type = "button";
+      reference.className = "study-reference-link";
       reference.textContent = item.reference || "Scripture";
+      reference.setAttribute("aria-label", `Open ${item.reference || "Scripture"}`);
+      reference.addEventListener("click", (event) => {
+        event.preventDefault();
+        openLinkedScripturePreview(reference, item);
+      });
 
       const note = document.createElement("p");
       note.textContent = item.note || "";
@@ -840,6 +1249,7 @@
   }
 
   function switchToEdit() {
+    closeScripturePreviewPopup();
     state.isPreview = false;
     els.form.hidden = false;
     els.preview.hidden = true;
@@ -1775,8 +2185,25 @@
       }
     });
 
+    document.addEventListener("click", (event) => {
+      const popup = document.getElementById("study-scripture-popup");
+
+      if (!popup || popup.hidden) return;
+
+      if (
+        event.target.closest?.(".study-scripture-popup") ||
+        event.target.closest?.(".study-reference-link")
+      ) {
+        return;
+      }
+
+      closeScripturePreviewPopup();
+    });
+
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
+
+      closeScripturePreviewPopup();
 
       if (!els.categoryModal.hidden) {
         closeCategoryManager();
@@ -1812,6 +2239,22 @@
       }
     });
   }
+
+  window.addEventListener("resize", () => {
+    if (activeScripturePopupAnchor) {
+      positionScripturePreviewPopup(activeScripturePopupAnchor);
+    }
+  });
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (activeScripturePopupAnchor) {
+        positionScripturePreviewPopup(activeScripturePopupAnchor);
+      }
+    },
+    true
+  );
 
   document.addEventListener("DOMContentLoaded", () => {
     cacheElements();
