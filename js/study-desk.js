@@ -912,7 +912,7 @@
       const removeButton = document.createElement("button");
       removeButton.type = "button";
       removeButton.className = "linked-scripture-text-button is-danger";
-      removeButton.textContent = "Remove";
+      removeButton.textContent = "Delete";
       removeButton.addEventListener("click", (event) => {
         event.stopPropagation();
         deleteLinkedScripture(index);
