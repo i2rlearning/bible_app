@@ -897,31 +897,44 @@
       const note = document.createElement("p");
       note.textContent = item.note || "No note added.";
 
-      const hint = document.createElement("span");
-      hint.className = "linked-scripture-edit-hint";
-      hint.textContent = "Double-click to edit";
+      const footerActions = document.createElement("div");
+      footerActions.className = "linked-scripture-card-links";
 
-      main.append(reference, note, hint);
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "linked-scripture-text-button";
+      editButton.textContent = "Edit";
+      editButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        beginLinkedScriptureEdit(index);
+      });
 
-      const actions = document.createElement("div");
-      actions.className = "linked-scripture-actions";
-      actions.setAttribute("aria-label", `Actions for ${item.reference || "linked Scripture"}`);
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "linked-scripture-text-button is-danger";
+      removeButton.textContent = "Remove";
+      removeButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        deleteLinkedScripture(index);
+      });
 
-      actions.append(
-        createLinkedScriptureActionButton("Move up", "↑", () => moveLinkedScripture(index, -1), {
+      footerActions.append(editButton, removeButton);
+      main.append(reference, note, footerActions);
+
+      const orderControls = document.createElement("div");
+      orderControls.className = "linked-scripture-order-controls";
+      orderControls.setAttribute("aria-label", `Reorder ${item.reference || "linked Scripture"}`);
+
+      orderControls.append(
+        createLinkedScriptureActionButton("Move up", "▲", () => moveLinkedScripture(index, -1), {
           ariaLabel: `Move ${item.reference || "linked Scripture"} up`,
-          disabled: index === 0
+          disabled: index === 0,
+          extraClass: "linked-scripture-order-button"
         }),
-        createLinkedScriptureActionButton("Move down", "↓", () => moveLinkedScripture(index, 1), {
+        createLinkedScriptureActionButton("Move down", "▼", () => moveLinkedScripture(index, 1), {
           ariaLabel: `Move ${item.reference || "linked Scripture"} down`,
-          disabled: index === state.linkedScriptures.length - 1
-        }),
-        createLinkedScriptureActionButton("Edit", "✎", () => beginLinkedScriptureEdit(index), {
-          ariaLabel: `Edit ${item.reference || "linked Scripture"}`
-        }),
-        createLinkedScriptureActionButton("Remove", "×", () => deleteLinkedScripture(index), {
-          ariaLabel: `Remove ${item.reference || "linked Scripture"}`,
-          extraClass: "is-danger"
+          disabled: index === state.linkedScriptures.length - 1,
+          extraClass: "linked-scripture-order-button"
         })
       );
 
@@ -930,7 +943,7 @@
         beginLinkedScriptureEdit(index);
       });
 
-      card.append(main, actions);
+      card.append(main, orderControls);
       els.scriptureList.appendChild(card);
     });
   }
