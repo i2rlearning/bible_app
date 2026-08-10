@@ -1090,8 +1090,108 @@
     popup.style.top = `${Math.round(top)}px`;
   }
 
+  function parseLinkedScriptureReference(reference) {
+    const cleanReference = normalizeName(reference).replace(/[–—]/g, "-");
+    const match = cleanReference.match(/^(.+?)\s+(\d+)\s*:\s*(\d+)(?:\s*-\s*(?:(\d+)\s*:\s*)?(\d+))?$/);
+
+    if (!match) {
+      return null;
+    }
+
+    const chapter = Number(match[2]);
+    const startVerse = Number(match[3]);
+    const endChapter = match[4] ? Number(match[4]) : chapter;
+    const endVerse = match[5] ? Number(match[5]) : startVerse;
+
+    if (!chapter || !startVerse || !endChapter || !endVerse) {
+      return null;
+    }
+
+    return {
+      book: normalizeName(match[1]),
+      chapter,
+      startVerse,
+      endChapter,
+      endVerse,
+      isRange: chapter !== endChapter || startVerse !== endVerse
+    };
+  }
+
+  function parseVerseReferenceParts(reference) {
+    const cleanReference = normalizeName(reference).replace(/[–—]/g, "-");
+    const match = cleanReference.match(/^(.+?)\s+(\d+)\s*:\s*(\d+)$/);
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      book: normalizeName(match[1]).toLowerCase(),
+      chapter: Number(match[2]),
+      verse: Number(match[3])
+    };
+  }
+
+  function isVerseInsideLinkedReference(verseReference, parsedReference) {
+    const verseParts = parseVerseReferenceParts(verseReference);
+
+    if (!verseParts || !parsedReference) {
+      return false;
+    }
+
+    if (verseParts.book !== parsedReference.book.toLowerCase()) {
+      return false;
+    }
+
+    if (parsedReference.chapter === parsedReference.endChapter) {
+      return (
+        verseParts.chapter === parsedReference.chapter &&
+        verseParts.verse >= parsedReference.startVerse &&
+        verseParts.verse <= parsedReference.endVerse
+      );
+    }
+
+    if (verseParts.chapter === parsedReference.chapter) {
+      return verseParts.verse >= parsedReference.startVerse;
+    }
+
+    if (verseParts.chapter === parsedReference.endChapter) {
+      return verseParts.verse <= parsedReference.endVerse;
+    }
+
+    return verseParts.chapter > parsedReference.chapter && verseParts.chapter < parsedReference.endChapter;
+  }
+
+  function getVerseNumberFromReference(reference) {
+    const verseParts = parseVerseReferenceParts(reference);
+    return verseParts ? verseParts.verse : "";
+  }
+
+  function buildVersePreviewContent(verses) {
+    return verses
+      .map((verse) => {
+        const number = getVerseNumberFromReference(verse.reference);
+        const text = escapeHtml(verse.text || "");
+        const verseNumber = number ? `<sup>${number}</sup>` : "";
+        return `<p>${verseNumber}${text}</p>`;
+      })
+      .join("");
+  }
+
+  function cleanApiBiblePassageContent(content) {
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = content || "";
+
+    wrapper.querySelectorAll(".s, .s1, .s2, .s3, .s4, .r, .sr, .mr, .ms, .ms1, .d").forEach((node) => {
+      node.remove();
+    });
+
+    return wrapper.innerHTML.trim();
+  }
+
   async function fetchLinkedScripturePreview(reference) {
     const cleanReference = normalizeName(reference);
+    const parsedReference = parseLinkedScriptureReference(cleanReference);
     const bibleState = getPreviewBibleState();
 
     if (!cleanReference) {
@@ -1114,7 +1214,7 @@
 
     const url =
       `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
-      `/search?query=${encodeURIComponent(cleanReference)}&limit=5`;
+      `/search?query=${encodeURIComponent(cleanReference)}&limit=50`;
 
     const response = await fetch(url, {
       headers: {
@@ -1141,20 +1241,33 @@
       throw new Error(result.message || "Could not load this Scripture.");
     }
 
-    const passage = Array.isArray(result.data?.passages) ? result.data.passages[0] : null;
-    const verse = Array.isArray(result.data?.verses) ? result.data.verses[0] : null;
+    const verses = Array.isArray(result.data?.verses) ? result.data.verses : [];
+    const exactVerses = parsedReference
+      ? verses.filter((verse) => isVerseInsideLinkedReference(verse.reference, parsedReference))
+      : [];
 
-    const preview = passage
-      ? {
+    let preview = null;
+
+    if (exactVerses.length) {
+      preview = {
+        reference: cleanReference,
+        content: buildVersePreviewContent(exactVerses)
+      };
+    } else if (verses[0]) {
+      preview = {
+        reference: verses[0].reference || cleanReference,
+        content: buildVersePreviewContent([verses[0]])
+      };
+    } else {
+      const passage = Array.isArray(result.data?.passages) ? result.data.passages[0] : null;
+
+      if (passage) {
+        preview = {
           reference: passage.reference || cleanReference,
-          content: passage.content || ""
-        }
-      : verse
-        ? {
-            reference: verse.reference || cleanReference,
-            content: `<p>${escapeHtml(verse.text || "")}</p>`
-          }
-        : null;
+          content: cleanApiBiblePassageContent(passage.content || "")
+        };
+      }
+    }
 
     if (!preview || !preview.content) {
       throw new Error(`Could not find ${cleanReference} in ${bibleState.bibleAbbr || "the selected Bible"}.`);
