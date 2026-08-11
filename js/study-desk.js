@@ -148,15 +148,15 @@
     if (!state.hasUnsavedChanges) {
       return true;
     }
-  
+
     return confirm("You have unsaved changes. Leave without saving?");
   }
-  
+
   function markClean(message = "Saved") {
     state.hasUnsavedChanges = false;
     setSaveState(message, "success");
   }
-  
+
   function setListStatus(message, type) {
     if (!els.listStatus) return;
 
@@ -1075,14 +1075,6 @@
       footerActions.append(editButton, removeButton);
       main.append(reference, note, footerActions);
 
-      const dragHandle = document.createElement("button");
-      dragHandle.type = "button";
-      dragHandle.className = "linked-scripture-drag-handle";
-      dragHandle.innerHTML = '<span aria-hidden="true">⋮⋮</span>';
-      dragHandle.setAttribute("aria-label", `Drag ${item.reference || "linked Scripture"} to reorder`);
-      dragHandle.title = "Drag to reorder";
-      dragHandle.addEventListener("pointerdown", (event) => beginLinkedScriptureDrag(event, card, index));
-
       const orderControls = document.createElement("div");
       orderControls.className = "linked-scripture-order-controls";
       orderControls.setAttribute("aria-label", `Reorder ${item.reference || "linked Scripture"}`);
@@ -1100,12 +1092,24 @@
         })
       );
 
+      const dragHandle = document.createElement("button");
+      dragHandle.type = "button";
+      dragHandle.className = "linked-scripture-drag-handle";
+      dragHandle.innerHTML = '<span aria-hidden="true">⋮⋮</span>';
+      dragHandle.setAttribute("aria-label", `Drag ${item.reference || "linked Scripture"} to reorder`);
+      dragHandle.title = "Drag to reorder";
+      dragHandle.addEventListener("pointerdown", (event) => beginLinkedScriptureDrag(event, card, index));
+
+      const controlGroup = document.createElement("div");
+      controlGroup.className = "linked-scripture-side-controls";
+      controlGroup.append(orderControls, dragHandle);
+
       card.addEventListener("dblclick", (event) => {
         if (event.target.closest("button")) return;
         beginLinkedScriptureEdit(index);
       });
 
-      card.append(main, dragHandle, orderControls);
+      card.append(main, controlGroup);
       els.scriptureList.appendChild(card);
     });
   }
@@ -2398,7 +2402,7 @@
           window.BibleSelector.open();
           return;
         }
-  
+
         const modal = document.getElementById("bible-selector-modal");
         if (modal) {
           modal.hidden = false;
@@ -2407,7 +2411,7 @@
       });
     });
   }
-  
+
   function bindEvents() {
     els.loginButton.addEventListener("click", () => {
       const login = byId("login");
@@ -2418,7 +2422,7 @@
       if (!state.hasUnsavedChanges) {
         return;
       }
-    
+
       event.preventDefault();
       event.returnValue = "";
     });
@@ -2427,7 +2431,7 @@
       if (!confirmDiscardUnsavedChanges()) {
         return;
       }
-    
+
       applyStudyToForm(getEmptyStudy());
       renderStudyList();
       els.title.focus();
