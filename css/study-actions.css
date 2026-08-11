@@ -280,3 +280,31 @@
     padding: 10px 12px;
   }
 }
+
+/* Study destination buttons
+   Both choices use the same quiet default style
+   and turn blue when hovered or keyboard-focused.
+*/
+
+.selection-study-menu-button[data-mode] {
+  border-color: #bfd0ff;
+  background: #f8fafc;
+  color: #174a8b;
+}
+
+.selection-study-menu-button[data-mode] > span {
+  color: #7a8495;
+}
+
+.selection-study-menu-button[data-mode]:hover:not(:disabled),
+.selection-study-menu-button[data-mode]:focus-visible {
+  border-color: #255bea;
+  background: #255bea;
+  color: #ffffff;
+  outline: none;
+}
+
+.selection-study-menu-button[data-mode]:hover:not(:disabled) > span,
+.selection-study-menu-button[data-mode]:focus-visible > span {
+  color: rgba(255, 255, 255, 0.84);
+}
