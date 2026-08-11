@@ -748,24 +748,178 @@
     return button;
   }
 
-  function moveLinkedScripture(index, direction) {
-    const nextIndex = index + direction;
-
-    if (nextIndex < 0 || nextIndex >= state.linkedScriptures.length) {
+  function reorderLinkedScripture(fromIndex, toIndex) {
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= state.linkedScriptures.length ||
+      toIndex >= state.linkedScriptures.length
+    ) {
       return;
     }
 
-    const [item] = state.linkedScriptures.splice(index, 1);
-    state.linkedScriptures.splice(nextIndex, 0, item);
+    const [item] = state.linkedScriptures.splice(fromIndex, 1);
+    state.linkedScriptures.splice(toIndex, 0, item);
 
-    if (state.editingScriptureIndex === index) {
-      state.editingScriptureIndex = nextIndex;
-    } else if (state.editingScriptureIndex === nextIndex) {
-      state.editingScriptureIndex = index;
+    if (state.editingScriptureIndex === fromIndex) {
+      state.editingScriptureIndex = toIndex;
+    } else if (state.editingScriptureIndex !== null) {
+      if (fromIndex < state.editingScriptureIndex && toIndex >= state.editingScriptureIndex) {
+        state.editingScriptureIndex -= 1;
+      } else if (fromIndex > state.editingScriptureIndex && toIndex <= state.editingScriptureIndex) {
+        state.editingScriptureIndex += 1;
+      }
     }
 
     renderLinkedScriptures();
     markDirty();
+  }
+
+  function moveLinkedScripture(index, direction) {
+    reorderLinkedScripture(index, index + direction);
+  }
+
+  let linkedScriptureDrag = null;
+
+  function getLinkedScriptureAutoScrollSpeed(clientY) {
+    const edgeSize = Math.min(110, Math.max(70, window.innerHeight * 0.12));
+
+    if (clientY < edgeSize) {
+      return Math.max(-22, -Math.ceil((edgeSize - clientY) / 5));
+    }
+
+    if (clientY > window.innerHeight - edgeSize) {
+      return Math.min(22, Math.ceil((clientY - (window.innerHeight - edgeSize)) / 5));
+    }
+
+    return 0;
+  }
+
+  function runLinkedScriptureAutoScroll() {
+    if (!linkedScriptureDrag) return;
+
+    linkedScriptureDrag.autoScrollFrame = null;
+
+    if (!linkedScriptureDrag.autoScrollSpeed) return;
+
+    window.scrollBy(0, linkedScriptureDrag.autoScrollSpeed);
+    updateLinkedScriptureDragPosition(linkedScriptureDrag.lastClientY);
+    linkedScriptureDrag.autoScrollFrame = window.requestAnimationFrame(runLinkedScriptureAutoScroll);
+  }
+
+  function updateLinkedScriptureAutoScroll(clientY) {
+    if (!linkedScriptureDrag) return;
+
+    linkedScriptureDrag.lastClientY = clientY;
+    linkedScriptureDrag.autoScrollSpeed = getLinkedScriptureAutoScrollSpeed(clientY);
+
+    if (linkedScriptureDrag.autoScrollSpeed && !linkedScriptureDrag.autoScrollFrame) {
+      linkedScriptureDrag.autoScrollFrame = window.requestAnimationFrame(runLinkedScriptureAutoScroll);
+    }
+  }
+
+  function updateLinkedScriptureDragPosition(clientY) {
+    if (!linkedScriptureDrag) return;
+
+    const { card } = linkedScriptureDrag;
+    const siblings = Array.from(els.scriptureList.children).filter((item) => item !== card);
+    const insertBeforeCard = siblings.find((item) => {
+      const rect = item.getBoundingClientRect();
+      return clientY < rect.top + rect.height / 2;
+    });
+
+    if (insertBeforeCard) {
+      els.scriptureList.insertBefore(card, insertBeforeCard);
+    } else {
+      els.scriptureList.appendChild(card);
+    }
+  }
+
+  function finishLinkedScriptureDrag(commit = true) {
+    if (!linkedScriptureDrag) return;
+
+    const {
+      card,
+      startIndex,
+      pointerMoveHandler,
+      pointerUpHandler,
+      pointerCancelHandler,
+      autoScrollFrame
+    } = linkedScriptureDrag;
+    const endIndex = Array.from(els.scriptureList.children).indexOf(card);
+
+    if (autoScrollFrame) {
+      window.cancelAnimationFrame(autoScrollFrame);
+    }
+
+    document.removeEventListener("pointermove", pointerMoveHandler);
+    document.removeEventListener("pointerup", pointerUpHandler);
+    document.removeEventListener("pointercancel", pointerCancelHandler);
+
+    card.classList.remove("is-dragging");
+    els.scriptureList.classList.remove("is-reordering");
+    document.body.classList.remove("is-reordering-linked-scripture");
+    linkedScriptureDrag = null;
+
+    if (!commit || endIndex < 0 || endIndex === startIndex) {
+      renderLinkedScriptures();
+      return;
+    }
+
+    reorderLinkedScripture(startIndex, endIndex);
+  }
+
+  function beginLinkedScriptureDrag(event, card, index) {
+    if (
+      linkedScriptureDrag ||
+      state.linkedScriptures.length < 2 ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const pointerId = event.pointerId;
+
+    const pointerMoveHandler = (moveEvent) => {
+      if (!linkedScriptureDrag || moveEvent.pointerId !== pointerId) return;
+
+      moveEvent.preventDefault();
+      updateLinkedScriptureAutoScroll(moveEvent.clientY);
+      updateLinkedScriptureDragPosition(moveEvent.clientY);
+    };
+
+    const pointerUpHandler = (upEvent) => {
+      if (!linkedScriptureDrag || upEvent.pointerId !== pointerId) return;
+      finishLinkedScriptureDrag(true);
+    };
+
+    const pointerCancelHandler = (cancelEvent) => {
+      if (!linkedScriptureDrag || cancelEvent.pointerId !== pointerId) return;
+      finishLinkedScriptureDrag(false);
+    };
+
+    linkedScriptureDrag = {
+      card,
+      startIndex: index,
+      pointerMoveHandler,
+      pointerUpHandler,
+      pointerCancelHandler,
+      lastClientY: event.clientY,
+      autoScrollSpeed: 0,
+      autoScrollFrame: null
+    };
+
+    card.classList.add("is-dragging");
+    els.scriptureList.classList.add("is-reordering");
+    document.body.classList.add("is-reordering-linked-scripture");
+
+    document.addEventListener("pointermove", pointerMoveHandler, { passive: false });
+    document.addEventListener("pointerup", pointerUpHandler);
+    document.addEventListener("pointercancel", pointerCancelHandler);
   }
 
   function beginLinkedScriptureEdit(index) {
@@ -921,6 +1075,14 @@
       footerActions.append(editButton, removeButton);
       main.append(reference, note, footerActions);
 
+      const dragHandle = document.createElement("button");
+      dragHandle.type = "button";
+      dragHandle.className = "linked-scripture-drag-handle";
+      dragHandle.innerHTML = '<span aria-hidden="true">⋮⋮</span>';
+      dragHandle.setAttribute("aria-label", `Drag ${item.reference || "linked Scripture"} to reorder`);
+      dragHandle.title = "Drag to reorder";
+      dragHandle.addEventListener("pointerdown", (event) => beginLinkedScriptureDrag(event, card, index));
+
       const orderControls = document.createElement("div");
       orderControls.className = "linked-scripture-order-controls";
       orderControls.setAttribute("aria-label", `Reorder ${item.reference || "linked Scripture"}`);
@@ -943,9 +1105,13 @@
         beginLinkedScriptureEdit(index);
       });
 
-      card.append(main, orderControls);
+      card.append(main, dragHandle, orderControls);
       els.scriptureList.appendChild(card);
     });
+  }
+
+  function updateAddScriptureButtonState() {
+    els.addScripture.disabled = !normalizeName(els.scriptureReference.value);
   }
 
   function addLinkedScripture() {
@@ -953,6 +1119,7 @@
     const note = els.scriptureNote.value.trim();
 
     if (!reference) {
+      updateAddScriptureButtonState();
       els.scriptureReference.focus();
       return;
     }
@@ -962,6 +1129,7 @@
 
     els.scriptureReference.value = "";
     els.scriptureNote.value = "";
+    updateAddScriptureButtonState();
     renderLinkedScriptures();
     markDirty();
   }
@@ -1092,7 +1260,7 @@
 
   function normalizeScriptureReferenceText(reference) {
     return normalizeName(reference)
-      .replace(/[–—−]/g, "-")
+      .replace(/[\u2013\u2014\u2212]/g, "-")
       .replace(/\s*-\s*/g, "-");
   }
 
@@ -2207,6 +2375,7 @@
       if (state.managedTagId === tag.id) {
         state.managedTagId = "";
       }
+
       state.studies = state.studies.map((study) => ({
         ...study,
         tags: Array.isArray(study.tags) ? study.tags.filter((item) => item.id !== tag.id) : []
@@ -2275,6 +2444,9 @@
 
     els.addTag.addEventListener("click", addTag);
     els.addScripture.addEventListener("click", addLinkedScripture);
+    els.scriptureReference.addEventListener("input", updateAddScriptureButtonState);
+    updateAddScriptureButtonState();
+
     els.closeCategoryManager.addEventListener("click", closeCategoryManager);
     els.addCategory.addEventListener("click", addCategory);
     els.manageTags.addEventListener("click", openTagManager);
