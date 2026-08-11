@@ -549,7 +549,7 @@ body.study-desk-page {
 .preview-linked-scriptures {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
   margin-top: 12px;
 }
 
@@ -558,14 +558,14 @@ body.study-desk-page {
   border: 1px solid var(--study-border);
   border-radius: 13px;
   background: #fbfdff;
-  padding: 11px;
+  padding: 12px;
 }
 
 .linked-scripture-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px 48px;
-  gap: 8px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
 }
 
@@ -579,13 +579,14 @@ body.study-desk-page {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 4px;
   min-height: 100%;
 }
 
 .linked-scripture-item strong {
   display: block;
   color: var(--study-blue);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .preview-scripture-item strong {
@@ -600,7 +601,7 @@ body.study-desk-page {
   margin: 0;
   color: var(--study-muted);
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .linked-scripture-edit-hint {
@@ -610,9 +611,45 @@ body.study-desk-page {
   font-size: 11px;
 }
 
+.linked-scripture-side-controls {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.linked-scripture-order-controls {
+  display: grid;
+  grid-template-rows: repeat(2, 1fr);
+  gap: 6px;
+  align-self: stretch;
+}
+
+.linked-scripture-action-button {
+  border: 1px solid rgba(37, 91, 234, 0.18);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--study-navy);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.linked-scripture-order-button {
+  width: 44px;
+  min-height: 40px;
+  font-size: 22px;
+  border-radius: 12px;
+  touch-action: manipulation;
+}
+
 .linked-scripture-drag-handle {
-  width: 100%;
-  min-height: 44px;
+  width: 34px;
+  min-height: 86px;
   align-self: stretch;
   border: 1px solid rgba(37, 91, 234, 0.14);
   border-radius: 10px;
@@ -622,7 +659,7 @@ body.study-desk-page {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 21px;
+  font-size: 18px;
   font-weight: 900;
   line-height: 1;
   padding: 0;
@@ -660,34 +697,6 @@ body.is-reordering-linked-scripture {
   cursor: grabbing;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.linked-scripture-order-controls {
-  display: grid;
-  grid-template-rows: 1fr 1fr;
-  gap: 6px;
-  align-self: stretch;
-}
-
-.linked-scripture-action-button {
-  border: 1px solid rgba(37, 91, 234, 0.18);
-  border-radius: 10px;
-  background: #ffffff;
-  color: var(--study-navy);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.linked-scripture-order-button {
-  width: 100%;
-  min-height: 44px;
-  font-size: 24px;
-  border-radius: 12px;
-  touch-action: manipulation;
 }
 
 .linked-scripture-action-button:hover:not(:disabled) {
@@ -1517,20 +1526,39 @@ body.is-reordering-linked-scripture {
   margin-top: -4px;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 600px) {
   .linked-scripture-item {
-    grid-template-columns: minmax(0, 1fr) 38px 52px;
-    gap: 7px;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
-  .linked-scripture-drag-handle {
-    min-height: 48px;
-    font-size: 23px;
+  .linked-scripture-side-controls {
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .linked-scripture-order-controls {
+    grid-template-columns: repeat(2, 44px);
+    grid-template-rows: 1fr;
+    gap: 8px;
   }
 
   .linked-scripture-order-button {
-    min-height: 48px;
-    font-size: 26px;
+    width: 44px;
+    min-height: 44px;
+    font-size: 22px;
+  }
+
+  .linked-scripture-drag-handle {
+    width: 36px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .linked-scripture-card-links {
+    gap: 10px;
   }
 
   .linked-scripture-edit-actions button {
