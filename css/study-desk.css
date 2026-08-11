@@ -265,6 +265,14 @@ body.study-desk-page {
   transform: translateY(-1px);
 }
 
+#add-scripture-button:disabled,
+#add-scripture-button:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
+  box-shadow: none;
+}
+
 .study-filter-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -555,9 +563,10 @@ body.study-desk-page {
 
 .linked-scripture-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 36px 48px;
+  gap: 8px;
   align-items: stretch;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
 }
 
 .linked-scripture-item.is-editing {
@@ -599,6 +608,58 @@ body.study-desk-page {
   margin-top: 5px;
   color: #8a94a8;
   font-size: 11px;
+}
+
+.linked-scripture-drag-handle {
+  width: 100%;
+  min-height: 44px;
+  align-self: stretch;
+  border: 1px solid rgba(37, 91, 234, 0.14);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #8792a7;
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.linked-scripture-drag-handle:hover {
+  border-color: rgba(37, 91, 234, 0.34);
+  background: var(--study-blue-soft);
+  color: var(--study-blue);
+}
+
+.linked-scripture-drag-handle:active,
+.linked-scripture-item.is-dragging .linked-scripture-drag-handle {
+  cursor: grabbing;
+}
+
+.linked-scripture-item.is-dragging {
+  border-color: rgba(37, 91, 234, 0.5);
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(7, 29, 58, 0.16);
+  opacity: 0.82;
+  position: relative;
+  z-index: 3;
+}
+
+.linked-scripture-list.is-reordering {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.is-reordering-linked-scripture {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .linked-scripture-order-controls {
@@ -1456,10 +1517,15 @@ body.study-desk-page {
   margin-top: -4px;
 }
 
-
 @media (max-width: 520px) {
   .linked-scripture-item {
-    grid-template-columns: minmax(0, 1fr) 52px;
+    grid-template-columns: minmax(0, 1fr) 38px 52px;
+    gap: 7px;
+  }
+
+  .linked-scripture-drag-handle {
+    min-height: 48px;
+    font-size: 23px;
   }
 
   .linked-scripture-order-button {
