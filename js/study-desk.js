@@ -8,6 +8,8 @@
     categories: [],
     availableTags: [],
     activeStudyId: null,
+    activeStudyVersion: null,
+    remoteStudy: null,
     selectedTags: [],
     linkedScriptures: [],
     editingScriptureIndex: null,
@@ -20,7 +22,9 @@
     isPreview: false,
     hasLoaded: false,
     isApplying: false,
-    hasUnsavedChanges: false
+    hasUnsavedChanges: false,
+    isSaving: false,
+    syncPollTimer: null
   };
 
   const MANAGER_COLORS = [
@@ -37,8 +41,12 @@
   const PREFERENCES_STORAGE_KEY = "branchOfIsraelPreferences";
   const DEFAULT_BIBLE_ID = "bba9f40183526463-01";
   const DEFAULT_BIBLE_ABBR = "BSB";
+  const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
+  const STUDY_SYNC_STORAGE_KEY = "branchOfIsraelStudySync";
+  const STUDY_SYNC_POLL_MS = 15000;
   const linkedScripturePreviewCache = new Map();
   let activeScripturePopupAnchor = null;
+  let studySyncChannel = null;
 
   const els = {};
   let statusClearTimer = null;
@@ -148,15 +156,15 @@
     if (!state.hasUnsavedChanges) {
       return true;
     }
-
+  
     return confirm("You have unsaved changes. Leave without saving?");
   }
-
+  
   function markClean(message = "Saved") {
     state.hasUnsavedChanges = false;
     setSaveState(message, "success");
   }
-
+  
   function setListStatus(message, type) {
     if (!els.listStatus) return;
 
@@ -206,7 +214,10 @@
     }
 
     if (!response.ok) {
-      throw new Error(result.message || "Request failed");
+      const requestError = new Error(result.message || "Request failed");
+      requestError.status = response.status;
+      requestError.data = result;
+      throw requestError;
     }
 
     return result;
@@ -306,6 +317,7 @@
 
     return {
       id: null,
+      version: null,
       title: "",
       categoryId: firstCategory ? firstCategory.id : "",
       category: firstCategory,
@@ -321,7 +333,7 @@
   }
 
   function collectStudyData() {
-    return {
+    const data = {
       title: els.title.value.trim(),
       categoryId: els.category.value || null,
       speaker: els.speaker.value.trim(),
@@ -333,12 +345,21 @@
       contentHtml: state.quill ? state.quill.root.innerHTML : "",
       previewText: getPlainPreviewText()
     };
+
+    if (state.activeStudyId && Number.isInteger(state.activeStudyVersion)) {
+      data.expectedVersion = state.activeStudyVersion;
+    }
+
+    return data;
   }
 
   function applyStudyToForm(study) {
     const data = study || getEmptyStudy();
 
     state.activeStudyId = data.id || null;
+    const loadedVersion = Number(data.version);
+    state.activeStudyVersion = Number.isInteger(loadedVersion) && loadedVersion >= 1 ? loadedVersion : null;
+    state.remoteStudy = null;
     state.selectedTags = Array.isArray(data.tags) ? data.tags.slice() : [];
     state.linkedScriptures = Array.isArray(data.linkedScriptures) ? data.linkedScriptures.slice() : [];
     state.editingScriptureIndex = null;
@@ -377,6 +398,244 @@
     setSaveState(state.activeStudyId ? "Loaded" : "Draft not saved yet", state.activeStudyId ? "success" : "");
     setStatus("", "");
     switchToEdit();
+  }
+
+  function upsertStudyInState(study) {
+    if (!study || !study.id) return;
+
+    const index = state.studies.findIndex((item) => item.id === study.id);
+
+    if (index >= 0) {
+      state.studies[index] = study;
+    } else {
+      state.studies.unshift(study);
+    }
+
+    state.studies.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+  }
+
+  function createSyncMessageId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function publishStudySync(type, payload = {}) {
+    const message = {
+      id: createSyncMessageId(),
+      type,
+      sentAt: Date.now(),
+      ...payload
+    };
+
+    if (studySyncChannel) {
+      studySyncChannel.postMessage(message);
+      return;
+    }
+
+    try {
+      localStorage.setItem(STUDY_SYNC_STORAGE_KEY, JSON.stringify(message));
+      localStorage.removeItem(STUDY_SYNC_STORAGE_KEY);
+    } catch (error) {
+      console.warn("Study sync fallback failed:", error);
+    }
+  }
+
+  function applyIncomingStudy(study, statusMessage) {
+    if (!study || !study.id) return;
+
+    const wasPreview = state.isPreview;
+
+    upsertStudyInState(study);
+    applyStudyToForm(study);
+    renderStudyList();
+
+    if (wasPreview) {
+      switchToPreview();
+    }
+
+    if (statusMessage) {
+      setStatus(statusMessage, "success");
+    }
+  }
+
+  function handleIncomingStudyUpdate(study, sourceLabel = "another window or device") {
+    if (!study || !study.id) return;
+
+    upsertStudyInState(study);
+    renderStudyList();
+
+    if (study.id !== state.activeStudyId) {
+      return;
+    }
+
+    const incomingVersion = Number(study.version) || 0;
+    const activeVersion = Number(state.activeStudyVersion) || 0;
+
+    if (incomingVersion <= activeVersion) {
+      return;
+    }
+
+    if (state.hasUnsavedChanges) {
+      const currentRemoteVersion = Number(state.remoteStudy?.version) || 0;
+
+      if (incomingVersion > currentRemoteVersion) {
+        state.remoteStudy = study;
+      }
+
+      setStatus(
+        `This study was updated in ${sourceLabel}. Your local changes are still here, but Save will be blocked until you reload the latest version.`,
+        "error",
+        0
+      );
+      setSaveState("Newer version available");
+      return;
+    }
+
+    applyIncomingStudy(study, `Study updated from ${sourceLabel}.`);
+  }
+
+  async function handleIncomingStudyDelete(studyId, sourceLabel = "another window or device") {
+    if (!studyId) return;
+
+    state.studies = state.studies.filter((study) => study.id !== studyId);
+    renderStudyList();
+
+    if (studyId !== state.activeStudyId) {
+      return;
+    }
+
+    if (state.hasUnsavedChanges) {
+      state.remoteStudy = { id: studyId, deleted: true };
+      setStatus(
+        `This study was deleted in ${sourceLabel}. Your unsaved local copy is still visible, but it can no longer be saved over the deleted study.`,
+        "error",
+        0
+      );
+      setSaveState("Study deleted elsewhere");
+      return;
+    }
+
+    state.activeStudyId = null;
+    state.activeStudyVersion = null;
+
+    if (state.studies.length) {
+      await loadStudy(state.studies[0].id);
+    } else {
+      applyStudyToForm(getEmptyStudy());
+      renderStudyList();
+    }
+  }
+
+  function processStudySyncMessage(message) {
+    if (!message || typeof message !== "object") return;
+
+    if (message.type === "study-updated" && message.study) {
+      handleIncomingStudyUpdate(message.study, "another browser tab");
+      return;
+    }
+
+    if (message.type === "study-deleted" && message.studyId) {
+      handleIncomingStudyDelete(message.studyId, "another browser tab");
+    }
+  }
+
+  function initStudySync() {
+    if ("BroadcastChannel" in window) {
+      studySyncChannel = new BroadcastChannel(STUDY_SYNC_CHANNEL_NAME);
+      studySyncChannel.addEventListener("message", (event) => {
+        processStudySyncMessage(event.data);
+      });
+    } else {
+      window.addEventListener("storage", (event) => {
+        if (event.key !== STUDY_SYNC_STORAGE_KEY || !event.newValue) {
+          return;
+        }
+
+        try {
+          processStudySyncMessage(JSON.parse(event.newValue));
+        } catch (error) {
+          console.warn("Could not read Study Desk sync message:", error);
+        }
+      });
+    }
+  }
+
+  async function checkForRemoteStudyUpdate() {
+    if (
+      !state.activeStudyId ||
+      state.isSaving ||
+      document.hidden ||
+      !Number.isInteger(state.activeStudyVersion)
+    ) {
+      return;
+    }
+
+    try {
+      const result = await fetchJson(`/api/studies/${encodeURIComponent(state.activeStudyId)}`);
+      const freshStudy = result.study;
+
+      if (!freshStudy) return;
+
+      const freshVersion = Number(freshStudy.version) || 0;
+      const activeVersion = Number(state.activeStudyVersion) || 0;
+
+      if (freshVersion > activeVersion) {
+        handleIncomingStudyUpdate(freshStudy, "another window or device");
+      }
+    } catch (error) {
+      if (error.status === 404) {
+        await handleIncomingStudyDelete(state.activeStudyId, "another window or device");
+      }
+    }
+  }
+
+  function startStudySyncPolling() {
+    if (state.syncPollTimer) {
+      clearInterval(state.syncPollTimer);
+    }
+
+    state.syncPollTimer = window.setInterval(checkForRemoteStudyUpdate, STUDY_SYNC_POLL_MS);
+
+    window.addEventListener("focus", checkForRemoteStudyUpdate);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        checkForRemoteStudyUpdate();
+      }
+    });
+  }
+
+  function handleVersionConflict(error, actionLabel = "save") {
+    const latestStudy = error?.data?.latestStudy || null;
+
+    if (latestStudy) {
+      upsertStudyInState(latestStudy);
+      renderStudyList();
+      state.remoteStudy = latestStudy;
+    }
+
+    setStatus(
+      `The ${actionLabel} was blocked because this study changed in another window or device. Nothing was overwritten.`,
+      "error",
+      0
+    );
+    setSaveState("Newer version exists");
+
+    if (!latestStudy) {
+      return;
+    }
+
+    const reloadLatest = confirm(
+      "This study has a newer saved version.\n\n" +
+      "Click OK to load the latest version now. Your current unsaved changes will be discarded.\n\n" +
+      "Click Cancel to keep your local changes on screen so you can review or copy them first."
+    );
+
+    if (reloadLatest) {
+      applyIncomingStudy(latestStudy, "Latest version loaded.");
+    }
   }
 
   function matchesSearch(study, searchValue) {
@@ -574,8 +833,15 @@
       return;
     }
 
+    if (state.activeStudyId && !Number.isInteger(state.activeStudyVersion)) {
+      setStatus("This study needs to be reloaded before it can be saved safely.", "error", 0);
+      setSaveState("Reload required");
+      return;
+    }
+
     setStatus("Saving...");
     setSaveState("Saving...");
+    state.isSaving = true;
 
     const isExisting = !!state.activeStudyId;
     const url = isExisting ? `/api/studies/${encodeURIComponent(state.activeStudyId)}` : "/api/studies";
@@ -590,28 +856,40 @@
       const savedStudy = result.study;
       state.activeStudyId = savedStudy.id;
 
-      const index = state.studies.findIndex((study) => study.id === savedStudy.id);
-
-      if (index >= 0) {
-        state.studies[index] = savedStudy;
-      } else {
-        state.studies.unshift(savedStudy);
-      }
-
-      state.studies.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      upsertStudyInState(savedStudy);
       applyStudyToForm(savedStudy);
       renderStudyList();
       setStatus("Study saved successfully.", "success");
       markClean("Saved just now");
+      publishStudySync("study-updated", { study: savedStudy });
     } catch (error) {
+      if (error.status === 409 && error.data?.code === "STUDY_VERSION_CONFLICT") {
+        handleVersionConflict(error, "save");
+        return;
+      }
+
+      if (error.status === 428) {
+        setStatus("This study must be reloaded before it can be saved safely.", "error", 0);
+        setSaveState("Reload required");
+        return;
+      }
+
       setStatus(error.message, "error");
       setSaveState("Save failed");
+    } finally {
+      state.isSaving = false;
     }
   }
 
   async function deleteStudy() {
     if (!state.activeStudyId) return;
 
+    if (!Number.isInteger(state.activeStudyVersion)) {
+      setStatus("This study needs to be reloaded before it can be deleted safely.", "error", 0);
+      return;
+    }
+
+    const studyId = state.activeStudyId;
     const currentTitle = els.title.value.trim() || "this study";
 
     if (!confirm(`Delete ${currentTitle}? This cannot be undone.`)) {
@@ -619,15 +897,20 @@
     }
 
     setStatus("Deleting...");
+    state.isSaving = true;
 
     try {
-      await fetchJson(`/api/studies/${encodeURIComponent(state.activeStudyId)}`, {
-        method: "DELETE"
-      });
+      await fetchJson(
+        `/api/studies/${encodeURIComponent(studyId)}?expectedVersion=${encodeURIComponent(state.activeStudyVersion)}`,
+        { method: "DELETE" }
+      );
 
-      state.studies = state.studies.filter((study) => study.id !== state.activeStudyId);
+      state.studies = state.studies.filter((study) => study.id !== studyId);
       state.activeStudyId = null;
+      state.activeStudyVersion = null;
+      state.remoteStudy = null;
       renderStudyList();
+      publishStudySync("study-deleted", { studyId });
 
       if (state.studies.length) {
         await loadStudy(state.studies[0].id);
@@ -637,7 +920,14 @@
 
       setStatus("Study deleted.", "success");
     } catch (error) {
+      if (error.status === 409 && error.data?.code === "STUDY_VERSION_CONFLICT") {
+        handleVersionConflict(error, "delete");
+        return;
+      }
+
       setStatus(error.message, "error");
+    } finally {
+      state.isSaving = false;
     }
   }
 
@@ -826,7 +1116,6 @@
 
     const { card } = linkedScriptureDrag;
     const siblings = Array.from(els.scriptureList.children).filter((item) => item !== card);
-
     const insertBeforeCard = siblings.find((item) => {
       const rect = item.getBoundingClientRect();
       return clientY < rect.top + rect.height / 2;
@@ -850,7 +1139,6 @@
       pointerCancelHandler,
       autoScrollFrame
     } = linkedScriptureDrag;
-
     const endIndex = Array.from(els.scriptureList.children).indexOf(card);
 
     if (autoScrollFrame) {
@@ -864,7 +1152,6 @@
     card.classList.remove("is-dragging");
     els.scriptureList.classList.remove("is-reordering");
     document.body.classList.remove("is-reordering-linked-scripture");
-
     linkedScriptureDrag = null;
 
     if (!commit || endIndex < 0 || endIndex === startIndex) {
@@ -1000,9 +1287,7 @@
     saveButton.type = "button";
     saveButton.className = "study-primary-button";
     saveButton.textContent = "Save Changes";
-    saveButton.addEventListener("click", () => {
-      saveLinkedScriptureEdit(index, referenceInput, noteInput);
-    });
+    saveButton.addEventListener("click", () => saveLinkedScriptureEdit(index, referenceInput, noteInput));
 
     const cancelButton = document.createElement("button");
     cancelButton.type = "button";
@@ -1014,9 +1299,7 @@
     deleteButton.type = "button";
     deleteButton.className = "study-danger-button";
     deleteButton.textContent = "Delete";
-    deleteButton.addEventListener("click", () => {
-      deleteLinkedScripture(index);
-    });
+    deleteButton.addEventListener("click", () => deleteLinkedScripture(index));
 
     actions.append(saveButton, cancelButton, deleteButton);
 
@@ -1033,7 +1316,6 @@
     });
 
     editor.append(referenceLabel, noteLabel, actions);
-
     return editor;
   }
 
@@ -1068,7 +1350,6 @@
       editButton.type = "button";
       editButton.className = "linked-scripture-text-button";
       editButton.textContent = "Edit";
-
       editButton.addEventListener("click", (event) => {
         event.stopPropagation();
         beginLinkedScriptureEdit(index);
@@ -1078,7 +1359,6 @@
       removeButton.type = "button";
       removeButton.className = "linked-scripture-text-button is-danger";
       removeButton.textContent = "Delete";
-
       removeButton.addEventListener("click", (event) => {
         event.stopPropagation();
         deleteLinkedScripture(index);
@@ -1092,18 +1372,12 @@
       dragHandle.className = "linked-scripture-drag-handle";
       dragHandle.dataset.scriptureIndex = String(index);
       dragHandle.innerHTML = '<span aria-hidden="true">⋮⋮</span>';
-
       dragHandle.setAttribute(
         "aria-label",
         `Drag ${item.reference || "linked Scripture"} to reorder. Use arrow keys when focused.`
       );
-
       dragHandle.title = "Drag to reorder";
-
-      dragHandle.addEventListener("pointerdown", (event) => {
-        beginLinkedScriptureDrag(event, card, index);
-      });
-
+      dragHandle.addEventListener("pointerdown", (event) => beginLinkedScriptureDrag(event, card, index));
       dragHandle.addEventListener("keydown", (event) => {
         if (event.key === "ArrowUp") {
           event.preventDefault();
@@ -1163,7 +1437,6 @@
 
     if (window.UserPreferences && typeof window.UserPreferences.read === "function") {
       const preferences = window.UserPreferences.read();
-
       return {
         bibleId: preferences.bibleId || DEFAULT_BIBLE_ID,
         bibleAbbr: preferences.bibleAbbr || DEFAULT_BIBLE_ABBR
@@ -1171,10 +1444,7 @@
     }
 
     try {
-      const preferences = JSON.parse(
-        localStorage.getItem(PREFERENCES_STORAGE_KEY) || "{}"
-      );
-
+      const preferences = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || "{}");
       return {
         bibleId: preferences.bibleId || DEFAULT_BIBLE_ID,
         bibleAbbr: preferences.bibleAbbr || DEFAULT_BIBLE_ABBR
@@ -1193,7 +1463,6 @@
     popup.setAttribute("role", "dialog");
     popup.setAttribute("aria-live", "polite");
     popup.hidden = true;
-
     popup.innerHTML = `
       <div class="study-scripture-popup-header">
         <h3></h3>
@@ -1204,15 +1473,9 @@
       </div>
     `;
 
-    popup.querySelector("button")?.addEventListener(
-      "click",
-      closeScripturePreviewPopup
-    );
-
+    popup.querySelector("button")?.addEventListener("click", closeScripturePreviewPopup);
     popup.addEventListener("click", (event) => event.stopPropagation());
-
     document.body.appendChild(popup);
-
     return popup;
   }
 
@@ -1247,9 +1510,7 @@
 
     if (body) {
       body.innerHTML = isError
-        ? `<p class="study-scripture-popup-error">${escapeHtml(
-            content || "Could not load this Scripture."
-          )}</p>`
+        ? `<p class="study-scripture-popup-error">${escapeHtml(content || "Could not load this Scripture.")}</p>`
         : content || "<p>No Scripture text was returned.</p>";
     }
   }
@@ -1264,7 +1525,6 @@
     popup.style.top = "0px";
 
     const popupRect = popup.getBoundingClientRect();
-
     let left = rect.left;
     let top = rect.bottom + 8;
 
@@ -1290,16 +1550,13 @@
 
   function normalizeScriptureReferenceText(reference) {
     return normalizeName(reference)
-      .replace(/[\u2013\u2014\u2212]/g, "-")
+      .replace(/[–—−]/g, "-")
       .replace(/\s*-\s*/g, "-");
   }
 
   function parseLinkedScriptureReference(reference) {
     const cleanReference = normalizeScriptureReferenceText(reference);
-
-    const match = cleanReference.match(
-      /^(.+?)\s+(\d+)\s*:\s*(\d+)(?:\s*-\s*(?:(\d+)\s*:\s*)?(\d+))?$/
-    );
+    const match = cleanReference.match(/^(.+?)\s+(\d+)\s*:\s*(\d+)(?:\s*-\s*(?:(\d+)\s*:\s*)?(\d+))?$/);
 
     if (!match) {
       return null;
@@ -1366,10 +1623,7 @@
       return verseParts.verse <= parsedReference.endVerse;
     }
 
-    return (
-      verseParts.chapter > parsedReference.chapter &&
-      verseParts.chapter < parsedReference.endChapter
-    );
+    return verseParts.chapter > parsedReference.chapter && verseParts.chapter < parsedReference.endChapter;
   }
 
   function getVerseNumberFromReference(reference) {
@@ -1382,10 +1636,7 @@
       return null;
     }
 
-    return Math.max(
-      1,
-      parsedReference.endVerse - parsedReference.startVerse + 1
-    );
+    return Math.max(1, parsedReference.endVerse - parsedReference.startVerse + 1);
   }
 
   function hasEnoughExactVerses(exactVerses, parsedReference) {
@@ -1412,7 +1663,6 @@
         const number = getVerseNumberFromReference(verse.reference);
         const text = escapeHtml(verse.text || "");
         const verseNumber = number ? `<sup>${number}</sup>` : "";
-
         return `<p>${verseNumber}${text}</p>`;
       })
       .join("");
@@ -1422,13 +1672,9 @@
     const wrapper = document.createElement("div");
     wrapper.innerHTML = content || "";
 
-    wrapper
-      .querySelectorAll(
-        ".s, .s1, .s2, .s3, .s4, .r, .sr, .mr, .ms, .ms1, .d"
-      )
-      .forEach((node) => {
-        node.remove();
-      });
+    wrapper.querySelectorAll(".s, .s1, .s2, .s3, .s4, .r, .sr, .mr, .ms, .ms1, .d").forEach((node) => {
+      node.remove();
+    });
 
     return wrapper.innerHTML.trim();
   }
@@ -1457,9 +1703,7 @@
     }
 
     const url =
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
-        bibleState.bibleId
-      )}` +
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
       `/search?query=${encodeURIComponent(cleanReference)}&limit=50`;
 
     const response = await fetch(url, {
@@ -1487,14 +1731,9 @@
       throw new Error(result.message || "Could not load this Scripture.");
     }
 
-    const verses = Array.isArray(result.data?.verses)
-      ? result.data.verses
-      : [];
-
+    const verses = Array.isArray(result.data?.verses) ? result.data.verses : [];
     const exactVerses = parsedReference
-      ? verses.filter((verse) =>
-          isVerseInsideLinkedReference(verse.reference, parsedReference)
-        )
+      ? verses.filter((verse) => isVerseInsideLinkedReference(verse.reference, parsedReference))
       : [];
 
     let preview = null;
@@ -1505,9 +1744,7 @@
         content: buildVersePreviewContent(exactVerses)
       };
     } else {
-      const passage = Array.isArray(result.data?.passages)
-        ? result.data.passages[0]
-        : null;
+      const passage = Array.isArray(result.data?.passages) ? result.data.passages[0] : null;
 
       if (passage) {
         preview = {
@@ -1523,23 +1760,16 @@
     }
 
     if (!preview || !preview.content) {
-      throw new Error(
-        `Could not find ${cleanReference} in ${
-          bibleState.bibleAbbr || "the selected Bible"
-        }.`
-      );
+      throw new Error(`Could not find ${cleanReference} in ${bibleState.bibleAbbr || "the selected Bible"}.`);
     }
 
     linkedScripturePreviewCache.set(cacheKey, preview);
-
     return preview;
   }
 
   async function openLinkedScripturePreview(anchor, item) {
     const reference = item.reference || "Scripture";
-
     activeScripturePopupAnchor = anchor;
-
     setScripturePreviewPopupContent(reference, "<p>Loading...</p>");
     positionScripturePreviewPopup(anchor);
 
@@ -1548,23 +1778,13 @@
 
       if (activeScripturePopupAnchor !== anchor) return;
 
-      setScripturePreviewPopupContent(
-        preview.reference || reference,
-        preview.content
-      );
-
+      setScripturePreviewPopupContent(preview.reference || reference, preview.content);
       positionScripturePreviewPopup(anchor);
     } catch (error) {
       if (activeScripturePopupAnchor !== anchor) return;
 
       console.error("Linked Scripture preview failed:", error);
-
-      setScripturePreviewPopupContent(
-        reference,
-        error.message || "Could not load this Scripture.",
-        true
-      );
-
+      setScripturePreviewPopupContent(reference, error.message || "Could not load this Scripture.", true);
       positionScripturePreviewPopup(anchor);
     }
   }
@@ -1578,7 +1798,6 @@
       chip.style.backgroundColor = tag.color || "#eef4ff";
       chip.style.borderColor = tag.color || "#d6e0ff";
       chip.textContent = tag.name || "Tag";
-
       container.appendChild(chip);
     });
   }
@@ -1601,12 +1820,7 @@
       reference.type = "button";
       reference.className = "study-reference-link";
       reference.textContent = item.reference || "Scripture";
-
-      reference.setAttribute(
-        "aria-label",
-        `Open ${item.reference || "Scripture"}`
-      );
-
+      reference.setAttribute("aria-label", `Open ${item.reference || "Scripture"}`);
       reference.addEventListener("click", (event) => {
         event.preventDefault();
         openLinkedScripturePreview(reference, item);
@@ -1628,24 +1842,13 @@
   function renderPreview() {
     const data = collectStudyData();
 
-    els.previewType.textContent = data.categoryId
-      ? getCategoryName(data.categoryId)
-      : "";
-
-    els.previewDate.textContent = data.studyDate
-      ? formatDate(data.studyDate)
-      : "";
-
+    els.previewType.textContent = data.categoryId ? getCategoryName(data.categoryId) : "";
+    els.previewDate.textContent = data.studyDate ? formatDate(data.studyDate) : "";
     els.previewSpeaker.textContent = data.speaker || "";
     els.previewLocation.textContent = data.location || "";
     els.previewTitle.textContent = data.title || "Untitled Study";
-
-    els.previewMainScripture.textContent = data.mainScripture
-      ? `Main Scripture: ${data.mainScripture}`
-      : "";
-
-    els.previewContent.innerHTML =
-      data.contentHtml || "<p>No study notes yet.</p>";
+    els.previewMainScripture.textContent = data.mainScripture ? `Main Scripture: ${data.mainScripture}` : "";
+    els.previewContent.innerHTML = data.contentHtml || "<p>No study notes yet.</p>";
 
     renderPreviewTags(els.previewTags, state.selectedTags);
     renderPreviewScriptures();
@@ -1653,9 +1856,7 @@
 
   function switchToPreview() {
     renderPreview();
-
     state.isPreview = true;
-
     els.form.hidden = true;
     els.preview.hidden = false;
     els.previewButton.hidden = true;
@@ -1665,83 +1866,59 @@
 
   function switchToEdit() {
     closeScripturePreviewPopup();
-
     state.isPreview = false;
-
     els.form.hidden = false;
     els.preview.hidden = true;
     els.previewButton.hidden = false;
     els.editButton.hidden = true;
-
-    els.modeLabel.textContent = state.activeStudyId
-      ? "Edit Study"
-      : "New Study";
+    els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
   }
 
   function openCategoryManager() {
     if (!els.categoryModal) return;
-
     if (!state.managedCategoryId && state.categories[0]) {
       state.managedCategoryId = state.categories[0].id;
     }
-
     ensureCategoryManagerInlineStyles();
     updateCategoryManagerIntroText();
     hideCategoryColorControls();
     renderCategoryManager();
-
     els.categoryModal.hidden = false;
-
-    if (els.newCategoryName) {
-      els.newCategoryName.focus();
-    }
+    if (els.newCategoryName) els.newCategoryName.focus();
   }
 
   function closeCategoryManager() {
     if (!els.categoryModal) return;
-
     els.categoryModal.hidden = true;
-
     renderCategoryDropdown();
   }
 
   function openTagManager() {
     if (!els.tagManagerModal) return;
-
     updateTagManagerHeader();
     prepareTagManagerCreateSection();
     renderAddTagColorPicker();
     renderTagManager();
-
     els.tagManagerModal.hidden = false;
-
-    if (els.newTagName) {
-      els.newTagName.focus();
-    }
+    if (els.newTagName) els.newTagName.focus();
   }
 
   function closeTagManager() {
     if (!els.tagManagerModal) return;
-
     els.tagManagerModal.hidden = true;
-
     renderTagOptions();
   }
 
   function updateTagManagerHeader() {
     if (!els.tagManagerModal) return;
 
-    const eyebrow = els.tagManagerModal.querySelector(
-      ".study-modal-header .study-eyebrow"
-    );
-
+    const eyebrow = els.tagManagerModal.querySelector(".study-modal-header .study-eyebrow");
     if (eyebrow) {
       eyebrow.hidden = true;
       eyebrow.style.display = "none";
     }
 
     const intro = els.tagManagerModal.querySelector(".study-modal-intro");
-
     if (intro) {
       intro.hidden = true;
       intro.style.display = "none";
@@ -1765,7 +1942,6 @@
       const note = document.createElement("p");
       note.className = "study-manager-section-note";
       note.textContent = description;
-
       heading.appendChild(note);
     }
 
@@ -1774,13 +1950,9 @@
 
   function prepareTagManagerCreateSection() {
     const addCard = els.newTagName?.closest?.(".study-manager-add-card");
-
     if (!addCard) return;
 
-    addCard.classList.add(
-      "study-manager-section-card",
-      "study-manager-create-card"
-    );
+    addCard.classList.add("study-manager-section-card", "study-manager-create-card");
 
     if (!addCard.querySelector("[data-tag-create-heading]")) {
       const heading = createSectionHeading(
@@ -1788,15 +1960,11 @@
         "Create a new tag",
         "Choose the name and color for a new tag before adding it to your private list."
       );
-
       heading.setAttribute("data-tag-create-heading", "true");
       addCard.prepend(heading);
     }
 
-    const colorLabel = addCard.querySelector(
-      ".study-manager-color-section .study-manager-small-label"
-    );
-
+    const colorLabel = addCard.querySelector(".study-manager-color-section .study-manager-small-label");
     if (colorLabel) {
       colorLabel.textContent = "New tag color";
     }
@@ -1811,33 +1979,21 @@
   function updateCategoryManagerIntroText() {
     if (!els.categoryModal) return;
 
-    const paragraphs = Array.from(
-      els.categoryModal.querySelectorAll("p")
-    );
-
+    const paragraphs = Array.from(els.categoryModal.querySelectorAll("p"));
     const intro = paragraphs.find((paragraph) =>
       /categories that appear/i.test(paragraph.textContent || "")
     );
 
     if (intro) {
-      intro.textContent =
-        "Add, rename, or remove the categories that appear in your Study Desk dropdown.";
+      intro.textContent = "Add, rename, or remove the categories that appear in your Study Desk dropdown.";
     }
   }
 
   function ensureCategoryManagerInlineStyles() {
-    if (
-      document.getElementById(
-        "study-category-inline-editor-styles"
-      )
-    ) {
-      return;
-    }
+    if (document.getElementById("study-category-inline-editor-styles")) return;
 
     const style = document.createElement("style");
-
     style.id = "study-category-inline-editor-styles";
-
     style.textContent = `
       .study-category-inline-row {
         display: grid;
@@ -1936,67 +2092,41 @@
 
   function createColorButton(color, activeColor, label, onSelect) {
     const button = document.createElement("button");
-
     button.type = "button";
     button.className = "study-manager-color-choice";
     button.style.setProperty("--manager-choice-color", color);
     button.setAttribute("aria-label", label);
-
-    button.setAttribute(
-      "aria-pressed",
-      String(
-        color.toLowerCase() ===
-          String(activeColor || "").toLowerCase()
-      )
-    );
-
+    button.setAttribute("aria-pressed", String(color.toLowerCase() === String(activeColor || "").toLowerCase()));
     button.addEventListener("click", () => onSelect(color));
-
     return button;
   }
 
   function renderColorPicker(container, activeColor, onSelect) {
     if (!container) return;
-
     container.innerHTML = "";
 
     MANAGER_COLORS.forEach((item) => {
-      container.appendChild(
-        createColorButton(
-          item.value,
-          activeColor,
-          item.label,
-          onSelect
-        )
-      );
+      container.appendChild(createColorButton(item.value, activeColor, item.label, onSelect));
     });
   }
 
   function hideTagCustomColorInput() {
     if (!els.newTagCustomColor) return;
-
     els.newTagCustomColor.value = "";
     els.newTagCustomColor.hidden = true;
     els.newTagCustomColor.style.display = "none";
   }
 
   function hideCategoryColorControls() {
-    [
-      "new-category-color-picker",
-      "new-category-custom-color"
-    ].forEach((id) => {
+    ["new-category-color-picker", "new-category-custom-color"].forEach((id) => {
       const element = document.getElementById(id);
-
       if (element) {
         element.hidden = true;
         element.style.display = "none";
       }
     });
 
-    const picker = document.getElementById(
-      "new-category-color-picker"
-    );
-
+    const picker = document.getElementById("new-category-color-picker");
     const label = picker?.previousElementSibling;
 
     if (label && /color/i.test(label.textContent || "")) {
@@ -2006,48 +2136,27 @@
   }
 
   function getManagedCategory() {
-    return (
-      state.categories.find(
-        (item) => item.id === state.managedCategoryId
-      ) || null
-    );
+    return state.categories.find((item) => item.id === state.managedCategoryId) || null;
   }
 
   function getManagedTag() {
-    return (
-      state.availableTags.find(
-        (item) => item.id === state.managedTagId
-      ) || null
-    );
+    return state.availableTags.find((item) => item.id === state.managedTagId) || null;
   }
 
   function renderAddTagColorPicker() {
-    renderColorPicker(
-      els.newTagColorPicker,
-      state.newTagColor,
-      (color) => {
-        state.newTagColor = color;
-        renderAddTagColorPicker();
-      }
-    );
+    renderColorPicker(els.newTagColorPicker, state.newTagColor, (color) => {
+      state.newTagColor = color;
+      renderAddTagColorPicker();
+    });
   }
 
-  function renderManagerListRow(
-    item,
-    selectedId,
-    label,
-    onSelect
-  ) {
+  function renderManagerListRow(item, selectedId, label, onSelect) {
     const row = document.createElement("div");
-
     row.className = "study-manager-list-row";
     row.classList.toggle("is-selected", item.id === selectedId);
     row.setAttribute("role", "button");
     row.setAttribute("tabindex", "0");
-    row.setAttribute(
-      "aria-pressed",
-      String(item.id === selectedId)
-    );
+    row.setAttribute("aria-pressed", String(item.id === selectedId));
 
     const selectDot = document.createElement("span");
     selectDot.className = "study-manager-select-dot";
@@ -2059,26 +2168,15 @@
     if (label.toLowerCase() === "tag") {
       const colorSwatch = document.createElement("span");
       colorSwatch.className = "study-color-swatch";
-      colorSwatch.style.backgroundColor =
-        item.color || "#dbeafe";
-
+      colorSwatch.style.backgroundColor = item.color || "#dbeafe";
       row.append(selectDot, colorSwatch, name);
 
       const isAdded = isTagSelected(item.id);
-
-      const addToStudyButton =
-        document.createElement("button");
-
+      const addToStudyButton = document.createElement("button");
       addToStudyButton.type = "button";
-      addToStudyButton.className =
-        "study-manager-row-action";
-
-      addToStudyButton.textContent = isAdded
-        ? "Added"
-        : "Add to Study";
-
+      addToStudyButton.className = "study-manager-row-action";
+      addToStudyButton.textContent = isAdded ? "Added" : "Add to Study";
       addToStudyButton.disabled = isAdded;
-
       addToStudyButton.setAttribute(
         "aria-label",
         isAdded
@@ -2097,7 +2195,6 @@
     }
 
     row.addEventListener("click", () => onSelect(item.id));
-
     row.addEventListener("keydown", (event) => {
       if (event.target?.closest?.("button")) {
         return;
@@ -2108,7 +2205,6 @@
       }
 
       event.preventDefault();
-
       onSelect(item.id);
     });
 
@@ -2117,11 +2213,9 @@
 
   function createManagerEditor(item, type) {
     const editor = document.createElement("div");
-
-    editor.className =
-      type === "tag"
-        ? "study-manager-editor-card study-manager-section-card study-manager-edit-card"
-        : "study-manager-editor-card";
+    editor.className = type === "tag"
+      ? "study-manager-editor-card study-manager-section-card study-manager-edit-card"
+      : "study-manager-editor-card";
 
     const heading = document.createElement("div");
     heading.className = "study-manager-editor-heading";
@@ -2130,15 +2224,9 @@
 
     if (type === "tag") {
       const tagName = item.name || "selected tag";
-
-      title.innerHTML =
-        `<p class="study-manager-small-label">Edit Selected Tag</p>` +
-        `<h3>${escapeHtml(tagName)}</h3>` +
-        `<p class="study-manager-section-note">Changes here apply only to the selected existing tag.</p>`;
+      title.innerHTML = `<p class="study-manager-small-label">Edit Selected Tag</p><h3>${escapeHtml(tagName)}</h3><p class="study-manager-section-note">Changes here apply only to the selected existing tag.</p>`;
     } else {
-      title.innerHTML =
-        `<p class="study-manager-small-label">Selected ${type}</p>` +
-        `<h3>Edit ${type}</h3>`;
+      title.innerHTML = `<p class="study-manager-small-label">Selected ${type}</p><h3>Edit ${type}</h3>`;
     }
 
     const preview = document.createElement("span");
@@ -2157,35 +2245,24 @@
     nameInput.value = item.name || "";
     nameInput.setAttribute("aria-label", `${type} name`);
 
-    let selectedColor =
-      normalizeColorValue(item.color) || "#dbeafe";
+    let selectedColor = normalizeColorValue(item.color) || "#dbeafe";
 
     const picker = document.createElement("div");
     picker.className = "study-manager-color-picker";
 
     const rerenderPicker = () => {
-      renderColorPicker(
-        picker,
-        selectedColor,
-        (color) => {
-          selectedColor = color;
-          preview.style.backgroundColor = color;
-          rerenderPicker();
-        }
-      );
+      renderColorPicker(picker, selectedColor, (color) => {
+        selectedColor = color;
+        preview.style.backgroundColor = color;
+        rerenderPicker();
+      });
     };
 
     nameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-
-        if (type === "category") {
-          updateCategory(item, nameInput.value);
-        }
-
-        if (type === "tag") {
-          updateTag(item, nameInput.value, selectedColor);
-        }
+        if (type === "category") updateCategory(item, nameInput.value);
+        if (type === "tag") updateTag(item, nameInput.value, selectedColor);
       }
     });
 
@@ -2197,21 +2274,11 @@
     const saveButton = document.createElement("button");
     saveButton.type = "button";
     saveButton.className = "study-primary-button";
-
-    saveButton.textContent =
-      type === "tag"
-        ? "Save Tag Changes"
-        : "Save Changes";
-
+    saveButton.textContent = type === "tag" ? "Save Tag Changes" : "Save Changes";
     saveButton.addEventListener("click", async () => {
       const originalText = saveButton.textContent;
-
       saveButton.disabled = true;
-
-      saveButton.textContent =
-        type === "tag"
-          ? "Saving tag..."
-          : "Saving...";
+      saveButton.textContent = type === "tag" ? "Saving tag..." : "Saving...";
 
       try {
         if (type === "category") {
@@ -2219,14 +2286,8 @@
           return;
         }
 
-        const finalColor =
-          selectedColor || "#dbeafe";
-
-        await updateTag(
-          item,
-          nameInput.value,
-          finalColor
-        );
+        const finalColor = selectedColor || "#dbeafe";
+        await updateTag(item, nameInput.value, finalColor);
       } finally {
         saveButton.disabled = false;
         saveButton.textContent = originalText;
@@ -2236,33 +2297,15 @@
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "study-danger-button";
-
-    deleteButton.textContent =
-      type === "category"
-        ? "Delete Category"
-        : "Delete Tag";
-
+    deleteButton.textContent = type === "category" ? "Delete Category" : "Delete Tag";
     deleteButton.addEventListener("click", () => {
-      if (type === "category") {
-        deleteCategory(item);
-      }
-
-      if (type === "tag") {
-        deleteTag(item);
-      }
+      if (type === "category") deleteCategory(item);
+      if (type === "tag") deleteTag(item);
     });
 
     actions.append(saveButton, deleteButton);
 
-    editor.append(
-      heading,
-      createSmallLabel(
-        type === "tag"
-          ? "Selected tag name"
-          : "Name"
-      ),
-      nameInput
-    );
+    editor.append(heading, createSmallLabel(type === "tag" ? "Selected tag name" : "Name"), nameInput);
 
     if (type === "tag") {
       editor.append(
@@ -2279,10 +2322,7 @@
 
   function createEmptyTagEditor() {
     const editor = document.createElement("div");
-
-    editor.className =
-      "study-manager-editor-card study-manager-section-card study-manager-edit-card study-manager-empty-editor";
-
+    editor.className = "study-manager-editor-card study-manager-section-card study-manager-edit-card study-manager-empty-editor";
     editor.appendChild(
       createSectionHeading(
         "Edit Selected Tag",
@@ -2290,14 +2330,12 @@
         "Choose a tag from the Existing Tags list above to change its name, color, or delete it."
       )
     );
-
     return editor;
   }
 
   function escapeHtml(value) {
     const div = document.createElement("div");
     div.textContent = String(value || "");
-
     return div.innerHTML;
   }
 
@@ -2305,7 +2343,6 @@
     const label = document.createElement("p");
     label.className = "study-manager-small-label";
     label.textContent = text;
-
     return label;
   }
 
@@ -2317,11 +2354,7 @@
     input.type = "text";
     input.className = "study-category-inline-input";
     input.value = category.name || "";
-
-    input.setAttribute(
-      "aria-label",
-      `Category name: ${category.name || "category"}`
-    );
+    input.setAttribute("aria-label", `Category name: ${category.name || "category"}`);
 
     const saveButton = document.createElement("button");
     saveButton.type = "button";
@@ -2337,44 +2370,24 @@
     const updateSaveState = () => {
       const originalName = normalizeName(category.name);
       const currentName = normalizeName(input.value);
-
-      const isDirty =
-        !!currentName &&
-        currentName !== originalName;
+      const isDirty = !!currentName && currentName !== originalName;
 
       row.classList.toggle("is-dirty", isDirty);
-
       saveButton.disabled = !isDirty;
-
-      saveButton.classList.toggle(
-        "is-ready",
-        isDirty
-      );
-
-      saveButton.textContent = isDirty
-        ? "Save Changes"
-        : "Saved";
+      saveButton.classList.toggle("is-ready", isDirty);
+      saveButton.textContent = isDirty ? "Save Changes" : "Saved";
     };
 
-    input.addEventListener(
-      "input",
-      updateSaveState
-    );
+    input.addEventListener("input", updateSaveState);
 
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
-
       event.preventDefault();
-
-      if (!saveButton.disabled) {
-        updateCategory(category, input.value);
-      }
+      if (!saveButton.disabled) updateCategory(category, input.value);
     });
 
     saveButton.addEventListener("click", () => {
-      if (!saveButton.disabled) {
-        updateCategory(category, input.value);
-      }
+      if (!saveButton.disabled) updateCategory(category, input.value);
     });
 
     deleteButton.addEventListener("click", () => {
@@ -2382,13 +2395,7 @@
     });
 
     updateSaveState();
-
-    row.append(
-      input,
-      saveButton,
-      deleteButton
-    );
-
+    row.append(input, saveButton, deleteButton);
     return row;
   }
 
@@ -2410,16 +2417,12 @@
       const empty = document.createElement("p");
       empty.className = "study-manager-empty";
       empty.textContent = "No categories yet.";
-
       els.categoryList.appendChild(empty);
-
       return;
     }
 
     state.categories.forEach((category) => {
-      els.categoryList.appendChild(
-        createCategoryInlineEditorRow(category)
-      );
+      els.categoryList.appendChild(createCategoryInlineEditorRow(category));
     });
   }
 
@@ -2428,20 +2431,14 @@
 
     prepareTagManagerCreateSection();
 
-    if (
-      state.managedTagId &&
-      !getManagedTag()
-    ) {
+    if (state.managedTagId && !getManagedTag()) {
       state.managedTagId = "";
     }
 
     els.tagManagerList.innerHTML = "";
 
     const listCard = document.createElement("div");
-
-    listCard.className =
-      "study-manager-section-card study-manager-existing-card";
-
+    listCard.className = "study-manager-section-card study-manager-existing-card";
     listCard.appendChild(
       createSectionHeading(
         "Existing Tags",
@@ -2455,26 +2452,15 @@
 
     if (!state.availableTags.length) {
       const empty = document.createElement("p");
-
       empty.className = "study-manager-empty";
-
-      empty.textContent =
-        "No tags yet. Create your first tag above.";
-
+      empty.textContent = "No tags yet. Create your first tag above.";
       rows.appendChild(empty);
     } else {
       state.availableTags.forEach((tag) => {
-        rows.appendChild(
-          renderManagerListRow(
-            tag,
-            state.managedTagId,
-            "Tag",
-            (id) => {
-              state.managedTagId = id;
-              renderTagManager();
-            }
-          )
-        );
+        rows.appendChild(renderManagerListRow(tag, state.managedTagId, "Tag", (id) => {
+          state.managedTagId = id;
+          renderTagManager();
+        }));
       });
     }
 
@@ -2484,22 +2470,13 @@
     if (!els.tagManagerEditor) return;
 
     els.tagManagerEditor.innerHTML = "";
-
     const selected = getManagedTag();
-
-    els.tagManagerEditor.appendChild(
-      selected
-        ? createManagerEditor(selected, "tag")
-        : createEmptyTagEditor()
-    );
-
+    els.tagManagerEditor.appendChild(selected ? createManagerEditor(selected, "tag") : createEmptyTagEditor());
     els.tagManagerEditor.hidden = false;
   }
 
   async function addCategory() {
-    const name = normalizeName(
-      els.newCategoryName.value
-    );
+    const name = normalizeName(els.newCategoryName.value);
 
     if (!name) {
       els.newCategoryName.focus();
@@ -2507,23 +2484,13 @@
     }
 
     try {
-      const result = await fetchJson(
-        "/api/study-categories",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            name,
-            sortOrder:
-              state.categories.length * 10 + 100
-          })
-        }
-      );
+      const result = await fetchJson("/api/study-categories", {
+        method: "POST",
+        body: JSON.stringify({ name, sortOrder: state.categories.length * 10 + 100 })
+      });
 
       const category = result.category;
-
-      const index = state.categories.findIndex(
-        (item) => item.id === category.id
-      );
+      const index = state.categories.findIndex((item) => item.id === category.id);
 
       if (index >= 0) {
         state.categories[index] = category;
@@ -2532,34 +2499,21 @@
       }
 
       sortByOrderAndName(state.categories);
-
       state.managedCategoryId = category.id;
-
       els.newCategoryName.value = "";
-
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-
-      setStatus(
-        "Category saved.",
-        "success"
-      );
+      setStatus("Category saved.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
   }
 
   async function addManagedTag() {
-    const name = normalizeName(
-      els.newTagName.value
-    );
-
-    const selectedColor =
-      normalizeColorValue(state.newTagColor);
-
-    const color =
-      selectedColor || "#dbeafe";
+    const name = normalizeName(els.newTagName.value);
+    const selectedColor = normalizeColorValue(state.newTagColor);
+    const color = selectedColor || "#dbeafe";
 
     if (!name) {
       els.newTagName.focus();
@@ -2567,26 +2521,13 @@
     }
 
     try {
-      const result = await fetchJson(
-        "/api/study-tags",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            name,
-            color,
-            sortOrder:
-              state.availableTags.length * 10 +
-              100
-          })
-        }
-      );
+      const result = await fetchJson("/api/study-tags", {
+        method: "POST",
+        body: JSON.stringify({ name, color, sortOrder: state.availableTags.length * 10 + 100 })
+      });
 
       const tag = result.tag;
-
-      const index =
-        state.availableTags.findIndex(
-          (item) => item.id === tag.id
-        );
+      const index = state.availableTags.findIndex((item) => item.id === tag.id);
 
       if (index >= 0) {
         state.availableTags[index] = tag;
@@ -2594,35 +2535,23 @@
         state.availableTags.push(tag);
       }
 
-      sortByOrderAndName(
-        state.availableTags
-      );
-
+      sortByOrderAndName(state.availableTags);
       state.managedTagId = tag.id;
-
       els.newTagName.value = "";
       state.newTagColor = "";
-
       hideTagCustomColorInput();
       renderAddTagColorPicker();
       renderTagOptions();
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
-
-      setStatus(
-        "Tag saved.",
-        "success"
-      );
+      setStatus("Tag saved.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
   }
 
-  async function updateCategory(
-    category,
-    rawName
-  ) {
+  async function updateCategory(category, rawName) {
     if (!category || !category.id) return;
 
     const name = normalizeName(rawName);
@@ -2630,108 +2559,53 @@
     if (!name) return;
 
     try {
-      const result = await fetchJson(
-        `/api/study-categories/${encodeURIComponent(
-          category.id
-        )}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            name,
-            sortOrder:
-              category.sortOrder || 0
-          })
-        }
-      );
+      const result = await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, sortOrder: category.sortOrder || 0 })
+      });
 
       const updated = result.category;
-
-      const index =
-        state.categories.findIndex(
-          (item) =>
-            item.id === updated.id
-        );
+      const index = state.categories.findIndex((item) => item.id === updated.id);
 
       if (index >= 0) {
         state.categories[index] = updated;
       }
 
-      updateSelectedCategoryReferences(
-        updated
-      );
-
-      sortByOrderAndName(
-        state.categories
-      );
-
+      updateSelectedCategoryReferences(updated);
+      sortByOrderAndName(state.categories);
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-
-      setStatus(
-        "Category updated.",
-        "success"
-      );
+      setStatus("Category updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
   }
 
-  async function updateTag(
-    tag,
-    rawName,
-    rawColor
-  ) {
+  async function updateTag(tag, rawName, rawColor) {
     if (!tag || !tag.id) return;
 
     const name = normalizeName(rawName);
-
-    const color =
-      normalizeColorValue(rawColor) ||
-      tag.color ||
-      "#dbeafe";
+    const color = normalizeColorValue(rawColor) || tag.color || "#dbeafe";
 
     if (!name) return;
 
-    setStatus(
-      "Saving tag changes..."
-    );
+    setStatus("Saving tag changes...");
 
     try {
-      const result = await fetchJson(
-        `/api/study-tags/${encodeURIComponent(
-          tag.id
-        )}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            name,
-            color,
-            sortOrder:
-              tag.sortOrder || 0
-          })
-        }
-      );
+      const result = await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, color, sortOrder: tag.sortOrder || 0 })
+      });
 
       const updated = result.tag;
-
-      updateSelectedTagReferences(
-        updated
-      );
-
-      sortByOrderAndName(
-        state.availableTags
-      );
-
+      updateSelectedTagReferences(updated);
+      sortByOrderAndName(state.availableTags);
       renderTagOptions();
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
-
-      setStatus(
-        "Tag updated.",
-        "success"
-      );
+      setStatus("Tag updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -2740,67 +2614,34 @@
   async function deleteCategory(category) {
     if (!category || !category.id) return;
 
-    if (
-      !confirm(
-        `Delete category ${category.name}? Studies using it will no longer have a category.`
-      )
-    ) {
+    if (!confirm(`Delete category ${category.name}? Studies using it will no longer have a category.`)) {
       return;
     }
 
     try {
-      await fetchJson(
-        `/api/study-categories/${encodeURIComponent(
-          category.id
-        )}`,
-        {
-          method: "DELETE"
-        }
-      );
+      await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
+        method: "DELETE"
+      });
 
-      state.categories =
-        state.categories.filter(
-          (item) =>
-            item.id !== category.id
-        );
+      state.categories = state.categories.filter((item) => item.id !== category.id);
 
-      if (
-        state.filter === category.id
-      ) {
+      if (state.filter === category.id) {
         state.filter = "all";
       }
 
-      if (
-        els.category.value === category.id
-      ) {
-        els.category.value =
-          state.categories[0]?.id || "";
+      if (els.category.value === category.id) {
+        els.category.value = state.categories[0]?.id || "";
       }
 
-      state.studies =
-        state.studies.map((study) => {
-          if (
-            study.categoryId !==
-            category.id
-          ) {
-            return study;
-          }
-
-          return {
-            ...study,
-            categoryId: null,
-            category: null
-          };
-        });
+      state.studies = state.studies.map((study) => {
+        if (study.categoryId !== category.id) return study;
+        return { ...study, categoryId: null, category: null };
+      });
 
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-
-      setStatus(
-        "Category deleted.",
-        "success"
-      );
+      setStatus("Category deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -2809,461 +2650,240 @@
   async function deleteTag(tag) {
     if (!tag || !tag.id) return;
 
-    if (
-      !confirm(
-        `Delete tag ${tag.name}? It will be removed from studies that use it.`
-      )
-    ) {
+    if (!confirm(`Delete tag ${tag.name}? It will be removed from studies that use it.`)) {
       return;
     }
 
     try {
-      await fetchJson(
-        `/api/study-tags/${encodeURIComponent(
-          tag.id
-        )}`,
-        {
-          method: "DELETE"
-        }
-      );
+      await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
+        method: "DELETE"
+      });
 
-      state.availableTags =
-        state.availableTags.filter(
-          (item) => item.id !== tag.id
-        );
+      state.availableTags = state.availableTags.filter((item) => item.id !== tag.id);
+      state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
 
-      state.selectedTags =
-        state.selectedTags.filter(
-          (item) => item.id !== tag.id
-        );
-
-      if (
-        state.managedTagId === tag.id
-      ) {
+      if (state.managedTagId === tag.id) {
         state.managedTagId = "";
       }
 
-      state.studies =
-        state.studies.map((study) => ({
-          ...study,
-          tags: Array.isArray(study.tags)
-            ? study.tags.filter(
-                (item) =>
-                  item.id !== tag.id
-              )
-            : []
-        }));
+      state.studies = state.studies.map((study) => ({
+        ...study,
+        tags: Array.isArray(study.tags) ? study.tags.filter((item) => item.id !== tag.id) : []
+      }));
 
       renderTagOptions();
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
-
-      setStatus(
-        "Tag deleted.",
-        "success"
-      );
+      setStatus("Tag deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
   }
 
   function bindOpenPassageButton() {
-    document
-      .querySelectorAll(
-        "[data-open-passage]"
-      )
-      .forEach((button) => {
-        button.addEventListener(
-          "click",
-          () => {
-            if (
-              window.BibleSelector &&
-              typeof window.BibleSelector
-                .open === "function"
-            ) {
-              window.BibleSelector.open();
-              return;
-            }
-
-            const modal =
-              document.getElementById(
-                "bible-selector-modal"
-              );
-
-            if (modal) {
-              modal.hidden = false;
-              modal.classList.add("open");
-            }
-          }
-        );
+    document.querySelectorAll("[data-open-passage]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (window.BibleSelector && typeof window.BibleSelector.open === "function") {
+          window.BibleSelector.open();
+          return;
+        }
+  
+        const modal = document.getElementById("bible-selector-modal");
+        if (modal) {
+          modal.hidden = false;
+          modal.classList.add("open");
+        }
       });
+    });
   }
-
+  
   function bindEvents() {
-    els.loginButton.addEventListener(
-      "click",
-      () => {
-        const login = byId("login");
+    els.loginButton.addEventListener("click", () => {
+      const login = byId("login");
+      if (login) login.click();
+    });
 
-        if (login) {
-          login.click();
-        }
+    window.addEventListener("beforeunload", (event) => {
+      if (!state.hasUnsavedChanges) {
+        return;
       }
-    );
+    
+      event.preventDefault();
+      event.returnValue = "";
+    });
 
-    window.addEventListener(
-      "beforeunload",
-      (event) => {
-        if (
-          !state.hasUnsavedChanges
-        ) {
-          return;
-        }
-
-        event.preventDefault();
-        event.returnValue = "";
+    els.newButton.addEventListener("click", () => {
+      if (!confirmDiscardUnsavedChanges()) {
+        return;
       }
-    );
+    
+      applyStudyToForm(getEmptyStudy());
+      renderStudyList();
+      els.title.focus();
+    });
 
-    els.newButton.addEventListener(
-      "click",
-      () => {
-        if (
-          !confirmDiscardUnsavedChanges()
-        ) {
-          return;
-        }
-
-        applyStudyToForm(
-          getEmptyStudy()
-        );
-
-        renderStudyList();
-
-        els.title.focus();
-      }
-    );
-
-    els.saveButton.addEventListener(
-      "click",
-      saveStudy
-    );
-
-    els.deleteButton.addEventListener(
-      "click",
-      deleteStudy
-    );
-
-    els.previewButton.addEventListener(
-      "click",
-      switchToPreview
-    );
-
-    els.editButton.addEventListener(
-      "click",
-      switchToEdit
-    );
+    els.saveButton.addEventListener("click", saveStudy);
+    els.deleteButton.addEventListener("click", deleteStudy);
+    els.previewButton.addEventListener("click", switchToPreview);
+    els.editButton.addEventListener("click", switchToEdit);
 
     if (els.addTag) {
-      els.addTag.textContent =
-        "Add to Study";
+      els.addTag.textContent = "Add to Study";
     }
 
-    els.addTag.addEventListener(
-      "click",
-      addTag
-    );
-
-    els.addScripture.addEventListener(
-      "click",
-      addLinkedScripture
-    );
-
-    els.scriptureReference.addEventListener(
-      "input",
-      updateAddScriptureButtonState
-    );
-
+    els.addTag.addEventListener("click", addTag);
+    els.addScripture.addEventListener("click", addLinkedScripture);
+    els.scriptureReference.addEventListener("input", updateAddScriptureButtonState);
     updateAddScriptureButtonState();
+    els.closeCategoryManager.addEventListener("click", closeCategoryManager);
+    els.addCategory.addEventListener("click", addCategory);
+    els.manageTags.addEventListener("click", openTagManager);
+    els.closeTagManager.addEventListener("click", closeTagManager);
+    els.addManagedTag.addEventListener("click", addManagedTag);
 
-    els.closeCategoryManager.addEventListener(
-      "click",
-      closeCategoryManager
-    );
+    els.search.addEventListener("input", renderStudyList);
 
-    els.addCategory.addEventListener(
-      "click",
-      addCategory
-    );
+    els.category.addEventListener("change", () => {
+      if (els.category.value === MANAGE_CATEGORY_VALUE) {
+        openCategoryManager();
+        els.category.value = state.lastCategoryId || state.categories[0]?.id || "";
+        return;
+      }
 
-    els.manageTags.addEventListener(
-      "click",
-      openTagManager
-    );
+      state.lastCategoryId = els.category.value;
+      markDirty();
+    });
 
-    els.closeTagManager.addEventListener(
-      "click",
-      closeTagManager
-    );
+    els.tagInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addTag();
+      }
+    });
 
-    els.addManagedTag.addEventListener(
-      "click",
-      addManagedTag
-    );
+    els.newCategoryName.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addCategory();
+      }
+    });
 
-    els.search.addEventListener(
-      "input",
-      renderStudyList
-    );
+    els.newTagName.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addManagedTag();
+      }
+    });
 
-    els.category.addEventListener(
-      "change",
-      () => {
-        if (
-          els.category.value ===
-          MANAGE_CATEGORY_VALUE
-        ) {
-          openCategoryManager();
+    els.scriptureReference.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addLinkedScripture();
+      }
+    });
 
-          els.category.value =
-            state.lastCategoryId ||
-            state.categories[0]?.id ||
-            "";
+    els.filterTabs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-study-filter]");
+      if (!button) return;
 
-          return;
-        }
+      state.filter = button.dataset.studyFilter || "all";
+      renderFilterTabs();
+      renderStudyList();
+    });
 
-        state.lastCategoryId =
-          els.category.value;
+    els.categoryModal.addEventListener("click", (event) => {
+      if (event.target === els.categoryModal) {
+        closeCategoryManager();
+      }
+    });
 
+    els.tagManagerModal.addEventListener("click", (event) => {
+      if (event.target === els.tagManagerModal) {
+        closeTagManager();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      const popup = document.getElementById("study-scripture-popup");
+
+      if (!popup || popup.hidden) return;
+
+      if (
+        event.target.closest?.(".study-scripture-popup") ||
+        event.target.closest?.(".study-reference-link")
+      ) {
+        return;
+      }
+
+      closeScripturePreviewPopup();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+
+      closeScripturePreviewPopup();
+
+      if (!els.categoryModal.hidden) {
+        closeCategoryManager();
+      }
+
+      if (!els.tagManagerModal.hidden) {
+        closeTagManager();
+      }
+    });
+
+    [els.title, els.speaker, els.location, els.date, els.mainScripture].forEach((field) => {
+      field.addEventListener("input", () => {
+        els.editorTitle.textContent = els.title.value.trim() || "Untitled Study";
         markDirty();
-      }
-    );
-
-    els.tagInput.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          addTag();
-        }
-      }
-    );
-
-    els.newCategoryName.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          addCategory();
-        }
-      }
-    );
-
-    els.newTagName.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          addManagedTag();
-        }
-      }
-    );
-
-    els.scriptureReference.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          addLinkedScripture();
-        }
-      }
-    );
-
-    els.filterTabs.addEventListener(
-      "click",
-      (event) => {
-        const button =
-          event.target.closest(
-            "[data-study-filter]"
-          );
-
-        if (!button) return;
-
-        state.filter =
-          button.dataset.studyFilter ||
-          "all";
-
-        renderFilterTabs();
-        renderStudyList();
-      }
-    );
-
-    els.categoryModal.addEventListener(
-      "click",
-      (event) => {
-        if (
-          event.target ===
-          els.categoryModal
-        ) {
-          closeCategoryManager();
-        }
-      }
-    );
-
-    els.tagManagerModal.addEventListener(
-      "click",
-      (event) => {
-        if (
-          event.target ===
-          els.tagManagerModal
-        ) {
-          closeTagManager();
-        }
-      }
-    );
-
-    document.addEventListener(
-      "click",
-      (event) => {
-        const popup =
-          document.getElementById(
-            "study-scripture-popup"
-          );
-
-        if (
-          !popup ||
-          popup.hidden
-        ) {
-          return;
-        }
-
-        if (
-          event.target.closest?.(
-            ".study-scripture-popup"
-          ) ||
-          event.target.closest?.(
-            ".study-reference-link"
-          )
-        ) {
-          return;
-        }
-
-        closeScripturePreviewPopup();
-      }
-    );
-
-    document.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          event.key !== "Escape"
-        ) {
-          return;
-        }
-
-        closeScripturePreviewPopup();
-
-        if (
-          !els.categoryModal.hidden
-        ) {
-          closeCategoryManager();
-        }
-
-        if (
-          !els.tagManagerModal.hidden
-        ) {
-          closeTagManager();
-        }
-      }
-    );
-
-    [
-      els.title,
-      els.speaker,
-      els.location,
-      els.date,
-      els.mainScripture
-    ].forEach((field) => {
-      field.addEventListener(
-        "input",
-        () => {
-          els.editorTitle.textContent =
-            els.title.value.trim() ||
-            "Untitled Study";
-
-          markDirty();
-        }
-      );
+      });
     });
   }
 
   function initQuill() {
-    state.quill = new Quill(
-      "#study-editor",
-      {
-        theme: "snow",
-        modules: {
-          toolbar:
-            "#study-quill-toolbar"
-        },
-        placeholder:
-          "Write your notes, insights, outline, sermon, lesson, or reflection here..."
-      }
-    );
+    state.quill = new Quill("#study-editor", {
+      theme: "snow",
+      modules: {
+        toolbar: "#study-quill-toolbar"
+      },
+      placeholder: "Write your notes, insights, outline, sermon, lesson, or reflection here..."
+    });
 
-    state.quill.on(
-      "text-change",
-      () => {
-        updateWordCount();
+    state.quill.on("text-change", () => {
+      updateWordCount();
 
-        if (!state.isApplying) {
-          markDirty();
-        }
+      if (!state.isApplying) {
+        markDirty();
       }
-    );
+    });
   }
 
-  window.addEventListener(
-    "resize",
-    () => {
-      if (
-        activeScripturePopupAnchor
-      ) {
-        positionScripturePreviewPopup(
-          activeScripturePopupAnchor
-        );
-      }
+  window.addEventListener("resize", () => {
+    if (activeScripturePopupAnchor) {
+      positionScripturePreviewPopup(activeScripturePopupAnchor);
     }
-  );
+  });
 
   window.addEventListener(
     "scroll",
     () => {
-      if (
-        activeScripturePopupAnchor
-      ) {
-        positionScripturePreviewPopup(
-          activeScripturePopupAnchor
-        );
+      if (activeScripturePopupAnchor) {
+        positionScripturePreviewPopup(activeScripturePopupAnchor);
       }
     },
     true
   );
 
-  document.addEventListener(
-    "DOMContentLoaded",
-    () => {
-      cacheElements();
-      hideCategoryColorControls();
-      initQuill();
-      bindEvents();
-      bindOpenPassageButton();
-      applyStudyToForm(
-        getEmptyStudy()
-      );
-      loadStudies();
-    }
-  );
+  document.addEventListener("DOMContentLoaded", () => {
+    cacheElements();
+    hideCategoryColorControls();
+    initQuill();
+    bindEvents();
+    bindOpenPassageButton();
+    initStudySync();
+    startStudySyncPolling();
+    applyStudyToForm(getEmptyStudy());
+    loadStudies();
+  });
 })();
