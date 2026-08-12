@@ -707,11 +707,12 @@ body.is-reordering-linked-scripture {
   font-size: 13px;
   font-weight: 800;
   padding: 0;
+  text-decoration: none;
 }
 
 .linked-scripture-text-button:hover {
   color: var(--study-blue);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .linked-scripture-text-button.is-danger:hover {
