@@ -11,7 +11,7 @@
     activeStudyVersion: null,
     remoteStudy: null,
     selectedTags: [],
-    linkedScriptures: [],
+    linkedScriptures: [],  // This is referred to "Referenced Scriptures" section shown in the Study Desk UI.
     editingScriptureIndex: null,
     filter: "all",
     lastCategoryId: "",
