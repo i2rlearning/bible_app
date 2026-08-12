@@ -103,7 +103,7 @@ app.get("/api/me", requireAuth(), (req, res) => {
 app.get("/api/quill-notes", requireAuth(), async (req, res) => {
   try {
     const { pageKey } = req.query;
-    const userId = req.auth.userId; // Defined securely from Clerk token
+    const userId = req.auth.userId;
 
     if (!pageKey) {
       return res.status(400).json({ ok: false, message: "Missing pageKey" });
@@ -335,18 +335,18 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
 
     return res.json({ ok: true, message: "Mini-editor page saved", page: result.rows[0] });
   } catch (error) {
-      console.error("Save mini-editor page error:", error);
-    
-      return res.status(500).json({
-        ok: false,
-        message: "Failed to save mini-editor page",
-        error: error.message,
-        code: error.code || null,
-        detail: error.detail || null
-      });
-    }
+    console.error("Save mini-editor page error:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to save mini-editor page",
+      error: error.message,
+      code: error.code || null,
+      detail: error.detail || null
+    });
+  }
 });
-  
+
 app.delete("/api/mini-editor-page", requireAuth(), async (req, res) => {
   try {
     const { pageKey } = req.query;
@@ -422,8 +422,7 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
       updatedAt: row.updated_at
     }));
 
-   res.json({ ok: true, notes });
-    
+    res.json({ ok: true, notes });
   } catch (error) {
     console.error("Get my notes error:", error);
     res.status(500).json({ ok: false, message: "Failed to load my notes" });
@@ -435,24 +434,30 @@ app.delete("/api/my-notes/:pageKey", requireAuth(), async (req, res) => {
   const userId = req.auth.userId;
 
   try {
-    await pool.query('BEGIN');
+    await pool.query("BEGIN");
+
     await pool.query(
       "DELETE FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2",
       [userId, pageKey]
     );
+
     await pool.query(
       "DELETE FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2",
       [userId, pageKey]
     );
-    await pool.query('COMMIT');
-    res.json({ ok: true, message: "Note deleted successfully from all tables" });
+
+    await pool.query("COMMIT");
+
+    res.json({
+      ok: true,
+      message: "Note deleted successfully from all tables"
+    });
   } catch (error) {
-    await pool.query('ROLLBACK');
+    await pool.query("ROLLBACK");
     console.error("Delete full note error:", error);
     res.status(500).json({ ok: false, message: "Failed to delete note" });
   }
 });
-
 
 // ----------------------------------------------------
 // Study Desk routes
@@ -512,11 +517,16 @@ function normalizeUuidArray(value) {
   if (!Array.isArray(value)) return [];
 
   const seen = new Set();
+
   return value
     .filter((item) => typeof item === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item))
     .filter((item) => {
       const key = item.toLowerCase();
-      if (seen.has(key)) return false;
+
+      if (seen.has(key)) {
+        return false;
+      }
+
       seen.add(key);
       return true;
     });
@@ -566,13 +576,17 @@ function mapTagRow(row) {
 
 function mapStudyRow(row) {
   const tags = Array.isArray(row.tags) ? row.tags : [];
-  const category = row.category_id ? {
-    id: row.category_id,
-    name: row.category_name || ""
-  } : null;
+
+  const category = row.category_id
+    ? {
+        id: row.category_id,
+        name: row.category_name || ""
+      }
+    : null;
 
   return {
     id: row.id,
+    version: Number(row.version) || 1,
     userId: row.user_id,
     title: row.title,
     categoryId: row.category_id || null,
@@ -618,7 +632,14 @@ async function ensureUserStudyCategories(userId) {
   for (const row of sourceRows) {
     await pool.query(
       `
-      INSERT INTO user_study_categories (user_id, name, sort_order, is_default, created_at, updated_at)
+      INSERT INTO user_study_categories (
+        user_id,
+        name,
+        sort_order,
+        is_default,
+        created_at,
+        updated_at
+      )
       VALUES ($1, $2, $3, TRUE, NOW(), NOW())
       ON CONFLICT (user_id, name) DO NOTHING
       `,
@@ -632,7 +653,14 @@ async function getUserCategories(userId) {
 
   const result = await pool.query(
     `
-    SELECT id, user_id, name, sort_order, is_default, created_at, updated_at
+    SELECT
+      id,
+      user_id,
+      name,
+      sort_order,
+      is_default,
+      created_at,
+      updated_at
     FROM user_study_categories
     WHERE user_id = $1
     ORDER BY sort_order, name
@@ -646,7 +674,14 @@ async function getUserCategories(userId) {
 async function getUserTags(userId) {
   const result = await pool.query(
     `
-    SELECT id, user_id, name, color, sort_order, created_at, updated_at
+    SELECT
+      id,
+      user_id,
+      name,
+      color,
+      sort_order,
+      created_at,
+      updated_at
     FROM user_tags
     WHERE user_id = $1
     ORDER BY sort_order, name
@@ -661,7 +696,13 @@ async function categoryBelongsToUser(userId, categoryId) {
   if (!categoryId) return true;
 
   const result = await pool.query(
-    `SELECT id FROM user_study_categories WHERE user_id = $1 AND id = $2 LIMIT 1`,
+    `
+    SELECT id
+    FROM user_study_categories
+    WHERE user_id = $1
+      AND id = $2
+    LIMIT 1
+    `,
     [userId, categoryId]
   );
 
@@ -672,21 +713,37 @@ async function replaceStudyTags(client, userId, studyId, tagIds) {
   const cleanTagIds = normalizeUuidArray(tagIds);
 
   await client.query(
-    `DELETE FROM saved_study_tags WHERE user_id = $1 AND study_id = $2`,
+    `
+    DELETE FROM saved_study_tags
+    WHERE user_id = $1
+      AND study_id = $2
+    `,
     [userId, studyId]
   );
 
-  if (!cleanTagIds.length) return;
+  if (!cleanTagIds.length) {
+    return;
+  }
 
   const ownedTags = await client.query(
-    `SELECT id FROM user_tags WHERE user_id = $1 AND id = ANY($2::uuid[])`,
+    `
+    SELECT id
+    FROM user_tags
+    WHERE user_id = $1
+      AND id = ANY($2::uuid[])
+    `,
     [userId, cleanTagIds]
   );
 
   for (const row of ownedTags.rows) {
     await client.query(
       `
-      INSERT INTO saved_study_tags (user_id, study_id, tag_id, created_at)
+      INSERT INTO saved_study_tags (
+        user_id,
+        study_id,
+        tag_id,
+        created_at
+      )
       VALUES ($1, $2, $3, NOW())
       ON CONFLICT (user_id, study_id, tag_id) DO NOTHING
       `,
@@ -700,6 +757,7 @@ async function getStudyById(userId, id, client = pool) {
     `
     SELECT
       s.id,
+      s.version,
       s.user_id,
       s.title,
       s.study_type,
@@ -744,17 +802,27 @@ async function getStudyById(userId, id, client = pool) {
     [userId, id]
   );
 
-  return result.rows.length ? mapStudyRow(result.rows[0]) : null;
+  return result.rows.length
+    ? mapStudyRow(result.rows[0])
+    : null;
 }
 
 app.get("/api/study-categories", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const categories = await getUserCategories(userId);
-    res.json({ ok: true, categories });
+
+    res.json({
+      ok: true,
+      categories
+    });
   } catch (error) {
     console.error("Get study categories error:", error);
-    res.status(500).json({ ok: false, message: "Failed to load categories" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to load categories"
+    });
   }
 });
 
@@ -764,25 +832,46 @@ app.post("/api/study-categories", requireAuth(), async (req, res) => {
     const name = normalizeText(req.body.name);
 
     if (!name) {
-      return res.status(400).json({ ok: false, message: "Category name is required" });
+      return res.status(400).json({
+        ok: false,
+        message: "Category name is required"
+      });
     }
 
     const result = await pool.query(
       `
-      INSERT INTO user_study_categories (user_id, name, sort_order, is_default, created_at, updated_at)
+      INSERT INTO user_study_categories (
+        user_id,
+        name,
+        sort_order,
+        is_default,
+        created_at,
+        updated_at
+      )
       VALUES ($1, $2, $3, FALSE, NOW(), NOW())
       ON CONFLICT (user_id, name)
       DO UPDATE SET
         updated_at = NOW()
       RETURNING *
       `,
-      [userId, name, normalizeSortOrder(req.body.sortOrder, 100)]
+      [
+        userId,
+        name,
+        normalizeSortOrder(req.body.sortOrder, 100)
+      ]
     );
 
-    res.status(201).json({ ok: true, category: mapCategoryRow(result.rows[0]) });
+    res.status(201).json({
+      ok: true,
+      category: mapCategoryRow(result.rows[0])
+    });
   } catch (error) {
     console.error("Create study category error:", error);
-    res.status(500).json({ ok: false, message: "Failed to save category" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to save category"
+    });
   }
 });
 
@@ -793,30 +882,49 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
     const name = normalizeText(req.body.name);
 
     if (!name) {
-      return res.status(400).json({ ok: false, message: "Category name is required" });
+      return res.status(400).json({
+        ok: false,
+        message: "Category name is required"
+      });
     }
 
     const result = await pool.query(
       `
       UPDATE user_study_categories
-      SET name = $3,
-          sort_order = $4,
-          updated_at = NOW()
+      SET
+        name = $3,
+        sort_order = $4,
+        updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
       RETURNING *
       `,
-      [userId, id, name, normalizeSortOrder(req.body.sortOrder)]
+      [
+        userId,
+        id,
+        name,
+        normalizeSortOrder(req.body.sortOrder)
+      ]
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({ ok: false, message: "Category not found" });
+      return res.status(404).json({
+        ok: false,
+        message: "Category not found"
+      });
     }
 
-    res.json({ ok: true, category: mapCategoryRow(result.rows[0]) });
+    res.json({
+      ok: true,
+      category: mapCategoryRow(result.rows[0])
+    });
   } catch (error) {
     console.error("Update study category error:", error);
-    res.status(500).json({ ok: false, message: "Failed to update category" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to update category"
+    });
   }
 });
 
@@ -830,26 +938,48 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
     await client.query("BEGIN");
 
     await client.query(
-      `UPDATE saved_studies SET category_id = NULL WHERE user_id = $1 AND category_id = $2`,
+      `
+      UPDATE saved_studies
+      SET category_id = NULL
+      WHERE user_id = $1
+        AND category_id = $2
+      `,
       [userId, id]
     );
 
     const result = await client.query(
-      `DELETE FROM user_study_categories WHERE user_id = $1 AND id = $2 RETURNING id`,
+      `
+      DELETE FROM user_study_categories
+      WHERE user_id = $1
+        AND id = $2
+      RETURNING id
+      `,
       [userId, id]
     );
 
     if (!result.rows.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ ok: false, message: "Category not found" });
+
+      return res.status(404).json({
+        ok: false,
+        message: "Category not found"
+      });
     }
 
     await client.query("COMMIT");
-    res.json({ ok: true, message: "Category deleted" });
+
+    res.json({
+      ok: true,
+      message: "Category deleted"
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Delete study category error:", error);
-    res.status(500).json({ ok: false, message: "Failed to delete category" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to delete category"
+    });
   } finally {
     client.release();
   }
@@ -859,10 +989,18 @@ app.get("/api/study-tags", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const tags = await getUserTags(userId);
-    res.json({ ok: true, tags });
+
+    res.json({
+      ok: true,
+      tags
+    });
   } catch (error) {
     console.error("Get study tags error:", error);
-    res.status(500).json({ ok: false, message: "Failed to load tags" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to load tags"
+    });
   }
 });
 
@@ -872,14 +1010,24 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
     const name = normalizeText(req.body.name);
 
     if (!name) {
-      return res.status(400).json({ ok: false, message: "Tag name is required" });
+      return res.status(400).json({
+        ok: false,
+        message: "Tag name is required"
+      });
     }
 
     const color = normalizeColor(req.body.color);
 
     const result = await pool.query(
       `
-      INSERT INTO user_tags (user_id, name, color, sort_order, created_at, updated_at)
+      INSERT INTO user_tags (
+        user_id,
+        name,
+        color,
+        sort_order,
+        created_at,
+        updated_at
+      )
       VALUES ($1, $2, $3, $4, NOW(), NOW())
       ON CONFLICT (user_id, name)
       DO UPDATE SET
@@ -888,13 +1036,25 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
         updated_at = NOW()
       RETURNING *
       `,
-      [userId, name, color, normalizeSortOrder(req.body.sortOrder, 100)]
+      [
+        userId,
+        name,
+        color,
+        normalizeSortOrder(req.body.sortOrder, 100)
+      ]
     );
 
-    res.status(201).json({ ok: true, tag: mapTagRow(result.rows[0]) });
+    res.status(201).json({
+      ok: true,
+      tag: mapTagRow(result.rows[0])
+    });
   } catch (error) {
     console.error("Create study tag error:", error);
-    res.status(500).json({ ok: false, message: "Failed to save tag" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to save tag"
+    });
   }
 });
 
@@ -905,31 +1065,51 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
     const name = normalizeText(req.body.name);
 
     if (!name) {
-      return res.status(400).json({ ok: false, message: "Tag name is required" });
+      return res.status(400).json({
+        ok: false,
+        message: "Tag name is required"
+      });
     }
 
     const result = await pool.query(
       `
       UPDATE user_tags
-      SET name = $3,
-          color = $4,
-          sort_order = $5,
-          updated_at = NOW()
+      SET
+        name = $3,
+        color = $4,
+        sort_order = $5,
+        updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
       RETURNING *
       `,
-      [userId, id, name, normalizeColor(req.body.color), normalizeSortOrder(req.body.sortOrder)]
+      [
+        userId,
+        id,
+        name,
+        normalizeColor(req.body.color),
+        normalizeSortOrder(req.body.sortOrder)
+      ]
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({ ok: false, message: "Tag not found" });
+      return res.status(404).json({
+        ok: false,
+        message: "Tag not found"
+      });
     }
 
-    res.json({ ok: true, tag: mapTagRow(result.rows[0]) });
+    res.json({
+      ok: true,
+      tag: mapTagRow(result.rows[0])
+    });
   } catch (error) {
     console.error("Update study tag error:", error);
-    res.status(500).json({ ok: false, message: "Failed to update tag" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to update tag"
+    });
   }
 });
 
@@ -939,18 +1119,33 @@ app.delete("/api/study-tags/:id", requireAuth(), async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(
-      `DELETE FROM user_tags WHERE user_id = $1 AND id = $2 RETURNING id`,
+      `
+      DELETE FROM user_tags
+      WHERE user_id = $1
+        AND id = $2
+      RETURNING id
+      `,
       [userId, id]
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({ ok: false, message: "Tag not found" });
+      return res.status(404).json({
+        ok: false,
+        message: "Tag not found"
+      });
     }
 
-    res.json({ ok: true, message: "Tag deleted" });
+    res.json({
+      ok: true,
+      message: "Tag deleted"
+    });
   } catch (error) {
     console.error("Delete study tag error:", error);
-    res.status(500).json({ ok: false, message: "Failed to delete tag" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to delete tag"
+    });
   }
 });
 
@@ -964,6 +1159,7 @@ app.get("/api/studies", requireAuth(), async (req, res) => {
       `
       SELECT
         s.id,
+        s.version,
         s.user_id,
         s.title,
         s.study_type,
@@ -973,7 +1169,7 @@ app.get("/api/studies", requireAuth(), async (req, res) => {
         s.main_scripture,
         s.category_id,
         c.name AS category_name,
-          s.linked_scriptures,
+        s.linked_scriptures,
         s.content_html,
         s.preview_text,
         s.created_at,
@@ -1007,10 +1203,17 @@ app.get("/api/studies", requireAuth(), async (req, res) => {
       [userId]
     );
 
-    res.json({ ok: true, studies: result.rows.map(mapStudyRow) });
+    res.json({
+      ok: true,
+      studies: result.rows.map(mapStudyRow)
+    });
   } catch (error) {
     console.error("Get studies error:", error);
-    res.status(500).json({ ok: false, message: "Failed to load studies" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to load studies"
+    });
   }
 });
 
@@ -1018,16 +1221,27 @@ app.get("/api/studies/:id", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
+
     const study = await getStudyById(userId, id);
 
     if (!study) {
-      return res.status(404).json({ ok: false, message: "Study not found" });
+      return res.status(404).json({
+        ok: false,
+        message: "Study not found"
+      });
     }
 
-    res.json({ ok: true, study });
+    res.json({
+      ok: true,
+      study
+    });
   } catch (error) {
     console.error("Get study error:", error);
-    res.status(500).json({ ok: false, message: "Failed to load study" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to load study"
+    });
   }
 });
 
@@ -1038,24 +1252,43 @@ app.post("/api/studies", requireAuth(), async (req, res) => {
     const userId = req.auth.userId;
     const title = normalizeText(req.body.title);
     const categoryId = normalizeOptionalText(req.body.categoryId) || null;
-    const contentHtml = typeof req.body.contentHtml === "string" ? req.body.contentHtml : "";
-    const previewText = normalizeOptionalText(req.body.previewText) || buildPreviewText(contentHtml);
+    const contentHtml = typeof req.body.contentHtml === "string"
+      ? req.body.contentHtml
+      : "";
+
+    const previewText =
+      normalizeOptionalText(req.body.previewText) ||
+      buildPreviewText(contentHtml);
 
     if (!title) {
-      return res.status(400).json({ ok: false, message: "Study title is required" });
+      return res.status(400).json({
+        ok: false,
+        message: "Study title is required"
+      });
     }
 
     if (!(await categoryBelongsToUser(userId, categoryId))) {
-      return res.status(400).json({ ok: false, message: "Selected category is not available" });
+      return res.status(400).json({
+        ok: false,
+        message: "Selected category is not available"
+      });
     }
 
     await client.query("BEGIN");
 
     const categoryName = categoryId
-      ? (await client.query(
-          `SELECT name FROM user_study_categories WHERE user_id = $1 AND id = $2 LIMIT 1`,
-          [userId, categoryId]
-        )).rows[0]?.name || "Study"
+      ? (
+          await client.query(
+            `
+            SELECT name
+            FROM user_study_categories
+            WHERE user_id = $1
+              AND id = $2
+            LIMIT 1
+            `,
+            [userId, categoryId]
+          )
+        ).rows[0]?.name || "Study"
       : "Study";
 
     const result = await client.query(
@@ -1075,7 +1308,21 @@ app.post("/api/studies", requireAuth(), async (req, res) => {
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, NOW(), NOW())
+      VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9::jsonb,
+        $10,
+        $11,
+        NOW(),
+        NOW()
+      )
       RETURNING id
       `,
       [
@@ -1094,16 +1341,35 @@ app.post("/api/studies", requireAuth(), async (req, res) => {
     );
 
     const studyId = result.rows[0].id;
-    await replaceStudyTags(client, userId, studyId, req.body.tagIds);
 
-    const study = await getStudyById(userId, studyId, client);
+    await replaceStudyTags(
+      client,
+      userId,
+      studyId,
+      req.body.tagIds
+    );
+
+    const study = await getStudyById(
+      userId,
+      studyId,
+      client
+    );
+
     await client.query("COMMIT");
 
-    res.status(201).json({ ok: true, message: "Study saved", study });
+    res.status(201).json({
+      ok: true,
+      message: "Study saved",
+      study
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Create study error:", error);
-    res.status(500).json({ ok: false, message: "Failed to save study" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to save study"
+    });
   } finally {
     client.release();
   }
@@ -1115,26 +1381,57 @@ app.put("/api/studies/:id", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
+
     const title = normalizeText(req.body.title);
     const categoryId = normalizeOptionalText(req.body.categoryId) || null;
-    const contentHtml = typeof req.body.contentHtml === "string" ? req.body.contentHtml : "";
-    const previewText = normalizeOptionalText(req.body.previewText) || buildPreviewText(contentHtml);
+
+    const contentHtml = typeof req.body.contentHtml === "string"
+      ? req.body.contentHtml
+      : "";
+
+    const previewText =
+      normalizeOptionalText(req.body.previewText) ||
+      buildPreviewText(contentHtml);
+
+    const expectedVersion = Number(req.body.expectedVersion);
 
     if (!title) {
-      return res.status(400).json({ ok: false, message: "Study title is required" });
+      return res.status(400).json({
+        ok: false,
+        message: "Study title is required"
+      });
+    }
+
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      return res.status(428).json({
+        ok: false,
+        code: "STUDY_VERSION_REQUIRED",
+        message: "This study must be reloaded before it can be saved."
+      });
     }
 
     if (!(await categoryBelongsToUser(userId, categoryId))) {
-      return res.status(400).json({ ok: false, message: "Selected category is not available" });
+      return res.status(400).json({
+        ok: false,
+        message: "Selected category is not available"
+      });
     }
 
     await client.query("BEGIN");
 
     const categoryName = categoryId
-      ? (await client.query(
-          `SELECT name FROM user_study_categories WHERE user_id = $1 AND id = $2 LIMIT 1`,
-          [userId, categoryId]
-        )).rows[0]?.name || "Study"
+      ? (
+          await client.query(
+            `
+            SELECT name
+            FROM user_study_categories
+            WHERE user_id = $1
+              AND id = $2
+            LIMIT 1
+            `,
+            [userId, categoryId]
+          )
+        ).rows[0]?.name || "Study"
       : "Study";
 
     const result = await client.query(
@@ -1151,10 +1448,12 @@ app.put("/api/studies/:id", requireAuth(), async (req, res) => {
         linked_scriptures = $10::jsonb,
         content_html = $11,
         preview_text = $12,
+        version = version + 1,
         updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
-      RETURNING id
+        AND version = $13
+      RETURNING id, version
       `,
       [
         userId,
@@ -1168,25 +1467,63 @@ app.put("/api/studies/:id", requireAuth(), async (req, res) => {
         normalizeOptionalText(req.body.mainScripture),
         JSON.stringify(normalizeJsonArray(req.body.linkedScriptures)),
         contentHtml,
-        previewText
+        previewText,
+        expectedVersion
       ]
     );
 
     if (!result.rows.length) {
+      const latestStudy = await getStudyById(
+        userId,
+        id,
+        client
+      );
+
       await client.query("ROLLBACK");
-      return res.status(404).json({ ok: false, message: "Study not found" });
+
+      if (!latestStudy) {
+        return res.status(404).json({
+          ok: false,
+          message: "Study not found"
+        });
+      }
+
+      return res.status(409).json({
+        ok: false,
+        code: "STUDY_VERSION_CONFLICT",
+        message: "This study was updated in another window or device.",
+        latestStudy
+      });
     }
 
-    await replaceStudyTags(client, userId, id, req.body.tagIds);
+    await replaceStudyTags(
+      client,
+      userId,
+      id,
+      req.body.tagIds
+    );
 
-    const study = await getStudyById(userId, id, client);
+    const study = await getStudyById(
+      userId,
+      id,
+      client
+    );
+
     await client.query("COMMIT");
 
-    res.json({ ok: true, message: "Study updated", study });
+    res.json({
+      ok: true,
+      message: "Study updated",
+      study
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Update study error:", error);
-    res.status(500).json({ ok: false, message: "Failed to update study" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to update study"
+    });
   } finally {
     client.release();
   }
@@ -1196,20 +1533,63 @@ app.delete("/api/studies/:id", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
+    const expectedVersion = Number(req.query.expectedVersion);
+
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      return res.status(428).json({
+        ok: false,
+        code: "STUDY_VERSION_REQUIRED",
+        message: "This study must be reloaded before it can be deleted."
+      });
+    }
 
     const result = await pool.query(
-      `DELETE FROM saved_studies WHERE user_id = $1 AND id = $2 RETURNING id`,
-      [userId, id]
+      `
+      DELETE FROM saved_studies
+      WHERE user_id = $1
+        AND id = $2
+        AND version = $3
+      RETURNING id
+      `,
+      [
+        userId,
+        id,
+        expectedVersion
+      ]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ ok: false, message: "Study not found" });
+      const latestStudy = await getStudyById(
+        userId,
+        id
+      );
+
+      if (!latestStudy) {
+        return res.status(404).json({
+          ok: false,
+          message: "Study not found"
+        });
+      }
+
+      return res.status(409).json({
+        ok: false,
+        code: "STUDY_VERSION_CONFLICT",
+        message: "This study changed before it could be deleted.",
+        latestStudy
+      });
     }
 
-    res.json({ ok: true, message: "Study deleted" });
+    res.json({
+      ok: true,
+      message: "Study deleted"
+    });
   } catch (error) {
     console.error("Delete study error:", error);
-    res.status(500).json({ ok: false, message: "Failed to delete study" });
+
+    res.status(500).json({
+      ok: false,
+      message: "Failed to delete study"
+    });
   }
 });
 
@@ -1222,6 +1602,7 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 8080;
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Bible app running on port ${PORT}`);
 });
