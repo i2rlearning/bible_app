@@ -936,6 +936,11 @@ body.is-reordering-linked-scripture {
   font-family: Georgia, "Times New Roman", serif;
 }
 
+/* remoces extra gap inserted by css in preview mode - Quill appears correct and edit mode adds extra space*/
+.study-preview-content p {
+  margin: 0;
+}
+
 .study-auth-message {
   max-width: 560px;
   padding: 30px;
