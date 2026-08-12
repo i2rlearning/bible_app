@@ -2831,7 +2831,7 @@
       }
     });
 
-    [els.title, els.speaker, els.location, els.date, els.mainScripture].forEach((field) => {
+    [els.title, els.speaker, els.location, els.date].forEach((field) => {
       field.addEventListener("input", () => {
         els.editorTitle.textContent = els.title.value.trim() || "Untitled Study";
         markDirty();
