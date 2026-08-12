@@ -80,7 +80,6 @@
     els.location = byId("study-location");
     els.date = byId("study-date");
     els.category = byId("study-category");
-    els.mainScripture = byId("study-main-scripture");
     els.scriptureReference = byId("scripture-reference-input");
     els.scriptureNote = byId("scripture-note-input");
     els.addScripture = byId("add-scripture-button");
@@ -96,7 +95,6 @@
     els.previewSpeaker = byId("preview-speaker");
     els.previewLocation = byId("preview-location");
     els.previewTitle = byId("preview-title");
-    els.previewMainScripture = byId("preview-main-scripture");
     els.previewTags = byId("preview-tags");
     els.previewContent = byId("preview-content");
     els.previewLinkedScriptures = byId("preview-linked-scriptures");
@@ -339,7 +337,7 @@
       speaker: els.speaker.value.trim(),
       location: els.location.value.trim(),
       studyDate: els.date.value || null,
-      mainScripture: els.mainScripture.value.trim(),
+      mainScripture: "",
       tagIds: state.selectedTags.map((tag) => tag.id),
       linkedScriptures: state.linkedScriptures.slice(),
       contentHtml: state.quill ? state.quill.root.innerHTML : "",
@@ -372,7 +370,6 @@
     els.date.value = toDateInput(data.studyDate) || "";
     els.category.value = categoryId;
     state.lastCategoryId = categoryId;
-    els.mainScripture.value = data.mainScripture || "";
 
     if (state.quill) {
       const html = data.contentHtml || "";
@@ -647,7 +644,6 @@
       study.studyType,
       study.speaker,
       study.location,
-      study.mainScripture,
       study.previewText,
       ...(Array.isArray(study.tags) ? study.tags.map((tag) => tag.name || "") : []),
       ...(Array.isArray(study.linkedScriptures) ? study.linkedScriptures.map((item) => `${item.reference || ""} ${item.note || ""}`) : [])
@@ -747,7 +743,10 @@
       title.textContent = study.title || "Untitled Study";
 
       const meta = document.createElement("span");
-      meta.textContent = [formatDate(study.studyDate || study.updatedAt), study.category?.name || study.studyType, study.mainScripture]
+      meta.textContent = [
+        formatDate(study.studyDate || study.updatedAt),
+        study.category?.name || study.studyType
+      ]
         .filter(Boolean)
         .join(" • ");
 
@@ -1847,7 +1846,6 @@
     els.previewSpeaker.textContent = data.speaker || "";
     els.previewLocation.textContent = data.location || "";
     els.previewTitle.textContent = data.title || "Untitled Study";
-    els.previewMainScripture.textContent = data.mainScripture ? `Main Scripture: ${data.mainScripture}` : "";
     els.previewContent.innerHTML = data.contentHtml || "<p>No study notes yet.</p>";
 
     renderPreviewTags(els.previewTags, state.selectedTags);
