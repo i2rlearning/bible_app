@@ -504,8 +504,8 @@
       </div>
       <div class="selection-study-reference">${escapeHtml(state.selection.reference)}</div>
       <button type="button" class="selection-study-menu-button is-primary" data-mode="linked-scripture">
-        Linked Scripture
-        <span>Add it to the study's Linked Scriptures list</span>
+        Referenced Scripture
+        <span>Add it to the study's Referenced Scriptures list</span>
       </button>
       <button type="button" class="selection-study-menu-button is-secondary" data-mode="notes">
         Insert into Notes
@@ -641,7 +641,7 @@
         headerHtml("Added to Study", saveResult.study.title || "Study") +
         `<div class="selection-study-menu-status is-success">${
           mode === "linked-scripture"
-            ? "Added to Linked Scriptures."
+            ? "Added to Referenced Scriptures."
             : "Appended to Study Notes."
         }</div>`;
       positionMenu();
