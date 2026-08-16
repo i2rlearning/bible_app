@@ -967,6 +967,34 @@ body.is-reordering-linked-scripture {
   margin: 0;
 }
 
+/* Keep Quill lists visible and properly indented in Preview mode */
+.study-preview-content ol,
+.study-preview-content ul {
+  margin: 16px 0;
+  padding-left: 32px;
+}
+
+.study-preview-content li {
+  margin: 4px 0;
+  padding-left: 4px;
+}
+
+.study-preview-content li[data-list="bullet"] {
+  list-style-type: disc;
+}
+
+.study-preview-content li[data-list="ordered"] {
+  list-style-type: decimal;
+}
+
+.study-preview-content ul > li {
+  list-style-type: disc;
+}
+
+.study-preview-content ol > li {
+  list-style-type: decimal;
+}
+
 .study-auth-message {
   max-width: 560px;
   padding: 30px;
