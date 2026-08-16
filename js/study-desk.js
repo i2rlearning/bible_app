@@ -178,14 +178,23 @@
     els.saveState.classList.toggle("is-success", type === "success");
   }
 
-  function showLoggedOut() {
+  function showLoggedOut() {function showLoggedOut() {
     if (els.authMessage) els.authMessage.hidden = false;
     if (els.app) els.app.hidden = true;
+  
+    if (els.search) {
+      els.search.disabled = true;
+      els.search.value = "";
+    }
   }
-
+  
   function showApp() {
     if (els.authMessage) els.authMessage.hidden = true;
     if (els.app) els.app.hidden = false;
+  
+    if (els.search) {
+      els.search.disabled = false;
+    }
   }
 
   async function fetchJson(url, options = {}) {
