@@ -178,7 +178,7 @@
     els.saveState.classList.toggle("is-success", type === "success");
   }
 
-  function showLoggedOut() {function showLoggedOut() {
+  function showLoggedOut() {
     if (els.authMessage) els.authMessage.hidden = false;
     if (els.app) els.app.hidden = true;
   
