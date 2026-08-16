@@ -283,6 +283,15 @@ body.study-desk-page {
   transform: translateY(-1px);
 }
 
+/* Preview mode keeps Save and Delete visible, but unavailable */
+.study-editor-actions button:disabled,
+.study-editor-actions button:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+
 #add-scripture-button:disabled,
 #add-scripture-button:disabled:hover {
   cursor: not-allowed;
