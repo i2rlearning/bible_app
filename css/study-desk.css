@@ -197,6 +197,16 @@ body.study-desk-page {
   color: var(--study-text);
 }
 
+.study-search-label:has(input:disabled) {
+  opacity: 0.48;
+  background: #f5f7fa;
+  cursor: not-allowed;
+}
+
+.study-search-label input:disabled {
+  cursor: not-allowed;
+}
+
 .study-app {
   display: grid;
   grid-template-columns: 290px minmax(0, 1fr);
