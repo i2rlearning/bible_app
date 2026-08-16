@@ -1806,7 +1806,7 @@
 
     if (!state.linkedScriptures.length) {
       const empty = document.createElement("p");
-      empty.textContent = "No linked Scriptures yet.";
+      empty.textContent = "No Referenced Scriptures yet.";
       els.previewLinkedScriptures.appendChild(empty);
       return;
     }
