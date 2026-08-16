@@ -504,6 +504,17 @@ body.study-desk-page {
     var(--study-editor-padding-x);
 }
 
+.study-quill-editor .ql-editor strong,
+.study-quill-editor .ql-editor b {
+  font-weight: 700 !important;
+}
+
+/* Keeps bold consistent in Preview mode */
+.study-preview-content strong,
+.study-preview-content b {
+  font-weight: 700 !important;
+}
+
 .study-quill-editor .ql-editor.ql-blank::before {
   left: var(--study-editor-padding-x);
   right: var(--study-editor-padding-x);
