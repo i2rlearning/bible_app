@@ -2951,7 +2951,11 @@
     bindOpenPassageButton();
     initStudySync();
     startStudySyncPolling();
+  
     applyStudyToForm(getEmptyStudy());
-    loadStudies();
+  
+    // Default to locked until Clerk confirms authentication.
+    showLoggedOut();
+    bindStudyDeskAuthState();
   });
 })();
