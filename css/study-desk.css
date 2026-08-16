@@ -1006,18 +1006,23 @@ body.is-reordering-linked-scripture {
 }
 
 .study-auth-message {
-  max-width: 560px;
-  padding: 30px;
+  width: min(620px, 100%);
+  margin: 70px auto 0;
+  padding: 38px 42px;
+  text-align: center;
 }
 
 .study-auth-message h2 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   color: var(--study-navy);
   font-family: Georgia, "Times New Roman", serif;
 }
 
 .study-auth-message p {
+  max-width: 480px;
+  margin: 0 auto;
   color: var(--study-muted);
+  line-height: 1.55;
 }
 
 .study-status.is-error,
