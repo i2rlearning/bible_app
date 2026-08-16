@@ -197,6 +197,57 @@
     }
   }
 
+  let studyLoadPromise = null;
+
+  function handleStudyDeskAuthState(user) {
+    if (!user) {
+      state.studies = [];
+      state.categories = [];
+      state.availableTags = [];
+      state.activeStudyId = null;
+      state.activeStudyVersion = null;
+      state.hasLoaded = false;
+  
+      showLoggedOut();
+      return;
+    }
+  
+    if (state.hasLoaded) {
+      showApp();
+      return;
+    }
+  
+    if (!studyLoadPromise) {
+      studyLoadPromise = loadStudies().finally(() => {
+        studyLoadPromise = null;
+      });
+    }
+  }
+  
+  function bindStudyDeskAuthState() {
+    const originalUpdateAuthUI = window.updateAuthUI;
+  
+    window.updateAuthUI = function (clerkUser) {
+      if (typeof originalUpdateAuthUI === "function") {
+        originalUpdateAuthUI(clerkUser);
+      }
+  
+      handleStudyDeskAuthState(clerkUser || null);
+    };
+  
+    /*
+     * Clerk normally initializes after this script.
+     * Until Clerk confirms a user, Study Desk remains locked.
+     */
+    const clerkObj = window.Clerk || window.clerk;
+  
+    if (clerkObj && clerkObj.loaded) {
+      handleStudyDeskAuthState(clerkObj.user || null);
+    } else {
+      showLoggedOut();
+    }
+  }
+    
   async function fetchJson(url, options = {}) {
     const response = await fetch(url, {
       credentials: "include",
