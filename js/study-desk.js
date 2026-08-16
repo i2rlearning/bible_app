@@ -2766,11 +2766,6 @@
   }
   
   function bindEvents() {
-    els.loginButton.addEventListener("click", () => {
-      const login = byId("login");
-      if (login) login.click();
-    });
-
     window.addEventListener("beforeunload", (event) => {
       if (!state.hasUnsavedChanges) {
         return;
