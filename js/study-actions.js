@@ -455,7 +455,7 @@
         <button type="button" class="selection-study-back-button" data-back>‹ Back</button>
         <strong>Choose a Study</strong>
       </div>
-      <input type="search" class="selection-study-search" placeholder="Search studies..." aria-label="Search studies">
+      <input type="search" class="selection-study-search" placeholder="Search studies, tags, scripture references..." aria-label="Search studies">
       <div class="selection-study-search-results"></div>
     `;
 
