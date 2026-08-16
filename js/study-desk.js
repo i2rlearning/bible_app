@@ -1859,6 +1859,11 @@
     els.preview.hidden = false;
     els.previewButton.hidden = true;
     els.editButton.hidden = false;
+  
+    // Preview is read-only.
+    els.saveButton.disabled = true;
+    els.deleteButton.disabled = true;
+  
     els.modeLabel.textContent = "Preview";
   }
 
@@ -1869,6 +1874,11 @@
     els.preview.hidden = true;
     els.previewButton.hidden = false;
     els.editButton.hidden = true;
+  
+    // Restore study management actions in Edit mode.
+    els.saveButton.disabled = false;
+    els.deleteButton.disabled = false;
+  
     els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
   }
 
