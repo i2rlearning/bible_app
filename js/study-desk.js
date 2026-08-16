@@ -58,7 +58,6 @@
   function cacheElements() {
     els.authMessage = byId("study-auth-message");
     els.app = byId("study-app");
-    els.loginButton = byId("study-login-button");
     els.search = byId("study-search");
     els.filterTabs = byId("study-filter-tabs");
     els.list = byId("study-list");
