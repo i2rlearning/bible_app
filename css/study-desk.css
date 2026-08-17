@@ -26,17 +26,17 @@ body {
 body.study-desk-page {
   margin: 0;
   color: var(--study-text);
- /* background:
+  background:
     radial-gradient(
       circle at top left,
       rgba(255, 250, 242, 0.96),
       rgba(246, 249, 255, 0.94) 44%,
       #eef3fb 100%
-    );*/
-  background-image: url('../img/wedding-paper.jpg'); 
+    );
+  /* background-image: url('../img/wedding-paper.jpg'); 
   background-attachment: fixed;
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: cover; */
   
   font-family: Arial, Helvetica, sans-serif;
 }
