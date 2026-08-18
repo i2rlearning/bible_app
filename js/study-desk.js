@@ -321,6 +321,40 @@
     return String(value || "").trim().replace(/\s+/g, " ");
   }
 
+  function normalizeScriptureReference(value) {
+    const cleaned = normalizeName(value);
+  
+    if (!cleaned) {
+      return "";
+    }
+  
+    const match = cleaned.match(/^(.+?)(\s+\d.*)$/);
+  
+    if (!match) {
+      return cleaned;
+    }
+  
+    const smallWords = new Set(["of", "the", "and"]);
+  
+    const bookName = match[1]
+      .toLowerCase()
+      .split(/\s+/)
+      .map((word, index) => {
+        if (/^[ivx]+$/i.test(word)) {
+          return word.toUpperCase();
+        }
+  
+        if (index > 0 && smallWords.has(word)) {
+          return word;
+        }
+  
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(" ");
+  
+    return `${bookName}${match[2]}`;
+  }
+  
   function normalizeColorValue(value) {
     const color = String(value || "").trim();
     return /^#[0-9a-f]{6}$/i.test(color) ? color : "";
@@ -1291,7 +1325,7 @@
   }
 
   function saveLinkedScriptureEdit(index, referenceInput, noteInput) {
-    const reference = normalizeName(referenceInput.value);
+    const reference = normalizeScriptureReference(referenceInput.value);
     const note = noteInput.value.trim();
 
     if (!reference) {
@@ -1463,7 +1497,7 @@
   }
 
   function addLinkedScripture() {
-    const reference = normalizeName(els.scriptureReference.value);
+    const reference = normalizeScriptureReference(els.scriptureReference.value);
     const note = els.scriptureNote.value.trim();
 
     if (!reference) {
