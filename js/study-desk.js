@@ -2830,8 +2830,19 @@
 
     els.addTag.addEventListener("click", addTag);
     els.addScripture.addEventListener("click", addLinkedScripture);
-    els.scriptureReference.addEventListener("input", updateAddScriptureButtonState);
+    
+    els.scriptureReference.addEventListener(
+      "input",
+      updateAddScriptureButtonState
+    );
+    
+    els.scriptureReference.addEventListener("blur", () => {
+      els.scriptureReference.value =
+        normalizeScriptureReference(els.scriptureReference.value);
+    });
+    
     updateAddScriptureButtonState();
+    
     els.closeCategoryManager.addEventListener("click", closeCategoryManager);
     els.addCategory.addEventListener("click", addCategory);
     els.manageTags.addEventListener("click", openTagManager);
