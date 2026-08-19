@@ -322,7 +322,7 @@
   }
 
   function normalizeScriptureReference(value) {
-    const cleaned = normalizeName(value);
+    let cleaned = normalizeName(value);
   
     if (!cleaned) {
       return "";
@@ -352,7 +352,14 @@
       })
       .join(" ");
   
-    return `${bookName}${match[2]}`;
+    let reference = `${bookName}${match[2]}`;
+  
+    // Remove partial-verse letters such as 22a, 22b, 22c
+    reference = reference.replace(
+      /(\d+)([a-z])(?=\s*(?:-|,|;|$))/gi, "$1"
+    );
+  
+    return reference;
   }
   
   function normalizeColorValue(value) {
