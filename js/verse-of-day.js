@@ -404,7 +404,39 @@ window.VerseOfDay = (() => {
     { primary: "1CO.16.13-1CO.16.14", fallbacks: ["PSA.119.130"] },    //MAR 28
     { primary: "1CO.9.24-1CO.9.25", fallbacks: ["PRO.29.25"] },        //MAR 29
     { primary: "PRO.24.30-PRO.24.34", fallbacks: ["1JN.4.18"] },       //MAR 30
-    { primary: "PSA.25.6-PSA.25.7", fallbacks: ["ROM.12.2"] }          //MAR 31
+    { primary: "PSA.25.6-PSA.25.7", fallbacks: ["ROM.12.2"] },          //MAR 31
+
+    // April
+    { primary: "LUK.24.6", fallbacks: ["PSA.16.10"] },                 //APR 1
+    { primary: "PSA.139.17", fallbacks: ["ROM.11.33"] },               //APR 2
+    { primary: "JHN.15.5", fallbacks: ["JER.17.8"] },                  //APR 3
+    { primary: "ISA.53.5", fallbacks: ["1PE.2.24"] },                  //APR 4
+    { primary: "JHN.11.25", fallbacks: ["JOB.19.25"] },                //APR 5
+    { primary: "PSA.32.8", fallbacks: ["JHN.16.13"] },                 //APR 6
+    { primary: "ROM.10.17", fallbacks: ["ISA.55.11"] },                //APR 7
+    { primary: "PRO.17.17", fallbacks: ["JHN.15.13"] },                //APR 8
+    { primary: "2CO.4.16", fallbacks: ["ISA.46.4"] },                  //APR 9
+    { primary: "PSA.84.11", fallbacks: ["JAS.1.17"] },                 //APR 10
+    { primary: "1JN.1.9", fallbacks: ["PSA.103.12"] },                 //APR 11
+    { primary: "PRO.15.1", fallbacks: ["EPH.4.29"] },                  //APR 12
+    { primary: "HEB.4.12", fallbacks: ["JER.23.29"] },                 //APR 13
+    { primary: "PSA.90.12", fallbacks: ["EPH.5.15-EPH.5.16"] },        //APR 14
+    { primary: "MAT.28.20", fallbacks: ["JOS.1.5"] },                  //APR 15
+    { primary: "ISA.30.21", fallbacks: ["JHN.10.4"] },                 //APR 16
+    { primary: "LUK.6.31", fallbacks: ["LEV.19.18"] },                 //APR 17
+    { primary: "PSA.147.3", fallbacks: ["MAT.5.4"] },                  //APR 18
+    { primary: "ROM.8.1", fallbacks: ["ISA.1.18"] },                   //APR 19
+    { primary: "PRO.27.17", fallbacks: ["HEB.10.23"] },                //APR 20
+    { primary: "1CO.10.13", fallbacks: ["PSA.119.11"] },               //APR 21
+    { primary: "GEN.1.1", fallbacks: ["COL.1.16"] },                   //APR 22
+    { primary: "MAT.6.20", fallbacks: ["PRO.11.4"] },                  //APR 23
+    { primary: "PSA.42.11", fallbacks: ["HEB.6.19"] },                 //APR 24
+    { primary: "1PE.3.15", fallbacks: ["PSA.96.3"] },                  //APR 25
+    { primary: "MIC.7.18", fallbacks: ["TIT.3.5"] },                   //APR 26
+    { primary: "PHP.3.14", fallbacks: ["PRO.4.18"] },                  //APR 27
+    { primary: "ISA.26.4", fallbacks: ["2TH.3.3"] },                   //APR 28
+    { primary: "JHN.4.24", fallbacks: ["PSA.95.6"] },                  //APR 29
+    { primary: "ECC.12.13", fallbacks: ["COL.3.17"] }                  //APR 30     
   ];
 
   const LEAP_DAY_PASSAGE = {
