@@ -8,6 +8,7 @@ const express = require("express");
 const path = require("path");
 const { Pool } = require("pg");
 const { clerkMiddleware, requireAuth } = require("@clerk/express");
+const { parseScriptureReference } = require("./lib/scripture-reference");
 require("dotenv").config();
 
 const rawDatabaseUrl = process.env.DATABASE_URL;
@@ -572,6 +573,113 @@ function mapTagRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function mapTagScriptureRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    tagId: row.tag_id,
+    scriptureReferenceId: row.scripture_reference_id,
+    reference: row.normalized_reference,
+    normalizedReference: row.normalized_reference,
+    book: row.book,
+    startChapter: row.start_chapter,
+    startVerse: row.start_verse,
+    endChapter: row.end_chapter,
+    endVerse: row.end_verse,
+    note: row.note || "",
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function isUuid(value) {
+  return typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function tagBelongsToUser(client, userId, tagId) {
+  if (!isUuid(tagId)) {
+    return false;
+  }
+
+  const result = await client.query(
+    `
+    SELECT id
+    FROM user_tags
+    WHERE user_id = $1
+      AND id = $2
+    LIMIT 1
+    `,
+    [userId, tagId]
+  );
+
+  return result.rows.length > 0;
+}
+
+async function getOrCreateScriptureReference(client, parsedReference) {
+  const result = await client.query(
+    `
+    INSERT INTO scripture_references (
+      normalized_reference,
+      book,
+      start_chapter,
+      start_verse,
+      end_chapter,
+      end_verse,
+      created_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    ON CONFLICT (normalized_reference)
+    DO UPDATE SET
+      normalized_reference = EXCLUDED.normalized_reference
+    RETURNING *
+    `,
+    [
+      parsedReference.normalizedReference,
+      parsedReference.book,
+      parsedReference.startChapter,
+      parsedReference.startVerse,
+      parsedReference.endChapter,
+      parsedReference.endVerse
+    ]
+  );
+
+  return result.rows[0];
+}
+
+async function getTagScriptureById(client, userId, tagId, relationshipId) {
+  const result = await client.query(
+    `
+    SELECT
+      tsr.id,
+      tsr.user_id,
+      tsr.tag_id,
+      tsr.scripture_reference_id,
+      tsr.note,
+      tsr.sort_order,
+      tsr.created_at,
+      tsr.updated_at,
+      sr.normalized_reference,
+      sr.book,
+      sr.start_chapter,
+      sr.start_verse,
+      sr.end_chapter,
+      sr.end_verse
+    FROM tag_scripture_references tsr
+    INNER JOIN scripture_references sr
+      ON sr.id = tsr.scripture_reference_id
+    WHERE tsr.user_id = $1
+      AND tsr.tag_id = $2
+      AND tsr.id = $3
+    LIMIT 1
+    `,
+    [userId, tagId, relationshipId]
+  );
+
+  return result.rows.length ? result.rows[0] : null;
 }
 
 function mapStudyRow(row) {
@@ -1149,6 +1257,472 @@ app.delete("/api/study-tags/:id", requireAuth(), async (req, res) => {
   }
 });
 
+// ----------------------------------------------------
+// Tag Scripture relationship routes
+// ----------------------------------------------------
+app.get("/api/study-tags/:id/scriptures", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const tagId = req.params.id;
+
+    if (!(await tagBelongsToUser(pool, userId, tagId))) {
+      return res.status(404).json({
+        ok: false,
+        message: "Tag not found"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        tsr.id,
+        tsr.user_id,
+        tsr.tag_id,
+        tsr.scripture_reference_id,
+        tsr.note,
+        tsr.sort_order,
+        tsr.created_at,
+        tsr.updated_at,
+        sr.normalized_reference,
+        sr.book,
+        sr.start_chapter,
+        sr.start_verse,
+        sr.end_chapter,
+        sr.end_verse
+      FROM tag_scripture_references tsr
+      INNER JOIN scripture_references sr
+        ON sr.id = tsr.scripture_reference_id
+      WHERE tsr.user_id = $1
+        AND tsr.tag_id = $2
+      ORDER BY tsr.sort_order, tsr.created_at, tsr.id
+      `,
+      [userId, tagId]
+    );
+
+    return res.json({
+      ok: true,
+      scriptures: result.rows.map(mapTagScriptureRow)
+    });
+  } catch (error) {
+    console.error("Get tag Scriptures error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to load tag Scriptures"
+    });
+  }
+});
+
+app.post("/api/study-tags/:id/scriptures", requireAuth(), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const userId = req.auth.userId;
+    const tagId = req.params.id;
+    const parsedReference = parseScriptureReference(req.body.reference);
+
+    if (!parsedReference) {
+      return res.status(400).json({
+        ok: false,
+        code: "INVALID_SCRIPTURE_REFERENCE",
+        message: "Enter a valid Scripture reference"
+      });
+    }
+
+    await client.query("BEGIN");
+
+    if (!(await tagBelongsToUser(client, userId, tagId))) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        ok: false,
+        message: "Tag not found"
+      });
+    }
+
+    const scriptureReference = await getOrCreateScriptureReference(
+      client,
+      parsedReference
+    );
+
+    let sortOrder;
+
+    if (req.body.sortOrder === undefined || req.body.sortOrder === null) {
+      const sortResult = await client.query(
+        `
+        SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort_order
+        FROM tag_scripture_references
+        WHERE user_id = $1
+          AND tag_id = $2
+        `,
+        [userId, tagId]
+      );
+
+      sortOrder = Number(sortResult.rows[0].next_sort_order) || 0;
+    } else {
+      sortOrder = normalizeSortOrder(req.body.sortOrder);
+    }
+
+    const result = await client.query(
+      `
+      INSERT INTO tag_scripture_references (
+        user_id,
+        tag_id,
+        scripture_reference_id,
+        note,
+        sort_order,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+      RETURNING id
+      `,
+      [
+        userId,
+        tagId,
+        scriptureReference.id,
+        normalizeOptionalText(req.body.note),
+        sortOrder
+      ]
+    );
+
+    const relationship = await getTagScriptureById(
+      client,
+      userId,
+      tagId,
+      result.rows[0].id
+    );
+
+    await client.query("COMMIT");
+
+    return res.status(201).json({
+      ok: true,
+      scripture: mapTagScriptureRow(relationship)
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    if (error.code === "23505") {
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_SCRIPTURE_DUPLICATE",
+        message: "This Scripture reference is already connected to this tag"
+      });
+    }
+
+    console.error("Add tag Scripture error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to add Scripture to tag"
+    });
+  } finally {
+    client.release();
+  }
+});
+
+app.put("/api/study-tags/:id/scriptures/reorder", requireAuth(), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const userId = req.auth.userId;
+    const tagId = req.params.id;
+    const orderedIds = Array.isArray(req.body.orderedIds)
+      ? req.body.orderedIds
+      : [];
+
+    if (!orderedIds.every(isUuid) || new Set(orderedIds.map((id) => id.toLowerCase())).size !== orderedIds.length) {
+      return res.status(400).json({
+        ok: false,
+        message: "orderedIds must contain unique relationship IDs"
+      });
+    }
+
+    await client.query("BEGIN");
+
+    if (!(await tagBelongsToUser(client, userId, tagId))) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        ok: false,
+        message: "Tag not found"
+      });
+    }
+
+    const existing = await client.query(
+      `
+      SELECT id
+      FROM tag_scripture_references
+      WHERE user_id = $1
+        AND tag_id = $2
+      ORDER BY sort_order, created_at, id
+      `,
+      [userId, tagId]
+    );
+
+    if (existing.rows.length !== orderedIds.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        message: "orderedIds must include every Scripture relationship for this tag"
+      });
+    }
+
+    const existingIds = new Set(existing.rows.map((row) => String(row.id).toLowerCase()));
+
+    if (!orderedIds.every((id) => existingIds.has(id.toLowerCase()))) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        message: "One or more Scripture relationships are not available for this tag"
+      });
+    }
+
+    for (let index = 0; index < orderedIds.length; index += 1) {
+      await client.query(
+        `
+        UPDATE tag_scripture_references
+        SET
+          sort_order = $4,
+          updated_at = NOW()
+        WHERE user_id = $1
+          AND tag_id = $2
+          AND id = $3
+        `,
+        [userId, tagId, orderedIds[index], index]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return res.json({
+      ok: true,
+      message: "Scripture order updated"
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Reorder tag Scriptures error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to reorder tag Scriptures"
+    });
+  } finally {
+    client.release();
+  }
+});
+
+app.put("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const userId = req.auth.userId;
+    const tagId = req.params.id;
+    const { relationshipId } = req.params;
+
+    if (!isUuid(tagId) || !isUuid(relationshipId)) {
+      return res.status(404).json({
+        ok: false,
+        message: "Scripture relationship not found"
+      });
+    }
+
+    await client.query("BEGIN");
+
+    const existing = await getTagScriptureById(
+      client,
+      userId,
+      tagId,
+      relationshipId
+    );
+
+    if (!existing) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        ok: false,
+        message: "Scripture relationship not found"
+      });
+    }
+
+    const referenceValue = Object.prototype.hasOwnProperty.call(req.body, "reference")
+      ? req.body.reference
+      : existing.normalized_reference;
+    const parsedReference = parseScriptureReference(referenceValue);
+
+    if (!parsedReference) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        code: "INVALID_SCRIPTURE_REFERENCE",
+        message: "Enter a valid Scripture reference"
+      });
+    }
+
+    const scriptureReference = await getOrCreateScriptureReference(
+      client,
+      parsedReference
+    );
+
+    const note = Object.prototype.hasOwnProperty.call(req.body, "note")
+      ? normalizeOptionalText(req.body.note)
+      : existing.note || "";
+    const sortOrder = Object.prototype.hasOwnProperty.call(req.body, "sortOrder")
+      ? normalizeSortOrder(req.body.sortOrder, existing.sort_order)
+      : existing.sort_order;
+
+    await client.query(
+      `
+      UPDATE tag_scripture_references
+      SET
+        scripture_reference_id = $4,
+        note = $5,
+        sort_order = $6,
+        updated_at = NOW()
+      WHERE user_id = $1
+        AND tag_id = $2
+        AND id = $3
+      `,
+      [
+        userId,
+        tagId,
+        relationshipId,
+        scriptureReference.id,
+        note,
+        sortOrder
+      ]
+    );
+
+    const relationship = await getTagScriptureById(
+      client,
+      userId,
+      tagId,
+      relationshipId
+    );
+
+    await client.query("COMMIT");
+
+    return res.json({
+      ok: true,
+      scripture: mapTagScriptureRow(relationship)
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    if (error.code === "23505") {
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_SCRIPTURE_DUPLICATE",
+        message: "This Scripture reference is already connected to this tag"
+      });
+    }
+
+    console.error("Update tag Scripture error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to update tag Scripture"
+    });
+  } finally {
+    client.release();
+  }
+});
+
+app.delete("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const tagId = req.params.id;
+    const { relationshipId } = req.params;
+
+    if (!isUuid(tagId) || !isUuid(relationshipId)) {
+      return res.status(404).json({
+        ok: false,
+        message: "Scripture relationship not found"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      DELETE FROM tag_scripture_references
+      WHERE user_id = $1
+        AND tag_id = $2
+        AND id = $3
+      RETURNING id
+      `,
+      [userId, tagId, relationshipId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        message: "Scripture relationship not found"
+      });
+    }
+
+    return res.json({
+      ok: true,
+      message: "Scripture removed from tag"
+    });
+  } catch (error) {
+    console.error("Delete tag Scripture error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to remove Scripture from tag"
+    });
+  }
+});
+
+app.get("/api/scripture-references/tags", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const parsedReference = parseScriptureReference(req.query.reference);
+
+    if (!parsedReference) {
+      return res.status(400).json({
+        ok: false,
+        code: "INVALID_SCRIPTURE_REFERENCE",
+        message: "Enter a valid Scripture reference"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        t.id,
+        t.user_id,
+        t.name,
+        t.color,
+        t.sort_order,
+        t.created_at,
+        t.updated_at,
+        tsr.id AS relationship_id,
+        tsr.note AS relationship_note,
+        tsr.sort_order AS relationship_sort_order
+      FROM scripture_references sr
+      INNER JOIN tag_scripture_references tsr
+        ON tsr.scripture_reference_id = sr.id
+      INNER JOIN user_tags t
+        ON t.id = tsr.tag_id
+        AND t.user_id = tsr.user_id
+      WHERE sr.normalized_reference = $1
+        AND tsr.user_id = $2
+      ORDER BY t.sort_order, t.name
+      `,
+      [parsedReference.normalizedReference, userId]
+    );
+
+    return res.json({
+      ok: true,
+      reference: parsedReference.normalizedReference,
+      tags: result.rows.map((row) => ({
+        ...mapTagRow(row),
+        relationshipId: row.relationship_id,
+        note: row.relationship_note || "",
+        relationshipSortOrder: Number(row.relationship_sort_order) || 0
+      }))
+    });
+  } catch (error) {
+    console.error("Get Scripture tags error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to load Scripture tags"
+    });
+  }
+});
+
 app.get("/api/studies", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
@@ -1213,6 +1787,109 @@ app.get("/api/studies", requireAuth(), async (req, res) => {
     res.status(500).json({
       ok: false,
       message: "Failed to load studies"
+    });
+  }
+});
+
+app.get("/api/studies/:id/related-scriptures", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const studyId = req.params.id;
+
+    const studyResult = await pool.query(
+      `
+      SELECT id
+      FROM saved_studies
+      WHERE user_id = $1
+        AND id = $2
+      LIMIT 1
+      `,
+      [userId, studyId]
+    );
+
+    if (!studyResult.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        message: "Study not found"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        sr.id AS scripture_reference_id,
+        sr.normalized_reference,
+        sr.book,
+        sr.start_chapter,
+        sr.start_verse,
+        sr.end_chapter,
+        sr.end_verse,
+        tsr.id AS relationship_id,
+        tsr.note,
+        tsr.sort_order AS relationship_sort_order,
+        t.id AS tag_id,
+        t.name AS tag_name,
+        t.color AS tag_color,
+        t.sort_order AS tag_sort_order
+      FROM saved_study_tags sst
+      INNER JOIN user_tags t
+        ON t.id = sst.tag_id
+        AND t.user_id = sst.user_id
+      INNER JOIN tag_scripture_references tsr
+        ON tsr.tag_id = t.id
+        AND tsr.user_id = t.user_id
+      INNER JOIN scripture_references sr
+        ON sr.id = tsr.scripture_reference_id
+      WHERE sst.user_id = $1
+        AND sst.study_id = $2
+      ORDER BY
+        t.sort_order,
+        t.name,
+        tsr.sort_order,
+        tsr.created_at,
+        sr.normalized_reference
+      `,
+      [userId, studyId]
+    );
+
+    const grouped = new Map();
+
+    for (const row of result.rows) {
+      const key = String(row.scripture_reference_id);
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          scriptureReferenceId: row.scripture_reference_id,
+          reference: row.normalized_reference,
+          normalizedReference: row.normalized_reference,
+          book: row.book,
+          startChapter: row.start_chapter,
+          startVerse: row.start_verse,
+          endChapter: row.end_chapter,
+          endVerse: row.end_verse,
+          connections: []
+        });
+      }
+
+      grouped.get(key).connections.push({
+        relationshipId: row.relationship_id,
+        tagId: row.tag_id,
+        tagName: row.tag_name,
+        tagColor: normalizeColor(row.tag_color),
+        note: row.note || "",
+        sortOrder: Number(row.relationship_sort_order) || 0
+      });
+    }
+
+    return res.json({
+      ok: true,
+      scriptures: Array.from(grouped.values())
+    });
+  } catch (error) {
+    console.error("Get related Scriptures error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to load related Scriptures"
     });
   }
 });
