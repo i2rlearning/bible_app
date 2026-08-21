@@ -1385,10 +1385,25 @@ body.is-reordering-linked-scripture {
     0 0 0 3px rgba(37, 91, 234, 0.16);
 }
 
+.study-manager-row-name-group {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
 .study-manager-row-name {
   font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-manager-row-scripture-count {
+  flex: 0 0 auto;
+  color: var(--study-muted);
+  font-size: 12px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -1744,6 +1759,31 @@ body.is-reordering-linked-scripture {
 .tag-scripture-add-button:disabled:hover {
   cursor: default;
   opacity: 0.55;
+}
+
+.tag-scripture-feedback {
+  margin: -4px 2px 0;
+  min-height: 18px;
+  color: var(--study-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.tag-scripture-feedback[hidden] {
+  display: none;
+}
+
+.tag-scripture-feedback.is-error {
+  color: var(--study-danger);
+}
+
+.tag-scripture-feedback.is-warning {
+  color: #8a5a00;
+}
+
+.tag-scripture-feedback.is-success {
+  color: var(--study-success);
 }
 
 .tag-scripture-list {
