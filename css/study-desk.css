@@ -1677,3 +1677,98 @@ body.is-reordering-linked-scripture {
     max-width: 100%;
   }
 }
+
+/* --------------------------------------------------
+   Tag Manager - Scripture Connections
+   -------------------------------------------------- */
+#tag-manager-modal .study-modal-panel {
+  width: min(760px, 100%);
+}
+
+.tag-scripture-divider {
+  margin-top: 8px !important;
+}
+
+.tag-scripture-connections {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tag-scripture-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.tag-scripture-heading-row h3 {
+  margin: 3px 0 0;
+  color: var(--study-navy);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+}
+
+.tag-scripture-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid rgba(37, 91, 234, 0.18);
+  border-radius: 999px;
+  background: var(--study-blue-soft);
+  color: var(--study-blue);
+  font-size: 13px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.tag-scripture-note {
+  margin-top: -5px;
+}
+
+.tag-scripture-add-form {
+  border: 1px solid var(--study-border);
+  border-radius: 14px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.tag-scripture-add-button {
+  align-self: flex-start;
+}
+
+.tag-scripture-add-button:disabled,
+.tag-scripture-add-button:disabled:hover {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.tag-scripture-list {
+  margin-top: 0;
+}
+
+.tag-scripture-item {
+  background: #ffffff;
+}
+
+.tag-scripture-item .study-reference-link {
+  width: fit-content;
+}
+
+.tag-scripture-empty,
+.tag-scripture-loading {
+  padding: 8px 2px;
+}
+
+@media (max-width: 520px) {
+  #tag-manager-modal .study-modal-panel {
+    padding: 18px 14px;
+  }
+
+  .tag-scripture-heading-row {
+    gap: 10px;
+  }
+}
