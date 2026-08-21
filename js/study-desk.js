@@ -22,6 +22,7 @@
     managedTagScripturesTagId: "",
     editingManagedTagScriptureId: "",
     isLoadingManagedTagScriptures: false,
+    managedTagScriptureFeedback: null,
     quill: null,
     isPreview: false,
     hasLoaded: false,
@@ -1664,28 +1665,50 @@
 
   function parseLinkedScriptureReference(reference) {
     const cleanReference = normalizeScriptureReferenceText(reference);
-    const match = cleanReference.match(/^(.+?)\s+(\d+)\s*:\s*(\d+)(?:\s*-\s*(?:(\d+)\s*:\s*)?(\d+))?$/);
+    let match = cleanReference.match(/^(.+?)\s+(\d+)\s*:\s*(\d+)(?:\s*-\s*(?:(\d+)\s*:\s*)?(\d+))?$/);
+
+    if (match) {
+      const chapter = Number(match[2]);
+      const startVerse = Number(match[3]);
+      const endChapter = match[4] ? Number(match[4]) : chapter;
+      const endVerse = match[5] ? Number(match[5]) : startVerse;
+
+      if (!chapter || !startVerse || !endChapter || !endVerse) {
+        return null;
+      }
+
+      return {
+        book: normalizeName(match[1]),
+        chapter,
+        startVerse,
+        endChapter,
+        endVerse,
+        isRange: chapter !== endChapter || startVerse !== endVerse,
+        isChapterReference: false
+      };
+    }
+
+    match = cleanReference.match(/^(.+?)\s+(\d+)(?:\s*-\s*(\d+))?$/);
 
     if (!match) {
       return null;
     }
 
     const chapter = Number(match[2]);
-    const startVerse = Number(match[3]);
-    const endChapter = match[4] ? Number(match[4]) : chapter;
-    const endVerse = match[5] ? Number(match[5]) : startVerse;
+    const endChapter = match[3] ? Number(match[3]) : chapter;
 
-    if (!chapter || !startVerse || !endChapter || !endVerse) {
+    if (!chapter || !endChapter || endChapter < chapter) {
       return null;
     }
 
     return {
       book: normalizeName(match[1]),
       chapter,
-      startVerse,
+      startVerse: null,
       endChapter,
-      endVerse,
-      isRange: chapter !== endChapter || startVerse !== endVerse
+      endVerse: null,
+      isRange: chapter !== endChapter,
+      isChapterReference: true
     };
   }
 
@@ -1713,6 +1736,13 @@
 
     if (verseParts.book !== parsedReference.book.toLowerCase()) {
       return false;
+    }
+
+    if (parsedReference.startVerse === null) {
+      return (
+        verseParts.chapter >= parsedReference.chapter &&
+        verseParts.chapter <= parsedReference.endChapter
+      );
     }
 
     if (parsedReference.chapter === parsedReference.endChapter) {
@@ -1810,61 +1840,100 @@
       return linkedScripturePreviewCache.get(cacheKey);
     }
 
-    const url =
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
-      `/search?query=${encodeURIComponent(cleanReference)}&limit=50`;
+    const pageLimit = 50;
+    const maxPages = 100;
+    const verses = [];
+    const verseKeys = new Set();
+    let firstPassage = null;
 
-    const response = await fetch(url, {
-      headers: {
-        "api-key": API_KEY
+    for (let page = 0; page < maxPages; page += 1) {
+      const offset = page * pageLimit;
+      const url =
+        `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
+        `/search?query=${encodeURIComponent(cleanReference)}&limit=${pageLimit}&offset=${offset}`;
+
+      const response = await fetch(url, {
+        headers: {
+          "api-key": API_KEY
+        }
+      });
+
+      const result = await response.json();
+
+      if (
+        result.meta &&
+        result.meta.fumsId &&
+        window._BAPI &&
+        typeof window._BAPI.t === "function"
+      ) {
+        try {
+          window._BAPI.t(result.meta.fumsId);
+        } catch (error) {
+          console.warn("FUMS tracking failed:", error);
+        }
       }
-    });
 
-    const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Could not load this Scripture.");
+      }
 
-    if (
-      result.meta &&
-      result.meta.fumsId &&
-      window._BAPI &&
-      typeof window._BAPI.t === "function"
-    ) {
-      try {
-        window._BAPI.t(result.meta.fumsId);
-      } catch (error) {
-        console.warn("FUMS tracking failed:", error);
+      if (!firstPassage) {
+        firstPassage = Array.isArray(result.data?.passages)
+          ? result.data.passages[0] || null
+          : null;
+      }
+
+      const pageVerses = Array.isArray(result.data?.verses)
+        ? result.data.verses
+        : [];
+      const verseCountBeforePage = verseKeys.size;
+
+      pageVerses.forEach((verse) => {
+        const key = verse.id || verse.reference || `${verse.bookId || ""}:${verse.chapterId || ""}:${verse.text || ""}`;
+
+        if (!verseKeys.has(key)) {
+          verseKeys.add(key);
+          verses.push(verse);
+        }
+      });
+
+      if (
+        pageVerses.length < pageLimit ||
+        verseKeys.size === verseCountBeforePage
+      ) {
+        break;
       }
     }
 
-    if (!response.ok) {
-      throw new Error(result.message || "Could not load this Scripture.");
-    }
-
-    const verses = Array.isArray(result.data?.verses) ? result.data.verses : [];
     const exactVerses = parsedReference
       ? verses.filter((verse) => isVerseInsideLinkedReference(verse.reference, parsedReference))
       : [];
 
+    exactVerses.sort((left, right) => {
+      const leftParts = parseVerseReferenceParts(left.reference);
+      const rightParts = parseVerseReferenceParts(right.reference);
+
+      if (!leftParts || !rightParts) return 0;
+      return (leftParts.chapter - rightParts.chapter) || (leftParts.verse - rightParts.verse);
+    });
+
     let preview = null;
 
-    if (hasEnoughExactVerses(exactVerses, parsedReference)) {
+    if (exactVerses.length) {
       preview = {
         reference: cleanReference,
         content: buildVersePreviewContent(exactVerses)
       };
-    } else {
-      const passage = Array.isArray(result.data?.passages) ? result.data.passages[0] : null;
-
-      if (passage) {
-        preview = {
-          reference: cleanReference,
-          content: cleanApiBiblePassageContent(passage.content || "")
-        };
-      } else if (!parsedReference?.isRange && verses[0]) {
-        preview = {
-          reference: verses[0].reference || cleanReference,
-          content: buildVersePreviewContent([verses[0]])
-        };
-      }
+    } else if (firstPassage) {
+      preview = {
+        reference: cleanReference,
+        content: cleanApiBiblePassageContent(firstPassage.content || "")
+      };
+    } else if (!parsedReference?.isRange && verses[0]) {
+      preview = {
+        reference: verses[0].reference || cleanReference,
+        content: buildVersePreviewContent([verses[0]])
+      };
     }
 
     if (!preview || !preview.content) {
@@ -2298,7 +2367,22 @@
       const colorSwatch = document.createElement("span");
       colorSwatch.className = "study-color-swatch";
       colorSwatch.style.backgroundColor = item.color || "#dbeafe";
-      row.append(selectDot, colorSwatch, name);
+
+      const nameGroup = document.createElement("span");
+      nameGroup.className = "study-manager-row-name-group";
+      nameGroup.appendChild(name);
+
+      const scriptureCount = Math.max(0, Number(item.scriptureCount) || 0);
+      const scriptureCountLabel = document.createElement("span");
+      scriptureCountLabel.className = "study-manager-row-scripture-count";
+      scriptureCountLabel.textContent = `${scriptureCount} ${scriptureCount === 1 ? "Scripture" : "Scriptures"}`;
+      scriptureCountLabel.setAttribute(
+        "aria-label",
+        `${scriptureCount} ${scriptureCount === 1 ? "Scripture" : "Scriptures"} connected to ${item.name || "this tag"}`
+      );
+      nameGroup.appendChild(scriptureCountLabel);
+
+      row.append(selectDot, colorSwatch, nameGroup);
 
       const isAdded = isTagSelected(item.id);
       const addToStudyButton = document.createElement("button");
@@ -2566,6 +2650,50 @@
     state.managedTagScripturesTagId = tagId;
     state.editingManagedTagScriptureId = "";
     state.isLoadingManagedTagScriptures = false;
+    state.managedTagScriptureFeedback = null;
+  }
+
+  function setManagedTagScriptureFeedback(message, type = "") {
+    const finalMessage = String(message || "").trim();
+    const finalType = type || "";
+
+    state.managedTagScriptureFeedback = finalMessage
+      ? { message: finalMessage, type: finalType }
+      : null;
+
+    const feedback = els.tagManagerEditor?.querySelector(".tag-scripture-feedback");
+
+    if (!feedback) return;
+
+    feedback.textContent = finalMessage;
+    feedback.hidden = !finalMessage;
+    feedback.classList.toggle("is-error", finalType === "error");
+    feedback.classList.toggle("is-warning", finalType === "warning");
+    feedback.classList.toggle("is-success", finalType === "success");
+    feedback.setAttribute("role", finalType === "error" ? "alert" : "status");
+  }
+
+  function getManagedTagScriptureErrorMessage(error) {
+    const code = error?.data?.code || "";
+
+    if (code === "TAG_SCRIPTURE_DUPLICATE") {
+      return {
+        type: "warning",
+        message: "You already added that reference to this tag."
+      };
+    }
+
+    if (code === "INVALID_SCRIPTURE_REFERENCE") {
+      return {
+        type: "error",
+        message: "Enter a valid Scripture reference, for example John 3:16."
+      };
+    }
+
+    return {
+      type: "error",
+      message: error?.message || "Failed to connect Scripture to tag."
+    };
   }
 
   async function loadManagedTagScriptures(tagId, options = {}) {
@@ -2608,6 +2736,11 @@
       state.managedTagScriptures = Array.isArray(result.scriptures)
         ? result.scriptures
         : [];
+
+      const loadedTag = state.availableTags.find((tag) => tag.id === normalizedTagId);
+      if (loadedTag) {
+        loadedTag.scriptureCount = state.managedTagScriptures.length;
+      }
     } catch (error) {
       if (loadToken !== managedTagScriptureLoadToken) {
         return;
@@ -2631,6 +2764,10 @@
 
     if (!normalizedTagId) return;
 
+    if (state.managedTagId !== normalizedTagId) {
+      state.managedTagScriptureFeedback = null;
+    }
+
     state.managedTagId = normalizedTagId;
     loadManagedTagScriptures(normalizedTagId, { force: true });
   }
@@ -2647,11 +2784,16 @@
     const note = noteInput.value.trim();
 
     if (!reference) {
+      setManagedTagScriptureFeedback(
+        "Enter a valid Scripture reference, for example John 3:16.",
+        "error"
+      );
       referenceInput.focus();
       updateManagedTagScriptureAddButton(referenceInput, button);
       return;
     }
 
+    setManagedTagScriptureFeedback("", "");
     referenceInput.value = reference;
     const originalText = button.textContent;
     button.disabled = true;
@@ -2671,10 +2813,23 @@
       state.managedTagScriptures.push(result.scripture);
       state.managedTagScripturesTagId = tag.id;
       state.editingManagedTagScriptureId = "";
+
+      const currentTag = state.availableTags.find((item) => item.id === tag.id);
+      if (currentTag) {
+        currentTag.scriptureCount = state.managedTagScriptures.length;
+      }
+
+      setManagedTagScriptureFeedback(`${result.scripture.reference} added.`, "success");
       setStatus("Scripture connected to tag.", "success");
       renderTagManager();
     } catch (error) {
-      setStatus(error.message || "Failed to connect Scripture to tag.", "error");
+      const feedback = getManagedTagScriptureErrorMessage(error);
+      setManagedTagScriptureFeedback(feedback.message, feedback.type);
+
+      if (!error?.data?.code) {
+        setStatus(error.message || "Failed to connect Scripture to tag.", "error");
+      }
+
       button.disabled = false;
       button.textContent = originalText;
       referenceInput.focus();
@@ -2715,10 +2870,15 @@
     const note = noteInput.value.trim();
 
     if (!reference) {
+      setManagedTagScriptureFeedback(
+        "Enter a valid Scripture reference, for example John 3:16.",
+        "error"
+      );
       referenceInput.focus();
       return;
     }
 
+    setManagedTagScriptureFeedback("", "");
     referenceInput.value = reference;
     const originalText = button.textContent;
     button.disabled = true;
@@ -2747,7 +2907,13 @@
       setStatus("Scripture connection updated.", "success");
       renderTagManager();
     } catch (error) {
-      setStatus(error.message || "Failed to update Scripture connection.", "error");
+      const feedback = getManagedTagScriptureErrorMessage(error);
+      setManagedTagScriptureFeedback(feedback.message, feedback.type);
+
+      if (!error?.data?.code) {
+        setStatus(error.message || "Failed to update Scripture connection.", "error");
+      }
+
       button.disabled = false;
       button.textContent = originalText;
       referenceInput.focus();
@@ -2777,10 +2943,16 @@
         (scripture) => scripture.id !== item.id
       );
 
+      const currentTag = state.availableTags.find((tagItem) => tagItem.id === tag.id);
+      if (currentTag) {
+        currentTag.scriptureCount = state.managedTagScriptures.length;
+      }
+
       if (state.editingManagedTagScriptureId === item.id) {
         state.editingManagedTagScriptureId = "";
       }
 
+      setManagedTagScriptureFeedback(`${item.reference || "Scripture"} removed.`, "success");
       setStatus("Scripture removed from tag.", "success");
       renderTagManager();
     } catch (error) {
@@ -3207,9 +3379,10 @@
     addButton.textContent = "Add Scripture";
     addButton.disabled = true;
 
-    referenceInput.addEventListener("input", () =>
-      updateManagedTagScriptureAddButton(referenceInput, addButton)
-    );
+    referenceInput.addEventListener("input", () => {
+      setManagedTagScriptureFeedback("", "");
+      updateManagedTagScriptureAddButton(referenceInput, addButton);
+    });
     referenceInput.addEventListener("blur", () => {
       referenceInput.value = normalizeScriptureReference(referenceInput.value);
       updateManagedTagScriptureAddButton(referenceInput, addButton);
@@ -3226,6 +3399,35 @@
 
     addForm.append(referenceInput, noteInput, addButton);
     section.appendChild(addForm);
+
+    const feedback = document.createElement("p");
+    feedback.className = "tag-scripture-feedback";
+    feedback.setAttribute("aria-live", "polite");
+
+    if (state.managedTagScriptureFeedback?.message) {
+      feedback.textContent = state.managedTagScriptureFeedback.message;
+      feedback.classList.toggle(
+        "is-error",
+        state.managedTagScriptureFeedback.type === "error"
+      );
+      feedback.classList.toggle(
+        "is-warning",
+        state.managedTagScriptureFeedback.type === "warning"
+      );
+      feedback.classList.toggle(
+        "is-success",
+        state.managedTagScriptureFeedback.type === "success"
+      );
+      feedback.setAttribute(
+        "role",
+        state.managedTagScriptureFeedback.type === "error" ? "alert" : "status"
+      );
+    } else {
+      feedback.hidden = true;
+      feedback.setAttribute("role", "status");
+    }
+
+    section.appendChild(feedback);
 
     const list = document.createElement("div");
     list.className = "linked-scripture-list tag-scripture-list";
@@ -3409,7 +3611,10 @@
         body: JSON.stringify({ name, color, sortOrder: tag.sortOrder || 0 })
       });
 
-      const updated = result.tag;
+      const updated = {
+        ...result.tag,
+        scriptureCount: Math.max(0, Number(tag.scriptureCount) || 0)
+      };
       updateSelectedTagReferences(updated);
       sortByOrderAndName(state.availableTags);
       renderTagOptions();
