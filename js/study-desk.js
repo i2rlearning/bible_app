@@ -18,6 +18,10 @@
     managedCategoryId: "",
     managedTagId: "",
     newTagColor: "",
+    managedTagScriptures: [],
+    managedTagScripturesTagId: "",
+    editingManagedTagScriptureId: "",
+    isLoadingManagedTagScriptures: false,
     quill: null,
     isPreview: false,
     hasLoaded: false,
@@ -46,6 +50,9 @@
   const STUDY_SYNC_POLL_MS = 15000;
   const linkedScripturePreviewCache = new Map();
   let activeScripturePopupAnchor = null;
+  let managedTagScriptureLoadToken = 0;
+  let managedTagScriptureDrag = null;
+  let managedTagScriptureReorderQueue = Promise.resolve();
   let studySyncChannel = null;
 
   const els = {};
@@ -203,6 +210,8 @@
       state.studies = [];
       state.categories = [];
       state.availableTags = [];
+      resetManagedTagScriptureState();
+      state.managedTagId = "";
       state.activeStudyId = null;
       state.activeStudyVersion = null;
       state.hasLoaded = false;
@@ -2008,11 +2017,23 @@
     renderAddTagColorPicker();
     renderTagManager();
     els.tagManagerModal.hidden = false;
-    if (els.newTagName) els.newTagName.focus();
+
+    if (state.managedTagId) {
+      loadManagedTagScriptures(state.managedTagId, { force: true });
+    } else if (els.newTagName) {
+      els.newTagName.focus();
+    }
   }
 
   function closeTagManager() {
     if (!els.tagManagerModal) return;
+
+    managedTagScriptureLoadToken += 1;
+
+    if (managedTagScriptureDrag) {
+      finishManagedTagScriptureDrag(false);
+    }
+
     els.tagManagerModal.hidden = true;
     renderTagOptions();
   }
@@ -2425,6 +2446,12 @@
 
     editor.append(actions);
 
+    if (type === "tag") {
+      const divider = document.createElement("hr");
+      divider.className = "tag-scripture-divider";
+      editor.append(divider, createTagScriptureConnections(item));
+    }
+
     return editor;
   }
 
@@ -2534,6 +2561,681 @@
     });
   }
 
+  function resetManagedTagScriptureState(tagId = "") {
+    state.managedTagScriptures = [];
+    state.managedTagScripturesTagId = tagId;
+    state.editingManagedTagScriptureId = "";
+    state.isLoadingManagedTagScriptures = false;
+  }
+
+  async function loadManagedTagScriptures(tagId, options = {}) {
+    const normalizedTagId = String(tagId || "");
+    const force = Boolean(options.force);
+
+    if (!normalizedTagId) {
+      resetManagedTagScriptureState();
+      renderTagManager();
+      return;
+    }
+
+    if (
+      !force &&
+      state.managedTagScripturesTagId === normalizedTagId &&
+      !state.isLoadingManagedTagScriptures
+    ) {
+      return;
+    }
+
+    const loadToken = ++managedTagScriptureLoadToken;
+    state.managedTagScripturesTagId = normalizedTagId;
+    state.managedTagScriptures = [];
+    state.editingManagedTagScriptureId = "";
+    state.isLoadingManagedTagScriptures = true;
+    renderTagManager();
+
+    try {
+      const result = await fetchJson(
+        `/api/study-tags/${encodeURIComponent(normalizedTagId)}/scriptures`
+      );
+
+      if (
+        loadToken !== managedTagScriptureLoadToken ||
+        state.managedTagId !== normalizedTagId
+      ) {
+        return;
+      }
+
+      state.managedTagScriptures = Array.isArray(result.scriptures)
+        ? result.scriptures
+        : [];
+    } catch (error) {
+      if (loadToken !== managedTagScriptureLoadToken) {
+        return;
+      }
+
+      state.managedTagScriptures = [];
+      setStatus(error.message || "Failed to load Scripture connections.", "error");
+    } finally {
+      if (
+        loadToken === managedTagScriptureLoadToken &&
+        state.managedTagId === normalizedTagId
+      ) {
+        state.isLoadingManagedTagScriptures = false;
+        renderTagManager();
+      }
+    }
+  }
+
+  function selectManagedTag(tagId) {
+    const normalizedTagId = String(tagId || "");
+
+    if (!normalizedTagId) return;
+
+    state.managedTagId = normalizedTagId;
+    loadManagedTagScriptures(normalizedTagId, { force: true });
+  }
+
+  function updateManagedTagScriptureAddButton(referenceInput, button) {
+    if (!referenceInput || !button) return;
+    button.disabled = !normalizeName(referenceInput.value);
+  }
+
+  async function addManagedTagScripture(tag, referenceInput, noteInput, button) {
+    if (!tag?.id || !referenceInput || !noteInput || !button) return;
+
+    const reference = normalizeScriptureReference(referenceInput.value);
+    const note = noteInput.value.trim();
+
+    if (!reference) {
+      referenceInput.focus();
+      updateManagedTagScriptureAddButton(referenceInput, button);
+      return;
+    }
+
+    referenceInput.value = reference;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Adding...";
+
+    try {
+      const result = await fetchJson(
+        `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures`,
+        {
+          method: "POST",
+          body: JSON.stringify({ reference, note })
+        }
+      );
+
+      if (state.managedTagId !== tag.id) return;
+
+      state.managedTagScriptures.push(result.scripture);
+      state.managedTagScripturesTagId = tag.id;
+      state.editingManagedTagScriptureId = "";
+      setStatus("Scripture connected to tag.", "success");
+      renderTagManager();
+    } catch (error) {
+      setStatus(error.message || "Failed to connect Scripture to tag.", "error");
+      button.disabled = false;
+      button.textContent = originalText;
+      referenceInput.focus();
+    }
+  }
+
+  function beginManagedTagScriptureEdit(relationshipId) {
+    state.editingManagedTagScriptureId = relationshipId;
+    renderTagManager();
+
+    window.requestAnimationFrame(() => {
+      const input = els.tagManagerEditor?.querySelector(
+        `[data-tag-scripture-editor="${relationshipId}"] input`
+      );
+
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+  }
+
+  function cancelManagedTagScriptureEdit() {
+    state.editingManagedTagScriptureId = "";
+    renderTagManager();
+  }
+
+  async function saveManagedTagScriptureEdit(
+    tag,
+    item,
+    referenceInput,
+    noteInput,
+    button
+  ) {
+    if (!tag?.id || !item?.id || !referenceInput || !noteInput || !button) return;
+
+    const reference = normalizeScriptureReference(referenceInput.value);
+    const note = noteInput.value.trim();
+
+    if (!reference) {
+      referenceInput.focus();
+      return;
+    }
+
+    referenceInput.value = reference;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Saving...";
+
+    try {
+      const result = await fetchJson(
+        `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ reference, note })
+        }
+      );
+
+      if (state.managedTagId !== tag.id) return;
+
+      const index = state.managedTagScriptures.findIndex(
+        (scripture) => scripture.id === item.id
+      );
+
+      if (index >= 0) {
+        state.managedTagScriptures[index] = result.scripture;
+      }
+
+      state.editingManagedTagScriptureId = "";
+      setStatus("Scripture connection updated.", "success");
+      renderTagManager();
+    } catch (error) {
+      setStatus(error.message || "Failed to update Scripture connection.", "error");
+      button.disabled = false;
+      button.textContent = originalText;
+      referenceInput.focus();
+    }
+  }
+
+  async function deleteManagedTagScripture(tag, item) {
+    if (!tag?.id || !item?.id) return;
+
+    if (
+      !confirm(
+        `Remove ${item.reference || "this Scripture"} from ${tag.name || "this tag"}?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await fetchJson(
+        `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
+        { method: "DELETE" }
+      );
+
+      if (state.managedTagId !== tag.id) return;
+
+      state.managedTagScriptures = state.managedTagScriptures.filter(
+        (scripture) => scripture.id !== item.id
+      );
+
+      if (state.editingManagedTagScriptureId === item.id) {
+        state.editingManagedTagScriptureId = "";
+      }
+
+      setStatus("Scripture removed from tag.", "success");
+      renderTagManager();
+    } catch (error) {
+      setStatus(error.message || "Failed to remove Scripture from tag.", "error");
+    }
+  }
+
+  function persistManagedTagScriptureOrder(tagId, orderedIds) {
+    managedTagScriptureReorderQueue = managedTagScriptureReorderQueue
+      .then(() =>
+        fetchJson(`/api/study-tags/${encodeURIComponent(tagId)}/scriptures/reorder`, {
+          method: "PUT",
+          body: JSON.stringify({ orderedIds })
+        })
+      )
+      .catch((error) => {
+        setStatus(error.message || "Failed to save Scripture order.", "error");
+
+        if (state.managedTagId === tagId) {
+          loadManagedTagScriptures(tagId, { force: true });
+        }
+      });
+
+    return managedTagScriptureReorderQueue;
+  }
+
+  function applyManagedTagScriptureReorder(tagId, fromIndex, toIndex, focusId = "") {
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= state.managedTagScriptures.length ||
+      toIndex >= state.managedTagScriptures.length
+    ) {
+      renderTagManager();
+      return;
+    }
+
+    const [item] = state.managedTagScriptures.splice(fromIndex, 1);
+    state.managedTagScriptures.splice(toIndex, 0, item);
+    state.managedTagScriptures.forEach((scripture, index) => {
+      scripture.sortOrder = index;
+    });
+
+    const orderedIds = state.managedTagScriptures.map((scripture) => scripture.id);
+    renderTagManager();
+    persistManagedTagScriptureOrder(tagId, orderedIds);
+
+    if (focusId) {
+      window.requestAnimationFrame(() => {
+        els.tagManagerEditor
+          ?.querySelector(`[data-tag-scripture-drag-id="${focusId}"]`)
+          ?.focus();
+      });
+    }
+  }
+
+  function reorderManagedTagScriptureFromKeyboard(tagId, index, direction) {
+    const newIndex = index + direction;
+
+    if (newIndex < 0 || newIndex >= state.managedTagScriptures.length) {
+      return;
+    }
+
+    const focusId = state.managedTagScriptures[index]?.id || "";
+    applyManagedTagScriptureReorder(tagId, index, newIndex, focusId);
+  }
+
+  function updateManagedTagScriptureDragPosition(clientY) {
+    if (!managedTagScriptureDrag) return;
+
+    const { card, list } = managedTagScriptureDrag;
+    const siblings = Array.from(list.children).filter((child) => child !== card);
+    const insertBeforeCard = siblings.find((child) => {
+      const rect = child.getBoundingClientRect();
+      return clientY < rect.top + rect.height / 2;
+    });
+
+    if (insertBeforeCard) {
+      list.insertBefore(card, insertBeforeCard);
+    } else {
+      list.appendChild(card);
+    }
+  }
+
+  function finishManagedTagScriptureDrag(commit = true) {
+    if (!managedTagScriptureDrag) return;
+
+    const {
+      card,
+      list,
+      tagId,
+      startIndex,
+      pointerId,
+      pointerMoveHandler,
+      pointerUpHandler,
+      pointerCancelHandler
+    } = managedTagScriptureDrag;
+    const endIndex = Array.from(list.children).indexOf(card);
+
+    try {
+      card.releasePointerCapture?.(pointerId);
+    } catch (error) {
+      // Pointer capture may already have been released by the browser.
+    }
+
+    document.removeEventListener("pointermove", pointerMoveHandler);
+    document.removeEventListener("pointerup", pointerUpHandler);
+    document.removeEventListener("pointercancel", pointerCancelHandler);
+
+    card.classList.remove("is-dragging");
+    list.classList.remove("is-reordering");
+    document.body.classList.remove("is-reordering-linked-scripture");
+    managedTagScriptureDrag = null;
+
+    if (!commit || endIndex < 0 || endIndex === startIndex) {
+      renderTagManager();
+      return;
+    }
+
+    applyManagedTagScriptureReorder(tagId, startIndex, endIndex);
+  }
+
+  function beginManagedTagScriptureDrag(event, card, list, tagId, index) {
+    if (
+      managedTagScriptureDrag ||
+      state.managedTagScriptures.length < 2 ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const pointerId = event.pointerId;
+    const pointerMoveHandler = (moveEvent) => {
+      if (
+        !managedTagScriptureDrag ||
+        moveEvent.pointerId !== pointerId
+      ) {
+        return;
+      }
+
+      moveEvent.preventDefault();
+      updateManagedTagScriptureDragPosition(moveEvent.clientY);
+    };
+    const pointerUpHandler = (upEvent) => {
+      if (!managedTagScriptureDrag || upEvent.pointerId !== pointerId) return;
+      finishManagedTagScriptureDrag(true);
+    };
+    const pointerCancelHandler = (cancelEvent) => {
+      if (!managedTagScriptureDrag || cancelEvent.pointerId !== pointerId) return;
+      finishManagedTagScriptureDrag(false);
+    };
+
+    managedTagScriptureDrag = {
+      card,
+      list,
+      tagId,
+      startIndex: index,
+      pointerId,
+      pointerMoveHandler,
+      pointerUpHandler,
+      pointerCancelHandler
+    };
+
+    try {
+      card.setPointerCapture?.(pointerId);
+    } catch (error) {
+      // The document listeners below still provide drag support.
+    }
+
+    card.classList.add("is-dragging");
+    list.classList.add("is-reordering");
+    document.body.classList.add("is-reordering-linked-scripture");
+
+    document.addEventListener("pointermove", pointerMoveHandler, { passive: false });
+    document.addEventListener("pointerup", pointerUpHandler);
+    document.addEventListener("pointercancel", pointerCancelHandler);
+  }
+
+  function renderManagedTagScriptureEditor(tag, item) {
+    const editor = document.createElement("div");
+    editor.className = "linked-scripture-edit-form tag-scripture-edit-form";
+    editor.dataset.tagScriptureEditor = item.id;
+
+    const referenceLabel = document.createElement("label");
+    referenceLabel.textContent = "Reference";
+
+    const referenceInput = document.createElement("input");
+    referenceInput.type = "text";
+    referenceInput.value = item.reference || "";
+    referenceInput.placeholder = "Reference, e.g. John 3:16";
+    referenceInput.addEventListener("blur", () => {
+      referenceInput.value = normalizeScriptureReference(referenceInput.value);
+    });
+    referenceLabel.appendChild(referenceInput);
+
+    const noteLabel = document.createElement("label");
+    noteLabel.textContent = "Note";
+
+    const noteInput = document.createElement("textarea");
+    noteInput.rows = 3;
+    noteInput.value = item.note || "";
+    noteInput.placeholder = "Optional note or short reminder";
+    noteLabel.appendChild(noteInput);
+
+    const actions = document.createElement("div");
+    actions.className = "linked-scripture-edit-actions";
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "study-primary-button";
+    saveButton.textContent = "Save Changes";
+    saveButton.addEventListener("click", () =>
+      saveManagedTagScriptureEdit(
+        tag,
+        item,
+        referenceInput,
+        noteInput,
+        saveButton
+      )
+    );
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "study-secondary-button";
+    cancelButton.textContent = "Cancel";
+    cancelButton.addEventListener("click", cancelManagedTagScriptureEdit);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "study-danger-button";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => deleteManagedTagScripture(tag, item));
+
+    actions.append(saveButton, cancelButton, deleteButton);
+
+    editor.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        saveManagedTagScriptureEdit(
+          tag,
+          item,
+          referenceInput,
+          noteInput,
+          saveButton
+        );
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelManagedTagScriptureEdit();
+      }
+    });
+
+    editor.append(referenceLabel, noteLabel, actions);
+    return editor;
+  }
+
+  function renderManagedTagScriptureList(tag, list) {
+    list.innerHTML = "";
+
+    if (!state.managedTagScriptures.length) {
+      const empty = document.createElement("p");
+      empty.className = "study-manager-empty tag-scripture-empty";
+      empty.textContent = "No Scripture connections yet.";
+      list.appendChild(empty);
+      return;
+    }
+
+    state.managedTagScriptures.forEach((item, index) => {
+      const card = document.createElement("div");
+      card.className = "linked-scripture-item tag-scripture-item";
+      card.classList.toggle(
+        "is-editing",
+        state.editingManagedTagScriptureId === item.id
+      );
+
+      if (state.editingManagedTagScriptureId === item.id) {
+        card.appendChild(renderManagedTagScriptureEditor(tag, item));
+        list.appendChild(card);
+        return;
+      }
+
+      const main = document.createElement("div");
+      main.className = "linked-scripture-main";
+
+      const reference = document.createElement("button");
+      reference.type = "button";
+      reference.className = "study-reference-link";
+      reference.textContent = item.reference || "Scripture";
+      reference.setAttribute(
+        "aria-label",
+        `Preview ${item.reference || "Scripture"}`
+      );
+      reference.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openLinkedScripturePreview(reference, item);
+      });
+
+      const note = document.createElement("p");
+      note.textContent = item.note || "No note added.";
+
+      const footerActions = document.createElement("div");
+      footerActions.className = "linked-scripture-card-links";
+
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "linked-scripture-text-button";
+      editButton.textContent = "Edit";
+      editButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        beginManagedTagScriptureEdit(item.id);
+      });
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "linked-scripture-text-button is-danger";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        deleteManagedTagScripture(tag, item);
+      });
+
+      footerActions.append(editButton, deleteButton);
+      main.append(reference, note, footerActions);
+
+      const dragHandle = document.createElement("button");
+      dragHandle.type = "button";
+      dragHandle.className = "linked-scripture-drag-handle";
+      dragHandle.dataset.tagScriptureDragId = item.id;
+      dragHandle.innerHTML = '<span aria-hidden="true">⋮⋮</span>';
+      dragHandle.setAttribute(
+        "aria-label",
+        `Drag ${item.reference || "Scripture"} to reorder. Use arrow keys when focused.`
+      );
+      dragHandle.title = "Drag to reorder";
+      dragHandle.addEventListener("pointerdown", (event) =>
+        beginManagedTagScriptureDrag(event, card, list, tag.id, index)
+      );
+      dragHandle.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          reorderManagedTagScriptureFromKeyboard(tag.id, index, -1);
+        }
+
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          reorderManagedTagScriptureFromKeyboard(tag.id, index, 1);
+        }
+      });
+
+      card.addEventListener("dblclick", (event) => {
+        if (event.target.closest("button")) return;
+        beginManagedTagScriptureEdit(item.id);
+      });
+
+      card.append(main, dragHandle);
+      list.appendChild(card);
+    });
+  }
+
+  function createTagScriptureConnections(tag) {
+    const section = document.createElement("section");
+    section.className = "tag-scripture-connections";
+
+    const headingRow = document.createElement("div");
+    headingRow.className = "tag-scripture-heading-row";
+
+    const headingText = document.createElement("div");
+    headingText.appendChild(createSmallLabel("Scripture Connections"));
+
+    const heading = document.createElement("h3");
+    heading.textContent = "Scriptures connected to this tag";
+    headingText.appendChild(heading);
+
+    const count = document.createElement("span");
+    count.className = "tag-scripture-count";
+    count.textContent = String(state.managedTagScriptures.length);
+    count.setAttribute(
+      "aria-label",
+      `${state.managedTagScriptures.length} Scripture connections`
+    );
+
+    headingRow.append(headingText, count);
+    section.appendChild(headingRow);
+
+    const architectureNote = document.createElement("p");
+    architectureNote.className = "study-manager-section-note tag-scripture-note";
+    architectureNote.textContent =
+      "These connections belong to the tag. They do not automatically add Scriptures to a study's Referenced Scriptures.";
+    section.appendChild(architectureNote);
+
+    if (
+      state.isLoadingManagedTagScriptures ||
+      state.managedTagScripturesTagId !== tag.id
+    ) {
+      const loading = document.createElement("p");
+      loading.className = "study-manager-empty tag-scripture-loading";
+      loading.textContent = "Loading Scripture connections...";
+      section.appendChild(loading);
+      return section;
+    }
+
+    const addForm = document.createElement("div");
+    addForm.className = "study-inline-fields tag-scripture-add-form";
+
+    const referenceInput = document.createElement("input");
+    referenceInput.type = "text";
+    referenceInput.placeholder = "Reference, e.g. John 3:16";
+    referenceInput.setAttribute("aria-label", "Scripture reference to connect");
+
+    const noteInput = document.createElement("textarea");
+    noteInput.rows = 2;
+    noteInput.placeholder = "Optional note or short reminder";
+    noteInput.setAttribute("aria-label", "Optional Scripture connection note");
+
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "study-secondary-button tag-scripture-add-button";
+    addButton.textContent = "Add Scripture";
+    addButton.disabled = true;
+
+    referenceInput.addEventListener("input", () =>
+      updateManagedTagScriptureAddButton(referenceInput, addButton)
+    );
+    referenceInput.addEventListener("blur", () => {
+      referenceInput.value = normalizeScriptureReference(referenceInput.value);
+      updateManagedTagScriptureAddButton(referenceInput, addButton);
+    });
+    referenceInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addManagedTagScripture(tag, referenceInput, noteInput, addButton);
+      }
+    });
+    addButton.addEventListener("click", () =>
+      addManagedTagScripture(tag, referenceInput, noteInput, addButton)
+    );
+
+    addForm.append(referenceInput, noteInput, addButton);
+    section.appendChild(addForm);
+
+    const list = document.createElement("div");
+    list.className = "linked-scripture-list tag-scripture-list";
+    list.setAttribute("data-tag-scripture-list", tag.id);
+    renderManagedTagScriptureList(tag, list);
+    section.appendChild(list);
+
+    return section;
+  }
+
   function renderTagManager() {
     if (!els.tagManagerList) return;
 
@@ -2541,6 +3243,7 @@
 
     if (state.managedTagId && !getManagedTag()) {
       state.managedTagId = "";
+      resetManagedTagScriptureState();
     }
 
     els.tagManagerList.innerHTML = "";
@@ -2566,8 +3269,7 @@
     } else {
       state.availableTags.forEach((tag) => {
         rows.appendChild(renderManagerListRow(tag, state.managedTagId, "Tag", (id) => {
-          state.managedTagId = id;
-          renderTagManager();
+          selectManagedTag(id);
         }));
       });
     }
@@ -2645,6 +3347,7 @@
 
       sortByOrderAndName(state.availableTags);
       state.managedTagId = tag.id;
+      resetManagedTagScriptureState(tag.id);
       els.newTagName.value = "";
       state.newTagColor = "";
       hideTagCustomColorInput();
@@ -2772,6 +3475,7 @@
 
       if (state.managedTagId === tag.id) {
         state.managedTagId = "";
+        resetManagedTagScriptureState();
       }
 
       state.studies = state.studies.map((study) => ({
