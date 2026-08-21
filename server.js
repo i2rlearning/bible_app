@@ -564,7 +564,7 @@ function mapCategoryRow(row) {
 }
 
 function mapTagRow(row) {
-  return {
+  const tag = {
     id: row.id,
     userId: row.user_id,
     name: row.name,
@@ -573,6 +573,12 @@ function mapTagRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+
+  if (row.scripture_count !== undefined) {
+    tag.scriptureCount = Math.max(0, Number(row.scripture_count) || 0);
+  }
+
+  return tag;
 }
 
 function mapTagScriptureRow(row) {
@@ -783,16 +789,21 @@ async function getUserTags(userId) {
   const result = await pool.query(
     `
     SELECT
-      id,
-      user_id,
-      name,
-      color,
-      sort_order,
-      created_at,
-      updated_at
-    FROM user_tags
-    WHERE user_id = $1
-    ORDER BY sort_order, name
+      ut.id,
+      ut.user_id,
+      ut.name,
+      ut.color,
+      ut.sort_order,
+      ut.created_at,
+      ut.updated_at,
+      COUNT(tsr.id)::int AS scripture_count
+    FROM user_tags ut
+    LEFT JOIN tag_scripture_references tsr
+      ON tsr.user_id = ut.user_id
+      AND tsr.tag_id = ut.id
+    WHERE ut.user_id = $1
+    GROUP BY ut.id
+    ORDER BY ut.sort_order, ut.name
     `,
     [userId]
   );
