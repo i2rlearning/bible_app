@@ -1879,6 +1879,7 @@
     state.linkedScriptures[index] = { reference, note };
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
+    renderRelatedScriptures();
     markDirty();
     setStatus("Linked Scripture updated.", "success");
   }
@@ -1887,6 +1888,7 @@
     state.linkedScriptures.splice(index, 1);
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
+    renderRelatedScriptures();
     markDirty();
   }
 
@@ -2058,6 +2060,7 @@
     els.scriptureNote.value = "";
     updateAddScriptureButtonState();
     renderLinkedScriptures();
+    renderRelatedScriptures();
     markDirty();
   }
 
