@@ -2300,34 +2300,32 @@ body.is-reordering-linked-scripture {
 }
 
 /* Step 2: Referenced Scriptures + collapsible Related from tags */
-.referenced-scripture-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  margin: 16px 0 10px;
-  color: var(--study-navy);
-  font-size: 14px;
-  font-weight: 800;
+.study-tool-heading-scriptures {
+  justify-content: flex-start;
+  gap: 6px;
 }
 
-.referenced-scripture-summary-label {
+.study-tool-heading-scriptures .referenced-scripture-heading-count {
   min-width: 0;
-}
-
-.referenced-scripture-summary-count,
-.preview-referenced-summary-count {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--study-blue);
   font-weight: 900;
-}
-
-.referenced-scripture-summary + .linked-scripture-list {
-  margin-top: 0;
+  font-size: inherit;
 }
 
 .preview-referenced-summary {
   display: flex;
   align-items: baseline;
-  gap: 7px;
+  gap: 6px;
+}
+
+.preview-referenced-summary-count {
+  color: var(--study-blue);
+  font-weight: 900;
 }
 
 .related-scripture-disclosure-section {
