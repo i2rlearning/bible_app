@@ -169,6 +169,38 @@
     }
   }
 
+  function ensureReferencedScriptureFeedback() {
+    if (els.scriptureFeedback?.isConnected) {
+      return els.scriptureFeedback;
+    }
+
+    const card = els.scriptureList?.closest(".study-tool-card");
+    const heading = card?.querySelector(".study-tool-heading");
+
+    if (!card || !heading) return null;
+
+    const feedback = document.createElement("div");
+    feedback.className = "referenced-scripture-feedback";
+    feedback.setAttribute("aria-live", "polite");
+    feedback.hidden = true;
+    heading.after(feedback);
+
+    els.scriptureFeedback = feedback;
+    return feedback;
+  }
+
+  function setReferencedScriptureFeedback(message, type = "error") {
+    const feedback = ensureReferencedScriptureFeedback();
+    if (!feedback) return;
+
+    const finalMessage = message || "";
+    feedback.textContent = finalMessage;
+    feedback.hidden = !finalMessage;
+    feedback.classList.toggle("is-error", Boolean(finalMessage) && type === "error");
+    feedback.classList.toggle("is-success", Boolean(finalMessage) && type === "success");
+    feedback.setAttribute("role", type === "error" ? "alert" : "status");
+  }
+
   function markDirty() {
     state.hasUnsavedChanges = true;
     setSaveState("Unsaved changes");
@@ -619,6 +651,7 @@
     state.hasUnsavedChanges = false;
     setSaveState(state.activeStudyId ? "Loaded" : "Draft not saved yet", state.activeStudyId ? "success" : "");
     setStatus("", "");
+    setReferencedScriptureFeedback("", "");
 
     if (state.selectedTags.length) {
       loadRelatedScriptures({ force: true });
@@ -1371,6 +1404,7 @@
     // Keep the Referenced Scriptures count beside the section title.
     heading.classList.add("study-tool-heading-scriptures");
     els.scriptureCount.classList.add("referenced-scripture-heading-count");
+    ensureReferencedScriptureFeedback();
 
     const related = createRelatedScriptureDisclosure("edit");
     els.scriptureList.after(related.wrapper);
@@ -1645,11 +1679,12 @@
     if (!reference) return;
 
     if (isRelatedScriptureReferenced(reference)) {
-      setStatus(`${reference} is already in Referenced Scriptures.`, "success");
+      setReferencedScriptureFeedback(`${reference} already exists.`, "error");
       renderRelatedScriptures();
       return;
     }
 
+    setReferencedScriptureFeedback("", "");
     state.linkedScriptures.push({ reference, note: "" });
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
@@ -1981,11 +2016,12 @@
     }
 
     if (hasScriptureReference(state.linkedScriptures, reference, { ignoreIndex: index })) {
-      setStatus(`${reference} is already in Referenced Scriptures.`, "error");
+      setReferencedScriptureFeedback(`${reference} already exists.`, "error");
       referenceInput.focus();
       return;
     }
 
+    setReferencedScriptureFeedback("", "");
     state.linkedScriptures[index] = { reference, note };
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
@@ -2164,11 +2200,12 @@
     }
 
     if (hasScriptureReference(state.linkedScriptures, reference)) {
-      setStatus(`${reference} is already in Referenced Scriptures.`, "error");
+      setReferencedScriptureFeedback(`${reference} already exists.`, "error");
       els.scriptureReference.focus();
       return;
     }
 
+    setReferencedScriptureFeedback("", "");
     state.linkedScriptures.push({ reference, note });
     state.editingScriptureIndex = null;
 
@@ -5296,10 +5333,10 @@
     els.addTag.addEventListener("click", addTag);
     els.addScripture.addEventListener("click", addLinkedScripture);
     
-    els.scriptureReference.addEventListener(
-      "input",
-      updateAddScriptureButtonState
-    );
+    els.scriptureReference.addEventListener("input", () => {
+      updateAddScriptureButtonState();
+      setReferencedScriptureFeedback("", "");
+    });
     
     els.scriptureReference.addEventListener("blur", () => {
       els.scriptureReference.value =
