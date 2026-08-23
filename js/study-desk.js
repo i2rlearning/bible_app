@@ -464,6 +464,12 @@
     });
   });
 
+
+  function getCanonicalScriptureBookName(value) {
+    const aliasKey = getScriptureBookAliasKey(normalizeName(value));
+    return SCRIPTURE_BOOK_ALIAS_MAP.get(aliasKey) || "";
+  }
+
   function normalizeScriptureReference(value) {
     let cleaned = normalizeName(value);
 
@@ -478,31 +484,17 @@
 
     const match = cleaned.match(/^(.+?)(\s+\d.*)$/);
 
+    // If the user entered only a recognized book alias, canonicalize the
+    // book name but leave it invalid until a chapter or verse is supplied.
     if (!match) {
-      return cleaned;
+      return getCanonicalScriptureBookName(cleaned) || cleaned;
     }
 
     const rawBookName = normalizeName(match[1]);
-    const aliasKey = getScriptureBookAliasKey(rawBookName);
-    const canonicalBookName = SCRIPTURE_BOOK_ALIAS_MAP.get(aliasKey);
-    const smallWords = new Set(["of", "the", "and"]);
+    const canonicalBookName = getCanonicalScriptureBookName(rawBookName);
 
-    const bookName = canonicalBookName || rawBookName
-      .toLowerCase()
-      .split(/\s+/)
-      .map((word, index) => {
-        if (/^[ivx]+$/i.test(word)) {
-          return word.toUpperCase();
-        }
-
-        if (index > 0 && smallWords.has(word)) {
-          return word;
-        }
-
-        return word.charAt(0).toUpperCase() + word.slice(1);
-      })
-      .join(" ");
-
+    // Keep unknown book text intact so validation can reject it explicitly.
+    const bookName = canonicalBookName || rawBookName;
     let reference = `${bookName}${match[2]}`;
 
     // Remove partial-verse letters such as 22a, 22b, 22c.
@@ -512,6 +504,214 @@
     );
 
     return reference;
+  }
+
+  function positiveScriptureInteger(value) {
+    const number = Number(value);
+    return Number.isInteger(number) && number > 0 ? number : null;
+  }
+
+  function buildClientParsedScriptureReference(
+    book,
+    startChapter,
+    startVerse,
+    endChapter,
+    endVerse
+  ) {
+    if (!book || !startChapter) {
+      return null;
+    }
+
+    if (startVerse === null) {
+      if (!endChapter || endVerse !== null || endChapter < startChapter) {
+        return null;
+      }
+
+      return {
+        normalizedReference: endChapter === startChapter
+          ? `${book} ${startChapter}`
+          : `${book} ${startChapter}-${endChapter}`,
+        book,
+        startChapter,
+        startVerse: null,
+        endChapter,
+        endVerse: null
+      };
+    }
+
+    if (!endChapter || !endVerse) {
+      return null;
+    }
+
+    if (endChapter < startChapter) {
+      return null;
+    }
+
+    if (endChapter === startChapter && endVerse < startVerse) {
+      return null;
+    }
+
+    let normalizedReference = `${book} ${startChapter}:${startVerse}`;
+
+    if (endChapter !== startChapter || endVerse !== startVerse) {
+      normalizedReference += endChapter === startChapter
+        ? `-${endVerse}`
+        : `-${endChapter}:${endVerse}`;
+    }
+
+    return {
+      normalizedReference,
+      book,
+      startChapter,
+      startVerse,
+      endChapter,
+      endVerse
+    };
+  }
+
+  function parseScriptureReferenceInput(value) {
+    const normalized = normalizeScriptureReference(value);
+
+    if (!normalized) {
+      return null;
+    }
+
+    let match = normalized.match(/^(.+?)\s+(\d+):(\d+)-(\d+):(\d+)$/);
+
+    if (match) {
+      const book = getCanonicalScriptureBookName(match[1]);
+      const startChapter = positiveScriptureInteger(match[2]);
+      const startVerse = positiveScriptureInteger(match[3]);
+      const endChapter = positiveScriptureInteger(match[4]);
+      const endVerse = positiveScriptureInteger(match[5]);
+
+      return buildClientParsedScriptureReference(
+        book,
+        startChapter,
+        startVerse,
+        endChapter,
+        endVerse
+      );
+    }
+
+    match = normalized.match(/^(.+?)\s+(\d+):(\d+)-(\d+)$/);
+
+    if (match) {
+      const book = getCanonicalScriptureBookName(match[1]);
+      const chapter = positiveScriptureInteger(match[2]);
+      const startVerse = positiveScriptureInteger(match[3]);
+      const endVerse = positiveScriptureInteger(match[4]);
+
+      return buildClientParsedScriptureReference(
+        book,
+        chapter,
+        startVerse,
+        chapter,
+        endVerse
+      );
+    }
+
+    match = normalized.match(/^(.+?)\s+(\d+)-(\d+)$/);
+
+    if (match) {
+      const book = getCanonicalScriptureBookName(match[1]);
+      const startChapter = positiveScriptureInteger(match[2]);
+      const endChapter = positiveScriptureInteger(match[3]);
+
+      return buildClientParsedScriptureReference(
+        book,
+        startChapter,
+        null,
+        endChapter,
+        null
+      );
+    }
+
+    match = normalized.match(/^(.+?)\s+(\d+):(\d+)$/);
+
+    if (match) {
+      const book = getCanonicalScriptureBookName(match[1]);
+      const chapter = positiveScriptureInteger(match[2]);
+      const verse = positiveScriptureInteger(match[3]);
+
+      return buildClientParsedScriptureReference(
+        book,
+        chapter,
+        verse,
+        chapter,
+        verse
+      );
+    }
+
+    match = normalized.match(/^(.+?)\s+(\d+)$/);
+
+    if (match) {
+      const book = getCanonicalScriptureBookName(match[1]);
+      const chapter = positiveScriptureInteger(match[2]);
+
+      return buildClientParsedScriptureReference(
+        book,
+        chapter,
+        null,
+        chapter,
+        null
+      );
+    }
+
+    return null;
+  }
+
+  function validateScriptureReference(value) {
+    const cleaned = normalizeName(value);
+
+    if (!cleaned) {
+      return {
+        valid: false,
+        code: "EMPTY",
+        reference: "",
+        message: "Enter a Scripture reference."
+      };
+    }
+
+    const normalized = normalizeScriptureReference(cleaned);
+    const parsed = parseScriptureReferenceInput(normalized);
+
+    if (parsed) {
+      return {
+        valid: true,
+        code: "",
+        reference: parsed.normalizedReference,
+        parsed,
+        message: ""
+      };
+    }
+
+    if (getCanonicalScriptureBookName(normalized)) {
+      return {
+        valid: false,
+        code: "MISSING_LOCATION",
+        reference: normalized,
+        message: `Enter a chapter or verse, e.g. ${normalized} 3 or ${normalized} 3:16.`
+      };
+    }
+
+    const bookAndLocation = normalized.match(/^(.+?)(\s+\d.*)$/);
+
+    if (bookAndLocation && !getCanonicalScriptureBookName(bookAndLocation[1])) {
+      return {
+        valid: false,
+        code: "UNKNOWN_BOOK",
+        reference: normalized,
+        message: "Enter a recognized Bible book, e.g. John 3:16."
+      };
+    }
+
+    return {
+      valid: false,
+      code: "INVALID_REFERENCE",
+      reference: normalized,
+      message: "Enter a valid Scripture reference, e.g. John 3 or John 3:16."
+    };
   }
   
   function normalizeColorValue(value) {
@@ -1675,8 +1875,17 @@
   }
 
   function addRelatedScriptureToReferenced(item) {
-    const reference = normalizeScriptureReference(item?.reference || "");
-    if (!reference) return;
+    const validation = validateScriptureReference(item?.reference || "");
+
+    if (!validation.valid) {
+      setReferencedScriptureFeedback(
+        "This tag contains an invalid Scripture reference.",
+        "error"
+      );
+      return;
+    }
+
+    const reference = validation.reference;
 
     if (isRelatedScriptureReferenced(reference)) {
       setReferencedScriptureFeedback(`${reference} already exists.`, "error");
@@ -2007,13 +2216,17 @@
   }
 
   function saveLinkedScriptureEdit(index, referenceInput, noteInput) {
-    const reference = normalizeScriptureReference(referenceInput.value);
+    const validation = validateScriptureReference(referenceInput.value);
     const note = noteInput.value.trim();
 
-    if (!reference) {
+    if (!validation.valid) {
+      referenceInput.value = validation.reference;
+      setReferencedScriptureFeedback(validation.message, "error");
       referenceInput.focus();
       return;
     }
+
+    const reference = validation.reference;
 
     if (hasScriptureReference(state.linkedScriptures, reference, { ignoreIndex: index })) {
       setReferencedScriptureFeedback(`${reference} already exists.`, "error");
@@ -2050,6 +2263,17 @@
     referenceInput.type = "text";
     referenceInput.value = item.reference || "";
     referenceInput.placeholder = "Reference, e.g. John 3:16";
+    referenceInput.addEventListener("input", () => {
+      setReferencedScriptureFeedback("", "");
+    });
+    referenceInput.addEventListener("blur", () => {
+      const validation = validateScriptureReference(referenceInput.value);
+      referenceInput.value = validation.reference;
+
+      if (normalizeName(referenceInput.value) && !validation.valid) {
+        setReferencedScriptureFeedback(validation.message, "error");
+      }
+    });
 
     referenceLabel.appendChild(referenceInput);
 
@@ -2186,18 +2410,23 @@
   }
 
   function updateAddScriptureButtonState() {
-    els.addScripture.disabled = !normalizeName(els.scriptureReference.value);
+    const validation = validateScriptureReference(els.scriptureReference.value);
+    els.addScripture.disabled = !validation.valid;
   }
 
   function addLinkedScripture() {
-    const reference = normalizeScriptureReference(els.scriptureReference.value);
+    const validation = validateScriptureReference(els.scriptureReference.value);
     const note = els.scriptureNote.value.trim();
 
-    if (!reference) {
+    if (!validation.valid) {
+      els.scriptureReference.value = validation.reference;
+      setReferencedScriptureFeedback(validation.message, "error");
       updateAddScriptureButtonState();
       els.scriptureReference.focus();
       return;
     }
+
+    const reference = validation.reference;
 
     if (hasScriptureReference(state.linkedScriptures, reference)) {
       setReferencedScriptureFeedback(`${reference} already exists.`, "error");
@@ -3655,24 +3884,25 @@
 
   function updateManagedTagScriptureAddButton(referenceInput, button) {
     if (!referenceInput || !button) return;
-    button.disabled = !normalizeName(referenceInput.value);
+    const validation = validateScriptureReference(referenceInput.value);
+    button.disabled = !validation.valid;
   }
 
   async function addManagedTagScripture(tag, referenceInput, noteInput, button) {
     if (!tag?.id || !referenceInput || !noteInput || !button) return;
 
-    const reference = normalizeScriptureReference(referenceInput.value);
+    const validation = validateScriptureReference(referenceInput.value);
     const note = noteInput.value.trim();
 
-    if (!reference) {
-      setManagedTagScriptureFeedback(
-        "Enter a valid Scripture reference, for example John 3:16.",
-        "error"
-      );
+    if (!validation.valid) {
+      referenceInput.value = validation.reference;
+      setManagedTagScriptureFeedback(validation.message, "error");
       referenceInput.focus();
       updateManagedTagScriptureAddButton(referenceInput, button);
       return;
     }
+
+    const reference = validation.reference;
 
     if (hasScriptureReference(state.managedTagScriptures, reference)) {
       setManagedTagScriptureFeedback(
@@ -3757,17 +3987,17 @@
   ) {
     if (!tag?.id || !item?.id || !referenceInput || !noteInput || !button) return;
 
-    const reference = normalizeScriptureReference(referenceInput.value);
+    const validation = validateScriptureReference(referenceInput.value);
     const note = noteInput.value.trim();
 
-    if (!reference) {
-      setManagedTagScriptureFeedback(
-        "Enter a valid Scripture reference, for example John 3:16.",
-        "error"
-      );
+    if (!validation.valid) {
+      referenceInput.value = validation.reference;
+      setManagedTagScriptureFeedback(validation.message, "error");
       referenceInput.focus();
       return;
     }
+
+    const reference = validation.reference;
 
     if (hasScriptureReference(state.managedTagScriptures, reference, { ignoreId: item.id })) {
       setManagedTagScriptureFeedback(
@@ -4049,8 +4279,16 @@
     referenceInput.type = "text";
     referenceInput.value = item.reference || "";
     referenceInput.placeholder = "Reference, e.g. John 3:16";
+    referenceInput.addEventListener("input", () => {
+      setManagedTagScriptureFeedback("", "");
+    });
     referenceInput.addEventListener("blur", () => {
-      referenceInput.value = normalizeScriptureReference(referenceInput.value);
+      const validation = validateScriptureReference(referenceInput.value);
+      referenceInput.value = validation.reference;
+
+      if (normalizeName(referenceInput.value) && !validation.valid) {
+        setManagedTagScriptureFeedback(validation.message, "error");
+      }
     });
     referenceLabel.appendChild(referenceInput);
 
@@ -4286,8 +4524,13 @@
       updateManagedTagScriptureAddButton(referenceInput, addButton);
     });
     referenceInput.addEventListener("blur", () => {
-      referenceInput.value = normalizeScriptureReference(referenceInput.value);
+      const validation = validateScriptureReference(referenceInput.value);
+      referenceInput.value = validation.reference;
       updateManagedTagScriptureAddButton(referenceInput, addButton);
+
+      if (normalizeName(referenceInput.value) && !validation.valid) {
+        setManagedTagScriptureFeedback(validation.message, "error");
+      }
     });
     referenceInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -5339,8 +5582,13 @@
     });
     
     els.scriptureReference.addEventListener("blur", () => {
-      els.scriptureReference.value =
-        normalizeScriptureReference(els.scriptureReference.value);
+      const validation = validateScriptureReference(els.scriptureReference.value);
+      els.scriptureReference.value = validation.reference;
+      updateAddScriptureButtonState();
+
+      if (normalizeName(els.scriptureReference.value) && !validation.valid) {
+        setReferencedScriptureFeedback(validation.message, "error");
+      }
     });
     
     updateAddScriptureButtonState();
