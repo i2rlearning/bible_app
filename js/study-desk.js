@@ -50,6 +50,7 @@
   const STUDY_SYNC_STORAGE_KEY = "branchOfIsraelStudySync";
   const STUDY_SYNC_POLL_MS = 15000;
   const linkedScripturePreviewCache = new Map();
+  const linkedScriptureBookCache = new Map();
   let activeScripturePopupAnchor = null;
   let managedTagScriptureLoadToken = 0;
   let managedTagScriptureDrag = null;
@@ -1846,51 +1847,85 @@
     return result;
   }
 
-  async function fetchLinkedChapterRangePreview(parsedReference, bibleState, cleanReference) {
-    const startLookupReference = `${parsedReference.book} ${parsedReference.chapter}:1`;
-    const lookupUrl =
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
-      `/search?query=${encodeURIComponent(startLookupReference)}&limit=10`;
+  function normalizePreviewBookKey(value) {
+    return normalizeName(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  }
 
-    const lookupResult = await fetchPreviewBibleApiJson(
-      lookupUrl,
-      `Could not find ${startLookupReference} in ${bibleState.bibleAbbr || "the selected Bible"}.`
+  function getPreviewBookLookupKeys(book) {
+    const keys = new Set();
+
+    [book?.id, book?.abbreviation, book?.name, book?.nameLong].forEach((value) => {
+      const key = normalizePreviewBookKey(value);
+      if (key) keys.add(key);
+    });
+
+    return keys;
+  }
+
+  async function getPreviewBibleBooks(bibleState) {
+    if (linkedScriptureBookCache.has(bibleState.bibleId)) {
+      return linkedScriptureBookCache.get(bibleState.bibleId);
+    }
+
+    const booksUrl =
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
+      "/books?include-chapters=true";
+
+    const booksResult = await fetchPreviewBibleApiJson(
+      booksUrl,
+      `Could not load the books for ${bibleState.bibleAbbr || "the selected Bible"}.`
     );
 
-    const lookupVerses = Array.isArray(lookupResult.data?.verses)
-      ? lookupResult.data.verses
-      : [];
+    const books = Array.isArray(booksResult.data) ? booksResult.data : [];
+    linkedScriptureBookCache.set(bibleState.bibleId, books);
+    return books;
+  }
 
-    const startVerse = lookupVerses.find((verse) => {
-      const parts = parseVerseReferenceParts(verse.reference);
-      return (
-        parts &&
-        parts.book === parsedReference.book.toLowerCase() &&
-        parts.chapter === parsedReference.chapter &&
-        parts.verse === 1
-      );
-    }) || lookupVerses[0];
+  function findPreviewBibleBook(books, requestedBook) {
+    const requestedKey = normalizePreviewBookKey(requestedBook);
+    const alternateKeys = new Set([requestedKey]);
 
-    const bookId = startVerse?.bookId;
+    if (requestedKey === "songofsolomon") alternateKeys.add("songofsongs");
+    if (requestedKey === "songofsongs") alternateKeys.add("songofsolomon");
+    if (requestedKey === "psalm") alternateKeys.add("psalms");
+    if (requestedKey === "psalms") alternateKeys.add("psalm");
 
-    if (!bookId) {
+    return books.find((book) => {
+      const bookKeys = getPreviewBookLookupKeys(book);
+      return Array.from(alternateKeys).some((key) => bookKeys.has(key));
+    }) || null;
+  }
+
+  async function fetchLinkedChapterRangePreview(parsedReference, bibleState, cleanReference) {
+    const books = await getPreviewBibleBooks(bibleState);
+    const resolvedBook = findPreviewBibleBook(books, parsedReference.book);
+
+    if (!resolvedBook?.id) {
       throw new Error(
         `Could not resolve ${parsedReference.book} in ${bibleState.bibleAbbr || "the selected Bible"}.`
       );
     }
 
-    const chaptersUrl =
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
-      `/books/${encodeURIComponent(bookId)}/chapters`;
-
-    const chaptersResult = await fetchPreviewBibleApiJson(
-      chaptersUrl,
-      `Could not load the chapters for ${parsedReference.book}.`
-    );
-
-    const availableChapters = Array.isArray(chaptersResult.data)
-      ? chaptersResult.data
+    let availableChapters = Array.isArray(resolvedBook.chapters)
+      ? resolvedBook.chapters
       : [];
+
+    if (!availableChapters.length) {
+      const chaptersUrl =
+        `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
+        `/books/${encodeURIComponent(resolvedBook.id)}/chapters`;
+
+      const chaptersResult = await fetchPreviewBibleApiJson(
+        chaptersUrl,
+        `Could not load the chapters for ${parsedReference.book}.`
+      );
+
+      availableChapters = Array.isArray(chaptersResult.data)
+        ? chaptersResult.data
+        : [];
+    }
 
     const chapterByNumber = new Map();
 
