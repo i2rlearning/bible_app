@@ -16,6 +16,8 @@
     relatedScripturesKey: "",
     relatedScripturesError: "",
     isLoadingRelatedScriptures: false,
+    relatedScripturesExpanded: false,
+    previewRelatedScripturesExpanded: false,
     studyScriptureTab: "referenced",
     previewScriptureTab: "referenced",
     editingScriptureIndex: null,
@@ -487,6 +489,8 @@
     state.linkedScriptures = Array.isArray(data.linkedScriptures) ? data.linkedScriptures.slice() : [];
     state.studyScriptureTab = "referenced";
     state.previewScriptureTab = "referenced";
+    state.relatedScripturesExpanded = false;
+    state.previewRelatedScripturesExpanded = false;
     state.editingScriptureIndex = null;
     invalidateRelatedScriptures();
 
@@ -1073,6 +1077,8 @@
       option.value = tag.name;
       els.tagOptions.appendChild(option);
     });
+
+    updateAddTagButtonState();
   }
 
   function isTagSelected(tagId) {
@@ -1119,12 +1125,30 @@
       chip.append(text, removeButton);
       els.tagList.appendChild(chip);
     });
+
+    updateAddTagButtonState();
+  }
+
+  function updateAddTagButtonState() {
+    if (!els.addTag || !els.tagInput) return;
+
+    const raw = els.tagInput.value.trim().replace(/\s+/g, " ");
+    if (!raw) {
+      els.addTag.disabled = true;
+      return;
+    }
+
+    const existing = state.availableTags.find(
+      (tag) => String(tag.name || "").toLowerCase() === raw.toLowerCase()
+    );
+
+    els.addTag.disabled = Boolean(existing && isTagSelected(existing.id));
   }
 
   async function addTag() {
     const raw = els.tagInput.value.trim();
 
-    if (!raw) return;
+    if (!raw || els.addTag?.disabled) return;
 
     const name = raw.replace(/\s+/g, " ");
     const existing = state.availableTags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
@@ -1153,6 +1177,7 @@
       }
 
       els.tagInput.value = "";
+      updateAddTagButtonState();
       els.tagInput.focus();
     } catch (error) {
       setStatus(error.message, "error");
@@ -1181,23 +1206,53 @@
       .join("|");
   }
 
-  function createScriptureTabButton(label, count, tabName, context) {
+  function createRelatedScriptureDisclosure(context) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "related-scripture-disclosure-section";
+
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "study-scripture-tab";
-    button.setAttribute("role", "tab");
-    button.dataset.scriptureTab = tabName;
-    button.dataset.scriptureTabContext = context;
+    button.className = "related-scripture-disclosure";
 
-    const text = document.createElement("span");
-    text.textContent = label;
+    const title = document.createElement("span");
+    title.className = "related-scripture-disclosure-title";
+    title.textContent = "Related from your tags";
 
-    const badge = document.createElement("span");
-    badge.className = "study-scripture-tab-count";
-    badge.textContent = String(count || 0);
+    const count = document.createElement("span");
+    count.className = "related-scripture-disclosure-count";
+    count.textContent = "(0)";
 
-    button.append(text, badge);
-    return { button, badge };
+    const chevron = document.createElement("span");
+    chevron.className = "related-scripture-disclosure-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.textContent = "⌄";
+
+    const label = document.createElement("span");
+    label.className = "related-scripture-disclosure-label";
+    label.append(title, count);
+
+    button.append(label, chevron);
+
+    const panel = document.createElement("div");
+    panel.className = "related-scripture-disclosure-panel";
+    panel.hidden = true;
+
+    const intro = document.createElement("p");
+    intro.className = "related-scripture-disclosure-intro";
+    intro.textContent = context === "preview"
+      ? "Scriptures connected to the tags in this study."
+      : "Scriptures connected to the tags in this study. Add any to your Referenced Scriptures.";
+
+    const list = document.createElement("div");
+    list.className = context === "preview"
+      ? "preview-linked-scriptures related-scripture-list"
+      : "related-scripture-list";
+    list.setAttribute("aria-live", "polite");
+
+    panel.append(intro, list);
+    wrapper.append(button, panel);
+
+    return { wrapper, button, count, chevron, panel, list };
   }
 
   function ensureStudyScriptureTabs() {
@@ -1207,89 +1262,39 @@
     const heading = card?.querySelector(".study-tool-heading");
     const fields = card?.querySelector(".study-inline-fields");
 
-    if (!card || !heading || !fields) return;
+    if (!card || !heading || !fields || !els.scriptureCount) return;
 
-    const tabList = document.createElement("div");
-    tabList.className = "study-scripture-tabs";
-    tabList.setAttribute("role", "tablist");
-    tabList.setAttribute("aria-label", "Study Scriptures");
+    const summary = document.createElement("div");
+    summary.className = "referenced-scripture-summary";
 
-    const referenced = createScriptureTabButton(
-      "Referenced",
-      state.linkedScriptures.length,
-      "referenced",
-      "edit"
-    );
-    const related = createScriptureTabButton(
-      "Related",
-      state.relatedScriptures.length,
-      "related",
-      "edit"
-    );
+    const summaryLabel = document.createElement("span");
+    summaryLabel.className = "referenced-scripture-summary-label";
+    summaryLabel.textContent = "Referenced Scriptures:";
 
-    referenced.button.id = "study-referenced-scriptures-tab";
-    referenced.button.setAttribute("aria-controls", "study-referenced-scriptures-panel");
-    related.button.id = "study-related-scriptures-tab";
-    related.button.setAttribute("aria-controls", "study-related-scriptures-panel");
+    els.scriptureCount.className = "referenced-scripture-summary-count";
+    summary.append(summaryLabel, els.scriptureCount);
 
-    tabList.append(referenced.button, related.button);
-    heading.replaceChildren(tabList);
-    heading.classList.add("study-scripture-tab-heading");
+    // The count is now shown between the Add button and the Scripture list.
+    heading.hidden = true;
+    fields.after(summary);
 
-    const referencedPanel = document.createElement("div");
-    referencedPanel.id = "study-referenced-scriptures-panel";
-    referencedPanel.className = "study-scripture-tab-panel";
-    referencedPanel.setAttribute("role", "tabpanel");
-    referencedPanel.setAttribute("aria-labelledby", referenced.button.id);
-    referencedPanel.append(fields, els.scriptureList);
+    const related = createRelatedScriptureDisclosure("edit");
+    els.scriptureList.after(related.wrapper);
 
-    const relatedPanel = document.createElement("div");
-    relatedPanel.id = "study-related-scriptures-panel";
-    relatedPanel.className = "study-scripture-tab-panel";
-    relatedPanel.setAttribute("role", "tabpanel");
-    relatedPanel.setAttribute("aria-labelledby", related.button.id);
-
-    const relatedList = document.createElement("div");
-    relatedList.className = "related-scripture-list";
-    relatedList.setAttribute("aria-live", "polite");
-    relatedPanel.appendChild(relatedList);
-
-    heading.after(referencedPanel, relatedPanel);
-
-    els.scriptureCount = referenced.badge;
-    els.relatedScriptureCount = related.badge;
-    els.studyReferencedScriptureTab = referenced.button;
-    els.studyRelatedScriptureTab = related.button;
-    els.studyReferencedScripturePanel = referencedPanel;
-    els.studyRelatedScripturePanel = relatedPanel;
-    els.relatedScriptureList = relatedList;
+    els.relatedScriptureCount = related.count;
+    els.studyRelatedScriptureDisclosure = related.button;
+    els.studyRelatedScriptureChevron = related.chevron;
+    els.studyRelatedScripturePanel = related.panel;
+    els.relatedScriptureList = related.list;
     els.studyScriptureTabsReady = true;
 
-    tabList.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-scripture-tab]");
-      if (!button) return;
-
-      state.studyScriptureTab = button.dataset.scriptureTab === "related"
-        ? "related"
-        : "referenced";
+    related.button.addEventListener("click", () => {
+      state.relatedScripturesExpanded = !state.relatedScripturesExpanded;
       updateScriptureTabUI();
 
-      if (state.studyScriptureTab === "related") {
+      if (state.relatedScripturesExpanded) {
         loadRelatedScriptures();
       }
-    });
-
-    tabList.addEventListener("keydown", (event) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      const buttons = [referenced.button, related.button];
-      const currentIndex = buttons.indexOf(document.activeElement);
-      if (currentIndex < 0) return;
-      event.preventDefault();
-      const nextIndex = event.key === "ArrowRight"
-        ? (currentIndex + 1) % buttons.length
-        : (currentIndex - 1 + buttons.length) % buttons.length;
-      buttons[nextIndex].focus();
-      buttons[nextIndex].click();
     });
   }
 
@@ -1301,86 +1306,33 @@
 
     if (!section || !heading) return;
 
-    const tabList = document.createElement("div");
-    tabList.className = "study-scripture-tabs preview-scripture-tabs";
-    tabList.setAttribute("role", "tablist");
-    tabList.setAttribute("aria-label", "Preview Scriptures");
+    heading.classList.add("preview-referenced-summary");
+    const headingLabel = document.createElement("span");
+    headingLabel.textContent = "Referenced Scriptures:";
 
-    const referenced = createScriptureTabButton(
-      "Referenced",
-      state.linkedScriptures.length,
-      "referenced",
-      "preview"
-    );
-    const related = createScriptureTabButton(
-      "Related",
-      state.relatedScriptures.length,
-      "related",
-      "preview"
-    );
+    const count = document.createElement("span");
+    count.className = "preview-referenced-summary-count";
+    count.textContent = String(state.linkedScriptures.length);
+    heading.replaceChildren(headingLabel, count);
 
-    referenced.button.id = "preview-referenced-scriptures-tab";
-    referenced.button.setAttribute("aria-controls", "preview-referenced-scriptures-panel");
-    related.button.id = "preview-related-scriptures-tab";
-    related.button.setAttribute("aria-controls", "preview-related-scriptures-panel");
+    const related = createRelatedScriptureDisclosure("preview");
+    section.appendChild(related.wrapper);
 
-    tabList.append(referenced.button, related.button);
-    heading.replaceWith(tabList);
-
-    const referencedPanel = document.createElement("div");
-    referencedPanel.id = "preview-referenced-scriptures-panel";
-    referencedPanel.className = "study-scripture-tab-panel";
-    referencedPanel.setAttribute("role", "tabpanel");
-    referencedPanel.setAttribute("aria-labelledby", referenced.button.id);
-    referencedPanel.appendChild(els.previewLinkedScriptures);
-
-    const relatedPanel = document.createElement("div");
-    relatedPanel.id = "preview-related-scriptures-panel";
-    relatedPanel.className = "study-scripture-tab-panel";
-    relatedPanel.setAttribute("role", "tabpanel");
-    relatedPanel.setAttribute("aria-labelledby", related.button.id);
-
-    const relatedList = document.createElement("div");
-    relatedList.className = "preview-linked-scriptures related-scripture-list";
-    relatedList.setAttribute("aria-live", "polite");
-    relatedPanel.appendChild(relatedList);
-
-    section.append(referencedPanel, relatedPanel);
-
-    els.previewReferencedScriptureCount = referenced.badge;
-    els.previewRelatedScriptureCount = related.badge;
-    els.previewReferencedScriptureTab = referenced.button;
-    els.previewRelatedScriptureTab = related.button;
-    els.previewReferencedScripturePanel = referencedPanel;
-    els.previewRelatedScripturePanel = relatedPanel;
-    els.previewRelatedScriptureList = relatedList;
+    els.previewReferencedScriptureCount = count;
+    els.previewRelatedScriptureCount = related.count;
+    els.previewRelatedScriptureDisclosure = related.button;
+    els.previewRelatedScriptureChevron = related.chevron;
+    els.previewRelatedScripturePanel = related.panel;
+    els.previewRelatedScriptureList = related.list;
     els.previewScriptureTabsReady = true;
 
-    tabList.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-scripture-tab]");
-      if (!button) return;
-
-      state.previewScriptureTab = button.dataset.scriptureTab === "related"
-        ? "related"
-        : "referenced";
+    related.button.addEventListener("click", () => {
+      state.previewRelatedScripturesExpanded = !state.previewRelatedScripturesExpanded;
       updateScriptureTabUI();
 
-      if (state.previewScriptureTab === "related") {
+      if (state.previewRelatedScripturesExpanded) {
         loadRelatedScriptures();
       }
-    });
-
-    tabList.addEventListener("keydown", (event) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      const buttons = [referenced.button, related.button];
-      const currentIndex = buttons.indexOf(document.activeElement);
-      if (currentIndex < 0) return;
-      event.preventDefault();
-      const nextIndex = event.key === "ArrowRight"
-        ? (currentIndex + 1) % buttons.length
-        : (currentIndex - 1 + buttons.length) % buttons.length;
-      buttons[nextIndex].focus();
-      buttons[nextIndex].click();
     });
   }
 
@@ -1392,34 +1344,42 @@
       els.scriptureCount.textContent = String(state.linkedScriptures.length);
     }
     if (els.relatedScriptureCount) {
-      els.relatedScriptureCount.textContent = String(state.relatedScriptures.length);
+      els.relatedScriptureCount.textContent = `(${state.relatedScriptures.length})`;
     }
     if (els.previewReferencedScriptureCount) {
       els.previewReferencedScriptureCount.textContent = String(state.linkedScriptures.length);
     }
     if (els.previewRelatedScriptureCount) {
-      els.previewRelatedScriptureCount.textContent = String(state.relatedScriptures.length);
+      els.previewRelatedScriptureCount.textContent = `(${state.relatedScriptures.length})`;
     }
 
-    const editRelated = state.studyScriptureTab === "related";
-    els.studyReferencedScriptureTab?.classList.toggle("is-active", !editRelated);
-    els.studyRelatedScriptureTab?.classList.toggle("is-active", editRelated);
-    els.studyReferencedScriptureTab?.setAttribute("aria-selected", String(!editRelated));
-    els.studyRelatedScriptureTab?.setAttribute("aria-selected", String(editRelated));
-    if (els.studyReferencedScriptureTab) els.studyReferencedScriptureTab.tabIndex = editRelated ? -1 : 0;
-    if (els.studyRelatedScriptureTab) els.studyRelatedScriptureTab.tabIndex = editRelated ? 0 : -1;
-    if (els.studyReferencedScripturePanel) els.studyReferencedScripturePanel.hidden = editRelated;
-    if (els.studyRelatedScripturePanel) els.studyRelatedScripturePanel.hidden = !editRelated;
+    if (els.studyRelatedScriptureDisclosure) {
+      els.studyRelatedScriptureDisclosure.setAttribute(
+        "aria-expanded",
+        String(state.relatedScripturesExpanded)
+      );
+    }
+    if (els.studyRelatedScripturePanel) {
+      els.studyRelatedScripturePanel.hidden = !state.relatedScripturesExpanded;
+    }
+    els.studyRelatedScriptureChevron?.classList.toggle(
+      "is-expanded",
+      state.relatedScripturesExpanded
+    );
 
-    const previewRelated = state.previewScriptureTab === "related";
-    els.previewReferencedScriptureTab?.classList.toggle("is-active", !previewRelated);
-    els.previewRelatedScriptureTab?.classList.toggle("is-active", previewRelated);
-    els.previewReferencedScriptureTab?.setAttribute("aria-selected", String(!previewRelated));
-    els.previewRelatedScriptureTab?.setAttribute("aria-selected", String(previewRelated));
-    if (els.previewReferencedScriptureTab) els.previewReferencedScriptureTab.tabIndex = previewRelated ? -1 : 0;
-    if (els.previewRelatedScriptureTab) els.previewRelatedScriptureTab.tabIndex = previewRelated ? 0 : -1;
-    if (els.previewReferencedScripturePanel) els.previewReferencedScripturePanel.hidden = previewRelated;
-    if (els.previewRelatedScripturePanel) els.previewRelatedScripturePanel.hidden = !previewRelated;
+    if (els.previewRelatedScriptureDisclosure) {
+      els.previewRelatedScriptureDisclosure.setAttribute(
+        "aria-expanded",
+        String(state.previewRelatedScripturesExpanded)
+      );
+    }
+    if (els.previewRelatedScripturePanel) {
+      els.previewRelatedScripturePanel.hidden = !state.previewRelatedScripturesExpanded;
+    }
+    els.previewRelatedScriptureChevron?.classList.toggle(
+      "is-expanded",
+      state.previewRelatedScripturesExpanded
+    );
   }
 
   function invalidateRelatedScriptures(options = {}) {
@@ -1554,10 +1514,19 @@
     const connections = Array.isArray(item.connections) ? item.connections : [];
 
     if (connections.length) {
+      const tagsRow = document.createElement("div");
+      tagsRow.className = "related-scripture-tags-row";
+
+      const from = document.createElement("span");
+      from.className = "related-scripture-tags-label";
+      from.textContent = "From:";
+
       const tags = document.createElement("div");
       tags.className = "related-scripture-tags";
       connections.forEach((connection) => tags.appendChild(createRelatedTagChip(connection)));
-      container.appendChild(tags);
+
+      tagsRow.append(from, tags);
+      container.appendChild(tagsRow);
     }
 
     const notes = connections.filter((connection) => normalizeName(connection.note));
@@ -1641,6 +1610,7 @@
   function renderRelatedScriptureList(container, options = {}) {
     if (!container) return;
     container.innerHTML = "";
+    container.classList.remove("has-many");
 
     if (state.isLoadingRelatedScriptures) {
       const loading = document.createElement("p");
@@ -1683,6 +1653,8 @@
       container.appendChild(empty);
       return;
     }
+
+    container.classList.toggle("has-many", state.relatedScriptures.length > 5);
 
     state.relatedScriptures.forEach((item) => {
       container.appendChild(createRelatedScriptureCard(item, options));
@@ -2738,6 +2710,8 @@
       const empty = document.createElement("p");
       empty.textContent = "No Referenced Scriptures yet.";
       els.previewLinkedScriptures.appendChild(empty);
+      updateScriptureTabUI();
+      renderRelatedScriptures();
       return;
     }
 
@@ -2799,7 +2773,7 @@
   
     els.modeLabel.textContent = "Preview";
 
-    if (state.previewScriptureTab === "related") {
+    if (state.previewRelatedScripturesExpanded) {
       loadRelatedScriptures();
     }
   }
@@ -2818,7 +2792,7 @@
   
     els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
 
-    if (state.studyScriptureTab === "related") {
+    if (state.relatedScripturesExpanded) {
       loadRelatedScriptures();
     }
   }
@@ -5225,6 +5199,9 @@
       state.lastCategoryId = els.category.value;
       markDirty();
     });
+
+    els.tagInput.addEventListener("input", updateAddTagButtonState);
+    updateAddTagButtonState();
 
     els.tagInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
