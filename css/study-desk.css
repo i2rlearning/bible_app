@@ -2298,3 +2298,202 @@ body.is-reordering-linked-scripture {
     width: 100%;
   }
 }
+
+/* Step 2: Referenced / Related Scriptures */
+.study-scripture-tab-heading {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.study-scripture-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+  padding: 4px;
+  border: 1px solid var(--study-border);
+  border-radius: 12px;
+  background: #f7f9fc;
+}
+
+.study-scripture-tab {
+  min-width: 0;
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--study-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.study-scripture-tab:hover {
+  color: var(--study-navy);
+}
+
+.study-scripture-tab.is-active {
+  background: #ffffff;
+  color: var(--study-blue);
+  box-shadow: 0 1px 4px rgba(7, 29, 58, 0.1);
+}
+
+.study-scripture-tab:focus-visible {
+  outline: 2px solid var(--study-blue);
+  outline-offset: 1px;
+}
+
+.study-scripture-tab-count {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(37, 91, 234, 0.09);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.study-scripture-tab.is-active .study-scripture-tab-count {
+  background: var(--study-blue-soft);
+}
+
+.study-scripture-tab-panel[hidden] {
+  display: none !important;
+}
+
+.related-scripture-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.related-scripture-item {
+  border: 1px solid var(--study-border);
+  border-radius: 13px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.related-scripture-item .study-reference-link {
+  margin-bottom: 8px;
+}
+
+.related-scripture-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.related-scripture-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--study-border);
+  border-radius: 999px;
+  color: var(--study-navy);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.related-scripture-notes {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.related-scripture-notes p {
+  margin: 0;
+  color: var(--study-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.related-scripture-notes strong {
+  color: var(--study-navy);
+  font-size: inherit;
+  font-weight: 800;
+  margin: 0;
+}
+
+.related-scripture-actions {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(16, 41, 79, 0.08);
+}
+
+.related-scripture-add-button {
+  color: var(--study-blue);
+}
+
+.related-scripture-referenced-status {
+  color: #3f7c59;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.study-scripture-empty-state {
+  margin: 4px 0 0;
+  border: 1px dashed var(--study-border);
+  border-radius: 12px;
+  background: #fbfdff;
+  color: var(--study-muted);
+  padding: 13px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.study-scripture-empty-state.is-error {
+  color: var(--study-danger);
+  border-color: rgba(190, 43, 43, 0.22);
+  background: rgba(190, 43, 43, 0.035);
+}
+
+.study-scripture-empty-state.is-error p {
+  margin: 0 0 7px;
+}
+
+.preview-scripture-tabs {
+  margin-bottom: 12px;
+}
+
+.study-preview-side .related-scripture-item {
+  background: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .study-scripture-tab {
+    padding-left: 7px;
+    padding-right: 7px;
+    font-size: 12px;
+  }
+}
+
+.study-scripture-tab-heading .study-scripture-tab > span:first-child {
+  min-width: 0;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  display: inline;
+  font-size: inherit;
+  font-weight: inherit;
+}
