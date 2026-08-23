@@ -1817,6 +1817,147 @@
     return wrapper.innerHTML.trim();
   }
 
+  async function fetchPreviewBibleApiJson(url, fallbackMessage) {
+    const response = await fetch(url, {
+      headers: {
+        "api-key": API_KEY
+      }
+    });
+
+    const result = await response.json();
+
+    if (
+      result.meta &&
+      result.meta.fumsId &&
+      window._BAPI &&
+      typeof window._BAPI.t === "function"
+    ) {
+      try {
+        window._BAPI.t(result.meta.fumsId);
+      } catch (error) {
+        console.warn("FUMS tracking failed:", error);
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(result.message || fallbackMessage || "Could not load this Scripture.");
+    }
+
+    return result;
+  }
+
+  async function fetchLinkedChapterRangePreview(parsedReference, bibleState, cleanReference) {
+    const startLookupReference = `${parsedReference.book} ${parsedReference.chapter}:1`;
+    const lookupUrl =
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
+      `/search?query=${encodeURIComponent(startLookupReference)}&limit=10`;
+
+    const lookupResult = await fetchPreviewBibleApiJson(
+      lookupUrl,
+      `Could not find ${startLookupReference} in ${bibleState.bibleAbbr || "the selected Bible"}.`
+    );
+
+    const lookupVerses = Array.isArray(lookupResult.data?.verses)
+      ? lookupResult.data.verses
+      : [];
+
+    const startVerse = lookupVerses.find((verse) => {
+      const parts = parseVerseReferenceParts(verse.reference);
+      return (
+        parts &&
+        parts.book === parsedReference.book.toLowerCase() &&
+        parts.chapter === parsedReference.chapter &&
+        parts.verse === 1
+      );
+    }) || lookupVerses[0];
+
+    const bookId = startVerse?.bookId;
+
+    if (!bookId) {
+      throw new Error(
+        `Could not resolve ${parsedReference.book} in ${bibleState.bibleAbbr || "the selected Bible"}.`
+      );
+    }
+
+    const chaptersUrl =
+      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
+      `/books/${encodeURIComponent(bookId)}/chapters`;
+
+    const chaptersResult = await fetchPreviewBibleApiJson(
+      chaptersUrl,
+      `Could not load the chapters for ${parsedReference.book}.`
+    );
+
+    const availableChapters = Array.isArray(chaptersResult.data)
+      ? chaptersResult.data
+      : [];
+
+    const chapterByNumber = new Map();
+
+    availableChapters.forEach((chapter) => {
+      const number = Number(chapter.number);
+
+      if (Number.isInteger(number) && number > 0 && chapter.id) {
+        chapterByNumber.set(number, chapter.id);
+      }
+    });
+
+    const requestedChapters = [];
+
+    for (
+      let chapterNumber = parsedReference.chapter;
+      chapterNumber <= parsedReference.endChapter;
+      chapterNumber += 1
+    ) {
+      const chapterId = chapterByNumber.get(chapterNumber);
+
+      if (!chapterId) {
+        throw new Error(
+          `Could not find ${parsedReference.book} ${chapterNumber} in ${bibleState.bibleAbbr || "the selected Bible"}.`
+        );
+      }
+
+      requestedChapters.push({
+        number: chapterNumber,
+        id: chapterId
+      });
+    }
+
+    const chapterResults = [];
+
+    for (const chapter of requestedChapters) {
+      const chapterUrl =
+        `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleState.bibleId)}` +
+        `/chapters/${encodeURIComponent(chapter.id)}` +
+        "?content-type=html" +
+        "&include-notes=false" +
+        "&include-titles=false" +
+        "&include-chapter-numbers=false" +
+        "&include-verse-numbers=true" +
+        "&include-verse-spans=false";
+
+      const chapterResult = await fetchPreviewBibleApiJson(
+        chapterUrl,
+        `Could not load ${parsedReference.book} ${chapter.number}.`
+      );
+
+      const content = cleanApiBiblePassageContent(chapterResult.data?.content || "");
+
+      if (!content) {
+        throw new Error(`No Scripture text was returned for ${parsedReference.book} ${chapter.number}.`);
+      }
+
+      chapterResults.push(
+        `<h4>${escapeHtml(`${parsedReference.book} ${chapter.number}`)}</h4>${content}`
+      );
+    }
+
+    return {
+      reference: cleanReference,
+      content: chapterResults.join("")
+    };
+  }
+
   async function fetchLinkedScripturePreview(reference) {
     const cleanReference = normalizeScriptureReferenceText(reference);
     const parsedReference = parseLinkedScriptureReference(cleanReference);
@@ -1838,6 +1979,17 @@
 
     if (linkedScripturePreviewCache.has(cacheKey)) {
       return linkedScripturePreviewCache.get(cacheKey);
+    }
+
+    if (parsedReference?.isChapterReference) {
+      const chapterPreview = await fetchLinkedChapterRangePreview(
+        parsedReference,
+        bibleState,
+        cleanReference
+      );
+
+      linkedScripturePreviewCache.set(cacheKey, chapterPreview);
+      return chapterPreview;
     }
 
     const pageLimit = 50;
