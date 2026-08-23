@@ -2299,85 +2299,141 @@ body.is-reordering-linked-scripture {
   }
 }
 
-/* Step 2: Referenced / Related Scriptures */
-.study-scripture-tab-heading {
-  display: block;
-  margin-bottom: 12px;
-}
-
-.study-scripture-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  width: 100%;
-  padding: 4px;
-  border: 1px solid var(--study-border);
-  border-radius: 12px;
-  background: #f7f9fc;
-}
-
-.study-scripture-tab {
-  min-width: 0;
-  min-height: 38px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--study-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* Step 2: Referenced Scriptures + collapsible Related from tags */
+.referenced-scripture-summary {
+  display: flex;
+  align-items: baseline;
   gap: 7px;
-  padding: 8px 10px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.2;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.study-scripture-tab:hover {
+  margin: 16px 0 10px;
   color: var(--study-navy);
+  font-size: 14px;
+  font-weight: 800;
 }
 
-.study-scripture-tab.is-active {
-  background: #ffffff;
+.referenced-scripture-summary-label {
+  min-width: 0;
+}
+
+.referenced-scripture-summary-count,
+.preview-referenced-summary-count {
   color: var(--study-blue);
-  box-shadow: 0 1px 4px rgba(7, 29, 58, 0.1);
-}
-
-.study-scripture-tab:focus-visible {
-  outline: 2px solid var(--study-blue);
-  outline-offset: 1px;
-}
-
-.study-scripture-tab-count {
-  min-width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(37, 91, 234, 0.09);
-  color: inherit;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6px;
-  font-size: 11px;
   font-weight: 900;
 }
 
-.study-scripture-tab.is-active .study-scripture-tab-count {
-  background: var(--study-blue-soft);
+.referenced-scripture-summary + .linked-scripture-list {
+  margin-top: 0;
 }
 
-.study-scripture-tab-panel[hidden] {
+.preview-referenced-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.related-scripture-disclosure-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(16, 41, 79, 0.10);
+}
+
+.related-scripture-disclosure {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--study-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--study-navy);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.related-scripture-disclosure:hover {
+  border-color: rgba(37, 91, 234, 0.32);
+  background: #fbfdff;
+}
+
+.related-scripture-disclosure:focus-visible {
+  outline: 2px solid var(--study-blue);
+  outline-offset: 2px;
+}
+
+.related-scripture-disclosure-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.related-scripture-disclosure-title {
+  min-width: 0;
+}
+
+.related-scripture-disclosure-count {
+  color: var(--study-blue);
+  font-weight: 900;
+}
+
+.related-scripture-disclosure-chevron {
+  flex: 0 0 auto;
+  color: var(--study-navy);
+  font-size: 21px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 0.18s ease;
+}
+
+.related-scripture-disclosure-chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+.related-scripture-disclosure-panel {
+  padding-top: 10px;
+}
+
+.related-scripture-disclosure-panel[hidden] {
   display: none !important;
+}
+
+.related-scripture-disclosure-intro {
+  margin: 0 0 10px;
+  color: var(--study-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .related-scripture-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 2px;
+  margin-top: 0;
+}
+
+/* Five references is a good scan length. Beyond that, keep the card compact. */
+.related-scripture-list.has-many {
+  max-height: min(460px, 52vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 5px;
+}
+
+.related-scripture-list.has-many::-webkit-scrollbar {
+  width: 8px;
+}
+
+.related-scripture-list.has-many::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(69, 86, 116, 0.28);
 }
 
 .related-scripture-item {
@@ -2391,11 +2447,24 @@ body.is-reordering-linked-scripture {
   margin-bottom: 8px;
 }
 
+.related-scripture-tags-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.related-scripture-tags-label {
+  color: var(--study-muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
 .related-scripture-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 2px;
 }
 
 .related-scripture-tag {
@@ -2441,7 +2510,18 @@ body.is-reordering-linked-scripture {
 }
 
 .related-scripture-add-button {
+  min-height: 36px;
+  border: 1px solid rgba(37, 91, 234, 0.24);
+  border-radius: 10px;
+  background: #ffffff;
   color: var(--study-blue);
+  padding: 0 11px;
+  font-weight: 800;
+}
+
+.related-scripture-add-button:hover {
+  border-color: rgba(37, 91, 234, 0.45);
+  background: var(--study-blue-soft);
 }
 
 .related-scripture-referenced-status {
@@ -2471,29 +2551,20 @@ body.is-reordering-linked-scripture {
   margin: 0 0 7px;
 }
 
-.preview-scripture-tabs {
-  margin-bottom: 12px;
-}
-
 .study-preview-side .related-scripture-item {
   background: #ffffff;
 }
 
-@media (max-width: 720px) {
-  .study-scripture-tab {
-    padding-left: 7px;
-    padding-right: 7px;
-    font-size: 12px;
-  }
+#add-tag-button:disabled,
+#add-tag-button:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
+  box-shadow: none;
 }
 
-.study-scripture-tab-heading .study-scripture-tab > span:first-child {
-  min-width: 0;
-  height: auto;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  display: inline;
-  font-size: inherit;
-  font-weight: inherit;
+@media (max-width: 720px) {
+  .related-scripture-list.has-many {
+    max-height: 55vh;
+  }
 }
