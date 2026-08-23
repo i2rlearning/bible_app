@@ -12,6 +12,12 @@
     remoteStudy: null,
     selectedTags: [],
     linkedScriptures: [],  // This is referred to "Referenced Scriptures" section shown in the Study Desk UI.
+    relatedScriptures: [],
+    relatedScripturesKey: "",
+    relatedScripturesError: "",
+    isLoadingRelatedScriptures: false,
+    studyScriptureTab: "referenced",
+    previewScriptureTab: "referenced",
     editingScriptureIndex: null,
     filter: "all",
     lastCategoryId: "",
@@ -55,6 +61,7 @@
   const linkedScripturePreviewCache = new Map();
   const linkedScriptureBookCache = new Map();
   let activeScripturePopupAnchor = null;
+  let relatedScriptureLoadToken = 0;
   let managedTagScriptureLoadToken = 0;
   let managedTagScriptureDrag = null;
   let managedTagScriptureReorderQueue = Promise.resolve();
@@ -478,7 +485,10 @@
     state.remoteStudy = null;
     state.selectedTags = Array.isArray(data.tags) ? data.tags.slice() : [];
     state.linkedScriptures = Array.isArray(data.linkedScriptures) ? data.linkedScriptures.slice() : [];
+    state.studyScriptureTab = "referenced";
+    state.previewScriptureTab = "referenced";
     state.editingScriptureIndex = null;
+    invalidateRelatedScriptures();
 
     const categoryId = data.categoryId || data.category?.id || state.categories[0]?.id || "";
 
@@ -512,6 +522,11 @@
     state.hasUnsavedChanges = false;
     setSaveState(state.activeStudyId ? "Loaded" : "Draft not saved yet", state.activeStudyId ? "success" : "");
     setStatus("", "");
+
+    if (state.selectedTags.length) {
+      loadRelatedScriptures({ force: true });
+    }
+
     switchToEdit();
   }
 
@@ -1073,6 +1088,7 @@
     renderSelectedTags();
     renderTagManager();
     markDirty();
+    invalidateRelatedScriptures({ refresh: true });
     setStatus(`${tag.name || "Tag"} added to this study.`, "success");
   }
 
@@ -1097,6 +1113,7 @@
         state.selectedTags.splice(index, 1);
         renderSelectedTags();
         markDirty();
+        invalidateRelatedScriptures({ refresh: true });
       });
 
       chip.append(text, removeButton);
@@ -1132,6 +1149,7 @@
         state.selectedTags.push(tag);
         renderSelectedTags();
         markDirty();
+        invalidateRelatedScriptures({ refresh: true });
       }
 
       els.tagInput.value = "";
@@ -1139,6 +1157,544 @@
     } catch (error) {
       setStatus(error.message, "error");
     }
+  }
+
+
+  function getNormalizedReferenceKey(reference) {
+    return normalizeScriptureReference(reference || "").toLowerCase();
+  }
+
+  function isRelatedScriptureReferenced(reference) {
+    const key = getNormalizedReferenceKey(reference);
+    if (!key) return false;
+
+    return state.linkedScriptures.some(
+      (item) => getNormalizedReferenceKey(item.reference) === key
+    );
+  }
+
+  function getRelatedScripturesKey() {
+    return state.selectedTags
+      .map((tag) => String(tag.id || ""))
+      .filter(Boolean)
+      .sort()
+      .join("|");
+  }
+
+  function createScriptureTabButton(label, count, tabName, context) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "study-scripture-tab";
+    button.setAttribute("role", "tab");
+    button.dataset.scriptureTab = tabName;
+    button.dataset.scriptureTabContext = context;
+
+    const text = document.createElement("span");
+    text.textContent = label;
+
+    const badge = document.createElement("span");
+    badge.className = "study-scripture-tab-count";
+    badge.textContent = String(count || 0);
+
+    button.append(text, badge);
+    return { button, badge };
+  }
+
+  function ensureStudyScriptureTabs() {
+    if (els.studyScriptureTabsReady || !els.scriptureList) return;
+
+    const card = els.scriptureList.closest(".study-tool-card");
+    const heading = card?.querySelector(".study-tool-heading");
+    const fields = card?.querySelector(".study-inline-fields");
+
+    if (!card || !heading || !fields) return;
+
+    const tabList = document.createElement("div");
+    tabList.className = "study-scripture-tabs";
+    tabList.setAttribute("role", "tablist");
+    tabList.setAttribute("aria-label", "Study Scriptures");
+
+    const referenced = createScriptureTabButton(
+      "Referenced",
+      state.linkedScriptures.length,
+      "referenced",
+      "edit"
+    );
+    const related = createScriptureTabButton(
+      "Related",
+      state.relatedScriptures.length,
+      "related",
+      "edit"
+    );
+
+    referenced.button.id = "study-referenced-scriptures-tab";
+    referenced.button.setAttribute("aria-controls", "study-referenced-scriptures-panel");
+    related.button.id = "study-related-scriptures-tab";
+    related.button.setAttribute("aria-controls", "study-related-scriptures-panel");
+
+    tabList.append(referenced.button, related.button);
+    heading.replaceChildren(tabList);
+    heading.classList.add("study-scripture-tab-heading");
+
+    const referencedPanel = document.createElement("div");
+    referencedPanel.id = "study-referenced-scriptures-panel";
+    referencedPanel.className = "study-scripture-tab-panel";
+    referencedPanel.setAttribute("role", "tabpanel");
+    referencedPanel.setAttribute("aria-labelledby", referenced.button.id);
+    referencedPanel.append(fields, els.scriptureList);
+
+    const relatedPanel = document.createElement("div");
+    relatedPanel.id = "study-related-scriptures-panel";
+    relatedPanel.className = "study-scripture-tab-panel";
+    relatedPanel.setAttribute("role", "tabpanel");
+    relatedPanel.setAttribute("aria-labelledby", related.button.id);
+
+    const relatedList = document.createElement("div");
+    relatedList.className = "related-scripture-list";
+    relatedList.setAttribute("aria-live", "polite");
+    relatedPanel.appendChild(relatedList);
+
+    heading.after(referencedPanel, relatedPanel);
+
+    els.scriptureCount = referenced.badge;
+    els.relatedScriptureCount = related.badge;
+    els.studyReferencedScriptureTab = referenced.button;
+    els.studyRelatedScriptureTab = related.button;
+    els.studyReferencedScripturePanel = referencedPanel;
+    els.studyRelatedScripturePanel = relatedPanel;
+    els.relatedScriptureList = relatedList;
+    els.studyScriptureTabsReady = true;
+
+    tabList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-scripture-tab]");
+      if (!button) return;
+
+      state.studyScriptureTab = button.dataset.scriptureTab === "related"
+        ? "related"
+        : "referenced";
+      updateScriptureTabUI();
+
+      if (state.studyScriptureTab === "related") {
+        loadRelatedScriptures();
+      }
+    });
+
+    tabList.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const buttons = [referenced.button, related.button];
+      const currentIndex = buttons.indexOf(document.activeElement);
+      if (currentIndex < 0) return;
+      event.preventDefault();
+      const nextIndex = event.key === "ArrowRight"
+        ? (currentIndex + 1) % buttons.length
+        : (currentIndex - 1 + buttons.length) % buttons.length;
+      buttons[nextIndex].focus();
+      buttons[nextIndex].click();
+    });
+  }
+
+  function ensurePreviewScriptureTabs() {
+    if (els.previewScriptureTabsReady || !els.previewLinkedScriptures) return;
+
+    const section = els.previewLinkedScriptures.closest("section");
+    const heading = section?.querySelector("h3");
+
+    if (!section || !heading) return;
+
+    const tabList = document.createElement("div");
+    tabList.className = "study-scripture-tabs preview-scripture-tabs";
+    tabList.setAttribute("role", "tablist");
+    tabList.setAttribute("aria-label", "Preview Scriptures");
+
+    const referenced = createScriptureTabButton(
+      "Referenced",
+      state.linkedScriptures.length,
+      "referenced",
+      "preview"
+    );
+    const related = createScriptureTabButton(
+      "Related",
+      state.relatedScriptures.length,
+      "related",
+      "preview"
+    );
+
+    referenced.button.id = "preview-referenced-scriptures-tab";
+    referenced.button.setAttribute("aria-controls", "preview-referenced-scriptures-panel");
+    related.button.id = "preview-related-scriptures-tab";
+    related.button.setAttribute("aria-controls", "preview-related-scriptures-panel");
+
+    tabList.append(referenced.button, related.button);
+    heading.replaceWith(tabList);
+
+    const referencedPanel = document.createElement("div");
+    referencedPanel.id = "preview-referenced-scriptures-panel";
+    referencedPanel.className = "study-scripture-tab-panel";
+    referencedPanel.setAttribute("role", "tabpanel");
+    referencedPanel.setAttribute("aria-labelledby", referenced.button.id);
+    referencedPanel.appendChild(els.previewLinkedScriptures);
+
+    const relatedPanel = document.createElement("div");
+    relatedPanel.id = "preview-related-scriptures-panel";
+    relatedPanel.className = "study-scripture-tab-panel";
+    relatedPanel.setAttribute("role", "tabpanel");
+    relatedPanel.setAttribute("aria-labelledby", related.button.id);
+
+    const relatedList = document.createElement("div");
+    relatedList.className = "preview-linked-scriptures related-scripture-list";
+    relatedList.setAttribute("aria-live", "polite");
+    relatedPanel.appendChild(relatedList);
+
+    section.append(referencedPanel, relatedPanel);
+
+    els.previewReferencedScriptureCount = referenced.badge;
+    els.previewRelatedScriptureCount = related.badge;
+    els.previewReferencedScriptureTab = referenced.button;
+    els.previewRelatedScriptureTab = related.button;
+    els.previewReferencedScripturePanel = referencedPanel;
+    els.previewRelatedScripturePanel = relatedPanel;
+    els.previewRelatedScriptureList = relatedList;
+    els.previewScriptureTabsReady = true;
+
+    tabList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-scripture-tab]");
+      if (!button) return;
+
+      state.previewScriptureTab = button.dataset.scriptureTab === "related"
+        ? "related"
+        : "referenced";
+      updateScriptureTabUI();
+
+      if (state.previewScriptureTab === "related") {
+        loadRelatedScriptures();
+      }
+    });
+
+    tabList.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const buttons = [referenced.button, related.button];
+      const currentIndex = buttons.indexOf(document.activeElement);
+      if (currentIndex < 0) return;
+      event.preventDefault();
+      const nextIndex = event.key === "ArrowRight"
+        ? (currentIndex + 1) % buttons.length
+        : (currentIndex - 1 + buttons.length) % buttons.length;
+      buttons[nextIndex].focus();
+      buttons[nextIndex].click();
+    });
+  }
+
+  function updateScriptureTabUI() {
+    ensureStudyScriptureTabs();
+    ensurePreviewScriptureTabs();
+
+    if (els.scriptureCount) {
+      els.scriptureCount.textContent = String(state.linkedScriptures.length);
+    }
+    if (els.relatedScriptureCount) {
+      els.relatedScriptureCount.textContent = String(state.relatedScriptures.length);
+    }
+    if (els.previewReferencedScriptureCount) {
+      els.previewReferencedScriptureCount.textContent = String(state.linkedScriptures.length);
+    }
+    if (els.previewRelatedScriptureCount) {
+      els.previewRelatedScriptureCount.textContent = String(state.relatedScriptures.length);
+    }
+
+    const editRelated = state.studyScriptureTab === "related";
+    els.studyReferencedScriptureTab?.classList.toggle("is-active", !editRelated);
+    els.studyRelatedScriptureTab?.classList.toggle("is-active", editRelated);
+    els.studyReferencedScriptureTab?.setAttribute("aria-selected", String(!editRelated));
+    els.studyRelatedScriptureTab?.setAttribute("aria-selected", String(editRelated));
+    if (els.studyReferencedScriptureTab) els.studyReferencedScriptureTab.tabIndex = editRelated ? -1 : 0;
+    if (els.studyRelatedScriptureTab) els.studyRelatedScriptureTab.tabIndex = editRelated ? 0 : -1;
+    if (els.studyReferencedScripturePanel) els.studyReferencedScripturePanel.hidden = editRelated;
+    if (els.studyRelatedScripturePanel) els.studyRelatedScripturePanel.hidden = !editRelated;
+
+    const previewRelated = state.previewScriptureTab === "related";
+    els.previewReferencedScriptureTab?.classList.toggle("is-active", !previewRelated);
+    els.previewRelatedScriptureTab?.classList.toggle("is-active", previewRelated);
+    els.previewReferencedScriptureTab?.setAttribute("aria-selected", String(!previewRelated));
+    els.previewRelatedScriptureTab?.setAttribute("aria-selected", String(previewRelated));
+    if (els.previewReferencedScriptureTab) els.previewReferencedScriptureTab.tabIndex = previewRelated ? -1 : 0;
+    if (els.previewRelatedScriptureTab) els.previewRelatedScriptureTab.tabIndex = previewRelated ? 0 : -1;
+    if (els.previewReferencedScripturePanel) els.previewReferencedScripturePanel.hidden = previewRelated;
+    if (els.previewRelatedScripturePanel) els.previewRelatedScripturePanel.hidden = !previewRelated;
+  }
+
+  function invalidateRelatedScriptures(options = {}) {
+    relatedScriptureLoadToken += 1;
+    state.relatedScriptures = [];
+    state.relatedScripturesKey = "";
+    state.relatedScripturesError = "";
+    state.isLoadingRelatedScriptures = false;
+    renderRelatedScriptures();
+
+    if (options.refresh && state.selectedTags.length) {
+      loadRelatedScriptures({ force: true });
+    }
+  }
+
+  function normalizeRelatedScripturesFromTagResults(tagResults) {
+    const grouped = new Map();
+
+    tagResults.forEach(({ tag, scriptures }) => {
+      scriptures.forEach((item) => {
+        const reference = item.normalizedReference || item.reference || "";
+        const key = item.scriptureReferenceId || getNormalizedReferenceKey(reference);
+        if (!key) return;
+
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            scriptureReferenceId: item.scriptureReferenceId || "",
+            reference,
+            normalizedReference: reference,
+            book: item.book || "",
+            startChapter: item.startChapter ?? null,
+            startVerse: item.startVerse ?? null,
+            endChapter: item.endChapter ?? null,
+            endVerse: item.endVerse ?? null,
+            connections: []
+          });
+        }
+
+        grouped.get(key).connections.push({
+          relationshipId: item.id || "",
+          tagId: tag.id,
+          tagName: tag.name || "Tag",
+          tagColor: tag.color || "#eef4ff",
+          note: item.note || "",
+          sortOrder: Number(item.sortOrder) || 0
+        });
+      });
+    });
+
+    return Array.from(grouped.values());
+  }
+
+  async function loadRelatedScriptures(options = {}) {
+    const force = Boolean(options.force);
+    const key = getRelatedScripturesKey();
+
+    if (!state.selectedTags.length) {
+      relatedScriptureLoadToken += 1;
+      state.relatedScriptures = [];
+      state.relatedScripturesKey = key;
+      state.relatedScripturesError = "";
+      state.isLoadingRelatedScriptures = false;
+      renderRelatedScriptures();
+      return;
+    }
+
+    if (
+      !force &&
+      !state.isLoadingRelatedScriptures &&
+      state.relatedScripturesKey === key
+    ) {
+      renderRelatedScriptures();
+      return;
+    }
+
+    const loadToken = ++relatedScriptureLoadToken;
+    state.isLoadingRelatedScriptures = true;
+    state.relatedScripturesError = "";
+    renderRelatedScriptures();
+
+    try {
+      let scriptures;
+
+      if (state.activeStudyId && !state.hasUnsavedChanges) {
+        const result = await fetchJson(
+          `/api/studies/${encodeURIComponent(state.activeStudyId)}/related-scriptures`
+        );
+        scriptures = Array.isArray(result.scriptures) ? result.scriptures : [];
+      } else {
+        const tagResults = await Promise.all(
+          state.selectedTags.map(async (tag) => {
+            const result = await fetchJson(
+              `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures`
+            );
+            return {
+              tag,
+              scriptures: Array.isArray(result.scriptures) ? result.scriptures : []
+            };
+          })
+        );
+        scriptures = normalizeRelatedScripturesFromTagResults(tagResults);
+      }
+
+      if (loadToken !== relatedScriptureLoadToken) return;
+
+      state.relatedScriptures = scriptures;
+      state.relatedScripturesKey = key;
+      state.relatedScripturesError = "";
+    } catch (error) {
+      if (loadToken !== relatedScriptureLoadToken) return;
+      state.relatedScriptures = [];
+      state.relatedScripturesKey = "";
+      state.relatedScripturesError = error.message || "Failed to load related Scriptures.";
+    } finally {
+      if (loadToken === relatedScriptureLoadToken) {
+        state.isLoadingRelatedScriptures = false;
+        renderRelatedScriptures();
+      }
+    }
+  }
+
+  function createRelatedTagChip(connection) {
+    const chip = document.createElement("span");
+    chip.className = "related-scripture-tag";
+    chip.style.backgroundColor = connection.tagColor || "#eef4ff";
+    chip.style.borderColor = connection.tagColor || "#d6e0ff";
+    chip.textContent = connection.tagName || "Tag";
+    return chip;
+  }
+
+  function appendRelatedScriptureDetails(container, item) {
+    const connections = Array.isArray(item.connections) ? item.connections : [];
+
+    if (connections.length) {
+      const tags = document.createElement("div");
+      tags.className = "related-scripture-tags";
+      connections.forEach((connection) => tags.appendChild(createRelatedTagChip(connection)));
+      container.appendChild(tags);
+    }
+
+    const notes = connections.filter((connection) => normalizeName(connection.note));
+    if (notes.length) {
+      const noteWrap = document.createElement("div");
+      noteWrap.className = "related-scripture-notes";
+
+      notes.forEach((connection) => {
+        const note = document.createElement("p");
+        const label = document.createElement("strong");
+        label.textContent = `${connection.tagName || "Tag"}: `;
+        note.append(label, document.createTextNode(connection.note));
+        noteWrap.appendChild(note);
+      });
+
+      container.appendChild(noteWrap);
+    }
+  }
+
+  function addRelatedScriptureToReferenced(item) {
+    const reference = normalizeScriptureReference(item?.reference || "");
+    if (!reference) return;
+
+    if (isRelatedScriptureReferenced(reference)) {
+      setStatus(`${reference} is already in Referenced Scriptures.`, "success");
+      renderRelatedScriptures();
+      return;
+    }
+
+    state.linkedScriptures.push({ reference, note: "" });
+    state.editingScriptureIndex = null;
+    renderLinkedScriptures();
+    renderRelatedScriptures();
+    markDirty();
+    setStatus(`${reference} added to Referenced Scriptures.`, "success");
+  }
+
+  function createRelatedScriptureCard(item, options = {}) {
+    const card = document.createElement("div");
+    card.className = options.preview
+      ? "preview-scripture-item related-scripture-item"
+      : "related-scripture-item";
+
+    const reference = document.createElement("button");
+    reference.type = "button";
+    reference.className = "study-reference-link";
+    reference.textContent = item.reference || "Scripture";
+    reference.setAttribute("aria-label", `Open ${item.reference || "Scripture"}`);
+    reference.addEventListener("click", (event) => {
+      event.preventDefault();
+      openLinkedScripturePreview(reference, item);
+    });
+
+    card.appendChild(reference);
+    appendRelatedScriptureDetails(card, item);
+
+    if (!options.preview) {
+      const actionRow = document.createElement("div");
+      actionRow.className = "related-scripture-actions";
+
+      if (isRelatedScriptureReferenced(item.reference)) {
+        const status = document.createElement("span");
+        status.className = "related-scripture-referenced-status";
+        status.textContent = "Referenced ✓";
+        actionRow.appendChild(status);
+      } else {
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "linked-scripture-text-button related-scripture-add-button";
+        add.textContent = "+ Add to Referenced";
+        add.addEventListener("click", () => addRelatedScriptureToReferenced(item));
+        actionRow.appendChild(add);
+      }
+
+      card.appendChild(actionRow);
+    }
+
+    return card;
+  }
+
+  function renderRelatedScriptureList(container, options = {}) {
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (state.isLoadingRelatedScriptures) {
+      const loading = document.createElement("p");
+      loading.className = "study-scripture-empty-state";
+      loading.textContent = "Loading related Scriptures...";
+      container.appendChild(loading);
+      return;
+    }
+
+    if (state.relatedScripturesError) {
+      const error = document.createElement("div");
+      error.className = "study-scripture-empty-state is-error";
+
+      const message = document.createElement("p");
+      message.textContent = state.relatedScripturesError;
+
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "study-link-button";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", () => loadRelatedScriptures({ force: true }));
+
+      error.append(message, retry);
+      container.appendChild(error);
+      return;
+    }
+
+    if (!state.selectedTags.length) {
+      const empty = document.createElement("p");
+      empty.className = "study-scripture-empty-state";
+      empty.textContent = "No related Scriptures yet. Related Scriptures come from the tags attached to this study.";
+      container.appendChild(empty);
+      return;
+    }
+
+    if (!state.relatedScriptures.length) {
+      const empty = document.createElement("p");
+      empty.className = "study-scripture-empty-state";
+      empty.textContent = "None of this study's tags have related Scriptures yet.";
+      container.appendChild(empty);
+      return;
+    }
+
+    state.relatedScriptures.forEach((item) => {
+      container.appendChild(createRelatedScriptureCard(item, options));
+    });
+  }
+
+  function renderRelatedScriptures() {
+    ensureStudyScriptureTabs();
+    ensurePreviewScriptureTabs();
+    updateScriptureTabUI();
+    renderRelatedScriptureList(els.relatedScriptureList, { preview: false });
+    renderRelatedScriptureList(els.previewRelatedScriptureList, { preview: true });
   }
 
   function reorderLinkedScripture(fromIndex, toIndex) {
@@ -1515,6 +2071,8 @@
       card.append(main, dragHandle);
       els.scriptureList.appendChild(card);
     });
+
+    updateScriptureTabUI();
   }
 
   function updateAddScriptureButtonState() {
@@ -2208,6 +2766,9 @@
 
       els.previewLinkedScriptures.appendChild(card);
     });
+
+    updateScriptureTabUI();
+    renderRelatedScriptures();
   }
 
   function renderPreview() {
@@ -2237,6 +2798,10 @@
     els.deleteButton.disabled = true;
   
     els.modeLabel.textContent = "Preview";
+
+    if (state.previewScriptureTab === "related") {
+      loadRelatedScriptures();
+    }
   }
 
   function switchToEdit() {
@@ -2252,6 +2817,10 @@
     els.deleteButton.disabled = false;
   
     els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
+
+    if (state.studyScriptureTab === "related") {
+      loadRelatedScriptures();
+    }
   }
 
   function openCategoryManager() {
@@ -3013,6 +3582,7 @@
 
       setManagedTagScriptureFeedback(`${result.scripture.reference} added.`, "success");
       setStatus("Scripture connected to tag.", "success");
+      invalidateRelatedScriptures({ refresh: true });
       renderTagManager();
     } catch (error) {
       const feedback = getManagedTagScriptureErrorMessage(error);
@@ -3097,6 +3667,7 @@
 
       state.editingManagedTagScriptureId = "";
       setStatus("Scripture connection updated.", "success");
+      invalidateRelatedScriptures({ refresh: true });
       renderTagManager();
     } catch (error) {
       const feedback = getManagedTagScriptureErrorMessage(error);
@@ -3146,6 +3717,7 @@
 
       setManagedTagScriptureFeedback(`${item.reference || "Scripture"} removed.`, "success");
       setStatus("Scripture removed from tag.", "success");
+      invalidateRelatedScriptures({ refresh: true });
       renderTagManager();
     } catch (error) {
       setStatus(error.message || "Failed to remove Scripture from tag.", "error");
@@ -3767,6 +4339,7 @@
     renderSelectedTags();
     renderTagManager();
     markDirty();
+    invalidateRelatedScriptures({ refresh: true });
     setStatus(`${tag.name || "Tag"} removed from this study.`, "success");
   }
 
@@ -3995,6 +4568,7 @@
         };
 
         updateSelectedTagReferences(updated);
+        invalidateRelatedScriptures({ refresh: true });
         sortByOrderAndName(state.availableTags);
         renderTagOptions();
         renderSelectedTags();
@@ -4483,6 +5057,7 @@
         scriptureCount: Math.max(0, Number(tag.scriptureCount) || 0)
       };
       updateSelectedTagReferences(updated);
+      invalidateRelatedScriptures({ refresh: true });
       sortByOrderAndName(state.availableTags);
       renderTagOptions();
       renderTagManager();
@@ -4544,6 +5119,7 @@
 
       state.availableTags = state.availableTags.filter((item) => item.id !== tag.id);
       state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
+      invalidateRelatedScriptures({ refresh: true });
 
       if (state.managedTagId === tag.id) {
         state.managedTagId = state.availableTags[0]?.id || "";
@@ -4772,6 +5348,9 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     cacheElements();
+    ensureStudyScriptureTabs();
+    ensurePreviewScriptureTabs();
+    updateScriptureTabUI();
     hideCategoryColorControls();
     initQuill();
     bindEvents();
