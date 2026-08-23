@@ -2566,3 +2566,25 @@ body.is-reordering-linked-scripture {
     max-height: 55vh;
   }
 }
+
+
+
+/* Local feedback for Referenced Scriptures actions */
+.referenced-scripture-feedback {
+  margin: -4px 0 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.referenced-scripture-feedback[hidden] {
+  display: none;
+}
+
+.referenced-scripture-feedback.is-error {
+  color: var(--study-danger);
+}
+
+.referenced-scripture-feedback.is-success {
+  color: var(--study-success);
+}
