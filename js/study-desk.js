@@ -23,6 +23,9 @@
     editingManagedTagScriptureId: "",
     isLoadingManagedTagScriptures: false,
     managedTagScriptureFeedback: null,
+    tagManagerTab: "study",
+    tagManagerSearch: "",
+    isCreatingManagedTag: false,
     quill: null,
     isPreview: false,
     hasLoaded: false,
@@ -55,6 +58,10 @@
   let managedTagScriptureLoadToken = 0;
   let managedTagScriptureDrag = null;
   let managedTagScriptureReorderQueue = Promise.resolve();
+  let managedTagAutoSaveTimer = null;
+  let managedTagAutoSaveVersion = 0;
+  let managedTagAutoSaveQueue = Promise.resolve();
+  let managedTagPendingSave = null;
   let studySyncChannel = null;
 
   const els = {};
@@ -2268,22 +2275,20 @@
 
   function openTagManager() {
     if (!els.tagManagerModal) return;
+
     updateTagManagerHeader();
-    prepareTagManagerCreateSection();
-    renderAddTagColorPicker();
+    ensureTagManagerShell();
+    state.tagManagerTab = "study";
+    state.tagManagerSearch = "";
+    state.isCreatingManagedTag = false;
     renderTagManager();
     els.tagManagerModal.hidden = false;
-
-    if (state.managedTagId) {
-      loadManagedTagScriptures(state.managedTagId, { force: true });
-    } else if (els.newTagName) {
-      els.newTagName.focus();
-    }
   }
 
   function closeTagManager() {
     if (!els.tagManagerModal) return;
 
+    flushManagedTagAutoSave();
     managedTagScriptureLoadToken += 1;
 
     if (managedTagScriptureDrag) {
@@ -3625,53 +3630,728 @@
     return section;
   }
 
-  function renderTagManager() {
-    if (!els.tagManagerList) return;
 
-    prepareTagManagerCreateSection();
+  function ensureTagManagerShell() {
+    if (!els.tagManagerModal || !els.tagManagerList || !els.tagManagerEditor) return;
+
+    const panel = els.tagManagerModal.querySelector(".study-modal-panel");
+    const header = els.tagManagerModal.querySelector(".study-modal-header");
+    const originalCreateCard = els.newTagName?.closest?.(".study-manager-add-card");
+
+    if (originalCreateCard) {
+      originalCreateCard.hidden = true;
+      originalCreateCard.style.display = "none";
+    }
+
+    let tabs = panel?.querySelector("[data-tag-manager-tabs]");
+
+    if (!tabs && panel && header) {
+      tabs = document.createElement("div");
+      tabs.className = "study-tag-manager-tabs";
+      tabs.setAttribute("data-tag-manager-tabs", "true");
+      tabs.setAttribute("role", "tablist");
+      tabs.setAttribute("aria-label", "Manage tags sections");
+
+      const studyButton = document.createElement("button");
+      studyButton.type = "button";
+      studyButton.className = "study-tag-manager-tab";
+      studyButton.dataset.tagManagerTab = "study";
+      studyButton.setAttribute("role", "tab");
+      studyButton.textContent = "Study Tags";
+      studyButton.addEventListener("click", () => setTagManagerTab("study"));
+
+      const libraryButton = document.createElement("button");
+      libraryButton.type = "button";
+      libraryButton.className = "study-tag-manager-tab";
+      libraryButton.dataset.tagManagerTab = "library";
+      libraryButton.setAttribute("role", "tab");
+      libraryButton.textContent = "Tag Library";
+      libraryButton.addEventListener("click", () => setTagManagerTab("library"));
+
+      tabs.append(studyButton, libraryButton);
+      header.insertAdjacentElement("afterend", tabs);
+    }
+
+    let workspace = panel?.querySelector("[data-tag-manager-workspace]");
+
+    if (!workspace && panel) {
+      workspace = document.createElement("div");
+      workspace.className = "study-tag-manager-workspace";
+      workspace.setAttribute("data-tag-manager-workspace", "true");
+      tabs?.insertAdjacentElement("afterend", workspace);
+      workspace.append(els.tagManagerList, els.tagManagerEditor);
+    }
+  }
+
+  function setTagManagerTab(tab) {
+    const nextTab = tab === "library" ? "library" : "study";
+
+    flushManagedTagAutoSave();
+    state.tagManagerTab = nextTab;
+    state.tagManagerSearch = "";
+    state.isCreatingManagedTag = false;
+
+    if (nextTab === "library" && !state.managedTagId && state.availableTags[0]) {
+      state.managedTagId = state.availableTags[0].id;
+      resetManagedTagScriptureState(state.managedTagId);
+      loadManagedTagScriptures(state.managedTagId, { force: true });
+      return;
+    }
+
+    if (
+      nextTab === "library" &&
+      state.managedTagId &&
+      state.managedTagScripturesTagId !== state.managedTagId
+    ) {
+      loadManagedTagScriptures(state.managedTagId, { force: true });
+      return;
+    }
+
+    renderTagManager();
+  }
+
+  function updateTagManagerTabUI() {
+    if (!els.tagManagerModal) return;
+
+    const panel = els.tagManagerModal.querySelector(".study-modal-panel");
+    panel?.classList.toggle("is-study-tags-tab", state.tagManagerTab === "study");
+    panel?.classList.toggle("is-tag-library-tab", state.tagManagerTab === "library");
+
+    els.tagManagerModal.querySelectorAll("[data-tag-manager-tab]").forEach((button) => {
+      const isSelected = button.dataset.tagManagerTab === state.tagManagerTab;
+      button.classList.toggle("is-active", isSelected);
+      button.setAttribute("aria-selected", String(isSelected));
+      button.setAttribute("tabindex", isSelected ? "0" : "-1");
+    });
+  }
+
+  function createTagManagerSearch(placeholder, onInput) {
+    const wrap = document.createElement("label");
+    wrap.className = "study-tag-manager-search";
+
+    const icon = document.createElement("span");
+    icon.className = "study-tag-manager-search-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "⌕";
+
+    const input = document.createElement("input");
+    input.type = "search";
+    input.placeholder = placeholder;
+    input.value = state.tagManagerSearch || "";
+    input.setAttribute("aria-label", placeholder);
+    input.addEventListener("input", () => {
+      state.tagManagerSearch = input.value;
+      onInput();
+    });
+
+    wrap.append(icon, input);
+    return wrap;
+  }
+
+  function getFilteredManagedTags() {
+    const query = String(state.tagManagerSearch || "").trim().toLowerCase();
+
+    if (!query) {
+      return state.availableTags.slice();
+    }
+
+    return state.availableTags.filter((tag) =>
+      String(tag.name || "").toLowerCase().includes(query)
+    );
+  }
+
+  function removeTagFromCurrentStudy(tag) {
+    if (!tag?.id || !isTagSelected(tag.id)) return;
+
+    state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
+    renderSelectedTags();
+    renderTagManager();
+    markDirty();
+    setStatus(`${tag.name || "Tag"} removed from this study.`, "success");
+  }
+
+  function createStudyTagAssignmentRow(tag) {
+    const row = document.createElement("div");
+    row.className = "study-tag-assignment-row";
+
+    const swatch = document.createElement("span");
+    swatch.className = "study-color-swatch";
+    swatch.style.backgroundColor = tag.color || "#dbeafe";
+
+    const text = document.createElement("div");
+    text.className = "study-tag-assignment-text";
+
+    const nameLine = document.createElement("div");
+    nameLine.className = "study-tag-assignment-name-line";
+
+    const name = document.createElement("strong");
+    name.textContent = tag.name || "Tag";
+
+    const scriptureCount = Math.max(0, Number(tag.scriptureCount) || 0);
+    const count = document.createElement("span");
+    count.className = "study-manager-row-scripture-count";
+    count.textContent = `${scriptureCount} ${scriptureCount === 1 ? "Scripture" : "Scriptures"}`;
+
+    nameLine.append(name, count);
+    text.appendChild(nameLine);
+
+    const isAdded = isTagSelected(tag.id);
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "study-tag-assignment-action";
+    action.classList.toggle("is-added", isAdded);
+    action.textContent = isAdded ? "Added ✓" : "Add";
+    action.setAttribute(
+      "aria-label",
+      isAdded
+        ? `Remove ${tag.name || "tag"} from this study`
+        : `Add ${tag.name || "tag"} to this study`
+    );
+    action.title = isAdded ? "Click to remove from this study" : "Add to this study";
+    action.addEventListener("click", () => {
+      if (isTagSelected(tag.id)) {
+        removeTagFromCurrentStudy(tag);
+      } else {
+        addTagToCurrentStudy(tag);
+      }
+    });
+
+    row.append(swatch, text, action);
+    return row;
+  }
+
+  function renderStudyTagsTab() {
+    els.tagManagerList.innerHTML = "";
+    els.tagManagerEditor.innerHTML = "";
+    els.tagManagerEditor.hidden = true;
+
+    const intro = document.createElement("div");
+    intro.className = "study-tag-manager-tab-intro";
+    intro.innerHTML = `
+      <p class="study-manager-small-label">Current Study</p>
+      <h3>Choose the tags for this study</h3>
+      <p>Add or remove tags here. Tag names, colors, and Scripture Connections are managed separately in Tag Library.</p>
+    `;
+
+    const search = createTagManagerSearch("Search tags", renderTagManager);
+    const rows = document.createElement("div");
+    rows.className = "study-tag-assignment-list";
+
+    const filteredTags = getFilteredManagedTags();
+
+    if (!filteredTags.length) {
+      const empty = document.createElement("p");
+      empty.className = "study-manager-empty study-tag-manager-empty";
+      empty.textContent = state.availableTags.length
+        ? "No tags match your search."
+        : "No tags yet. Create your first tag in Tag Library.";
+      rows.appendChild(empty);
+    } else {
+      filteredTags.forEach((tag) => rows.appendChild(createStudyTagAssignmentRow(tag)));
+    }
+
+    els.tagManagerList.append(intro, search, rows);
+  }
+
+  function renderTagLibraryList() {
+    if (!els.tagManagerList || state.tagManagerTab !== "library") return;
+
+    els.tagManagerList.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "study-tag-library-list-header";
+
+    const heading = document.createElement("div");
+    heading.innerHTML = `
+      <p class="study-manager-small-label">Tag Library</p>
+      <h3>Your tags</h3>
+    `;
+
+    const newButton = document.createElement("button");
+    newButton.type = "button";
+    newButton.className = "study-tag-library-new-button";
+    newButton.textContent = "+ New Tag";
+    newButton.addEventListener("click", () => {
+      flushManagedTagAutoSave();
+      state.isCreatingManagedTag = true;
+      state.tagManagerSearch = "";
+      renderTagManager();
+      requestAnimationFrame(() => {
+        els.tagManagerEditor?.querySelector("[data-new-tag-name]")?.focus();
+      });
+    });
+
+    header.append(heading, newButton);
+    els.tagManagerList.appendChild(header);
+    els.tagManagerList.appendChild(createTagManagerSearch("Search tag library", renderTagManager));
+
+    const rows = document.createElement("div");
+    rows.className = "study-tag-library-rows";
+
+    const filteredTags = getFilteredManagedTags();
+
+    if (!filteredTags.length) {
+      const empty = document.createElement("p");
+      empty.className = "study-manager-empty study-tag-manager-empty";
+      empty.textContent = state.availableTags.length
+        ? "No tags match your search."
+        : "No tags yet. Create your first tag.";
+      rows.appendChild(empty);
+    } else {
+      filteredTags.forEach((tag) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "study-tag-library-row";
+        row.classList.toggle(
+          "is-selected",
+          !state.isCreatingManagedTag && tag.id === state.managedTagId
+        );
+        row.setAttribute("aria-pressed", String(!state.isCreatingManagedTag && tag.id === state.managedTagId));
+
+        const swatch = document.createElement("span");
+        swatch.className = "study-color-swatch";
+        swatch.style.backgroundColor = tag.color || "#dbeafe";
+
+        const text = document.createElement("span");
+        text.className = "study-tag-library-row-text";
+
+        const name = document.createElement("strong");
+        name.textContent = tag.name || "Tag";
+
+        const scriptureCount = Math.max(0, Number(tag.scriptureCount) || 0);
+        const count = document.createElement("small");
+        count.textContent = `${scriptureCount} ${scriptureCount === 1 ? "Scripture" : "Scriptures"}`;
+
+        text.append(name, count);
+
+        const arrow = document.createElement("span");
+        arrow.className = "study-tag-library-row-arrow";
+        arrow.setAttribute("aria-hidden", "true");
+        arrow.textContent = "›";
+
+        row.append(swatch, text, arrow);
+        row.addEventListener("click", () => {
+          flushManagedTagAutoSave();
+          state.isCreatingManagedTag = false;
+          selectManagedTag(tag.id);
+        });
+        rows.appendChild(row);
+      });
+    }
+
+    els.tagManagerList.appendChild(rows);
+  }
+
+  function setManagedTagAutoSaveStatus(element, message, type = "") {
+    if (!element) return;
+
+    element.textContent = message || "";
+    element.hidden = !message;
+    element.classList.toggle("is-saving", type === "saving");
+    element.classList.toggle("is-saved", type === "saved");
+    element.classList.toggle("is-error", type === "error");
+    element.setAttribute("role", type === "error" ? "alert" : "status");
+  }
+
+  function performManagedTagAutoSave(tag, nameInput, getColor, statusElement) {
+    if (!tag?.id || !nameInput) return Promise.resolve();
+
+    const name = normalizeName(nameInput.value);
+    const color = normalizeColorValue(getColor?.()) || tag.color || "#dbeafe";
+
+    if (!name) {
+      setManagedTagAutoSaveStatus(statusElement, "Tag name cannot be empty.", "error");
+      nameInput.focus();
+      return Promise.resolve();
+    }
+
+    const current = state.availableTags.find((item) => item.id === tag.id) || tag;
+
+    if (
+      normalizeName(current.name) === name &&
+      String(current.color || "").toLowerCase() === String(color).toLowerCase()
+    ) {
+      setManagedTagAutoSaveStatus(statusElement, "Saved", "saved");
+      return Promise.resolve();
+    }
+
+    setManagedTagAutoSaveStatus(statusElement, "Saving...", "saving");
+
+    managedTagAutoSaveQueue = managedTagAutoSaveQueue
+      .then(async () => {
+        const latest = state.availableTags.find((item) => item.id === tag.id) || current;
+        const result = await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            name,
+            color,
+            sortOrder: latest.sortOrder || 0
+          })
+        });
+
+        const updated = {
+          ...result.tag,
+          scriptureCount: Math.max(0, Number(latest.scriptureCount) || 0)
+        };
+
+        updateSelectedTagReferences(updated);
+        sortByOrderAndName(state.availableTags);
+        renderTagOptions();
+        renderSelectedTags();
+        renderStudyList();
+        renderTagLibraryList();
+        setManagedTagAutoSaveStatus(statusElement, "Saved", "saved");
+
+        window.setTimeout(() => {
+          if (statusElement?.isConnected && statusElement.textContent === "Saved") {
+            setManagedTagAutoSaveStatus(statusElement, "", "");
+          }
+        }, 1400);
+      })
+      .catch((error) => {
+        setManagedTagAutoSaveStatus(
+          statusElement,
+          error?.message || "Could not save tag changes.",
+          "error"
+        );
+      });
+
+    return managedTagAutoSaveQueue;
+  }
+
+  function scheduleManagedTagAutoSave(tag, nameInput, getColor, statusElement, immediate = false) {
+    managedTagAutoSaveVersion += 1;
+    const version = managedTagAutoSaveVersion;
+
+    if (managedTagAutoSaveTimer) {
+      clearTimeout(managedTagAutoSaveTimer);
+      managedTagAutoSaveTimer = null;
+    }
+
+    const run = () => {
+      if (version !== managedTagAutoSaveVersion) return;
+      managedTagPendingSave = null;
+      performManagedTagAutoSave(tag, nameInput, getColor, statusElement);
+    };
+
+    managedTagPendingSave = run;
+
+    if (immediate) {
+      run();
+      return;
+    }
+
+    setManagedTagAutoSaveStatus(statusElement, "Saving...", "saving");
+    managedTagAutoSaveTimer = window.setTimeout(run, 550);
+  }
+
+  function flushManagedTagAutoSave() {
+    if (managedTagAutoSaveTimer) {
+      clearTimeout(managedTagAutoSaveTimer);
+      managedTagAutoSaveTimer = null;
+    }
+
+    const pending = managedTagPendingSave;
+    managedTagPendingSave = null;
+
+    if (typeof pending === "function") {
+      pending();
+    }
+  }
+
+  async function createManagedTagFromLibrary(nameInput, getColor, button, feedback) {
+    const name = normalizeName(nameInput?.value);
+    const color = normalizeColorValue(getColor?.()) || "#dbeafe";
+
+    if (!name) {
+      setManagedTagAutoSaveStatus(feedback, "Enter a tag name.", "error");
+      nameInput?.focus();
+      return;
+    }
+
+    const originalText = button?.textContent || "Create Tag";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Creating...";
+    }
+
+    try {
+      const result = await fetchJson("/api/study-tags", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          color,
+          sortOrder: state.availableTags.length * 10 + 100
+        })
+      });
+
+      const tag = {
+        ...result.tag,
+        scriptureCount: Math.max(0, Number(result.tag?.scriptureCount) || 0)
+      };
+      const index = state.availableTags.findIndex((item) => item.id === tag.id);
+
+      if (index >= 0) {
+        state.availableTags[index] = tag;
+      } else {
+        state.availableTags.push(tag);
+      }
+
+      sortByOrderAndName(state.availableTags);
+      state.managedTagId = tag.id;
+      state.isCreatingManagedTag = false;
+      state.tagManagerSearch = "";
+      resetManagedTagScriptureState(tag.id);
+      renderTagOptions();
+      renderSelectedTags();
+      renderStudyList();
+      renderTagManager();
+      setStatus("Tag created.", "success");
+      loadManagedTagScriptures(tag.id, { force: true });
+    } catch (error) {
+      setManagedTagAutoSaveStatus(feedback, error?.message || "Could not create tag.", "error");
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+  }
+
+  function createNewTagLibraryEditor() {
+    const editor = document.createElement("div");
+    editor.className = "study-tag-library-detail-card study-tag-library-new-card";
+
+    const heading = document.createElement("div");
+    heading.className = "study-tag-library-detail-heading";
+    heading.innerHTML = `
+      <div>
+        <p class="study-manager-small-label">New Tag</p>
+        <h3>Create a new tag</h3>
+        <p>Create it here, then manage its Scripture Connections from the same panel.</p>
+      </div>
+    `;
+
+    const nameLabel = createSmallLabel("Name");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "study-manager-name-input";
+    nameInput.placeholder = "New tag name";
+    nameInput.setAttribute("data-new-tag-name", "true");
+
+    let selectedColor = "#dbeafe";
+    const picker = document.createElement("div");
+    picker.className = "study-manager-color-picker";
+
+    const renderPicker = () => {
+      renderColorPicker(picker, selectedColor, (color) => {
+        selectedColor = color;
+        renderPicker();
+      });
+    };
+    renderPicker();
+
+    const feedback = document.createElement("p");
+    feedback.className = "study-tag-auto-save-status";
+    feedback.hidden = true;
+    feedback.setAttribute("aria-live", "polite");
+
+    const actions = document.createElement("div");
+    actions.className = "study-tag-library-create-actions";
+
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "study-secondary-button";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => {
+      state.isCreatingManagedTag = false;
+      if (!state.managedTagId && state.availableTags[0]) {
+        state.managedTagId = state.availableTags[0].id;
+      }
+      renderTagManager();
+      if (state.managedTagId && state.managedTagScripturesTagId !== state.managedTagId) {
+        loadManagedTagScriptures(state.managedTagId, { force: true });
+      }
+    });
+
+    const create = document.createElement("button");
+    create.type = "button";
+    create.className = "study-primary-button";
+    create.textContent = "Create Tag";
+    create.disabled = true;
+
+    nameInput.addEventListener("input", () => {
+      create.disabled = !normalizeName(nameInput.value);
+      setManagedTagAutoSaveStatus(feedback, "", "");
+    });
+    nameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !create.disabled) {
+        event.preventDefault();
+        create.click();
+      }
+    });
+    create.addEventListener("click", () =>
+      createManagedTagFromLibrary(nameInput, () => selectedColor, create, feedback)
+    );
+
+    actions.append(cancel, create);
+    editor.append(
+      heading,
+      nameLabel,
+      nameInput,
+      createSmallLabel("Color"),
+      picker,
+      feedback,
+      actions
+    );
+    return editor;
+  }
+
+  function createTagLibraryEditor(tag) {
+    const editor = document.createElement("div");
+    editor.className = "study-tag-library-detail-card";
+
+    const heading = document.createElement("div");
+    heading.className = "study-tag-library-detail-heading";
+
+    const title = document.createElement("div");
+    const eyebrow = document.createElement("p");
+    eyebrow.className = "study-manager-small-label";
+    eyebrow.textContent = "Selected Tag";
+
+    const headline = document.createElement("h3");
+    headline.textContent = tag.name || "Tag";
+
+    const helper = document.createElement("p");
+    helper.textContent = "Name and color save automatically.";
+
+    title.append(eyebrow, headline, helper);
+
+    const overflow = document.createElement("details");
+    overflow.className = "study-tag-overflow";
+
+    const summary = document.createElement("summary");
+    summary.setAttribute("aria-label", `More actions for ${tag.name || "tag"}`);
+    summary.title = "More actions";
+    summary.textContent = "•••";
+
+    const menu = document.createElement("div");
+    menu.className = "study-tag-overflow-menu";
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "study-tag-overflow-delete";
+    deleteButton.textContent = "Delete tag";
+    deleteButton.addEventListener("click", () => deleteTag(tag));
+
+    menu.appendChild(deleteButton);
+    overflow.append(summary, menu);
+    heading.append(title, overflow);
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "study-manager-name-input";
+    nameInput.value = tag.name || "";
+    nameInput.setAttribute("aria-label", "Tag name");
+
+    let selectedColor = normalizeColorValue(tag.color) || "#dbeafe";
+    const picker = document.createElement("div");
+    picker.className = "study-manager-color-picker";
+
+    const saveStatus = document.createElement("p");
+    saveStatus.className = "study-tag-auto-save-status";
+    saveStatus.hidden = true;
+    saveStatus.setAttribute("aria-live", "polite");
+
+    const renderPicker = () => {
+      renderColorPicker(picker, selectedColor, (color) => {
+        selectedColor = color;
+        renderPicker();
+        scheduleManagedTagAutoSave(tag, nameInput, () => selectedColor, saveStatus, true);
+      });
+    };
+    renderPicker();
+
+    nameInput.addEventListener("input", () => {
+      headline.textContent = normalizeName(nameInput.value) || "Tag";
+      scheduleManagedTagAutoSave(tag, nameInput, () => selectedColor, saveStatus, false);
+    });
+    nameInput.addEventListener("blur", flushManagedTagAutoSave);
+    nameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        flushManagedTagAutoSave();
+        nameInput.blur();
+      }
+    });
+
+    const basics = document.createElement("section");
+    basics.className = "study-tag-library-basics";
+    basics.append(
+      createSmallLabel("Name"),
+      nameInput,
+      createSmallLabel("Color"),
+      picker,
+      saveStatus
+    );
+
+    const divider = document.createElement("hr");
+    divider.className = "tag-scripture-divider";
+
+    editor.append(heading, basics, divider, createTagScriptureConnections(tag));
+    return editor;
+  }
+
+  function renderTagLibraryTab() {
+    if (!state.managedTagId && state.availableTags[0] && !state.isCreatingManagedTag) {
+      state.managedTagId = state.availableTags[0].id;
+      resetManagedTagScriptureState(state.managedTagId);
+    }
+
+    renderTagLibraryList();
+    els.tagManagerEditor.innerHTML = "";
+    els.tagManagerEditor.hidden = false;
+
+    if (state.isCreatingManagedTag || !state.availableTags.length) {
+      state.isCreatingManagedTag = true;
+      els.tagManagerEditor.appendChild(createNewTagLibraryEditor());
+      return;
+    }
+
+    const selected = getManagedTag();
+
+    if (!selected) {
+      const empty = document.createElement("div");
+      empty.className = "study-tag-library-detail-card study-manager-empty-editor";
+      empty.innerHTML = `
+        <p class="study-manager-small-label">Tag Library</p>
+        <h3>Select a tag</h3>
+        <p>Choose a tag from the list to manage its name, color, and Scripture Connections.</p>
+      `;
+      els.tagManagerEditor.appendChild(empty);
+      return;
+    }
+
+    els.tagManagerEditor.appendChild(createTagLibraryEditor(selected));
+  }
+
+  function renderTagManager() {
+    if (!els.tagManagerList || !els.tagManagerEditor) return;
+
+    ensureTagManagerShell();
 
     if (state.managedTagId && !getManagedTag()) {
       state.managedTagId = "";
       resetManagedTagScriptureState();
     }
 
-    els.tagManagerList.innerHTML = "";
+    updateTagManagerTabUI();
 
-    const listCard = document.createElement("div");
-    listCard.className = "study-manager-section-card study-manager-existing-card";
-    listCard.appendChild(
-      createSectionHeading(
-        "Existing Tags",
-        "Choose a tag to edit",
-        "This list shows the tags already saved in your private Study Desk."
-      )
-    );
-
-    const rows = document.createElement("div");
-    rows.className = "study-manager-list-rows";
-
-    if (!state.availableTags.length) {
-      const empty = document.createElement("p");
-      empty.className = "study-manager-empty";
-      empty.textContent = "No tags yet. Create your first tag above.";
-      rows.appendChild(empty);
-    } else {
-      state.availableTags.forEach((tag) => {
-        rows.appendChild(renderManagerListRow(tag, state.managedTagId, "Tag", (id) => {
-          selectManagedTag(id);
-        }));
-      });
+    if (state.tagManagerTab === "library") {
+      renderTagLibraryTab();
+      return;
     }
 
-    listCard.appendChild(rows);
-    els.tagManagerList.appendChild(listCard);
-
-    if (!els.tagManagerEditor) return;
-
-    els.tagManagerEditor.innerHTML = "";
-    const selected = getManagedTag();
-    els.tagManagerEditor.appendChild(selected ? createManagerEditor(selected, "tag") : createEmptyTagEditor());
-    els.tagManagerEditor.hidden = false;
+    renderStudyTagsTab();
   }
 
   async function addCategory() {
@@ -3853,7 +4533,7 @@
   async function deleteTag(tag) {
     if (!tag || !tag.id) return;
 
-    if (!confirm(`Delete tag ${tag.name}? It will be removed from studies that use it.`)) {
+    if (!confirm(`Delete "${tag.name}"? This removes the tag, its Scripture Connections, and the tag from studies where it is used.`)) {
       return;
     }
 
@@ -3866,8 +4546,8 @@
       state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
 
       if (state.managedTagId === tag.id) {
-        state.managedTagId = "";
-        resetManagedTagScriptureState();
+        state.managedTagId = state.availableTags[0]?.id || "";
+        resetManagedTagScriptureState(state.managedTagId);
       }
 
       state.studies = state.studies.map((study) => ({
@@ -3879,6 +4559,11 @@
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
+
+      if (state.tagManagerTab === "library" && state.managedTagId) {
+        loadManagedTagScriptures(state.managedTagId, { force: true });
+      }
+
       setStatus("Tag deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
