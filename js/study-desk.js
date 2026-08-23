@@ -1264,19 +1264,9 @@
 
     if (!card || !heading || !fields || !els.scriptureCount) return;
 
-    const summary = document.createElement("div");
-    summary.className = "referenced-scripture-summary";
-
-    const summaryLabel = document.createElement("span");
-    summaryLabel.className = "referenced-scripture-summary-label";
-    summaryLabel.textContent = "Referenced Scriptures:";
-
-    els.scriptureCount.className = "referenced-scripture-summary-count";
-    summary.append(summaryLabel, els.scriptureCount);
-
-    // The count is now shown between the Add button and the Scripture list.
-    heading.hidden = true;
-    fields.after(summary);
+    // Keep the Referenced Scriptures count beside the section title.
+    heading.classList.add("study-tool-heading-scriptures");
+    els.scriptureCount.classList.add("referenced-scripture-heading-count");
 
     const related = createRelatedScriptureDisclosure("edit");
     els.scriptureList.after(related.wrapper);
@@ -1308,11 +1298,11 @@
 
     heading.classList.add("preview-referenced-summary");
     const headingLabel = document.createElement("span");
-    headingLabel.textContent = "Referenced Scriptures:";
+    headingLabel.textContent = "Referenced Scriptures";
 
     const count = document.createElement("span");
     count.className = "preview-referenced-summary-count";
-    count.textContent = String(state.linkedScriptures.length);
+    count.textContent = `(${state.linkedScriptures.length})`;
     heading.replaceChildren(headingLabel, count);
 
     const related = createRelatedScriptureDisclosure("preview");
@@ -1341,13 +1331,13 @@
     ensurePreviewScriptureTabs();
 
     if (els.scriptureCount) {
-      els.scriptureCount.textContent = String(state.linkedScriptures.length);
+      els.scriptureCount.textContent = `(${state.linkedScriptures.length})`;
     }
     if (els.relatedScriptureCount) {
       els.relatedScriptureCount.textContent = `(${state.relatedScriptures.length})`;
     }
     if (els.previewReferencedScriptureCount) {
-      els.previewReferencedScriptureCount.textContent = String(state.linkedScriptures.length);
+      els.previewReferencedScriptureCount.textContent = `(${state.linkedScriptures.length})`;
     }
     if (els.previewRelatedScriptureCount) {
       els.previewRelatedScriptureCount.textContent = `(${state.relatedScriptures.length})`;
@@ -1966,7 +1956,7 @@
 
   function renderLinkedScriptures() {
     els.scriptureList.innerHTML = "";
-    els.scriptureCount.textContent = String(state.linkedScriptures.length);
+    els.scriptureCount.textContent = `(${state.linkedScriptures.length})`;
 
     state.linkedScriptures.forEach((item, index) => {
       const card = document.createElement("div");
