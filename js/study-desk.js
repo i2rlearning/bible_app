@@ -348,44 +348,137 @@
     return String(value || "").trim().replace(/\s+/g, " ");
   }
 
+  const SCRIPTURE_BOOK_ALIAS_GROUPS = [
+    ["Genesis", ["gen", "ge", "gn"]],
+    ["Exodus", ["exod", "exo", "ex"]],
+    ["Leviticus", ["lev", "le", "lv"]],
+    ["Numbers", ["num", "nu", "nm", "nb"]],
+    ["Deuteronomy", ["deut", "deu", "dt"]],
+    ["Joshua", ["josh", "jos", "jsh"]],
+    ["Judges", ["judg", "jdg", "jg", "jdgs"]],
+    ["Ruth", ["rth", "ru"]],
+    ["1 Samuel", ["1 sam", "1sam", "1 sa", "1sa", "1 sm", "1sm", "i samuel", "i sam", "1st samuel"]],
+    ["2 Samuel", ["2 sam", "2sam", "2 sa", "2sa", "2 sm", "2sm", "ii samuel", "ii sam", "2nd samuel"]],
+    ["1 Kings", ["1 kings", "1 kgs", "1kgs", "1 ki", "1ki", "i kings", "1st kings"]],
+    ["2 Kings", ["2 kings", "2 kgs", "2kgs", "2 ki", "2ki", "ii kings", "2nd kings"]],
+    ["1 Chronicles", ["1 chronicles", "1 chron", "1chron", "1 chr", "1chr", "1 ch", "1ch", "i chronicles", "1st chronicles"]],
+    ["2 Chronicles", ["2 chronicles", "2 chron", "2chron", "2 chr", "2chr", "2 ch", "2ch", "ii chronicles", "2nd chronicles"]],
+    ["Ezra", ["ezr"]],
+    ["Nehemiah", ["neh", "ne"]],
+    ["Esther", ["esth", "est"]],
+    ["Job", []],
+    ["Psalms", ["psalm", "ps", "psa", "pss", "psm"]],
+    ["Proverbs", ["prov", "pro", "prv", "pr"]],
+    ["Ecclesiastes", ["eccl", "ecc", "ecl"]],
+    ["Song of Solomon", ["song of songs", "song of solomon", "song of sol", "song", "sos"]],
+    ["Isaiah", ["isa", "is"]],
+    ["Jeremiah", ["jer", "je", "jr"]],
+    ["Lamentations", ["lam", "la"]],
+    ["Ezekiel", ["ezek", "eze", "ezk"]],
+    ["Daniel", ["dan", "da", "dn"]],
+    ["Hosea", ["hos", "ho"]],
+    ["Joel", ["jl"]],
+    ["Amos", ["am"]],
+    ["Obadiah", ["obad", "ob"]],
+    ["Jonah", ["jon"]],
+    ["Micah", ["mic", "mi"]],
+    ["Nahum", ["nah", "na"]],
+    ["Habakkuk", ["hab", "hb"]],
+    ["Zephaniah", ["zeph", "zep", "zp"]],
+    ["Haggai", ["hag", "hg"]],
+    ["Zechariah", ["zech", "zec", "zc"]],
+    ["Malachi", ["mal", "ml"]],
+    ["Matthew", ["matt", "mat", "mt"]],
+    ["Mark", ["mrk", "mk"]],
+    ["Luke", ["luk", "lk"]],
+    ["John", ["joh", "jhn", "jn"]],
+    ["Acts", ["act", "ac"]],
+    ["Romans", ["rom", "ro", "rm"]],
+    ["1 Corinthians", ["1 corinthians", "1 corinth", "1 cor", "1cor", "1 co", "1co", "i corinthians", "i cor", "1st corinthians"]],
+    ["2 Corinthians", ["2 corinthians", "2 corinth", "2 cor", "2cor", "2 co", "2co", "ii corinthians", "ii cor", "2nd corinthians"]],
+    ["Galatians", ["gal", "ga"]],
+    ["Ephesians", ["eph", "ep"]],
+    ["Philippians", ["phil", "php"]],
+    ["Colossians", ["col"]],
+    ["1 Thessalonians", ["1 thessalonians", "1 thess", "1thess", "1 thes", "1thes", "1 th", "1th", "i thessalonians", "i thess", "1st thessalonians"]],
+    ["2 Thessalonians", ["2 thessalonians", "2 thess", "2thess", "2 thes", "2thes", "2 th", "2th", "ii thessalonians", "ii thess", "2nd thessalonians"]],
+    ["1 Timothy", ["1 timothy", "1 tim", "1tim", "1 ti", "1ti", "1 tm", "1tm", "i timothy", "i tim", "1st timothy"]],
+    ["2 Timothy", ["2 timothy", "2 tim", "2tim", "2 ti", "2ti", "2 tm", "2tm", "ii timothy", "ii tim", "2nd timothy"]],
+    ["Titus", ["tit"]],
+    ["Philemon", ["phlm", "phm", "pm"]],
+    ["Hebrews", ["heb", "he"]],
+    ["James", ["jas", "jam", "jm"]],
+    ["1 Peter", ["1 peter", "1 pet", "1pet", "1 pe", "1pe", "1 pt", "1pt", "i peter", "i pet", "1st peter"]],
+    ["2 Peter", ["2 peter", "2 pet", "2pet", "2 pe", "2pe", "2 pt", "2pt", "ii peter", "ii pet", "2nd peter"]],
+    ["1 John", ["1 john", "1 jn", "1jn", "1 jhn", "1jhn", "1 joh", "1joh", "i john", "i jn", "1st john"]],
+    ["2 John", ["2 john", "2 jn", "2jn", "2 jhn", "2jhn", "2 joh", "2joh", "ii john", "ii jn", "2nd john"]],
+    ["3 John", ["3 john", "3 jn", "3jn", "3 jhn", "3jhn", "3 joh", "3joh", "iii john", "iii jn", "3rd john"]],
+    ["Jude", []],
+    ["Revelation", ["rev", "re", "rv"]]
+  ];
+
+  function getScriptureBookAliasKey(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[.'’]/g, "")
+      .replace(/[^a-z0-9]+/g, "");
+  }
+
+  const SCRIPTURE_BOOK_ALIAS_MAP = new Map();
+
+  SCRIPTURE_BOOK_ALIAS_GROUPS.forEach(([canonicalName, aliases]) => {
+    [canonicalName, ...aliases].forEach((alias) => {
+      SCRIPTURE_BOOK_ALIAS_MAP.set(getScriptureBookAliasKey(alias), canonicalName);
+    });
+  });
+
   function normalizeScriptureReference(value) {
     let cleaned = normalizeName(value);
-  
+
     if (!cleaned) {
       return "";
     }
-  
+
+    cleaned = cleaned
+      .replace(/[\u2012\u2013\u2014\u2212]/g, "-")
+      .replace(/\s*:\s*/g, ":")
+      .replace(/\s*-\s*/g, "-");
+
     const match = cleaned.match(/^(.+?)(\s+\d.*)$/);
-  
+
     if (!match) {
       return cleaned;
     }
-  
+
+    const rawBookName = normalizeName(match[1]);
+    const aliasKey = getScriptureBookAliasKey(rawBookName);
+    const canonicalBookName = SCRIPTURE_BOOK_ALIAS_MAP.get(aliasKey);
     const smallWords = new Set(["of", "the", "and"]);
-  
-    const bookName = match[1]
+
+    const bookName = canonicalBookName || rawBookName
       .toLowerCase()
       .split(/\s+/)
       .map((word, index) => {
         if (/^[ivx]+$/i.test(word)) {
           return word.toUpperCase();
         }
-  
+
         if (index > 0 && smallWords.has(word)) {
           return word;
         }
-  
+
         return word.charAt(0).toUpperCase() + word.slice(1);
       })
       .join(" ");
-  
+
     let reference = `${bookName}${match[2]}`;
-  
-    // Remove partial-verse letters such as 22a, 22b, 22c
+
+    // Remove partial-verse letters such as 22a, 22b, 22c.
     reference = reference.replace(
-      /(\d+)([a-z])(?=\s*(?:-|,|;|$))/gi, "$1"
+      /(\d+)([a-z])(?=\s*(?:-|,|;|$))/gi,
+      "$1"
     );
-  
+
     return reference;
   }
   
@@ -1189,13 +1282,24 @@
     return normalizeScriptureReference(reference || "").toLowerCase();
   }
 
-  function isRelatedScriptureReferenced(reference) {
+  function hasScriptureReference(items, reference, options = {}) {
     const key = getNormalizedReferenceKey(reference);
-    if (!key) return false;
+    if (!key || !Array.isArray(items)) return false;
 
-    return state.linkedScriptures.some(
-      (item) => getNormalizedReferenceKey(item.reference) === key
-    );
+    const ignoreIndex = Number.isInteger(options.ignoreIndex)
+      ? options.ignoreIndex
+      : null;
+    const ignoreId = options.ignoreId ? String(options.ignoreId) : "";
+
+    return items.some((item, index) => {
+      if (ignoreIndex !== null && index === ignoreIndex) return false;
+      if (ignoreId && String(item?.id || "") === ignoreId) return false;
+      return getNormalizedReferenceKey(item?.reference) === key;
+    });
+  }
+
+  function isRelatedScriptureReferenced(reference) {
+    return hasScriptureReference(state.linkedScriptures, reference);
   }
 
   function getRelatedScripturesKey() {
@@ -1876,6 +1980,12 @@
       return;
     }
 
+    if (hasScriptureReference(state.linkedScriptures, reference, { ignoreIndex: index })) {
+      setStatus(`${reference} is already in Referenced Scriptures.`, "error");
+      referenceInput.focus();
+      return;
+    }
+
     state.linkedScriptures[index] = { reference, note };
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
@@ -2049,6 +2159,12 @@
 
     if (!reference) {
       updateAddScriptureButtonState();
+      els.scriptureReference.focus();
+      return;
+    }
+
+    if (hasScriptureReference(state.linkedScriptures, reference)) {
+      setStatus(`${reference} is already in Referenced Scriptures.`, "error");
       els.scriptureReference.focus();
       return;
     }
@@ -3521,6 +3637,15 @@
       return;
     }
 
+    if (hasScriptureReference(state.managedTagScriptures, reference)) {
+      setManagedTagScriptureFeedback(
+        "You already added that reference to this tag.",
+        "warning"
+      );
+      referenceInput.focus();
+      return;
+    }
+
     setManagedTagScriptureFeedback("", "");
     referenceInput.value = reference;
     const originalText = button.textContent;
@@ -3602,6 +3727,15 @@
       setManagedTagScriptureFeedback(
         "Enter a valid Scripture reference, for example John 3:16.",
         "error"
+      );
+      referenceInput.focus();
+      return;
+    }
+
+    if (hasScriptureReference(state.managedTagScriptures, reference, { ignoreId: item.id })) {
+      setManagedTagScriptureFeedback(
+        "You already added that reference to this tag.",
+        "warning"
       );
       referenceInput.focus();
       return;
