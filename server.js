@@ -656,6 +656,37 @@ async function getOrCreateScriptureReference(client, parsedReference) {
   return result.rows[0];
 }
 
+async function tagScriptureReferenceExists(
+  client,
+  userId,
+  tagId,
+  scriptureReferenceId,
+  excludeRelationshipId = null
+) {
+  const values = [userId, tagId, scriptureReferenceId];
+  let excludeClause = "";
+
+  if (excludeRelationshipId) {
+    values.push(excludeRelationshipId);
+    excludeClause = "AND id <> $4";
+  }
+
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM tag_scripture_references
+    WHERE user_id = $1
+      AND tag_id = $2
+      AND scripture_reference_id = $3
+      ${excludeClause}
+    LIMIT 1
+    `,
+    values
+  );
+
+  return result.rows.length > 0;
+}
+
 async function getTagScriptureById(client, userId, tagId, relationshipId) {
   const result = await client.query(
     `
@@ -1354,6 +1385,22 @@ app.post("/api/study-tags/:id/scriptures", requireAuth(), async (req, res) => {
       parsedReference
     );
 
+    if (
+      await tagScriptureReferenceExists(
+        client,
+        userId,
+        tagId,
+        scriptureReference.id
+      )
+    ) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_SCRIPTURE_DUPLICATE",
+        message: "This Scripture reference is already connected to this tag"
+      });
+    }
+
     let sortOrder;
 
     if (req.body.sortOrder === undefined || req.body.sortOrder === null) {
@@ -1568,6 +1615,23 @@ app.put("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), async (
       client,
       parsedReference
     );
+
+    if (
+      await tagScriptureReferenceExists(
+        client,
+        userId,
+        tagId,
+        scriptureReference.id,
+        relationshipId
+      )
+    ) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_SCRIPTURE_DUPLICATE",
+        message: "This Scripture reference is already connected to this tag"
+      });
+    }
 
     const note = Object.prototype.hasOwnProperty.call(req.body, "note")
       ? normalizeOptionalText(req.body.note)
