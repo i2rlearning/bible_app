@@ -1,0 +1,493 @@
+/* ========================================================================== 
+   Scripture Keywords drawer
+   Keeps the existing technical tag model behind the scenes while presenting
+   Keyword language in the Bible reading UI.
+   ========================================================================== */
+
+body.scripture-keywords-open {
+  overflow: hidden;
+}
+
+.scripture-keywords-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 7390;
+  background: rgba(8, 25, 49, 0.28);
+  backdrop-filter: blur(1px);
+}
+
+.scripture-keywords-backdrop[hidden],
+.scripture-keywords-drawer[hidden] {
+  display: none !important;
+}
+
+.scripture-keywords-drawer {
+  --keyword-navy: #10294f;
+  --keyword-blue: #255bea;
+  --keyword-muted: #68758a;
+  --keyword-border: #dbe3ef;
+  --keyword-soft: #f7faff;
+
+  position: fixed;
+  z-index: 7400;
+  top: 0;
+  right: 0;
+  width: min(390px, 100vw);
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: #ffffff;
+  color: #15233b;
+  box-shadow: -18px 0 48px rgba(7, 29, 58, 0.22);
+  font-family: Arial, Helvetica, sans-serif;
+  box-sizing: border-box;
+}
+
+.scripture-keywords-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--keyword-border);
+  background: #ffffff;
+}
+
+.scripture-keywords-header-copy {
+  min-width: 0;
+}
+
+.scripture-keywords-header h2 {
+  margin: 0;
+  color: var(--keyword-navy);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 27px;
+  line-height: 1.15;
+}
+
+.scripture-keywords-reference {
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--keyword-blue);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scripture-keywords-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--keyword-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--keyword-navy);
+  cursor: pointer;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.scripture-keywords-close:hover,
+.scripture-keywords-close:focus-visible {
+  border-color: #aac0f8;
+  background: #f4f7ff;
+  outline: none;
+}
+
+.scripture-keywords-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 20px 28px;
+}
+
+.scripture-keywords-intro {
+  margin: 0 0 17px;
+  color: var(--keyword-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.scripture-keywords-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.scripture-keywords-section-heading > strong {
+  min-width: 0;
+  color: var(--keyword-navy);
+  font-size: 13px;
+}
+
+.scripture-keywords-add-button,
+.scripture-keywords-back-button {
+  border: 0;
+  background: transparent;
+  color: var(--keyword-blue);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scripture-keywords-add-button {
+  flex: 0 0 auto;
+  padding: 7px 8px;
+  border-radius: 8px;
+}
+
+.scripture-keywords-add-button:hover,
+.scripture-keywords-add-button:focus-visible,
+.scripture-keywords-back-button:hover,
+.scripture-keywords-back-button:focus-visible {
+  background: #eef4ff;
+  outline: none;
+}
+
+.scripture-keywords-back-button {
+  margin: -4px 0 14px;
+  padding: 6px 7px;
+  border-radius: 8px;
+}
+
+.scripture-keyword-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.scripture-keyword-chip {
+  --keyword-chip-color: #dbeafe;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--keyword-chip-color) 72%, #9aa8ba);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--keyword-chip-color) 72%, #ffffff);
+  color: var(--keyword-navy);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.scripture-keyword-chip:hover,
+.scripture-keyword-chip:focus-visible {
+  border-color: #9eb7f8;
+  box-shadow: 0 0 0 3px rgba(37, 91, 234, 0.08);
+  outline: none;
+}
+
+.scripture-keyword-chip-dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgba(16, 41, 79, 0.12);
+  border-radius: 999px;
+  background: var(--keyword-chip-color);
+}
+
+.scripture-keyword-chooser {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--keyword-border);
+}
+
+.scripture-keyword-search,
+.scripture-keyword-create input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid var(--keyword-border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #15233b;
+  outline: none;
+  font: inherit;
+  font-size: 14px;
+}
+
+.scripture-keyword-search {
+  padding: 9px 11px;
+  margin-bottom: 9px;
+}
+
+.scripture-keyword-search:focus,
+.scripture-keyword-create input:focus {
+  border-color: var(--keyword-blue);
+  box-shadow: 0 0 0 3px rgba(37, 91, 234, 0.10);
+}
+
+.scripture-keyword-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(320px, 38vh);
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.scripture-keyword-choice {
+  --keyword-chip-color: #dbeafe;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #15233b;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.scripture-keyword-choice:hover,
+.scripture-keyword-choice:focus-visible {
+  border-color: #c9d6eb;
+  background: #fbfdff;
+  outline: none;
+}
+
+.scripture-keyword-choice[aria-pressed="true"] {
+  border-color: #b8c9f7;
+  background: #f4f7ff;
+}
+
+.scripture-keyword-choice:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.scripture-keyword-choice-swatch {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(16, 41, 79, 0.13);
+  border-radius: 999px;
+  background: var(--keyword-chip-color);
+}
+
+.scripture-keyword-choice-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--keyword-navy);
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scripture-keyword-choice-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: var(--keyword-blue);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.scripture-keyword-choice[aria-pressed="true"] .scripture-keyword-choice-state {
+  background: #eaf8ef;
+  color: #137333;
+}
+
+.scripture-keyword-create {
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid var(--keyword-border);
+}
+
+.scripture-keyword-create > label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--keyword-navy);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scripture-keyword-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.scripture-keyword-create input {
+  padding: 8px 10px;
+}
+
+.scripture-keyword-create button {
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--keyword-blue);
+  border-radius: 10px;
+  background: var(--keyword-blue);
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scripture-keyword-create button:disabled,
+.scripture-keyword-create input:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.scripture-keyword-inline-status {
+  min-height: 18px;
+  margin-top: 6px;
+  color: var(--keyword-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.scripture-keyword-inline-status.is-error,
+.scripture-keywords-status.is-error {
+  color: #b42318;
+}
+
+.scripture-keyword-inline-status.is-success {
+  color: #137333;
+}
+
+.scripture-keyword-scripture-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scripture-keyword-scripture-row {
+  padding: 11px 12px;
+  border: 1px solid var(--keyword-border);
+  border-radius: 11px;
+  background: #fbfdff;
+}
+
+.scripture-keyword-scripture-row strong {
+  display: block;
+  color: var(--keyword-navy);
+  font-size: 13px;
+}
+
+.scripture-keyword-scripture-row p {
+  margin: 5px 0 0;
+  color: var(--keyword-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.scripture-keywords-status,
+.scripture-keywords-small-empty {
+  color: var(--keyword-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.scripture-keywords-status {
+  padding: 10px 2px;
+}
+
+.scripture-keywords-small-empty {
+  width: 100%;
+  padding: 10px 2px;
+}
+
+.scripture-keywords-empty-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 24px 18px;
+  border: 1px dashed var(--keyword-border);
+  border-radius: 14px;
+  background: #fbfdff;
+  text-align: center;
+}
+
+.scripture-keywords-empty-card > i {
+  color: var(--keyword-blue);
+  font-size: 24px;
+}
+
+.scripture-keywords-empty-card strong {
+  color: var(--keyword-navy);
+  font-size: 14px;
+}
+
+.scripture-keywords-empty-card p {
+  margin: 0;
+  color: var(--keyword-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Desktop Keywords trigger follows the existing annotation-toolbar visual language. */
+#bible-mini-toolbar .scripture-keywords-trigger {
+  color: #174a8b;
+}
+
+#bible-mini-toolbar .scripture-keywords-trigger[aria-expanded="true"] {
+  border-color: #9eb7f8 !important;
+  background: #eef4ff !important;
+  color: #174a8b !important;
+}
+
+/* Verse numbers become a lightweight, discoverable entry point. */
+.eb-container .v[data-keyword-verse-ready="true"] {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.eb-container .v[data-keyword-verse-ready="true"]:hover,
+.eb-container .v[data-keyword-verse-ready="true"]:focus-visible {
+  color: #174a8b;
+  background: #eef4ff;
+  outline: none;
+}
+
+/* The drawer width is intrinsically fluid: at narrow widths it simply becomes
+   the full viewport without another brittle screen-width layout mode. */
+@supports not (height: 100dvh) {
+  .scripture-keywords-drawer {
+    height: 100vh;
+  }
+}
+
+@media (max-width: 420px) {
+  .scripture-keywords-header {
+    padding: 16px 15px 13px;
+  }
+
+  .scripture-keywords-body {
+    padding: 15px 15px 24px;
+  }
+
+  .scripture-keyword-create-row {
+    grid-template-columns: 1fr;
+  }
+
+  .scripture-keyword-create button {
+    width: 100%;
+  }
+}
