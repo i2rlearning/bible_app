@@ -30,6 +30,7 @@
     managedTagScripturesTagId: "",
     editingManagedTagScriptureId: "",
     isLoadingManagedTagScriptures: false,
+    isMutatingManagedTagScripture: false,
     managedTagScriptureFeedback: null,
     tagManagerTab: "study",
     tagManagerSearch: "",
@@ -1399,14 +1400,25 @@
           els.tagManagerModal &&
           !els.tagManagerModal.hidden
         ) {
-          renderTagManager();
+          // Refresh only the manager list/counts here. Rebuilding the entire Keyword
+          // Library editor can destroy an in-progress Scripture add form and make the
+          // first click appear to do nothing.
+          if (state.tagManagerTab === "library") {
+            renderTagLibraryList();
+          } else {
+            renderStudyTagsTab();
+          }
 
           if (
             refreshConnections &&
             state.tagManagerTab === "library" &&
-            state.managedTagId
+            state.managedTagId &&
+            !state.isMutatingManagedTagScripture
           ) {
-            await loadManagedTagScriptures(state.managedTagId, { force: true });
+            await loadManagedTagScriptures(state.managedTagId, {
+              force: true,
+              silent: true
+            });
           }
         }
       } catch (error) {
@@ -4007,10 +4019,11 @@
   async function loadManagedTagScriptures(tagId, options = {}) {
     const normalizedTagId = String(tagId || "");
     const force = Boolean(options.force);
+    const silent = Boolean(options.silent);
 
     if (!normalizedTagId) {
       resetManagedTagScriptureState();
-      renderTagManager();
+      if (!silent) renderTagManager();
       return;
     }
 
@@ -4023,11 +4036,16 @@
     }
 
     const loadToken = ++managedTagScriptureLoadToken;
+    const hadCurrentConnections = state.managedTagScripturesTagId === normalizedTagId;
+
     state.managedTagScripturesTagId = normalizedTagId;
-    state.managedTagScriptures = [];
-    state.editingManagedTagScriptureId = "";
-    state.isLoadingManagedTagScriptures = true;
-    renderTagManager();
+
+    if (!silent) {
+      state.managedTagScriptures = [];
+      state.editingManagedTagScriptureId = "";
+      state.isLoadingManagedTagScriptures = true;
+      renderTagManager();
+    }
 
     try {
       const result = await fetchJson(
@@ -4036,7 +4054,8 @@
 
       if (
         loadToken !== managedTagScriptureLoadToken ||
-        state.managedTagId !== normalizedTagId
+        state.managedTagId !== normalizedTagId ||
+        state.isMutatingManagedTagScripture
       ) {
         return;
       }
@@ -4049,15 +4068,31 @@
       if (loadedTag) {
         loadedTag.scriptureCount = state.managedTagScriptures.length;
       }
+
+      if (silent) {
+        renderTagLibraryList();
+
+        // Do not replace a form while the user is typing inside Scripture Connections.
+        const activeInsideConnections = Boolean(
+          document.activeElement?.closest?.(".tag-scripture-connections")
+        );
+
+        if (!activeInsideConnections && hadCurrentConnections) {
+          renderManagedTagScriptureConnectionsInPlace(normalizedTagId);
+        }
+      }
     } catch (error) {
       if (loadToken !== managedTagScriptureLoadToken) {
         return;
       }
 
-      state.managedTagScriptures = [];
-      setStatus(error.message || "Failed to load Scripture connections.", "error");
+      if (!silent) {
+        state.managedTagScriptures = [];
+        setStatus(error.message || "Failed to load Scripture connections.", "error");
+      }
     } finally {
       if (
+        !silent &&
         loadToken === managedTagScriptureLoadToken &&
         state.managedTagId === normalizedTagId
       ) {
@@ -4088,6 +4123,7 @@
 
   async function addManagedTagScripture(tag, referenceInput, noteInput, button) {
     if (!tag?.id || !referenceInput || !noteInput || !button) return;
+    if (state.isMutatingManagedTagScripture) return;
 
     const validation = validateScriptureReference(referenceInput.value);
     const note = noteInput.value.trim();
@@ -4110,6 +4146,11 @@
       referenceInput.focus();
       return;
     }
+
+    // Invalidate any older background GET before starting the mutation. Otherwise an
+    // in-flight refresh can finish after this POST and overwrite the newly added item.
+    managedTagScriptureLoadToken += 1;
+    state.isMutatingManagedTagScripture = true;
 
     setManagedTagScriptureFeedback("", "");
     referenceInput.value = reference;
@@ -4140,7 +4181,11 @@
       setManagedTagScriptureFeedback(`${result.scripture.reference} added.`, "success");
       setStatus("Scripture connected to keyword.", "success");
       invalidateRelatedScriptures({ refresh: true });
-      renderTagManager();
+
+      // Update only the pieces that changed. This keeps the Keyword editor stable
+      // instead of rebuilding the entire modal and producing the visible flicker.
+      renderTagLibraryList();
+      renderManagedTagScriptureConnectionsInPlace(tag.id);
     } catch (error) {
       const feedback = getManagedTagScriptureErrorMessage(error);
       setManagedTagScriptureFeedback(feedback.message, feedback.type);
@@ -4152,6 +4197,8 @@
       button.disabled = false;
       button.textContent = originalText;
       referenceInput.focus();
+    } finally {
+      state.isMutatingManagedTagScripture = false;
     }
   }
 
@@ -4779,6 +4826,19 @@
     section.appendChild(list);
 
     return section;
+  }
+
+
+  function renderManagedTagScriptureConnectionsInPlace(tagId) {
+    if (state.tagManagerTab !== "library" || state.isCreatingManagedTag) return;
+
+    const tag = state.availableTags.find((item) => item.id === tagId);
+    const existing = els.tagManagerEditor?.querySelector(".tag-scripture-connections");
+
+    if (!tag || !existing || state.managedTagId !== tagId) return;
+
+    existing.replaceWith(createTagScriptureConnections(tag));
+    window.requestAnimationFrame(scheduleKeywordManagerFit);
   }
 
 
