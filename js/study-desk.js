@@ -3560,8 +3560,8 @@
     const title = document.createElement("div");
 
     if (type === "tag") {
-      const tagName = item.name || "selected tag";
-      title.innerHTML = `<p class="study-manager-small-label">Edit Selected Tag</p><h3>${escapeHtml(tagName)}</h3><p class="study-manager-section-note">Changes here apply only to the selected existing tag.</p>`;
+      const tagName = item.name || "selected keyword";
+      title.innerHTML = `<p class="study-manager-small-label">Edit Selected Keyword</p><h3>${escapeHtml(tagName)}</h3><p class="study-manager-section-note">Changes here apply only to the selected existing tag.</p>`;
     } else {
       title.innerHTML = `<p class="study-manager-small-label">Selected ${type}</p><h3>Edit ${type}</h3>`;
     }
@@ -3634,7 +3634,7 @@
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "study-danger-button";
-    deleteButton.textContent = type === "category" ? "Delete Category" : "Delete Tag";
+    deleteButton.textContent = type === "category" ? "Delete Category" : "Delete Keyword";
     deleteButton.addEventListener("click", () => {
       if (type === "category") deleteCategory(item);
       if (type === "tag") deleteTag(item);
@@ -3642,12 +3642,12 @@
 
     actions.append(saveButton, deleteButton);
 
-    editor.append(heading, createSmallLabel(type === "tag" ? "Selected tag name" : "Name"), nameInput);
+    editor.append(heading, createSmallLabel(type === "tag" ? "Selected keyword name" : "Name"), nameInput);
 
     if (type === "tag") {
       editor.append(
         document.createElement("hr"),
-        createSmallLabel("Selected tag color"),
+        createSmallLabel("Selected Keyword color"),
         picker
       );
     }
@@ -3668,7 +3668,7 @@
     editor.className = "study-manager-editor-card study-manager-section-card study-manager-edit-card study-manager-empty-editor";
     editor.appendChild(
       createSectionHeading(
-        "Edit Selected Tag",
+        "Edit Selected Keyword",
         "Select a tag to edit",
         "Choose a tag from the Existing Tags list above to change its name, color, or delete it."
       )
@@ -5185,7 +5185,7 @@
     const title = document.createElement("div");
     const eyebrow = document.createElement("p");
     eyebrow.className = "study-manager-small-label";
-    eyebrow.textContent = "Selected Tag";
+    eyebrow.textContent = "Selected Keyword";
 
     const headline = document.createElement("h3");
     headline.textContent = tag.name || "Tag";
@@ -5209,7 +5209,7 @@
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "study-tag-overflow-delete";
-    deleteButton.textContent = "Delete tag";
+    deleteButton.textContent = "Delete Keyword";
     deleteButton.addEventListener("click", () => deleteTag(tag));
 
     menu.appendChild(deleteButton);
