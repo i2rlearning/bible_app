@@ -12,6 +12,7 @@
     <link href="css/scripture-reference-popup.css" rel="stylesheet" />
     <link href="css/editor.css" rel="stylesheet" />
     <link href="css/study-actions.css" rel="stylesheet" />
+    <link href="css/scripture-keywords.css" rel="stylesheet" />
     <link href="css/anchored-annotations.css" rel="stylesheet" />
     <link href="css/copyright.css" rel="stylesheet" />
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
@@ -449,6 +450,19 @@
             </span>
           </button>
 
+          <!-- Step 3: view/add Keywords for selected Scripture -->
+          <button
+            type="button"
+            class="mini-toolbar-icon-button scripture-keywords-trigger"
+            data-scripture-keywords-trigger
+            title="View or add Scripture Keywords"
+            aria-label="View or add Scripture Keywords"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+          >
+            <i class="fa fa-tags" aria-hidden="true"></i>
+          </button>
+
           <button
             type="button"
             onclick="undoMiniEditorChange()"
@@ -695,6 +709,18 @@
 
               <button
                 type="button"
+                data-scripture-keywords-trigger
+                title="View or add Scripture Keywords"
+                aria-label="View or add Scripture Keywords"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              >
+                <i class="fa fa-tags" aria-hidden="true"></i>
+                <span>Keywords</span>
+              </button>
+
+              <button
+                type="button"
                 onpointerdown="rememberCurrentSelectionOffsets();"
                 onclick="clearSelectedBibleAnnotation(); closeMobileToolbarMenus();"
                 title="Clear selected formatting"
@@ -777,6 +803,7 @@
     <script src="js/anchored-annotations.js"></script>
     <script type="module" src="js/editor.js"></script>
     <script src="js/study-actions.js"></script>
+    <script src="js/scripture-keywords.js"></script>
    
 </body>
 </html>
