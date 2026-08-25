@@ -1558,7 +1558,7 @@
 
     const title = document.createElement("span");
     title.className = "related-scripture-disclosure-title";
-    title.textContent = "Related from your tags";
+    title.textContent = "Related from your keywords";
 
     const count = document.createElement("span");
     count.className = "related-scripture-disclosure-count";
@@ -3278,9 +3278,9 @@
 
     if (!addCard.querySelector("[data-tag-create-heading]")) {
       const heading = createSectionHeading(
-        "Create New Tag",
-        "Create a new tag",
-        "Choose the name and color for a new tag before adding it to your private list."
+        "Create New Keyword",
+        "Create a new Keyword",
+        "Choose the name and color for a new keyword before adding it to your private list."
       );
       heading.setAttribute("data-tag-create-heading", "true");
       addCard.prepend(heading);
@@ -3288,7 +3288,7 @@
 
     const colorLabel = addCard.querySelector(".study-manager-color-section .study-manager-small-label");
     if (colorLabel) {
-      colorLabel.textContent = "New tag color";
+      colorLabel.textContent = "New keyword color";
     }
 
     hideTagCustomColorInput();
@@ -4797,8 +4797,8 @@
     intro.className = "study-tag-manager-tab-intro";
     intro.innerHTML = `
       <p class="study-manager-small-label">Current Study</p>
-      <h3>Choose the tags for this study</h3>
-      <p>Add or remove tags here. Tag names, colors, and Scripture Connections are managed separately in Keyword Library.</p>
+      <h3>Choose the keywords for this study</h3>
+      <p>Add or remove keywords here. Keyword names, colors, and Scripture Connections are managed separately in Keyword Library.</p>
     `;
 
     const search = createTagManagerSearch("Search tags", renderTagManager);
@@ -4832,13 +4832,13 @@
     const heading = document.createElement("div");
     heading.innerHTML = `
       <p class="study-manager-small-label">Keyword Library</p>
-      <h3>Your tags</h3>
+      <h3>Your Keywords</h3>
     `;
 
     const newButton = document.createElement("button");
     newButton.type = "button";
     newButton.className = "study-tag-library-new-button";
-    newButton.textContent = "+ New Tag";
+    newButton.textContent = "+ New Keyword";
     newButton.addEventListener("click", () => {
       flushManagedTagAutoSave();
       state.isCreatingManagedTag = true;
@@ -5094,8 +5094,8 @@
     heading.className = "study-tag-library-detail-heading";
     heading.innerHTML = `
       <div>
-        <p class="study-manager-small-label">New Tag</p>
-        <h3>Create a new tag</h3>
+        <p class="study-manager-small-label">New Keyword</p>
+        <h3>Create a new keyword</h3>
         <p>Create it here, then manage its Scripture Connections from the same panel.</p>
       </div>
     `;
@@ -5104,7 +5104,7 @@
     const nameInput = document.createElement("input");
     nameInput.type = "text";
     nameInput.className = "study-manager-name-input";
-    nameInput.placeholder = "New tag name";
+    nameInput.placeholder = "New keyword name";
     nameInput.setAttribute("data-new-tag-name", "true");
 
     let selectedColor = "#dbeafe";
