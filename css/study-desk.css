@@ -2052,8 +2052,21 @@ body.is-reordering-linked-scripture {
 }
 
 #tag-manager-modal .is-tag-library-tab .study-tag-manager-workspace {
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(250px, 300px) minmax(500px, 1fr);
   align-items: start;
+}
+
+/* JS fit mode: stack only when the actual Keyword Library workspace can no
+   longer support both useful columns. This is intentionally component-driven,
+   not tied to viewport resolution or device type. */
+#tag-manager-modal .is-tag-library-tab .study-tag-manager-workspace.is-keyword-stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#tag-manager-modal .is-tag-library-tab .study-tag-manager-workspace.is-keyword-stacked #tag-manager-list {
+  max-height: 280px;
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 #tag-manager-modal #tag-manager-list,
@@ -2208,13 +2221,19 @@ body.is-reordering-linked-scripture {
 
 .study-tag-library-list-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .study-tag-library-list-header h3 {
-  font-size: 20px;
+  margin: 0;
+  font-size: 22px;
+}
+
+.study-tag-library-list-header + .study-tag-manager-search {
+  margin-top: 12px;
 }
 
 .study-tag-library-new-button {
@@ -2432,15 +2451,6 @@ body.is-reordering-linked-scripture {
     width: min(100%, calc(100vw - 20px));
     max-height: calc(100vh - 20px);
     padding: 18px 14px;
-  }
-
-  #tag-manager-modal .is-tag-library-tab .study-tag-manager-workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  #tag-manager-modal .is-tag-library-tab #tag-manager-list {
-    max-height: 280px;
-    overflow: auto;
   }
 }
 
