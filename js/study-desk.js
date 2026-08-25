@@ -74,8 +74,8 @@
   let managedTagAutoSaveQueue = Promise.resolve();
   let managedTagPendingSave = null;
   let studySyncChannel = null;
-  let studyToolbarResizeObserver = null;
-  let studyToolbarFitFrame = 0;
+  let studyToolbarFitController = null;
+  let keywordManagerFitController = null;
   let lastQuillSelection = null;
 
   const els = {};
@@ -83,6 +83,108 @@
 
   function byId(id) {
     return document.getElementById(id);
+  }
+
+  // Shared responsive fit controller. Components describe richer-to-more-compact
+  // modes; the controller measures the actual component space rather than the
+  // viewport, then moves between modes before visible wrapping/overflow occurs.
+  function createResponsiveFitController({
+    measureElement,
+    observeElement = measureElement,
+    modes,
+    applyMode,
+    isEnabled = () => true,
+    getRequiredWidth = null,
+    fitMargin = 0,
+    restoreMargin = 24
+  }) {
+    if (!measureElement || !Array.isArray(modes) || !modes.length || typeof applyMode !== "function") {
+      return null;
+    }
+
+    let currentIndex = 0;
+    let frame = 0;
+    let resizeObserver = null;
+    const failedAtWidth = new Array(modes.length).fill(0);
+
+    function setMode(index) {
+      const safeIndex = Math.max(0, Math.min(index, modes.length - 1));
+      currentIndex = safeIndex;
+      applyMode(modes[safeIndex], safeIndex);
+    }
+
+    function fits() {
+      if (!measureElement || measureElement.clientWidth <= 0) return true;
+
+      if (typeof getRequiredWidth === "function") {
+        const requiredWidth = Number(getRequiredWidth(measureElement)) || 0;
+        return requiredWidth <= Math.max(0, measureElement.clientWidth - fitMargin);
+      }
+
+      // For layouts with CSS minimum column sizes, scrollWidth only becomes
+      // larger than clientWidth when the richer mode genuinely cannot fit.
+      return measureElement.scrollWidth <= measureElement.clientWidth + 1;
+    }
+
+    function update() {
+      frame = 0;
+
+      if (!measureElement.isConnected || measureElement.clientWidth <= 0 || !isEnabled()) {
+        return;
+      }
+
+      const startingIndex = currentIndex;
+      const availableWidth = measureElement.clientWidth;
+
+      for (let index = 0; index < modes.length; index += 1) {
+        setMode(index);
+
+        // If this richer mode recently failed, wait for a little extra room
+        // before restoring it. This prevents rapid mode flipping at the edge.
+        if (
+          index < startingIndex &&
+          failedAtWidth[index] > 0 &&
+          availableWidth < failedAtWidth[index] + restoreMargin
+        ) {
+          continue;
+        }
+
+        if (index === modes.length - 1 || fits()) {
+          if (index < startingIndex) failedAtWidth[index] = 0;
+          return;
+        }
+
+        failedAtWidth[index] = availableWidth;
+      }
+    }
+
+    function schedule() {
+      if (frame) return;
+      frame = window.requestAnimationFrame(update);
+    }
+
+    function destroy() {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+    }
+
+    if (window.ResizeObserver && observeElement) {
+      resizeObserver = new ResizeObserver(schedule);
+      resizeObserver.observe(observeElement);
+    }
+
+    schedule();
+
+    return {
+      schedule,
+      update,
+      destroy,
+      getMode: () => modes[currentIndex]
+    };
   }
 
   function cacheElements() {
@@ -1426,7 +1528,7 @@
     renderTagManager();
     markDirty();
     invalidateRelatedScriptures({ refresh: true });
-    setStatus(`${tag.name || "Tag"} added to this study.`, "success");
+    setStatus(`${tag.name || "Keyword"} added to this study.`, "success");
   }
 
   function renderSelectedTags() {
@@ -1440,11 +1542,11 @@
       chip.style.borderColor = tag.color || "#d6e0ff";
 
       const text = document.createElement("span");
-      text.textContent = tag.name || "Tag";
+      text.textContent = tag.name || "Keyword";
 
       const removeButton = document.createElement("button");
       removeButton.type = "button";
-      removeButton.setAttribute("aria-label", `Remove ${tag.name || "tag"}`);
+      removeButton.setAttribute("aria-label", `Remove ${tag.name || "keyword"}`);
       removeButton.textContent = "×";
       removeButton.addEventListener("click", () => {
         state.selectedTags.splice(index, 1);
@@ -1582,8 +1684,8 @@
     const intro = document.createElement("p");
     intro.className = "related-scripture-disclosure-intro";
     intro.textContent = context === "preview"
-      ? "Scriptures connected to the tags in this study."
-      : "Scriptures connected to the tags in this study. Add any to your Referenced Scriptures.";
+      ? "Scriptures connected to the keywords in this study."
+      : "Scriptures connected to the keywords in this study. Add any to your Referenced Scriptures.";
 
     const list = document.createElement("div");
     list.className = context === "preview"
@@ -1754,7 +1856,7 @@
         grouped.get(key).connections.push({
           relationshipId: item.id || "",
           tagId: tag.id,
-          tagName: tag.name || "Tag",
+          tagName: tag.name || "Keyword",
           tagColor: tag.color || "#eef4ff",
           note: item.note || "",
           sortOrder: Number(item.sortOrder) || 0
@@ -1839,7 +1941,7 @@
     chip.className = "related-scripture-tag";
     chip.style.backgroundColor = connection.tagColor || "#eef4ff";
     chip.style.borderColor = connection.tagColor || "#d6e0ff";
-    chip.textContent = connection.tagName || "Tag";
+    chip.textContent = connection.tagName || "Keyword";
     return chip;
   }
 
@@ -1870,7 +1972,7 @@
       notes.forEach((connection) => {
         const note = document.createElement("p");
         const label = document.createElement("strong");
-        label.textContent = `${connection.tagName || "Tag"}: `;
+        label.textContent = `${connection.tagName || "Keyword"}: `;
         note.append(label, document.createTextNode(connection.note));
         noteWrap.appendChild(note);
       });
@@ -1884,7 +1986,7 @@
 
     if (!validation.valid) {
       setReferencedScriptureFeedback(
-        "This tag contains an invalid Scripture reference.",
+        "This keyword contains an invalid Scripture reference.",
         "error"
       );
       return;
@@ -1984,7 +2086,7 @@
     if (!state.selectedTags.length) {
       const empty = document.createElement("p");
       empty.className = "study-scripture-empty-state";
-      empty.textContent = "No related Scriptures yet. Related Scriptures come from the tags attached to this study.";
+      empty.textContent = "No related Scriptures yet. Related Scriptures come from the keywords attached to this study.";
       container.appendChild(empty);
       return;
     }
@@ -1992,7 +2094,7 @@
     if (!state.relatedScriptures.length) {
       const empty = document.createElement("p");
       empty.className = "study-scripture-empty-state";
-      empty.textContent = "None of this study's tags have related Scriptures yet.";
+      empty.textContent = "None of this study's keywords have related Scriptures yet.";
       container.appendChild(empty);
       return;
     }
@@ -3078,7 +3180,7 @@
       chip.className = "study-tag";
       chip.style.backgroundColor = tag.color || "#eef4ff";
       chip.style.borderColor = tag.color || "#d6e0ff";
-      chip.textContent = tag.name || "Tag";
+      chip.textContent = tag.name || "Keyword";
       container.appendChild(chip);
     });
   }
@@ -3215,6 +3317,7 @@
     state.isCreatingManagedTag = false;
     renderTagManager();
     els.tagManagerModal.hidden = false;
+    window.requestAnimationFrame(scheduleKeywordManagerFit);
   }
 
   function closeTagManager() {
@@ -3279,7 +3382,7 @@
     if (!addCard.querySelector("[data-tag-create-heading]")) {
       const heading = createSectionHeading(
         "Create New Keyword",
-        "Create a new Keyword",
+        "Create a new keyword",
         "Choose the name and color for a new keyword before adding it to your private list."
       );
       heading.setAttribute("data-tag-create-heading", "true");
@@ -3294,7 +3397,7 @@
     hideTagCustomColorInput();
 
     if (els.addManagedTag) {
-      els.addManagedTag.textContent = "Create Tag";
+      els.addManagedTag.textContent = "Create Keyword";
     }
   }
 
@@ -3502,7 +3605,7 @@
       scriptureCountLabel.textContent = `${scriptureCount} ${scriptureCount === 1 ? "Scripture" : "Scriptures"}`;
       scriptureCountLabel.setAttribute(
         "aria-label",
-        `${scriptureCount} ${scriptureCount === 1 ? "Scripture" : "Scriptures"} connected to ${item.name || "this tag"}`
+        `${scriptureCount} ${scriptureCount === 1 ? "Scripture" : "Scriptures"} connected to ${item.name || "this keyword"}`
       );
       nameGroup.appendChild(scriptureCountLabel);
 
@@ -3517,8 +3620,8 @@
       addToStudyButton.setAttribute(
         "aria-label",
         isAdded
-          ? `${item.name || "Tag"} is already added to this study`
-          : `Add ${item.name || "tag"} to this study`
+          ? `${item.name || "Keyword"} is already added to this study`
+          : `Add ${item.name || "keyword"} to this study`
       );
 
       addToStudyButton.addEventListener("click", (event) => {
@@ -3561,7 +3664,7 @@
 
     if (type === "tag") {
       const tagName = item.name || "selected keyword";
-      title.innerHTML = `<p class="study-manager-small-label">Edit Selected Keyword</p><h3>${escapeHtml(tagName)}</h3><p class="study-manager-section-note">Changes here apply only to the selected existing tag.</p>`;
+      title.innerHTML = `<p class="study-manager-small-label">Edit Selected Keyword</p><h3>${escapeHtml(tagName)}</h3><p class="study-manager-section-note">Changes here apply only to the selected existing keyword.</p>`;
     } else {
       title.innerHTML = `<p class="study-manager-small-label">Selected ${type}</p><h3>Edit ${type}</h3>`;
     }
@@ -3611,11 +3714,11 @@
     const saveButton = document.createElement("button");
     saveButton.type = "button";
     saveButton.className = "study-primary-button";
-    saveButton.textContent = type === "tag" ? "Save Tag Changes" : "Save Changes";
+    saveButton.textContent = type === "tag" ? "Save Keyword Changes" : "Save Changes";
     saveButton.addEventListener("click", async () => {
       const originalText = saveButton.textContent;
       saveButton.disabled = true;
-      saveButton.textContent = type === "tag" ? "Saving tag..." : "Saving...";
+      saveButton.textContent = type === "tag" ? "Saving keyword..." : "Saving...";
 
       try {
         if (type === "category") {
@@ -3647,7 +3750,7 @@
     if (type === "tag") {
       editor.append(
         document.createElement("hr"),
-        createSmallLabel("Selected Keyword color"),
+        createSmallLabel("Selected keyword color"),
         picker
       );
     }
@@ -3669,8 +3772,8 @@
     editor.appendChild(
       createSectionHeading(
         "Edit Selected Keyword",
-        "Select a tag to edit",
-        "Choose a tag from the Existing Tags list above to change its name, color, or delete it."
+        "Select a keyword to edit",
+        "Choose a keyword from the list above to change its name, color, or delete it."
       )
     );
     return editor;
@@ -3803,7 +3906,7 @@
     if (code === "TAG_SCRIPTURE_DUPLICATE") {
       return {
         type: "warning",
-        message: "You already added that reference to this tag."
+        message: "You already added that reference to this keyword."
       };
     }
 
@@ -3816,7 +3919,7 @@
 
     return {
       type: "error",
-      message: error?.message || "Failed to connect Scripture to tag."
+      message: error?.message || "Failed to connect Scripture to keyword."
     };
   }
 
@@ -3920,7 +4023,7 @@
 
     if (hasScriptureReference(state.managedTagScriptures, reference)) {
       setManagedTagScriptureFeedback(
-        "You already added that reference to this tag.",
+        "You already added that reference to this keyword.",
         "warning"
       );
       referenceInput.focus();
@@ -3954,7 +4057,7 @@
       }
 
       setManagedTagScriptureFeedback(`${result.scripture.reference} added.`, "success");
-      setStatus("Scripture connected to tag.", "success");
+      setStatus("Scripture connected to keyword.", "success");
       invalidateRelatedScriptures({ refresh: true });
       renderTagManager();
     } catch (error) {
@@ -3962,7 +4065,7 @@
       setManagedTagScriptureFeedback(feedback.message, feedback.type);
 
       if (!error?.data?.code) {
-        setStatus(error.message || "Failed to connect Scripture to tag.", "error");
+        setStatus(error.message || "Failed to connect Scripture to keyword.", "error");
       }
 
       button.disabled = false;
@@ -4015,7 +4118,7 @@
 
     if (hasScriptureReference(state.managedTagScriptures, reference, { ignoreId: item.id })) {
       setManagedTagScriptureFeedback(
-        "You already added that reference to this tag.",
+        "You already added that reference to this keyword.",
         "warning"
       );
       referenceInput.focus();
@@ -4070,7 +4173,7 @@
 
     if (
       !confirm(
-        `Remove ${item.reference || "this Scripture"} from ${tag.name || "this tag"}?`
+        `Remove ${item.reference || "this Scripture"} from ${tag.name || "this keyword"}?`
       )
     ) {
       return;
@@ -4098,11 +4201,11 @@
       }
 
       setManagedTagScriptureFeedback(`${item.reference || "Scripture"} removed.`, "success");
-      setStatus("Scripture removed from tag.", "success");
+      setStatus("Scripture removed from keyword.", "success");
       invalidateRelatedScriptures({ refresh: true });
       renderTagManager();
     } catch (error) {
-      setStatus(error.message || "Failed to remove Scripture from tag.", "error");
+      setStatus(error.message || "Failed to remove Scripture from keyword.", "error");
     }
   }
 
@@ -4483,7 +4586,7 @@
     headingText.appendChild(createSmallLabel("Scripture Connections"));
 
     const heading = document.createElement("h3");
-    heading.textContent = "Scriptures connected to this Keyword";
+    heading.textContent = "Scriptures connected to this keyword";
     headingText.appendChild(heading);
 
     const count = document.createElement("span");
@@ -4617,7 +4720,7 @@
       tabs.className = "study-tag-manager-tabs";
       tabs.setAttribute("data-tag-manager-tabs", "true");
       tabs.setAttribute("role", "tablist");
-      tabs.setAttribute("aria-label", "Manage tags sections");
+      tabs.setAttribute("aria-label", "Manage keyword sections");
 
       const studyButton = document.createElement("button");
       studyButton.type = "button";
@@ -4648,6 +4751,37 @@
       tabs?.insertAdjacentElement("afterend", workspace);
       workspace.append(els.tagManagerList, els.tagManagerEditor);
     }
+
+    initKeywordManagerResponsiveFit(workspace);
+  }
+
+  function initKeywordManagerResponsiveFit(workspace) {
+    if (!workspace || workspace.dataset.keywordFitReady === "true") return;
+
+    keywordManagerFitController?.destroy();
+
+    keywordManagerFitController = createResponsiveFitController({
+      measureElement: workspace,
+      observeElement: workspace,
+      modes: ["wide", "stacked"],
+      applyMode(mode) {
+        workspace.dataset.keywordFitMode = mode;
+        workspace.classList.toggle("is-keyword-stacked", mode === "stacked");
+      },
+      isEnabled: () => (
+        state.tagManagerTab === "library" &&
+        els.tagManagerModal &&
+        !els.tagManagerModal.hidden
+      ),
+      fitMargin: 8,
+      restoreMargin: 28
+    });
+
+    workspace.dataset.keywordFitReady = "true";
+  }
+
+  function scheduleKeywordManagerFit() {
+    keywordManagerFitController?.schedule();
   }
 
   function setTagManagerTab(tab) {
@@ -4690,6 +4824,8 @@
       button.setAttribute("aria-selected", String(isSelected));
       button.setAttribute("tabindex", isSelected ? "0" : "-1");
     });
+
+    scheduleKeywordManagerFit();
   }
 
   function createTagManagerSearch(placeholder, onInput) {
@@ -4735,7 +4871,7 @@
     renderTagManager();
     markDirty();
     invalidateRelatedScriptures({ refresh: true });
-    setStatus(`${tag.name || "Tag"} removed from this study.`, "success");
+    setStatus(`${tag.name || "Keyword"} removed from this study.`, "success");
   }
 
   function createStudyTagAssignmentRow(tag) {
@@ -4753,7 +4889,7 @@
     nameLine.className = "study-tag-assignment-name-line";
 
     const name = document.createElement("strong");
-    name.textContent = tag.name || "Tag";
+    name.textContent = tag.name || "Keyword";
 
     const scriptureCount = Math.max(0, Number(tag.scriptureCount) || 0);
     const count = document.createElement("span");
@@ -4772,8 +4908,8 @@
     action.setAttribute(
       "aria-label",
       isAdded
-        ? `Remove ${tag.name || "tag"} from this study`
-        : `Add ${tag.name || "tag"} to this study`
+        ? `Remove ${tag.name || "keyword"} from this study`
+        : `Add ${tag.name || "keyword"} to this study`
     );
     action.title = isAdded ? "Click to remove from this study" : "Add to this study";
     action.addEventListener("click", () => {
@@ -4801,7 +4937,7 @@
       <p>Add or remove keywords here. Keyword names, colors, and Scripture Connections are managed separately in Keyword Library.</p>
     `;
 
-    const search = createTagManagerSearch("Search tags", renderTagManager);
+    const search = createTagManagerSearch("Search keywords", renderTagManager);
     const rows = document.createElement("div");
     rows.className = "study-tag-assignment-list";
 
@@ -4811,8 +4947,8 @@
       const empty = document.createElement("p");
       empty.className = "study-manager-empty study-tag-manager-empty";
       empty.textContent = state.availableTags.length
-        ? "No tags match your search."
-        : "No tags yet. Create your first tag in Keyword Library.";
+        ? "No keywords match your search."
+        : "No keywords yet. Create your first keyword in Keyword Library.";
       rows.appendChild(empty);
     } else {
       filteredTags.forEach((tag) => rows.appendChild(createStudyTagAssignmentRow(tag)));
@@ -4831,8 +4967,7 @@
 
     const heading = document.createElement("div");
     heading.innerHTML = `
-      <p class="study-manager-small-label">Keyword Library</p>
-      <h3>Your Keywords</h3>
+      <h3>Keywords</h3>
     `;
 
     const newButton = document.createElement("button");
@@ -4851,7 +4986,7 @@
 
     header.append(heading, newButton);
     els.tagManagerList.appendChild(header);
-    els.tagManagerList.appendChild(createTagManagerSearch("Search Keyword library", renderTagManager));
+    els.tagManagerList.appendChild(createTagManagerSearch("Search keywords...", renderTagManager));
 
     const rows = document.createElement("div");
     rows.className = "study-tag-library-rows";
@@ -4862,8 +4997,8 @@
       const empty = document.createElement("p");
       empty.className = "study-manager-empty study-tag-manager-empty";
       empty.textContent = state.availableTags.length
-        ? "No tags match your search."
-        : "No tags yet. Create your first tag.";
+        ? "No keywords match your search."
+        : "No keywords yet. Create your first keyword.";
       rows.appendChild(empty);
     } else {
       filteredTags.forEach((tag) => {
@@ -4884,7 +5019,7 @@
         text.className = "study-tag-library-row-text";
 
         const name = document.createElement("strong");
-        name.textContent = tag.name || "Tag";
+        name.textContent = tag.name || "Keyword";
 
         const scriptureCount = Math.max(0, Number(tag.scriptureCount) || 0);
         const count = document.createElement("small");
@@ -4928,7 +5063,7 @@
     const color = normalizeColorValue(getColor?.()) || tag.color || "#dbeafe";
 
     if (!name) {
-      setManagedTagAutoSaveStatus(statusElement, "Tag name cannot be empty.", "error");
+      setManagedTagAutoSaveStatus(statusElement, "Keyword name cannot be empty.", "error");
       nameInput.focus();
       return Promise.resolve();
     }
@@ -4980,7 +5115,7 @@
       .catch((error) => {
         setManagedTagAutoSaveStatus(
           statusElement,
-          error?.message || "Could not save tag changes.",
+          error?.message || "Could not save keyword changes.",
           "error"
         );
       });
@@ -5033,12 +5168,12 @@
     const color = normalizeColorValue(getColor?.()) || "#dbeafe";
 
     if (!name) {
-      setManagedTagAutoSaveStatus(feedback, "Enter a tag name.", "error");
+      setManagedTagAutoSaveStatus(feedback, "Enter a keyword name.", "error");
       nameInput?.focus();
       return;
     }
 
-    const originalText = button?.textContent || "Create Tag";
+    const originalText = button?.textContent || "Create Keyword";
     if (button) {
       button.disabled = true;
       button.textContent = "Creating...";
@@ -5075,10 +5210,10 @@
       renderSelectedTags();
       renderStudyList();
       renderTagManager();
-      setStatus("Tag created.", "success");
+      setStatus("Keyword created.", "success");
       loadManagedTagScriptures(tag.id, { force: true });
     } catch (error) {
-      setManagedTagAutoSaveStatus(feedback, error?.message || "Could not create tag.", "error");
+      setManagedTagAutoSaveStatus(feedback, error?.message || "Could not create keyword.", "error");
       if (button) {
         button.disabled = false;
         button.textContent = originalText;
@@ -5145,7 +5280,7 @@
     const create = document.createElement("button");
     create.type = "button";
     create.className = "study-primary-button";
-    create.textContent = "Create Tag";
+    create.textContent = "Create Keyword";
     create.disabled = true;
 
     nameInput.addEventListener("input", () => {
@@ -5188,7 +5323,7 @@
     eyebrow.textContent = "Selected Keyword";
 
     const headline = document.createElement("h3");
-    headline.textContent = tag.name || "Tag";
+    headline.textContent = tag.name || "Keyword";
 
     const helper = document.createElement("p");
     helper.textContent = "Name and color save automatically.";
@@ -5199,7 +5334,7 @@
     overflow.className = "study-tag-overflow";
 
     const summary = document.createElement("summary");
-    summary.setAttribute("aria-label", `More actions for ${tag.name || "tag"}`);
+    summary.setAttribute("aria-label", `More actions for ${tag.name || "keyword"}`);
     summary.title = "More actions";
     summary.textContent = "•••";
 
@@ -5209,7 +5344,7 @@
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "study-tag-overflow-delete";
-    deleteButton.textContent = "Delete Keyword";
+    deleteButton.textContent = "Delete keyword";
     deleteButton.addEventListener("click", () => deleteTag(tag));
 
     menu.appendChild(deleteButton);
@@ -5220,7 +5355,7 @@
     nameInput.type = "text";
     nameInput.className = "study-manager-name-input";
     nameInput.value = tag.name || "";
-    nameInput.setAttribute("aria-label", "Tag name");
+    nameInput.setAttribute("aria-label", "Keyword name");
 
     let selectedColor = normalizeColorValue(tag.color) || "#dbeafe";
     const picker = document.createElement("div");
@@ -5241,7 +5376,7 @@
     renderPicker();
 
     nameInput.addEventListener("input", () => {
-      headline.textContent = normalizeName(nameInput.value) || "Tag";
+      headline.textContent = normalizeName(nameInput.value) || "Keyword";
       scheduleManagedTagAutoSave(tag, nameInput, () => selectedColor, saveStatus, false);
     });
     nameInput.addEventListener("blur", flushManagedTagAutoSave);
@@ -5293,8 +5428,8 @@
       empty.className = "study-tag-library-detail-card study-manager-empty-editor";
       empty.innerHTML = `
         <p class="study-manager-small-label">Keyword Library</p>
-        <h3>Select a tag</h3>
-        <p>Choose a tag from the list to manage its name, color, and Scripture Connections.</p>
+        <h3>Select a keyword</h3>
+        <p>Choose a keyword from the list to manage its name, color, and Scripture Connections.</p>
       `;
       els.tagManagerEditor.appendChild(empty);
       return;
@@ -5317,6 +5452,7 @@
 
     if (state.tagManagerTab === "library") {
       renderTagLibraryTab();
+      scheduleKeywordManagerFit();
       return;
     }
 
@@ -5394,7 +5530,7 @@
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
-      setStatus("Tag saved.", "success");
+      setStatus("Keyword saved.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -5439,7 +5575,7 @@
 
     if (!name) return;
 
-    setStatus("Saving tag changes...");
+    setStatus("Saving keyword changes...");
 
     try {
       const result = await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
@@ -5458,7 +5594,7 @@
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
-      setStatus("Tag updated.", "success");
+      setStatus("Keyword updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -5503,7 +5639,7 @@
   async function deleteTag(tag) {
     if (!tag || !tag.id) return;
 
-    if (!confirm(`Delete "${tag.name}"? This removes the tag, its Scripture Connections, and the tag from studies where it is used.`)) {
+    if (!confirm(`Delete "${tag.name}"? This removes the keyword, its Scripture Connections, and the keyword from studies where it is used.`)) {
       return;
     }
 
@@ -5535,7 +5671,7 @@
         loadManagedTagScriptures(state.managedTagId, { force: true });
       }
 
-      setStatus("Tag deleted.", "success");
+      setStatus("Keyword deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -5879,56 +6015,30 @@
     }
   }
 
-  function studyToolbarFits(toolbar, margin) {
-    if (!toolbar || toolbar.clientWidth <= 0) return true;
-    return toolbar.scrollWidth <= Math.max(0, toolbar.clientWidth - margin);
-  }
+  function measureStudyToolbarRequiredWidth(toolbar) {
+    if (!toolbar) return 0;
 
-  function updateStudyToolbarFit() {
-    studyToolbarFitFrame = 0;
+    const toolbarStyle = window.getComputedStyle(toolbar);
+    let requiredWidth =
+      (parseFloat(toolbarStyle.paddingLeft) || 0) +
+      (parseFloat(toolbarStyle.paddingRight) || 0);
 
-    const toolbar = byId("study-quill-toolbar");
-    if (!toolbar || !state.quill || state.isPreview || toolbar.clientWidth <= 0) return;
+    Array.from(toolbar.children).forEach((child) => {
+      const childStyle = window.getComputedStyle(child);
+      if (childStyle.display === "none" || childStyle.position === "absolute") return;
 
-    const currentMode = toolbar.dataset.fitMode || "full";
+      const rect = child.getBoundingClientRect();
+      requiredWidth +=
+        rect.width +
+        (parseFloat(childStyle.marginLeft) || 0) +
+        (parseFloat(childStyle.marginRight) || 0);
+    });
 
-    // Restore to a richer mode only when there is extra breathing room.
-    // This hysteresis prevents flicker when a resize sits right on the boundary.
-    if (currentMode === "more") {
-      setStudyToolbarFitMode("full");
-      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_RESTORE_MARGIN)) return;
-
-      setStudyToolbarFitMode("format");
-      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_RESTORE_MARGIN)) return;
-
-      setStudyToolbarFitMode("more");
-      return;
-    }
-
-    if (currentMode === "format") {
-      setStudyToolbarFitMode("full");
-      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_RESTORE_MARGIN)) return;
-
-      setStudyToolbarFitMode("format");
-      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_FIT_MARGIN)) return;
-
-      setStudyToolbarFitMode("more");
-      return;
-    }
-
-    // Full mode: collapse only when the actual one-line toolbar no longer fits.
-    setStudyToolbarFitMode("full");
-    if (studyToolbarFits(toolbar, STUDY_TOOLBAR_FIT_MARGIN)) return;
-
-    setStudyToolbarFitMode("format");
-    if (studyToolbarFits(toolbar, STUDY_TOOLBAR_FIT_MARGIN)) return;
-
-    setStudyToolbarFitMode("more");
+    return Math.ceil(requiredWidth);
   }
 
   function scheduleStudyToolbarFit() {
-    if (studyToolbarFitFrame) return;
-    studyToolbarFitFrame = window.requestAnimationFrame(updateStudyToolbarFit);
+    studyToolbarFitController?.schedule();
   }
 
   function initResponsiveStudyToolbar() {
@@ -5992,10 +6102,17 @@
       if (event.key === "Escape") closeStudyToolbarMenus();
     });
 
-    if (window.ResizeObserver) {
-      studyToolbarResizeObserver = new ResizeObserver(scheduleStudyToolbarFit);
-      studyToolbarResizeObserver.observe(writingCard);
-    }
+    studyToolbarFitController?.destroy();
+    studyToolbarFitController = createResponsiveFitController({
+      measureElement: toolbar,
+      observeElement: writingCard,
+      modes: ["full", "format", "more"],
+      applyMode: setStudyToolbarFitMode,
+      isEnabled: () => Boolean(state.quill && !state.isPreview && toolbar.clientWidth > 0),
+      getRequiredWidth: measureStudyToolbarRequiredWidth,
+      fitMargin: STUDY_TOOLBAR_FIT_MARGIN,
+      restoreMargin: STUDY_TOOLBAR_RESTORE_MARGIN
+    });
 
     if (document.fonts?.ready) {
       document.fonts.ready.then(scheduleStudyToolbarFit).catch(() => {});
