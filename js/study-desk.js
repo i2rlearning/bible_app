@@ -1660,7 +1660,7 @@
 
     const title = document.createElement("span");
     title.className = "related-scripture-disclosure-title";
-    title.textContent = "Related from your keywords";
+    title.textContent = "Related Scriptures";
 
     const count = document.createElement("span");
     count.className = "related-scripture-disclosure-count";
