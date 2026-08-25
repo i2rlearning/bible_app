@@ -4483,7 +4483,7 @@
     headingText.appendChild(createSmallLabel("Scripture Connections"));
 
     const heading = document.createElement("h3");
-    heading.textContent = "Scriptures connected to this tag";
+    heading.textContent = "Scriptures connected to this Keyword";
     headingText.appendChild(heading);
 
     const count = document.createElement("span");
@@ -4500,7 +4500,7 @@
     const architectureNote = document.createElement("p");
     architectureNote.className = "study-manager-section-note tag-scripture-note";
     architectureNote.textContent =
-      "These connections belong to the tag. They do not automatically add Scriptures to a study's Referenced Scriptures.";
+      "These connections belong to the keyword. They do not automatically add Scriptures to a study's Referenced Scriptures.";
     section.appendChild(architectureNote);
 
     if (
@@ -4624,7 +4624,7 @@
       studyButton.className = "study-tag-manager-tab";
       studyButton.dataset.tagManagerTab = "study";
       studyButton.setAttribute("role", "tab");
-      studyButton.textContent = "Study Tags";
+      studyButton.textContent = "Study Keywords";
       studyButton.addEventListener("click", () => setTagManagerTab("study"));
 
       const libraryButton = document.createElement("button");
@@ -4632,7 +4632,7 @@
       libraryButton.className = "study-tag-manager-tab";
       libraryButton.dataset.tagManagerTab = "library";
       libraryButton.setAttribute("role", "tab");
-      libraryButton.textContent = "Tag Library";
+      libraryButton.textContent = "Keyword Library";
       libraryButton.addEventListener("click", () => setTagManagerTab("library"));
 
       tabs.append(studyButton, libraryButton);
@@ -4798,7 +4798,7 @@
     intro.innerHTML = `
       <p class="study-manager-small-label">Current Study</p>
       <h3>Choose the tags for this study</h3>
-      <p>Add or remove tags here. Tag names, colors, and Scripture Connections are managed separately in Tag Library.</p>
+      <p>Add or remove tags here. Tag names, colors, and Scripture Connections are managed separately in Keyword Library.</p>
     `;
 
     const search = createTagManagerSearch("Search tags", renderTagManager);
@@ -4812,7 +4812,7 @@
       empty.className = "study-manager-empty study-tag-manager-empty";
       empty.textContent = state.availableTags.length
         ? "No tags match your search."
-        : "No tags yet. Create your first tag in Tag Library.";
+        : "No tags yet. Create your first tag in Keyword Library.";
       rows.appendChild(empty);
     } else {
       filteredTags.forEach((tag) => rows.appendChild(createStudyTagAssignmentRow(tag)));
@@ -4831,7 +4831,7 @@
 
     const heading = document.createElement("div");
     heading.innerHTML = `
-      <p class="study-manager-small-label">Tag Library</p>
+      <p class="study-manager-small-label">Keyword Library</p>
       <h3>Your tags</h3>
     `;
 
@@ -4851,7 +4851,7 @@
 
     header.append(heading, newButton);
     els.tagManagerList.appendChild(header);
-    els.tagManagerList.appendChild(createTagManagerSearch("Search tag library", renderTagManager));
+    els.tagManagerList.appendChild(createTagManagerSearch("Search Keyword library", renderTagManager));
 
     const rows = document.createElement("div");
     rows.className = "study-tag-library-rows";
@@ -5292,7 +5292,7 @@
       const empty = document.createElement("div");
       empty.className = "study-tag-library-detail-card study-manager-empty-editor";
       empty.innerHTML = `
-        <p class="study-manager-small-label">Tag Library</p>
+        <p class="study-manager-small-label">Keyword Library</p>
         <h3>Select a tag</h3>
         <p>Choose a tag from the list to manage its name, color, and Scripture Connections.</p>
       `;
