@@ -166,8 +166,32 @@
 
               <div class="study-body-layout">
                 <section class="study-writing-card" aria-label="Study notes editor">
-                  <div id="study-quill-toolbar">
-                    <span class="ql-formats">
+                  <div id="study-quill-toolbar" data-fit-mode="full">
+                    <div class="study-toolbar-compact-group study-format-compact-group">
+                      <button
+                        type="button"
+                        id="study-format-toggle"
+                        class="study-toolbar-toggle"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                        aria-controls="study-format-menu"
+                      >Format</button>
+
+                      <div id="study-format-menu" class="study-toolbar-menu" role="menu" hidden>
+                        <div class="study-toolbar-menu-title">Block</div>
+                        <button type="button" data-study-block-format="paragraph" role="menuitem">Paragraph</button>
+                        <button type="button" data-study-block-format="1" role="menuitem">Heading 1</button>
+                        <button type="button" data-study-block-format="2" role="menuitem">Heading 2</button>
+
+                        <div class="study-toolbar-menu-title">Text Size</div>
+                        <button type="button" data-study-size-format="normal" role="menuitem">Normal</button>
+                        <button type="button" data-study-size-format="small" role="menuitem">Small</button>
+                        <button type="button" data-study-size-format="large" role="menuitem">Large</button>
+                        <button type="button" data-study-size-format="huge" role="menuitem">Huge</button>
+                      </div>
+                    </div>
+
+                    <span class="ql-formats study-toolbar-native-block-format">
                       <select class="ql-header">
                         <option value="1">Heading 1</option>
                         <option value="2">Heading 2</option>
@@ -175,7 +199,7 @@
                       </select>
                     </span>
                     
-                    <span class="ql-formats">
+                    <span class="ql-formats study-toolbar-native-size-format">
                       <select class="ql-size">
                         <option selected></option>
                         <option value="small"></option>
@@ -196,7 +220,7 @@
                       <select class="ql-background"></select>
                     </span>
                     
-                    <span class="ql-formats">
+                    <span class="ql-formats study-toolbar-secondary-formats">
                       <button class="ql-list" value="ordered" type="button"></button>
                       <button class="ql-list" value="bullet" type="button"></button>
                       <button class="ql-blockquote" type="button"></button>
@@ -204,9 +228,28 @@
                       <button class="ql-link" type="button"></button>
                     </span>
                     
-                    <span class="ql-formats">
+                    <span class="ql-formats study-toolbar-clean-format">
                       <button class="ql-clean" type="button"></button>
                     </span>
+
+                    <div class="study-toolbar-compact-group study-more-compact-group">
+                      <button
+                        type="button"
+                        id="study-more-toggle"
+                        class="study-toolbar-toggle"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                        aria-controls="study-more-menu"
+                      >More</button>
+
+                      <div id="study-more-menu" class="study-toolbar-menu study-toolbar-more-menu" role="menu" hidden>
+                        <button type="button" data-study-quill-control="ordered-list" role="menuitem">Numbered list</button>
+                        <button type="button" data-study-quill-control="blockquote" role="menuitem">Blockquote</button>
+                        <button type="button" data-study-quill-control="divider" role="menuitem">Divider</button>
+                        <button type="button" data-study-quill-control="link" role="menuitem">Link</button>
+                        <button type="button" data-study-quill-control="clean" role="menuitem">Clear formatting</button>
+                      </div>
+                    </div>
                   </div>
 
                   <div id="study-editor" class="study-quill-editor"></div>
