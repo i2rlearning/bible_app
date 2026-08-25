@@ -511,6 +511,31 @@ body.study-desk-page {
   border-radius: 18px 18px 0 0;
 }
 
+/* Custom Quill divider button. */
+#study-quill-toolbar button.ql-divider {
+  position: relative;
+}
+
+#study-quill-toolbar button.ql-divider::before {
+  content: "";
+  display: block;
+  width: 14px;
+  border-top: 2px solid currentColor;
+  margin: 0 auto;
+}
+
+/* Horizontal divider inserted through the custom Quill Divider blot. */
+.study-quill-editor .ql-editor hr.study-divider,
+.study-preview-content hr.study-divider,
+.study-preview-content hr {
+  width: 100%;
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--study-border);
+  margin: 24px 0;
+  padding: 0;
+}
+
 .study-quill-editor {
   --study-editor-padding-y: 26px;
   --study-editor-padding-x: 30px;
