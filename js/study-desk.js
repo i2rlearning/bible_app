@@ -60,6 +60,7 @@
   const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
   const STUDY_SYNC_STORAGE_KEY = "branchOfIsraelStudySync";
   const STUDY_SYNC_POLL_MS = 15000;
+  const KEYWORD_REFRESH_MIN_INTERVAL_MS = 750;
   const STUDY_TOOLBAR_FIT_MARGIN = 8;
   const STUDY_TOOLBAR_RESTORE_MARGIN = 24;
   const linkedScripturePreviewCache = new Map();
@@ -76,6 +77,8 @@
   let studySyncChannel = null;
   let studyToolbarFitController = null;
   let keywordManagerFitController = null;
+  let keywordDataRefreshPromise = null;
+  let lastKeywordRefreshAt = 0;
   let lastQuillSelection = null;
 
   const els = {};
@@ -1166,10 +1169,15 @@
 
     state.syncPollTimer = window.setInterval(checkForRemoteStudyUpdate, STUDY_SYNC_POLL_MS);
 
-    window.addEventListener("focus", checkForRemoteStudyUpdate);
+    window.addEventListener("focus", () => {
+      checkForRemoteStudyUpdate();
+      refreshKeywordDataWhenActive();
+    });
+
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
         checkForRemoteStudyUpdate();
+        refreshKeywordDataWhenActive();
       }
     });
   }
@@ -1351,6 +1359,71 @@
     const result = await fetchJson("/api/study-tags");
     state.availableTags = Array.isArray(result.tags) ? result.tags : [];
     renderTagOptions();
+  }
+
+  // Keyword Scripture connections can be edited from the Bible page in another tab.
+  // Refresh the lightweight Keyword summary whenever this Study Desk becomes active
+  // or whenever Manage Keywords opens, so Scripture counts do not require a page refresh.
+  async function refreshKeywordData(options = {}) {
+    const force = Boolean(options.force);
+    const refreshManager = options.refreshManager !== false;
+    const refreshConnections = options.refreshConnections !== false;
+
+    if (!state.hasLoaded || document.hidden) {
+      return;
+    }
+
+    const now = Date.now();
+    if (!force && now - lastKeywordRefreshAt < KEYWORD_REFRESH_MIN_INTERVAL_MS) {
+      return keywordDataRefreshPromise;
+    }
+
+    if (keywordDataRefreshPromise) {
+      return keywordDataRefreshPromise;
+    }
+
+    keywordDataRefreshPromise = (async () => {
+      try {
+        await loadAvailableTags();
+        lastKeywordRefreshAt = Date.now();
+
+        // A Keyword's Scripture connections may have changed even when its count did
+        // not (for example, one reference was replaced by another). Invalidate the
+        // derived Related Scriptures cache so the next view is always current.
+        invalidateRelatedScriptures({
+          refresh: state.relatedScripturesExpanded || state.previewRelatedScripturesExpanded
+        });
+
+        if (
+          refreshManager &&
+          els.tagManagerModal &&
+          !els.tagManagerModal.hidden
+        ) {
+          renderTagManager();
+
+          if (
+            refreshConnections &&
+            state.tagManagerTab === "library" &&
+            state.managedTagId
+          ) {
+            await loadManagedTagScriptures(state.managedTagId, { force: true });
+          }
+        }
+      } catch (error) {
+        // This is a background freshness check. Keep the current UI usable if it
+        // temporarily fails; normal API actions will still surface their own errors.
+        console.warn("Could not refresh Keyword data:", error);
+      } finally {
+        keywordDataRefreshPromise = null;
+      }
+    })();
+
+    return keywordDataRefreshPromise;
+  }
+
+  function refreshKeywordDataWhenActive() {
+    if (!state.hasLoaded || document.hidden) return;
+    refreshKeywordData({ refreshManager: true, refreshConnections: true });
   }
 
   async function loadSetup() {
@@ -3318,6 +3391,14 @@
     renderTagManager();
     els.tagManagerModal.hidden = false;
     window.requestAnimationFrame(scheduleKeywordManagerFit);
+
+    // The Bible page can add/remove Scripture connections in another tab.
+    // Refresh as the manager opens so counts are current without a browser reload.
+    refreshKeywordData({
+      force: true,
+      refreshManager: true,
+      refreshConnections: true
+    });
   }
 
   function closeTagManager() {
