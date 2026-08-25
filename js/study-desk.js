@@ -5701,7 +5701,41 @@
     });
   }
 
+  function registerQuillDivider() {
+    if (!window.Quill) return;
+
+    // Avoid registering the same blot more than once if this script is re-run.
+    if (Quill.imports && Quill.imports["formats/divider"]) {
+      return;
+    }
+
+    const BlockEmbed = Quill.import("blots/block/embed");
+
+    class DividerBlot extends BlockEmbed {}
+
+    DividerBlot.blotName = "divider";
+    DividerBlot.tagName = "HR";
+    DividerBlot.className = "study-divider";
+
+    Quill.register(DividerBlot);
+  }
+
+  function insertQuillDivider() {
+    if (!state.quill) return;
+
+    const range = state.quill.getSelection(true);
+    const index = range ? range.index : Math.max(0, state.quill.getLength() - 1);
+
+    // A block embed needs its own line. Insert a newline first, then the divider.
+    state.quill.insertText(index, "\n", Quill.sources.USER);
+    state.quill.insertEmbed(index + 1, "divider", true, Quill.sources.USER);
+    state.quill.setSelection(index + 2, 0, Quill.sources.SILENT);
+    state.quill.focus();
+  }
+
   function initQuill() {
+    registerQuillDivider();
+
     state.quill = new Quill("#study-editor", {
       theme: "snow",
       modules: {
@@ -5709,6 +5743,11 @@
       },
       placeholder: "Write your notes, insights, outline, sermon, lesson, or reflection here..."
     });
+
+    const toolbar = state.quill.getModule("toolbar");
+    if (toolbar) {
+      toolbar.addHandler("divider", insertQuillDivider);
+    }
 
     state.quill.on("text-change", () => {
       updateWordCount();
