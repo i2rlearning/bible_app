@@ -219,6 +219,15 @@ body.study-desk-page {
   align-items: start;
 }
 
+/* Preview gets the full workspace width by hiding My Studies only while previewing. */
+.study-app.is-preview-mode {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.study-app.is-preview-mode .study-list-panel {
+  display: none;
+}
+
 .study-list-panel,
 .study-editor-panel,
 .study-auth-message {
@@ -509,6 +518,142 @@ body.study-desk-page {
   border-bottom: 1px solid var(--study-border);
   background: #ffffff;
   border-radius: 18px 18px 0 0;
+}
+
+/* --------------------------------------------------------------------------
+   Intelligent one-line Study Desk toolbar
+   The toolbar never wraps. JavaScript measures real available component width
+   and moves through: full -> Format dropdown -> Format + More dropdown.
+   -------------------------------------------------------------------------- */
+#study-quill-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow: visible;
+  position: relative;
+  box-sizing: border-box;
+}
+
+#study-quill-toolbar > .ql-formats,
+#study-quill-toolbar > .study-toolbar-compact-group {
+  flex: 0 0 auto;
+}
+
+.study-toolbar-compact-group {
+  display: none;
+  position: relative;
+  margin-right: 15px;
+}
+
+#study-quill-toolbar.is-format-compact .study-format-compact-group,
+#study-quill-toolbar.is-more-compact .study-more-compact-group {
+  display: block;
+}
+
+#study-quill-toolbar.is-format-compact .study-toolbar-native-block-format,
+#study-quill-toolbar.is-format-compact .study-toolbar-native-size-format {
+  display: none;
+}
+
+/* At the second compact stage, keep the bullet-list button visible and move
+   lower-frequency actions into More. */
+#study-quill-toolbar.is-more-compact .study-toolbar-secondary-formats .ql-list[value="ordered"],
+#study-quill-toolbar.is-more-compact .study-toolbar-secondary-formats .ql-blockquote,
+#study-quill-toolbar.is-more-compact .study-toolbar-secondary-formats .ql-divider,
+#study-quill-toolbar.is-more-compact .study-toolbar-secondary-formats .ql-link,
+#study-quill-toolbar.is-more-compact .study-toolbar-clean-format {
+  display: none;
+}
+
+#study-quill-toolbar.is-more-compact {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+#study-quill-toolbar.is-more-compact > .ql-formats,
+#study-quill-toolbar.is-more-compact > .study-toolbar-compact-group {
+  margin-right: 7px;
+}
+
+#study-quill-toolbar .study-toolbar-toggle {
+  float: none;
+  width: auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  background: transparent;
+  color: #374151;
+  font: inherit;
+  font-size: 14px;
+  line-height: 28px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#study-quill-toolbar .study-toolbar-toggle::after {
+  content: "▾";
+  margin-left: 5px;
+  font-size: 10px;
+}
+
+#study-quill-toolbar .study-toolbar-toggle:hover,
+#study-quill-toolbar .study-toolbar-toggle[aria-expanded="true"] {
+  color: var(--study-blue);
+}
+
+#study-quill-toolbar .study-toolbar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 6200;
+  width: 190px;
+  padding: 8px;
+  border: 1px solid var(--study-border);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(16, 41, 79, 0.18);
+}
+
+#study-quill-toolbar .study-toolbar-menu[hidden] {
+  display: none;
+}
+
+#study-quill-toolbar .study-toolbar-more-menu {
+  left: auto;
+  right: 0;
+  width: 180px;
+}
+
+#study-quill-toolbar .study-toolbar-menu-title {
+  margin: 4px 7px 5px;
+  color: var(--study-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#study-quill-toolbar .study-toolbar-menu button {
+  float: none;
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--study-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+#study-quill-toolbar .study-toolbar-menu button:hover,
+#study-quill-toolbar .study-toolbar-menu button.is-active {
+  background: var(--study-blue-soft);
+  color: var(--study-blue);
 }
 
 /* Custom Quill divider button. */
