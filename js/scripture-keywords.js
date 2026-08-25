@@ -1,3 +1,5 @@
+"use strict";
+
 // ============================================================================
 // Scripture <-> Keyword access from the Bible reading page
 //
@@ -20,12 +22,14 @@
     title: null,
     referenceLabel: null,
     activeReference: "",
+    activeDisplayReference: "",
     activeKeyword: null,
     allKeywords: [],
     connectedKeywords: [],
     savedOffsets: null,
     savedAt: 0,
     lastVerseReference: "",
+    lastVerseDisplayReference: "",
     lastFocusedElement: null,
     requestId: 0,
     chooserOpen: false,
@@ -73,15 +77,30 @@
     const params = new URLSearchParams(window.location.search);
     const chapterId = params.get("chapter") || "";
     const chapterParts = chapterId.split(".");
+    const bookId =
+      params.get("book") ||
+      (chapterParts.length > 1 ? chapterParts[0] : "") ||
+      "";
 
     return {
+      // bookId is the stable API.Bible book identifier (for example JHN).
+      // It is used for Keyword lookups so connections do not depend on the
+      // displayed language or Bible translation.
+      bookId,
+      // bookName is display-only and may be localized (John, Yochanan, etc.).
       bookName:
         params.get("bookName") ||
         params.get("name") ||
-        params.get("book") ||
-        chapterParts[0] ||
+        bookId ||
         "",
       chapterNumber: chapterParts[chapterParts.length - 1] || ""
+    };
+  }
+
+  function getReferenceBooks(context) {
+    return {
+      lookupBook: normalizeText(context.bookId || context.bookName),
+      displayBook: normalizeText(context.bookName || context.bookId)
     };
   }
 
@@ -202,10 +221,12 @@
   function buildReferenceFromRange(range) {
     const bibleText = document.getElementById("bible-text");
     const context = getBibleContext();
-    const bookChapter = `${context.bookName} ${context.chapterNumber}`.trim();
+    const books = getReferenceBooks(context);
+    const lookupBookChapter = `${books.lookupBook} ${context.chapterNumber}`.trim();
+    const displayBookChapter = `${books.displayBook} ${context.chapterNumber}`.trim();
 
-    if (!bibleText || !range || !bookChapter) {
-      return "";
+    if (!bibleText || !range || !lookupBookChapter) {
+      return null;
     }
 
     const startOffset = getTextOffset(
@@ -237,35 +258,54 @@
 
     if (!startVerse && markers.length) startVerse = markers[0].verse;
     if (!endVerse) endVerse = startVerse;
-    if (!startVerse) return bookChapter;
+    if (!startVerse) {
+      return {
+        reference: lookupBookChapter,
+        displayReference: displayBookChapter || lookupBookChapter
+      };
+    }
 
     const start = startVerse.split("-")[0];
     const end = endVerse.split("-").pop();
+    const suffix = end && end !== start
+      ? `:${start}-${end}`
+      : `:${start}`;
 
-    return end && end !== start
-      ? `${bookChapter}:${start}-${end}`
-      : `${bookChapter}:${start}`;
+    return {
+      reference: `${lookupBookChapter}${suffix}`,
+      displayReference: `${displayBookChapter || lookupBookChapter}${suffix}`
+    };
   }
 
   function buildReferenceFromVerseMarker(marker) {
     const context = getBibleContext();
+    const books = getReferenceBooks(context);
     const verse = getVerseNumber(marker);
-    const bookChapter = `${context.bookName} ${context.chapterNumber}`.trim();
+    const lookupBookChapter = `${books.lookupBook} ${context.chapterNumber}`.trim();
+    const displayBookChapter = `${books.displayBook} ${context.chapterNumber}`.trim();
 
-    if (!bookChapter || !verse) return "";
+    if (!lookupBookChapter || !verse) return null;
 
-    return `${bookChapter}:${verse}`;
+    return {
+      reference: `${lookupBookChapter}:${verse}`,
+      displayReference: `${displayBookChapter || lookupBookChapter}:${verse}`
+    };
   }
 
   function getCurrentTargetReference() {
     const range = getSelectionRange();
-    const selectedReference = range ? buildReferenceFromRange(range) : "";
+    const selectedTarget = range ? buildReferenceFromRange(range) : null;
 
-    if (selectedReference) {
-      return selectedReference;
+    if (selectedTarget?.reference) {
+      return selectedTarget;
     }
 
-    return state.lastVerseReference || "";
+    if (!state.lastVerseReference) return null;
+
+    return {
+      reference: state.lastVerseReference,
+      displayReference: state.lastVerseDisplayReference || state.lastVerseReference
+    };
   }
 
   function createDrawer() {
@@ -577,7 +617,7 @@
 
   function renderKeywordsView(options = {}) {
     openShell();
-    setHeader("Keywords", state.activeReference);
+    setHeader("Keywords", state.activeDisplayReference || state.activeReference);
     state.activeKeyword = null;
     state.body.innerHTML = "";
 
@@ -672,15 +712,16 @@
     }
   }
 
-  async function loadReferenceKeywords(reference) {
+  async function loadReferenceKeywords(reference, displayReference = reference) {
     const requestId = ++state.requestId;
     state.activeReference = reference;
+    state.activeDisplayReference = displayReference || reference;
     state.activeKeyword = null;
     state.chooserOpen = false;
     state.searchQuery = "";
 
     openShell();
-    setHeader("Keywords", reference);
+    setHeader("Keywords", state.activeDisplayReference);
     renderMessage("Loading Keywords...");
 
     try {
@@ -697,7 +738,7 @@
     } catch (error) {
       if (requestId !== state.requestId) return;
 
-      setHeader("Keywords", reference);
+      setHeader("Keywords", state.activeDisplayReference);
       renderMessage(
         isAuthError(error)
           ? "Log in to view and manage your Scripture Keywords."
@@ -791,14 +832,14 @@
 
   function openFromCurrentContext() {
     rememberBibleSelection();
-    const reference = getCurrentTargetReference();
+    const target = getCurrentTargetReference();
 
-    if (!reference) {
+    if (!target?.reference) {
       renderNeedSelection();
       return;
     }
 
-    loadReferenceKeywords(reference);
+    loadReferenceKeywords(target.reference, target.displayReference);
   }
 
   function bindTriggers() {
@@ -836,15 +877,16 @@
     bibleText.querySelectorAll(".v").forEach((marker) => {
       if (marker.dataset.keywordVerseReady === "true") return;
 
-      const reference = buildReferenceFromVerseMarker(marker);
+      const target = buildReferenceFromVerseMarker(marker);
+      const labelReference = target?.displayReference || target?.reference || "";
       marker.dataset.keywordVerseReady = "true";
       marker.setAttribute("role", "button");
       marker.setAttribute("tabindex", "0");
       marker.setAttribute(
         "aria-label",
-        reference ? `Open Keywords for ${reference}` : "Open Scripture Keywords"
+        labelReference ? `Open Keywords for ${labelReference}` : "Open Scripture Keywords"
       );
-      marker.title = reference ? `Keywords for ${reference}` : "Scripture Keywords";
+      marker.title = labelReference ? `Keywords for ${labelReference}` : "Scripture Keywords";
     });
   }
 
@@ -860,14 +902,15 @@
       const marker = event.target.closest?.(".v[data-keyword-verse-ready='true']");
       if (!marker || !bibleText.contains(marker)) return;
 
-      const reference = buildReferenceFromVerseMarker(marker);
-      if (!reference) return;
+      const target = buildReferenceFromVerseMarker(marker);
+      if (!target?.reference) return;
 
       event.preventDefault();
       event.stopPropagation();
-      state.lastVerseReference = reference;
+      state.lastVerseReference = target.reference;
+      state.lastVerseDisplayReference = target.displayReference || target.reference;
       state.savedOffsets = null;
-      loadReferenceKeywords(reference);
+      loadReferenceKeywords(target.reference, target.displayReference);
     });
 
     bibleText.addEventListener("keydown", (event) => {
@@ -875,13 +918,14 @@
       if (!marker || !bibleText.contains(marker)) return;
       if (event.key !== "Enter" && event.key !== " ") return;
 
-      const reference = buildReferenceFromVerseMarker(marker);
-      if (!reference) return;
+      const target = buildReferenceFromVerseMarker(marker);
+      if (!target?.reference) return;
 
       event.preventDefault();
-      state.lastVerseReference = reference;
+      state.lastVerseReference = target.reference;
+      state.lastVerseDisplayReference = target.displayReference || target.reference;
       state.savedOffsets = null;
-      loadReferenceKeywords(reference);
+      loadReferenceKeywords(target.reference, target.displayReference);
     });
   }
 
