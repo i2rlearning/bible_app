@@ -1,5 +1,5 @@
 // ============================================================================
-// Step 3 - Scripture <-> Keyword access from the Bible reading page
+// Scripture <-> Keyword access from the Bible reading page
 //
 // User-facing language says "Keyword", while the existing backend/API continues
 // to use the established tag model. This file does not change database structure.
