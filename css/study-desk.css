@@ -626,12 +626,16 @@ body.study-desk-page {
 }
 
 #study-quill-toolbar .study-toolbar-menu-title {
-  margin: 4px 7px 5px;
-  color: var(--study-muted);
+  margin: 4px 7px 7px;
+  color: var(--study-navy);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+#study-quill-toolbar .study-toolbar-menu-title:not(:first-child) {
+  margin-top: 20px;
 }
 
 #study-quill-toolbar .study-toolbar-menu button {
