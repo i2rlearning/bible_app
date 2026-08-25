@@ -60,6 +60,8 @@
   const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
   const STUDY_SYNC_STORAGE_KEY = "branchOfIsraelStudySync";
   const STUDY_SYNC_POLL_MS = 15000;
+  const STUDY_TOOLBAR_FIT_MARGIN = 8;
+  const STUDY_TOOLBAR_RESTORE_MARGIN = 24;
   const linkedScripturePreviewCache = new Map();
   const linkedScriptureBookCache = new Map();
   let activeScripturePopupAnchor = null;
@@ -72,6 +74,9 @@
   let managedTagAutoSaveQueue = Promise.resolve();
   let managedTagPendingSave = null;
   let studySyncChannel = null;
+  let studyToolbarResizeObserver = null;
+  let studyToolbarFitFrame = 0;
+  let lastQuillSelection = null;
 
   const els = {};
   let statusClearTimer = null;
@@ -3134,9 +3139,15 @@
     renderPreviewScriptures();
   }
 
+  function setPreviewWorkspaceMode(isPreview) {
+    if (!els.app) return;
+    els.app.classList.toggle("is-preview-mode", Boolean(isPreview));
+  }
+
   function switchToPreview() {
     renderPreview();
     state.isPreview = true;
+    setPreviewWorkspaceMode(true);
     els.form.hidden = true;
     els.preview.hidden = false;
     els.previewButton.hidden = true;
@@ -3156,6 +3167,7 @@
   function switchToEdit() {
     closeScripturePreviewPopup();
     state.isPreview = false;
+    setPreviewWorkspaceMode(false);
     els.form.hidden = false;
     els.preview.hidden = true;
     els.previewButton.hidden = false;
@@ -3166,6 +3178,8 @@
     els.deleteButton.disabled = false;
   
     els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
+
+    scheduleStudyToolbarFit();
 
     if (state.relatedScripturesExpanded) {
       loadRelatedScriptures();
@@ -5733,6 +5747,264 @@
     state.quill.focus();
   }
 
+  function closeStudyToolbarMenus() {
+    const menuIds = ["study-format-menu", "study-more-menu"];
+
+    menuIds.forEach((menuId) => {
+      const menu = byId(menuId);
+      if (menu) menu.hidden = true;
+    });
+
+    ["study-format-toggle", "study-more-toggle"].forEach((toggleId) => {
+      const toggle = byId(toggleId);
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function toggleStudyToolbarMenu(toggleId, menuId) {
+    const toggle = byId(toggleId);
+    const menu = byId(menuId);
+    if (!toggle || !menu) return;
+
+    const shouldOpen = menu.hidden;
+    closeStudyToolbarMenus();
+
+    if (shouldOpen) {
+      menu.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+    }
+  }
+
+  function restoreQuillSelection() {
+    if (!state.quill) return null;
+
+    let range = state.quill.getSelection();
+    if (!range && lastQuillSelection) {
+      const maxIndex = Math.max(0, state.quill.getLength() - 1);
+      const index = Math.min(lastQuillSelection.index, maxIndex);
+      const maxLength = Math.max(0, state.quill.getLength() - index - 1);
+      const length = Math.min(lastQuillSelection.length || 0, maxLength);
+      range = { index, length };
+      state.quill.setSelection(index, length, Quill.sources.SILENT);
+    }
+
+    if (!range) {
+      const index = Math.max(0, state.quill.getLength() - 1);
+      range = { index, length: 0 };
+      state.quill.setSelection(index, 0, Quill.sources.SILENT);
+    }
+
+    return range;
+  }
+
+  function applyStudyBlockFormat(value) {
+    if (!state.quill) return;
+    restoreQuillSelection();
+
+    const headerValue = value === "paragraph" ? false : Number(value);
+    state.quill.format("header", headerValue, Quill.sources.USER);
+    state.quill.focus();
+    closeStudyToolbarMenus();
+    updateStudyFormatMenuState();
+    scheduleStudyToolbarFit();
+  }
+
+  function applyStudySizeFormat(value) {
+    if (!state.quill) return;
+    restoreQuillSelection();
+
+    const sizeValue = value === "normal" ? false : value;
+    state.quill.format("size", sizeValue, Quill.sources.USER);
+    state.quill.focus();
+    closeStudyToolbarMenus();
+    updateStudyFormatMenuState();
+    scheduleStudyToolbarFit();
+  }
+
+  function triggerStudyQuillControl(controlName) {
+    if (!state.quill) return;
+
+    const selectorMap = {
+      "ordered-list": '.ql-list[value="ordered"]',
+      blockquote: ".ql-blockquote",
+      divider: ".ql-divider",
+      link: ".ql-link",
+      clean: ".ql-clean"
+    };
+
+    const toolbar = byId("study-quill-toolbar");
+    const selector = selectorMap[controlName];
+    const control = toolbar && selector ? toolbar.querySelector(selector) : null;
+    if (!control) return;
+
+    closeStudyToolbarMenus();
+    restoreQuillSelection();
+    control.click();
+    scheduleStudyToolbarFit();
+  }
+
+  function updateStudyFormatMenuState() {
+    if (!state.quill) return;
+
+    const range = state.quill.getSelection() || lastQuillSelection;
+    if (!range) return;
+
+    const format = state.quill.getFormat(range.index, range.length || 0);
+    const activeBlock = format.header ? String(format.header) : "paragraph";
+    const activeSize = format.size || "normal";
+
+    document.querySelectorAll("[data-study-block-format]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.studyBlockFormat === activeBlock);
+    });
+
+    document.querySelectorAll("[data-study-size-format]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.studySizeFormat === activeSize);
+    });
+  }
+
+  function setStudyToolbarFitMode(mode) {
+    const toolbar = byId("study-quill-toolbar");
+    if (!toolbar) return;
+
+    const previousMode = toolbar.dataset.fitMode || "full";
+    toolbar.dataset.fitMode = mode;
+    toolbar.classList.toggle("is-format-compact", mode === "format" || mode === "more");
+    toolbar.classList.toggle("is-more-compact", mode === "more");
+
+    if (previousMode !== mode) {
+      closeStudyToolbarMenus();
+      toolbar.querySelectorAll(".ql-picker.ql-expanded").forEach((picker) => {
+        picker.classList.remove("ql-expanded");
+      });
+    }
+  }
+
+  function studyToolbarFits(toolbar, margin) {
+    if (!toolbar || toolbar.clientWidth <= 0) return true;
+    return toolbar.scrollWidth <= Math.max(0, toolbar.clientWidth - margin);
+  }
+
+  function updateStudyToolbarFit() {
+    studyToolbarFitFrame = 0;
+
+    const toolbar = byId("study-quill-toolbar");
+    if (!toolbar || !state.quill || state.isPreview || toolbar.clientWidth <= 0) return;
+
+    const currentMode = toolbar.dataset.fitMode || "full";
+
+    // Restore to a richer mode only when there is extra breathing room.
+    // This hysteresis prevents flicker when a resize sits right on the boundary.
+    if (currentMode === "more") {
+      setStudyToolbarFitMode("full");
+      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_RESTORE_MARGIN)) return;
+
+      setStudyToolbarFitMode("format");
+      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_RESTORE_MARGIN)) return;
+
+      setStudyToolbarFitMode("more");
+      return;
+    }
+
+    if (currentMode === "format") {
+      setStudyToolbarFitMode("full");
+      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_RESTORE_MARGIN)) return;
+
+      setStudyToolbarFitMode("format");
+      if (studyToolbarFits(toolbar, STUDY_TOOLBAR_FIT_MARGIN)) return;
+
+      setStudyToolbarFitMode("more");
+      return;
+    }
+
+    // Full mode: collapse only when the actual one-line toolbar no longer fits.
+    setStudyToolbarFitMode("full");
+    if (studyToolbarFits(toolbar, STUDY_TOOLBAR_FIT_MARGIN)) return;
+
+    setStudyToolbarFitMode("format");
+    if (studyToolbarFits(toolbar, STUDY_TOOLBAR_FIT_MARGIN)) return;
+
+    setStudyToolbarFitMode("more");
+  }
+
+  function scheduleStudyToolbarFit() {
+    if (studyToolbarFitFrame) return;
+    studyToolbarFitFrame = window.requestAnimationFrame(updateStudyToolbarFit);
+  }
+
+  function initResponsiveStudyToolbar() {
+    const toolbar = byId("study-quill-toolbar");
+    const writingCard = toolbar?.closest(".study-writing-card");
+    const formatToggle = byId("study-format-toggle");
+    const moreToggle = byId("study-more-toggle");
+    const formatMenu = byId("study-format-menu");
+    const moreMenu = byId("study-more-menu");
+
+    if (!toolbar || !writingCard || !formatToggle || !moreToggle || !formatMenu || !moreMenu) {
+      return;
+    }
+
+    formatToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleStudyToolbarMenu("study-format-toggle", "study-format-menu");
+    });
+
+    moreToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleStudyToolbarMenu("study-more-toggle", "study-more-menu");
+    });
+
+    [formatMenu, moreMenu].forEach((menu) => {
+      menu.addEventListener("mousedown", (event) => {
+        if (event.target.closest("button")) event.preventDefault();
+      });
+
+      menu.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+    });
+
+    formatMenu.addEventListener("click", (event) => {
+      const blockButton = event.target.closest("[data-study-block-format]");
+      if (blockButton) {
+        applyStudyBlockFormat(blockButton.dataset.studyBlockFormat);
+        return;
+      }
+
+      const sizeButton = event.target.closest("[data-study-size-format]");
+      if (sizeButton) {
+        applyStudySizeFormat(sizeButton.dataset.studySizeFormat);
+      }
+    });
+
+    moreMenu.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-study-quill-control]");
+      if (!button) return;
+      triggerStudyQuillControl(button.dataset.studyQuillControl);
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest("#study-quill-toolbar")) {
+        closeStudyToolbarMenus();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeStudyToolbarMenus();
+    });
+
+    if (window.ResizeObserver) {
+      studyToolbarResizeObserver = new ResizeObserver(scheduleStudyToolbarFit);
+      studyToolbarResizeObserver.observe(writingCard);
+    }
+
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(scheduleStudyToolbarFit).catch(() => {});
+    }
+
+    updateStudyFormatMenuState();
+    scheduleStudyToolbarFit();
+  }
+
   function initQuill() {
     registerQuillDivider();
 
@@ -5749,16 +6021,30 @@
       toolbar.addHandler("divider", insertQuillDivider);
     }
 
+    state.quill.on("selection-change", (range) => {
+      if (range) {
+        lastQuillSelection = { index: range.index, length: range.length || 0 };
+      }
+      updateStudyFormatMenuState();
+      scheduleStudyToolbarFit();
+    });
+
     state.quill.on("text-change", () => {
       updateWordCount();
+      updateStudyFormatMenuState();
+      scheduleStudyToolbarFit();
 
       if (!state.isApplying) {
         markDirty();
       }
     });
+
+    initResponsiveStudyToolbar();
   }
 
   window.addEventListener("resize", () => {
+    scheduleStudyToolbarFit();
+
     if (activeScripturePopupAnchor) {
       positionScripturePreviewPopup(activeScripturePopupAnchor);
     }
