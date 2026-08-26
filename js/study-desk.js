@@ -5073,7 +5073,7 @@
     const intro = document.createElement("div");
     intro.className = "study-tag-manager-tab-intro";
     intro.innerHTML = `
-      <p class="study-manager-small-label">Current Study</p>
+      <!--<p class="study-manager-small-label">Current Study</p>-->
       <h3>Choose the keywords for this study</h3>
       <p>Add or remove keywords here. Keyword names, colors, and Scripture Connections are managed separately in Keyword Library.</p>
     `;
