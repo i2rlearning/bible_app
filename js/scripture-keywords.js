@@ -1,5 +1,3 @@
-"use strict";
-
 // ============================================================================
 // Scripture <-> Keyword access from the Bible reading page
 //
@@ -13,6 +11,8 @@
 // - Create a new Keyword and connect it immediately.
 // - Click a connected Keyword to see all Scriptures connected to that Keyword.
 // ============================================================================
+
+"use strict";
 
 (function () {
   const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
