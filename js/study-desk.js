@@ -31,6 +31,7 @@
     editingManagedTagScriptureId: "",
     isLoadingManagedTagScriptures: false,
     isMutatingManagedTagScripture: false,
+    keywordDataStale: false,
     managedTagScriptureFeedback: null,
     tagManagerTab: "study",
     tagManagerSearch: "",
@@ -61,7 +62,6 @@
   const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
   const STUDY_SYNC_STORAGE_KEY = "branchOfIsraelStudySync";
   const STUDY_SYNC_POLL_MS = 15000;
-  const KEYWORD_REFRESH_MIN_INTERVAL_MS = 750;
   const STUDY_TOOLBAR_FIT_MARGIN = 8;
   const STUDY_TOOLBAR_RESTORE_MARGIN = 24;
   const linkedScripturePreviewCache = new Map();
@@ -78,8 +78,6 @@
   let studySyncChannel = null;
   let studyToolbarFitController = null;
   let keywordManagerFitController = null;
-  let keywordDataRefreshPromise = null;
-  let lastKeywordRefreshAt = 0;
   let lastQuillSelection = null;
 
   const els = {};
@@ -375,6 +373,7 @@
       state.managedTagId = "";
       state.activeStudyId = null;
       state.activeStudyVersion = null;
+      state.keywordDataStale = false;
       state.hasLoaded = false;
   
       showLoggedOut();
@@ -1014,6 +1013,12 @@
     }
   }
 
+  function publishKeywordDataChanged() {
+    publishStudySync("keyword-data-changed", {
+      source: "study-desk"
+    });
+  }
+
   function applyIncomingStudy(study, statusMessage) {
     if (!study || !study.id) return;
 
@@ -1103,6 +1108,12 @@
   function processStudySyncMessage(message) {
     if (!message || typeof message !== "object") return;
 
+    if (message.type === "keyword-data-changed") {
+      state.keywordDataStale = true;
+      updateKeywordRefreshNotice();
+      return;
+    }
+
     if (message.type === "study-updated" && message.study) {
       handleIncomingStudyUpdate(message.study, "another browser tab");
       return;
@@ -1172,13 +1183,11 @@
 
     window.addEventListener("focus", () => {
       checkForRemoteStudyUpdate();
-      refreshKeywordDataWhenActive();
     });
 
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
         checkForRemoteStudyUpdate();
-        refreshKeywordDataWhenActive();
       }
     });
   }
@@ -1362,80 +1371,155 @@
     renderTagOptions();
   }
 
-  // Keyword Scripture connections can be edited from the Bible page in another tab.
-  // Refresh the lightweight Keyword summary whenever this Study Desk becomes active
-  // or whenever Manage Keywords opens, so Scripture counts do not require a page refresh.
-  async function refreshKeywordData(options = {}) {
-    const force = Boolean(options.force);
-    const refreshManager = options.refreshManager !== false;
-    const refreshConnections = options.refreshConnections !== false;
+  // Keyword changes made in another browser tab are detected automatically,
+  // but the active Keyword Manager is never refreshed automatically.
+  // External changes only mark this section as stale and reveal a manual Refresh button.
+  function hasKeywordManagerWorkInProgress() {
+    if (state.isMutatingManagedTagScripture || state.isLoadingManagedTagScriptures) {
+      return true;
+    }
 
-    if (!state.hasLoaded || document.hidden) {
+    if (state.editingManagedTagScriptureId || state.isCreatingManagedTag) {
+      return true;
+    }
+
+    if (managedTagAutoSaveTimer || managedTagPendingSave) {
+      return true;
+    }
+
+    if (managedTagScriptureDrag) {
+      return true;
+    }
+
+    const panel = els.tagManagerModal?.querySelector(".study-modal-panel");
+    if (!panel || els.tagManagerModal?.hidden) {
+      return false;
+    }
+
+    if (panel.querySelector(".study-tag-auto-save-status.is-saving")) {
+      return true;
+    }
+
+    const activeElement = document.activeElement;
+    const isEditingInsideManager =
+      activeElement &&
+      panel.contains(activeElement) &&
+      activeElement.matches(
+        ".study-tag-library-basics input, " +
+        ".study-tag-library-new-card input, " +
+        ".tag-scripture-add-form input, " +
+        ".tag-scripture-add-form textarea, " +
+        ".tag-scripture-edit-form input, " +
+        ".tag-scripture-edit-form textarea"
+      );
+
+    if (isEditingInsideManager) {
+      return true;
+    }
+
+    const addReference = panel.querySelector(".tag-scripture-add-form input");
+    const addNote = panel.querySelector(".tag-scripture-add-form textarea");
+
+    return Boolean(
+      normalizeName(addReference?.value || "") ||
+      normalizeName(addNote?.value || "")
+    );
+  }
+
+  function updateKeywordRefreshNotice() {
+    const notice = els.tagManagerModal?.querySelector("[data-keyword-refresh-notice]");
+    if (!notice) return;
+
+    const text = notice.querySelector("[data-keyword-refresh-text]");
+    const button = notice.querySelector("[data-keyword-refresh-button]");
+
+    if (!state.keywordDataStale) {
+      notice.hidden = true;
       return;
     }
 
-    const now = Date.now();
-    if (!force && now - lastKeywordRefreshAt < KEYWORD_REFRESH_MIN_INTERVAL_MS) {
-      return keywordDataRefreshPromise;
+    notice.hidden = false;
+    const busy = hasKeywordManagerWorkInProgress();
+
+    if (text) {
+      text.textContent = busy
+        ? "Keyword changes are available. Finish your current edit before refreshing."
+        : "Keyword changes are available.";
     }
 
-    if (keywordDataRefreshPromise) {
-      return keywordDataRefreshPromise;
+    if (button) {
+      button.disabled = busy;
+      button.textContent = "Refresh";
+      button.setAttribute(
+        "aria-label",
+        busy
+          ? "Refresh unavailable while a Keyword edit is in progress"
+          : "Refresh Keyword data"
+      );
     }
-
-    keywordDataRefreshPromise = (async () => {
-      try {
-        await loadAvailableTags();
-        lastKeywordRefreshAt = Date.now();
-
-        // A Keyword's Scripture connections may have changed even when its count did
-        // not (for example, one reference was replaced by another). Invalidate the
-        // derived Related Scriptures cache so the next view is always current.
-        invalidateRelatedScriptures({
-          refresh: state.relatedScripturesExpanded || state.previewRelatedScripturesExpanded
-        });
-
-        if (
-          refreshManager &&
-          els.tagManagerModal &&
-          !els.tagManagerModal.hidden
-        ) {
-          // Refresh only the manager list/counts here. Rebuilding the entire Keyword
-          // Library editor can destroy an in-progress Scripture add form and make the
-          // first click appear to do nothing.
-          if (state.tagManagerTab === "library") {
-            renderTagLibraryList();
-          } else {
-            renderStudyTagsTab();
-          }
-
-          if (
-            refreshConnections &&
-            state.tagManagerTab === "library" &&
-            state.managedTagId &&
-            !state.isMutatingManagedTagScripture
-          ) {
-            await loadManagedTagScriptures(state.managedTagId, {
-              force: true,
-              silent: true
-            });
-          }
-        }
-      } catch (error) {
-        // This is a background freshness check. Keep the current UI usable if it
-        // temporarily fails; normal API actions will still surface their own errors.
-        console.warn("Could not refresh Keyword data:", error);
-      } finally {
-        keywordDataRefreshPromise = null;
-      }
-    })();
-
-    return keywordDataRefreshPromise;
   }
 
-  function refreshKeywordDataWhenActive() {
-    if (!state.hasLoaded || document.hidden) return;
-    refreshKeywordData({ refreshManager: true, refreshConnections: true });
+  async function refreshKeywordManagerManually() {
+    if (!state.keywordDataStale || !state.hasLoaded) {
+      updateKeywordRefreshNotice();
+      return;
+    }
+
+    if (hasKeywordManagerWorkInProgress()) {
+      updateKeywordRefreshNotice();
+      return;
+    }
+
+    const notice = els.tagManagerModal?.querySelector("[data-keyword-refresh-notice]");
+    const text = notice?.querySelector("[data-keyword-refresh-text]");
+    const button = notice?.querySelector("[data-keyword-refresh-button]");
+    const selectedTagId = state.managedTagId;
+    const currentTab = state.tagManagerTab;
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Refreshing...";
+    }
+
+    if (text) {
+      text.textContent = "Refreshing Keyword data...";
+    }
+
+    try {
+      await loadAvailableTags();
+
+      if (
+        selectedTagId &&
+        state.availableTags.some((tag) => String(tag.id) === String(selectedTagId))
+      ) {
+        state.managedTagId = selectedTagId;
+      } else if (currentTab === "library") {
+        state.managedTagId = state.availableTags[0]?.id || "";
+      }
+
+      state.keywordDataStale = false;
+
+      if (currentTab === "library" && state.managedTagId) {
+        await loadManagedTagScriptures(state.managedTagId, { force: true });
+      } else {
+        renderTagManager();
+      }
+
+      updateKeywordRefreshNotice();
+    } catch (error) {
+      state.keywordDataStale = true;
+
+      if (text) {
+        text.textContent = error?.message
+          ? `Could not refresh Keywords: ${error.message}`
+          : "Could not refresh Keywords.";
+      }
+
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Refresh";
+      }
+    }
   }
 
   async function loadSetup() {
@@ -3402,15 +3486,8 @@
     state.isCreatingManagedTag = false;
     renderTagManager();
     els.tagManagerModal.hidden = false;
+    updateKeywordRefreshNotice();
     window.requestAnimationFrame(scheduleKeywordManagerFit);
-
-    // The Bible page can add/remove Scripture connections in another tab.
-    // Refresh as the manager opens so counts are current without a browser reload.
-    refreshKeywordData({
-      force: true,
-      refreshManager: true,
-      refreshConnections: true
-    });
   }
 
   function closeTagManager() {
@@ -4181,6 +4258,7 @@
       setManagedTagScriptureFeedback(`${result.scripture.reference} added.`, "success");
       setStatus("Scripture connected to keyword.", "success");
       invalidateRelatedScriptures({ refresh: true });
+      publishKeywordDataChanged();
 
       // Update only the pieces that changed. This keeps the Keyword editor stable
       // instead of rebuilding the entire modal and producing the visible flicker.
@@ -4199,6 +4277,7 @@
       referenceInput.focus();
     } finally {
       state.isMutatingManagedTagScripture = false;
+      updateKeywordRefreshNotice();
     }
   }
 
@@ -4281,6 +4360,7 @@
       state.editingManagedTagScriptureId = "";
       setStatus("Scripture connection updated.", "success");
       invalidateRelatedScriptures({ refresh: true });
+      publishKeywordDataChanged();
       renderTagManager();
     } catch (error) {
       const feedback = getManagedTagScriptureErrorMessage(error);
@@ -4331,6 +4411,7 @@
       setManagedTagScriptureFeedback(`${item.reference || "Scripture"} removed.`, "success");
       setStatus("Scripture removed from keyword.", "success");
       invalidateRelatedScriptures({ refresh: true });
+      publishKeywordDataChanged();
       renderTagManager();
     } catch (error) {
       setStatus(error.message || "Failed to remove Scripture from keyword.", "error");
@@ -4345,6 +4426,9 @@
           body: JSON.stringify({ orderedIds })
         })
       )
+      .then(() => {
+        publishKeywordDataChanged();
+      })
       .catch((error) => {
         setStatus(error.message || "Failed to save Scripture order.", "error");
 
@@ -4757,6 +4841,8 @@
     noteInput.rows = 2;
     noteInput.placeholder = "Optional note or short reminder";
     noteInput.setAttribute("aria-label", "Optional Scripture connection note");
+    noteInput.addEventListener("input", updateKeywordRefreshNotice);
+    noteInput.addEventListener("blur", updateKeywordRefreshNotice);
 
     const addButton = document.createElement("button");
     addButton.type = "button";
@@ -4767,6 +4853,7 @@
     referenceInput.addEventListener("input", () => {
       setManagedTagScriptureFeedback("", "");
       updateManagedTagScriptureAddButton(referenceInput, addButton);
+      updateKeywordRefreshNotice();
     });
     referenceInput.addEventListener("blur", () => {
       const validation = validateScriptureReference(referenceInput.value);
@@ -4776,6 +4863,8 @@
       if (normalizeName(referenceInput.value) && !validation.valid) {
         setManagedTagScriptureFeedback(validation.message, "error");
       }
+
+      updateKeywordRefreshNotice();
     });
     referenceInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -4883,13 +4972,38 @@
       header.insertAdjacentElement("afterend", tabs);
     }
 
+    let refreshNotice = panel?.querySelector("[data-keyword-refresh-notice]");
+
+    if (!refreshNotice && panel) {
+      refreshNotice = document.createElement("div");
+      refreshNotice.className = "study-keyword-refresh-notice";
+      refreshNotice.setAttribute("data-keyword-refresh-notice", "true");
+      refreshNotice.setAttribute("role", "status");
+      refreshNotice.hidden = true;
+
+      const refreshText = document.createElement("span");
+      refreshText.setAttribute("data-keyword-refresh-text", "true");
+      refreshText.textContent = "Keyword changes are available.";
+
+      const refreshButton = document.createElement("button");
+      refreshButton.type = "button";
+      refreshButton.className = "study-keyword-refresh-button";
+      refreshButton.setAttribute("data-keyword-refresh-button", "true");
+      refreshButton.textContent = "Refresh";
+      refreshButton.addEventListener("click", refreshKeywordManagerManually);
+
+      refreshNotice.append(refreshText, refreshButton);
+      tabs?.insertAdjacentElement("afterend", refreshNotice);
+    }
+
     let workspace = panel?.querySelector("[data-tag-manager-workspace]");
 
     if (!workspace && panel) {
       workspace = document.createElement("div");
       workspace.className = "study-tag-manager-workspace";
       workspace.setAttribute("data-tag-manager-workspace", "true");
-      tabs?.insertAdjacentElement("afterend", workspace);
+      const refreshNotice = panel.querySelector("[data-keyword-refresh-notice]");
+      (refreshNotice || tabs)?.insertAdjacentElement("afterend", workspace);
       workspace.append(els.tagManagerList, els.tagManagerEditor);
     }
 
@@ -5073,7 +5187,7 @@
     const intro = document.createElement("div");
     intro.className = "study-tag-manager-tab-intro";
     intro.innerHTML = `
-      <!--<p class="study-manager-small-label">Current Study</p>-->
+      <!-- <p class="study-manager-small-label">Current Study</p> -->
       <h3>Choose the keywords for this study</h3>
       <p>Add or remove keywords here. Keyword names, colors, and Scripture Connections are managed separately in Keyword Library.</p>
     `;
@@ -5245,12 +5359,16 @@
         renderSelectedTags();
         renderStudyList();
         renderTagLibraryList();
+        publishKeywordDataChanged();
         setManagedTagAutoSaveStatus(statusElement, "Saved", "saved");
+
+        updateKeywordRefreshNotice();
 
         window.setTimeout(() => {
           if (statusElement?.isConnected && statusElement.textContent === "Saved") {
             setManagedTagAutoSaveStatus(statusElement, "", "");
           }
+          updateKeywordRefreshNotice();
         }, 1400);
       })
       .catch((error) => {
@@ -5351,6 +5469,7 @@
       renderSelectedTags();
       renderStudyList();
       renderTagManager();
+      publishKeywordDataChanged();
       setStatus("Keyword created.", "success");
       loadManagedTagScriptures(tag.id, { force: true });
     } catch (error) {
@@ -5519,8 +5638,12 @@
     nameInput.addEventListener("input", () => {
       headline.textContent = normalizeName(nameInput.value) || "Keyword";
       scheduleManagedTagAutoSave(tag, nameInput, () => selectedColor, saveStatus, false);
+      updateKeywordRefreshNotice();
     });
-    nameInput.addEventListener("blur", flushManagedTagAutoSave);
+    nameInput.addEventListener("blur", () => {
+      flushManagedTagAutoSave();
+      updateKeywordRefreshNotice();
+    });
     nameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -5583,6 +5706,7 @@
     if (!els.tagManagerList || !els.tagManagerEditor) return;
 
     ensureTagManagerShell();
+    updateKeywordRefreshNotice();
 
     if (state.managedTagId && !getManagedTag()) {
       state.managedTagId = "";
@@ -5671,6 +5795,7 @@
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
+      publishKeywordDataChanged();
       setStatus("Keyword saved.", "success");
     } catch (error) {
       setStatus(error.message, "error");
@@ -5735,6 +5860,7 @@
       renderTagManager();
       renderSelectedTags();
       renderStudyList();
+      publishKeywordDataChanged();
       setStatus("Keyword updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
@@ -5812,6 +5938,7 @@
         loadManagedTagScriptures(state.managedTagId, { force: true });
       }
 
+      publishKeywordDataChanged();
       setStatus("Keyword deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
