@@ -2772,3 +2772,63 @@ body.is-reordering-linked-scripture {
 .referenced-scripture-feedback.is-success {
   color: var(--study-success);
 }
+
+
+/* Passive cross-tab Keyword freshness notice.
+   Detection is automatic, but data refresh happens only when the user presses Refresh. */
+.study-keyword-refresh-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: -4px 0 18px;
+  padding: 10px 12px;
+  border: 1px solid #c9d8ff;
+  border-radius: 10px;
+  background: #f4f7ff;
+  color: var(--study-navy);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.study-keyword-refresh-notice[hidden] {
+  display: none;
+}
+
+.study-keyword-refresh-button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid #b9cbff;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #255bea;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.study-keyword-refresh-button:hover:not(:disabled) {
+  background: #edf3ff;
+}
+
+.study-keyword-refresh-button:focus-visible {
+  outline: 3px solid rgba(37, 91, 234, 0.20);
+  outline-offset: 2px;
+}
+
+.study-keyword-refresh-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 520px) {
+  .study-keyword-refresh-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .study-keyword-refresh-button {
+    width: 100%;
+  }
+}
