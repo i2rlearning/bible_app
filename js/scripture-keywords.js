@@ -15,6 +15,9 @@
 // ============================================================================
 
 (function () {
+  const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
+  const STUDY_SYNC_STORAGE_KEY = "branchOfIsraelStudySync";
+
   const state = {
     drawer: null,
     backdrop: null,
@@ -71,6 +74,32 @@
     }
 
     return result;
+  }
+
+  function notifyKeywordDataChanged() {
+    const message = {
+      type: "keyword-data-changed",
+      source: "bible",
+      sentAt: Date.now()
+    };
+
+    if ("BroadcastChannel" in window) {
+      try {
+        const channel = new BroadcastChannel(STUDY_SYNC_CHANNEL_NAME);
+        channel.postMessage(message);
+        window.setTimeout(() => channel.close(), 0);
+        return;
+      } catch (error) {
+        console.warn("Keyword sync channel failed:", error);
+      }
+    }
+
+    try {
+      localStorage.setItem(STUDY_SYNC_STORAGE_KEY, JSON.stringify(message));
+      localStorage.removeItem(STUDY_SYNC_STORAGE_KEY);
+    } catch (error) {
+      console.warn("Keyword sync fallback failed:", error);
+    }
   }
 
   function getBibleContext() {
@@ -575,6 +604,8 @@
           });
         }
 
+        notifyKeywordDataChanged();
+
         if (!connectedKeywordMap().has(String(keyword.id))) {
           const linked = await requestJson(`/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures`, {
             method: "POST",
@@ -586,6 +617,8 @@
             relationshipId: linked.scripture?.id || "",
             note: linked.scripture?.note || ""
           });
+
+          notifyKeywordDataChanged();
         }
 
         createInput.value = "";
@@ -701,6 +734,7 @@
         });
       }
 
+      notifyKeywordDataChanged();
       renderKeywordsView({ focusChooser: true });
     } catch (error) {
       renderMessage(
