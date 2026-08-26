@@ -1142,7 +1142,8 @@ body.is-reordering-linked-scripture {
 .study-preview-content {
   margin-top: 20px;
   font-size: 17px;
-  line-height: 1.75;
+  /* Match the Quill editor's vertical rhythm in Preview mode. */
+  line-height: 1.72;
 }
 
 .study-preview-content h1,
@@ -1156,15 +1157,15 @@ body.is-reordering-linked-scripture {
   margin: 0;
 }
 
-/* Keep Quill lists visible and properly indented in Preview mode */
+/* Keep Preview list spacing aligned with the Quill editor. */
 .study-preview-content ol,
 .study-preview-content ul {
-  margin: 16px 0;
+  margin: 0;
   padding-left: 32px;
 }
 
 .study-preview-content li {
-  margin: 4px 0;
+  margin: 0;
   padding-left: 4px;
 }
 
