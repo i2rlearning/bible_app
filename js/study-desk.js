@@ -10,6 +10,9 @@
     activeStudyId: null,
     activeStudyVersion: null,
     remoteStudy: null,
+    referencedScripturesStale: false,
+    referencedScripturesRemoteStudy: null,
+    referencedScripturesDirty: false,
     selectedTags: [],
     linkedScriptures: [],  // This is referred to "Referenced Scriptures" section shown in the Study Desk UI.
     relatedScriptures: [],
@@ -256,9 +259,17 @@
       statusClearTimer = null;
     }
 
+    // A whole-study conflict is the most important status on the page. Keep it
+    // visible until the user explicitly loads the newer version.
+    if (state.remoteStudy && !state.remoteStudy.deleted) {
+      renderStudyConflictNotice("another window or device");
+      return;
+    }
+
     const finalMessage = message || "";
     const finalType = type || "";
 
+    els.status.classList.remove("is-conflict");
     els.status.textContent = finalMessage;
     els.status.classList.toggle("is-error", finalType === "error");
     els.status.classList.toggle("is-success", finalType === "success");
@@ -276,6 +287,103 @@
         }
       }, delay);
     }
+  }
+
+  function updateStudyActionAvailability() {
+    if (!els.saveButton || !els.deleteButton) return;
+
+    const blockedByRemoteChange = Boolean(state.remoteStudy);
+    const blockedByReferencedRefresh = Boolean(state.referencedScripturesStale);
+    const blockedByVersion = Boolean(
+      state.activeStudyId && !Number.isInteger(state.activeStudyVersion)
+    );
+
+    els.saveButton.disabled =
+      state.isPreview ||
+      state.isSaving ||
+      blockedByRemoteChange ||
+      blockedByReferencedRefresh ||
+      blockedByVersion;
+
+    els.deleteButton.disabled =
+      state.isPreview ||
+      state.isSaving ||
+      blockedByRemoteChange ||
+      blockedByReferencedRefresh ||
+      blockedByVersion;
+  }
+
+  function applyLatestRemoteStudy() {
+    if (!state.remoteStudy || state.remoteStudy.deleted) return;
+
+    const latest = state.remoteStudy;
+    applyIncomingStudy(latest, "Latest version loaded.");
+    updateStudyActionAvailability();
+  }
+
+  function renderStudyConflictNotice(sourceLabel = "another window or device", confirmDiscard = false) {
+    if (!els.status || !state.remoteStudy || state.remoteStudy.deleted) return;
+
+    if (statusClearTimer) {
+      clearTimeout(statusClearTimer);
+      statusClearTimer = null;
+    }
+
+    els.status.classList.remove("is-error", "is-success");
+    els.status.classList.add("is-conflict");
+    els.status.replaceChildren();
+
+    const text = document.createElement("span");
+    text.className = "study-conflict-copy";
+
+    if (confirmDiscard) {
+      text.textContent =
+        "Load the latest saved version and discard your current unsaved changes?";
+    } else {
+      text.textContent =
+        `A newer version of this study is available from ${sourceLabel}. ` +
+        (state.hasUnsavedChanges
+          ? "Your unsaved changes are still here. Save is paused so nothing can be overwritten."
+          : "Load it when you are ready.");
+    }
+
+    const actions = document.createElement("span");
+    actions.className = "study-conflict-actions";
+
+    if (confirmDiscard) {
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "study-conflict-button is-secondary";
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => renderStudyConflictNotice(sourceLabel, false));
+
+      const confirm = document.createElement("button");
+      confirm.type = "button";
+      confirm.className = "study-conflict-button";
+      confirm.textContent = "Load Latest";
+      confirm.addEventListener("click", applyLatestRemoteStudy);
+
+      actions.append(cancel, confirm);
+    } else {
+      const load = document.createElement("button");
+      load.type = "button";
+      load.className = "study-conflict-button";
+      load.textContent = "Load Latest";
+      load.addEventListener("click", () => {
+        if (state.hasUnsavedChanges) {
+          renderStudyConflictNotice(sourceLabel, true);
+          return;
+        }
+
+        applyLatestRemoteStudy();
+      });
+
+      actions.appendChild(load);
+    }
+
+    els.status.append(text, actions);
+    setSaveState("Newer version available");
+    updateStudyActionAvailability();
   }
 
   function ensureReferencedScriptureFeedback() {
@@ -308,6 +416,162 @@
     feedback.classList.toggle("is-error", Boolean(finalMessage) && type === "error");
     feedback.classList.toggle("is-success", Boolean(finalMessage) && type === "success");
     feedback.setAttribute("role", type === "error" ? "alert" : "status");
+  }
+
+  function ensureReferencedScriptureRefreshNotice() {
+    if (els.referencedRefreshNotice?.isConnected) {
+      return els.referencedRefreshNotice;
+    }
+
+    const card = els.scriptureList?.closest(".study-tool-card");
+    const heading = card?.querySelector(".study-tool-heading");
+
+    if (!card || !heading) return null;
+
+    const notice = document.createElement("div");
+    notice.className = "study-referenced-refresh-notice";
+    notice.setAttribute("role", "status");
+    notice.hidden = true;
+
+    const text = document.createElement("span");
+    text.className = "study-referenced-refresh-text";
+    text.textContent = "New Scripture changes are available. Refresh this section before saving.";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "study-referenced-refresh-button";
+    button.textContent = "Refresh";
+    button.addEventListener("click", refreshReferencedScripturesManually);
+
+    notice.append(text, button);
+    heading.insertAdjacentElement("afterend", notice);
+
+    els.referencedRefreshNotice = notice;
+    els.referencedRefreshText = text;
+    els.referencedRefreshButton = button;
+
+    return notice;
+  }
+
+  function hasReferencedScriptureWorkInProgress() {
+    return Boolean(
+      state.editingScriptureIndex !== null ||
+      normalizeName(els.scriptureReference?.value || "") ||
+      normalizeName(els.scriptureNote?.value || "")
+    );
+  }
+
+  function updateReferencedScriptureRefreshNotice() {
+    const notice = ensureReferencedScriptureRefreshNotice();
+    if (!notice) return;
+
+    if (!state.referencedScripturesStale) {
+      notice.hidden = true;
+      return;
+    }
+
+    notice.hidden = false;
+
+    const busy = hasReferencedScriptureWorkInProgress();
+    const blockedByWholeStudy = Boolean(state.remoteStudy);
+
+    if (els.referencedRefreshText) {
+      if (blockedByWholeStudy) {
+        els.referencedRefreshText.textContent =
+          "Scripture changes are available, but a newer whole-study version must be loaded first.";
+      } else if (busy) {
+        els.referencedRefreshText.textContent =
+          "New Scripture changes are available. Finish your current Scripture edit, then refresh before saving.";
+      } else {
+        els.referencedRefreshText.textContent =
+          "New Scripture changes are available. Refresh this section before saving.";
+      }
+    }
+
+    if (els.referencedRefreshButton) {
+      els.referencedRefreshButton.disabled = busy || blockedByWholeStudy;
+      els.referencedRefreshButton.textContent = "Refresh";
+    }
+  }
+
+  function mergeReferencedScriptureChanges(remoteScriptures) {
+    const remote = Array.isArray(remoteScriptures) ? remoteScriptures : [];
+
+    if (!state.referencedScripturesDirty) {
+      return remote.slice();
+    }
+
+    const merged = state.linkedScriptures.slice();
+    const seen = new Set(
+      merged
+        .map((item) => getNormalizedReferenceKey(item?.reference || ""))
+        .filter(Boolean)
+    );
+
+    remote.forEach((item) => {
+      const key = getNormalizedReferenceKey(item?.reference || "");
+      if (!key || seen.has(key)) return;
+      merged.push(item);
+      seen.add(key);
+    });
+
+    return merged;
+  }
+
+  async function refreshReferencedScripturesManually() {
+    if (
+      !state.referencedScripturesStale ||
+      !state.referencedScripturesRemoteStudy ||
+      state.remoteStudy ||
+      hasReferencedScriptureWorkInProgress()
+    ) {
+      updateReferencedScriptureRefreshNotice();
+      return;
+    }
+
+    const remoteStudy = state.referencedScripturesRemoteStudy;
+    const remoteVersion = Number(remoteStudy.version) || 0;
+
+    if (
+      remoteStudy.id !== state.activeStudyId ||
+      remoteVersion <= (Number(state.activeStudyVersion) || 0)
+    ) {
+      state.referencedScripturesStale = false;
+      state.referencedScripturesRemoteStudy = null;
+      updateReferencedScriptureRefreshNotice();
+      updateStudyActionAvailability();
+      return;
+    }
+
+    if (els.referencedRefreshButton) {
+      els.referencedRefreshButton.disabled = true;
+      els.referencedRefreshButton.textContent = "Refreshing...";
+    }
+
+    state.linkedScriptures = mergeReferencedScriptureChanges(remoteStudy.linkedScriptures);
+    state.activeStudyVersion = remoteVersion;
+    state.referencedScripturesStale = false;
+    state.referencedScripturesRemoteStudy = null;
+
+    upsertStudyInState(remoteStudy);
+    renderStudyList();
+    renderLinkedScriptures();
+    renderRelatedScriptures();
+
+    setReferencedScriptureFeedback("Referenced Scriptures refreshed.", "success");
+    updateReferencedScriptureRefreshNotice();
+    updateStudyActionAvailability();
+
+    if (state.hasUnsavedChanges) {
+      setSaveState("Unsaved changes");
+    } else {
+      setSaveState("Synced", "success");
+    }
+  }
+
+  function markReferencedScripturesDirty() {
+    state.referencedScripturesDirty = true;
+    markDirty();
   }
 
   function markDirty() {
@@ -373,6 +637,10 @@
       state.managedTagId = "";
       state.activeStudyId = null;
       state.activeStudyVersion = null;
+      state.remoteStudy = null;
+      state.referencedScripturesStale = false;
+      state.referencedScripturesRemoteStudy = null;
+      state.referencedScripturesDirty = false;
       state.keywordDataStale = false;
       state.hasLoaded = false;
   
@@ -920,6 +1188,9 @@
     const loadedVersion = Number(data.version);
     state.activeStudyVersion = Number.isInteger(loadedVersion) && loadedVersion >= 1 ? loadedVersion : null;
     state.remoteStudy = null;
+    state.referencedScripturesStale = false;
+    state.referencedScripturesRemoteStudy = null;
+    state.referencedScripturesDirty = false;
     state.selectedTags = Array.isArray(data.tags) ? data.tags.slice() : [];
     state.linkedScriptures = Array.isArray(data.linkedScriptures) ? data.linkedScriptures.slice() : [];
     state.studyScriptureTab = "referenced";
@@ -962,6 +1233,8 @@
     setSaveState(state.activeStudyId ? "Loaded" : "Draft not saved yet", state.activeStudyId ? "success" : "");
     setStatus("", "");
     setReferencedScriptureFeedback("", "");
+    updateReferencedScriptureRefreshNotice();
+    updateStudyActionAvailability();
 
     if (state.selectedTags.length) {
       loadRelatedScriptures({ force: true });
@@ -1049,28 +1322,72 @@
 
     const incomingVersion = Number(study.version) || 0;
     const activeVersion = Number(state.activeStudyVersion) || 0;
+    const currentRemoteVersion = Number(state.remoteStudy?.version) || 0;
 
-    if (incomingVersion <= activeVersion) {
+    if (incomingVersion <= activeVersion || incomingVersion <= currentRemoteVersion) {
       return;
     }
 
-    if (state.hasUnsavedChanges) {
-      const currentRemoteVersion = Number(state.remoteStudy?.version) || 0;
+    // Whole-study updates are never applied automatically while this page is open.
+    // The user chooses when to load them, so active work is never replaced silently.
+    state.remoteStudy = study;
+    updateReferencedScriptureRefreshNotice();
+    renderStudyConflictNotice(sourceLabel);
+  }
 
-      if (incomingVersion > currentRemoteVersion) {
-        state.remoteStudy = study;
-      }
+  function handleIncomingReferencedScriptureUpdate(
+    study,
+    sourceLabel = "the Bible page"
+  ) {
+    if (!study || !study.id) return;
 
-      setStatus(
-        `This study was updated in ${sourceLabel}. Your local changes are still here, but Save will be blocked until you reload the latest version.`,
-        "error",
-        0
-      );
-      setSaveState("Newer version available");
+    upsertStudyInState(study);
+    renderStudyList();
+
+    if (study.id !== state.activeStudyId) {
       return;
     }
 
-    applyIncomingStudy(study, `Study updated from ${sourceLabel}.`);
+    const incomingVersion = Number(study.version) || 0;
+    const activeVersion = Number(state.activeStudyVersion) || 0;
+    const currentReferencedVersion =
+      Number(state.referencedScripturesRemoteStudy?.version) || 0;
+
+    if (
+      incomingVersion <= activeVersion ||
+      incomingVersion <= currentReferencedVersion
+    ) {
+      return;
+    }
+
+    // If a whole-study conflict already exists, keep it unless polling merely
+    // saw this exact scoped version a fraction before the BroadcastChannel signal.
+    const wholeStudyRemoteVersion = Number(state.remoteStudy?.version) || 0;
+
+    if (state.remoteStudy && wholeStudyRemoteVersion > incomingVersion) {
+      return;
+    }
+
+    if (state.remoteStudy && wholeStudyRemoteVersion < incomingVersion) {
+      // The newer scoped save also contains the unresolved whole-study changes.
+      // Treat the newest version as a whole-study update so nothing is silently rebased.
+      state.remoteStudy = study;
+      updateReferencedScriptureRefreshNotice();
+      renderStudyConflictNotice("another window or device");
+      return;
+    }
+
+    if (state.remoteStudy && wholeStudyRemoteVersion === incomingVersion) {
+      state.remoteStudy = null;
+      setStatus("", "");
+    }
+
+    state.referencedScripturesRemoteStudy = study;
+    state.referencedScripturesStale = true;
+
+    updateReferencedScriptureRefreshNotice();
+    updateStudyActionAvailability();
+    setSaveState("Refresh Scriptures before saving");
   }
 
   async function handleIncomingStudyDelete(studyId, sourceLabel = "another window or device") {
@@ -1091,6 +1408,7 @@
         0
       );
       setSaveState("Study deleted elsewhere");
+      updateStudyActionAvailability();
       return;
     }
 
@@ -1111,6 +1429,11 @@
     if (message.type === "keyword-data-changed") {
       state.keywordDataStale = true;
       updateKeywordRefreshNotice();
+      return;
+    }
+
+    if (message.type === "referenced-scriptures-changed" && message.study) {
+      handleIncomingReferencedScriptureUpdate(message.study, "the Bible page");
       return;
     }
 
@@ -1165,6 +1488,19 @@
       const activeVersion = Number(state.activeStudyVersion) || 0;
 
       if (freshVersion > activeVersion) {
+        const scopedVersion =
+          Number(state.referencedScripturesRemoteStudy?.version) || 0;
+
+        // A known Referenced Scriptures update waits for the section-level
+        // Refresh button. Do not escalate that same version into a whole-study
+        // conflict while polling.
+        if (
+          state.referencedScripturesStale &&
+          freshVersion <= scopedVersion
+        ) {
+          return;
+        }
+
         handleIncomingStudyUpdate(freshStudy, "another window or device");
       }
     } catch (error) {
@@ -1199,28 +1535,17 @@
       upsertStudyInState(latestStudy);
       renderStudyList();
       state.remoteStudy = latestStudy;
-    }
-
-    setStatus(
-      `The ${actionLabel} was blocked because this study changed in another window or device. Nothing was overwritten.`,
-      "error",
-      0
-    );
-    setSaveState("Newer version exists");
-
-    if (!latestStudy) {
+      renderStudyConflictNotice("another window or device");
       return;
     }
 
-    const reloadLatest = confirm(
-      "This study has a newer saved version.\n\n" +
-      "Click OK to load the latest version now. Your current unsaved changes will be discarded.\n\n" +
-      "Click Cancel to keep your local changes on screen so you can review or copy them first."
+    setStatus(
+      `The ${actionLabel} was not completed because the latest study version could not be confirmed. Reload the study before trying again.`,
+      "error",
+      0
     );
-
-    if (reloadLatest) {
-      applyIncomingStudy(latestStudy, "Latest version loaded.");
-    }
+    setSaveState("Reload required");
+    updateStudyActionAvailability();
   }
 
   function matchesSearch(study, searchValue) {
@@ -1563,6 +1888,21 @@
   }
 
   async function saveStudy() {
+    if (state.referencedScripturesStale) {
+      setReferencedScriptureFeedback(
+        "New Scripture changes are available. Refresh this section before saving.",
+        "error"
+      );
+      updateReferencedScriptureRefreshNotice();
+      updateStudyActionAvailability();
+      return;
+    }
+
+    if (state.remoteStudy) {
+      renderStudyConflictNotice("another window or device");
+      return;
+    }
+
     const data = collectStudyData();
 
     if (!data.title) {
@@ -1580,6 +1920,7 @@
     setStatus("Saving...");
     setSaveState("Saving...");
     state.isSaving = true;
+    updateStudyActionAvailability();
 
     const isExisting = !!state.activeStudyId;
     const url = isExisting ? `/api/studies/${encodeURIComponent(state.activeStudyId)}` : "/api/studies";
@@ -1616,6 +1957,7 @@
       setSaveState("Save failed");
     } finally {
       state.isSaving = false;
+      updateStudyActionAvailability();
     }
   }
 
@@ -1881,6 +2223,8 @@
     heading.classList.add("study-tool-heading-scriptures");
     els.scriptureCount.classList.add("referenced-scripture-heading-count");
     ensureReferencedScriptureFeedback();
+    ensureReferencedScriptureRefreshNotice();
+    updateReferencedScriptureRefreshNotice();
 
     const related = createRelatedScriptureDisclosure("edit");
     els.scriptureList.after(related.wrapper);
@@ -2174,7 +2518,7 @@
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
     renderRelatedScriptures();
-    markDirty();
+    markReferencedScripturesDirty();
     setStatus(`${reference} added to Referenced Scriptures.`, "success");
   }
 
@@ -2308,7 +2652,7 @@
     }
 
     renderLinkedScriptures();
-    markDirty();
+    markReferencedScripturesDirty();
   }
 
   function reorderLinkedScriptureFromKeyboard(index, direction) {
@@ -2476,6 +2820,7 @@
   function beginLinkedScriptureEdit(index) {
     state.editingScriptureIndex = index;
     renderLinkedScriptures();
+    updateReferencedScriptureRefreshNotice();
 
     const editor = els.scriptureList.querySelector(`[data-linked-scripture-editor="${index}"]`);
     const input = editor?.querySelector("input");
@@ -2489,6 +2834,7 @@
   function cancelLinkedScriptureEdit() {
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
+    updateReferencedScriptureRefreshNotice();
   }
 
   function saveLinkedScriptureEdit(index, referenceInput, noteInput) {
@@ -2515,7 +2861,7 @@
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
     renderRelatedScriptures();
-    markDirty();
+    markReferencedScripturesDirty();
     setStatus("Linked Scripture updated.", "success");
   }
 
@@ -2524,7 +2870,7 @@
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
     renderRelatedScriptures();
-    markDirty();
+    markReferencedScripturesDirty();
   }
 
   function renderLinkedScriptureEditor(item, index) {
@@ -2541,6 +2887,7 @@
     referenceInput.placeholder = "Reference, e.g. John 3:16";
     referenceInput.addEventListener("input", () => {
       setReferencedScriptureFeedback("", "");
+      updateReferencedScriptureRefreshNotice();
     });
     referenceInput.addEventListener("blur", () => {
       const validation = validateScriptureReference(referenceInput.value);
@@ -2560,6 +2907,7 @@
     noteInput.rows = 3;
     noteInput.value = item.note || "";
     noteInput.placeholder = "Optional note or short reminder";
+    noteInput.addEventListener("input", updateReferencedScriptureRefreshNotice);
 
     noteLabel.appendChild(noteInput);
 
@@ -2683,6 +3031,7 @@
     });
 
     updateScriptureTabUI();
+    updateReferencedScriptureRefreshNotice();
   }
 
   function updateAddScriptureButtonState() {
@@ -2719,7 +3068,7 @@
     updateAddScriptureButtonState();
     renderLinkedScriptures();
     renderRelatedScriptures();
-    markDirty();
+    markReferencedScripturesDirty();
   }
 
   function getPreviewBibleState() {
@@ -3425,8 +3774,7 @@
     els.editButton.hidden = false;
   
     // Preview is read-only.
-    els.saveButton.disabled = true;
-    els.deleteButton.disabled = true;
+    updateStudyActionAvailability();
   
     els.modeLabel.textContent = "Preview";
 
@@ -3444,9 +3792,8 @@
     els.previewButton.hidden = false;
     els.editButton.hidden = true;
   
-    // Restore study management actions in Edit mode.
-    els.saveButton.disabled = false;
-    els.deleteButton.disabled = false;
+    // Restore study management actions only when the active version is safe to edit.
+    updateStudyActionAvailability();
   
     els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
 
@@ -5997,6 +6344,7 @@
     els.scriptureReference.addEventListener("input", () => {
       updateAddScriptureButtonState();
       setReferencedScriptureFeedback("", "");
+      updateReferencedScriptureRefreshNotice();
     });
     
     els.scriptureReference.addEventListener("blur", () => {
@@ -6007,7 +6355,12 @@
       if (normalizeName(els.scriptureReference.value) && !validation.valid) {
         setReferencedScriptureFeedback(validation.message, "error");
       }
+
+      updateReferencedScriptureRefreshNotice();
     });
+
+    els.scriptureNote.addEventListener("input", updateReferencedScriptureRefreshNotice);
+    els.scriptureNote.addEventListener("blur", updateReferencedScriptureRefreshNotice);
     
     updateAddScriptureButtonState();
     
