@@ -85,6 +85,7 @@
 
   const els = {};
   let statusClearTimer = null;
+  let referencedScriptureFeedbackTimer = null;
 
   function byId(id) {
     return document.getElementById(id);
@@ -410,12 +411,37 @@
     const feedback = ensureReferencedScriptureFeedback();
     if (!feedback) return;
 
+    if (referencedScriptureFeedbackTimer) {
+      clearTimeout(referencedScriptureFeedbackTimer);
+      referencedScriptureFeedbackTimer = null;
+    }
+
     const finalMessage = message || "";
     feedback.textContent = finalMessage;
     feedback.hidden = !finalMessage;
     feedback.classList.toggle("is-error", Boolean(finalMessage) && type === "error");
     feedback.classList.toggle("is-success", Boolean(finalMessage) && type === "success");
     feedback.setAttribute("role", type === "error" ? "alert" : "status");
+
+    // This is a transient confirmation, not persistent status. Clear the exact
+    // rendered feedback node after five seconds so it cannot remain visible.
+    if (finalMessage === "Referenced Scriptures refreshed." && type === "success") {
+      const feedbackNode = feedback;
+      const expectedMessage = finalMessage;
+
+      referencedScriptureFeedbackTimer = window.setTimeout(() => {
+        referencedScriptureFeedbackTimer = null;
+
+        if (!feedbackNode.isConnected || feedbackNode.textContent !== expectedMessage) {
+          return;
+        }
+
+        feedbackNode.textContent = "";
+        feedbackNode.hidden = true;
+        feedbackNode.classList.remove("is-error", "is-success");
+        feedbackNode.setAttribute("role", "status");
+      }, 5000);
+    }
   }
 
   function ensureReferencedScriptureRefreshNotice() {
