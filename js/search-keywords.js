@@ -1,7 +1,7 @@
 "use strict";
 
 // ============================================================================
-// Step 4 - Keyword Search tab
+// Keyword Search tab
 //
 // Keeps the existing Scripture Search engine in search.js separate from the
 // user-specific Keyword relationship search:
