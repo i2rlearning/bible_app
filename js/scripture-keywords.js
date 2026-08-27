@@ -1,5 +1,7 @@
+"use strict";
+
 // ============================================================================
-// Scripture <-> Keyword access from the Bible reading page
+// Step 3 - Scripture <-> Keyword access from the Bible reading page
 //
 // User-facing language says "Keyword", while the existing backend/API continues
 // to use the established tag model. This file does not change database structure.
@@ -11,8 +13,6 @@
 // - Create a new Keyword and connect it immediately.
 // - Click a connected Keyword to see all Scriptures connected to that Keyword.
 // ============================================================================
-
-"use strict";
 
 (function () {
   const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
@@ -174,6 +174,11 @@
     }
 
     return null;
+  }
+
+  function clearRememberedBibleSelection() {
+    state.savedOffsets = null;
+    state.savedAt = 0;
   }
 
   function rememberBibleSelection() {
@@ -943,7 +948,7 @@
       event.stopPropagation();
       state.lastVerseReference = target.reference;
       state.lastVerseDisplayReference = target.displayReference || target.reference;
-      state.savedOffsets = null;
+      clearRememberedBibleSelection();
       loadReferenceKeywords(target.reference, target.displayReference);
     });
 
@@ -958,12 +963,26 @@
       event.preventDefault();
       state.lastVerseReference = target.reference;
       state.lastVerseDisplayReference = target.displayReference || target.reference;
-      state.savedOffsets = null;
+      clearRememberedBibleSelection();
       loadReferenceKeywords(target.reference, target.displayReference);
     });
   }
 
   document.addEventListener("selectionchange", rememberBibleSelection);
+
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return;
+
+    // Keep the range only while the user is moving from selected Bible text to
+    // a Keywords control. Any other click means the visible selection is over.
+    if (target.closest("#scripture-keywords-drawer, #bible-mini-toolbar, [data-scripture-keywords-trigger]")) {
+      return;
+    }
+
+    clearRememberedBibleSelection();
+  });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && state.drawer && !state.drawer.hidden) {
