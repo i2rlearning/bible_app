@@ -665,6 +665,7 @@
           <div class="mobile-toolbar-group">
             <button
               type="button"
+              id="mobile-actions-toggle"
               class="mobile-toolbar-toggle"
               onclick="toggleMobileToolbarMenu('mobile-actions-menu')"
               aria-haspopup="true"
@@ -705,6 +706,22 @@
               >
                 <i class="fa fa-repeat" aria-hidden="true"></i>
                 <span>Redo</span>
+              </button>
+
+              <button
+                type="button"
+                data-study-selection-trigger
+                data-study-selection-mobile-action="true"
+                title="Add selected Scripture to Study"
+                aria-label="Add selected Scripture to Study"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              >
+                <span class="study-bookmark-icon" aria-hidden="true">
+                  <i class="fa fa-bookmark-o"></i>
+                  <span class="study-bookmark-plus">+</span>
+                </span>
+                <span>Add to Study</span>
               </button>
 
               <button
