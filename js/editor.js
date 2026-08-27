@@ -1445,6 +1445,14 @@ function clearSavedBibleSelection() {
   savedBibleSelectionTimestamp = 0;
 }
 
+function clearAllRememberedBibleSelections() {
+  clearSavedBibleSelection();
+
+  if (window.AnchoredAnnotations?.clearRememberedSelection) {
+    window.AnchoredAnnotations.clearRememberedSelection();
+  }
+}
+
 function getLiveBibleSelectionRange() {
   const selection = window.getSelection();
   const bibleText = document.getElementById("bible-text");
@@ -1491,6 +1499,22 @@ function getClearTargetBibleSelectionRange() {
 }
 
 document.addEventListener("selectionchange", saveBibleSelection);
+
+// Selection memory is only a temporary bridge between visible Bible text and
+// mini-toolbar controls. Clicking anywhere outside the mini-toolbar means the
+// user has intentionally left that selection, so no formatting/drawing action
+// may reuse an invisible old range.
+document.addEventListener("pointerdown", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof Element)) return;
+
+  if (target.closest("#bible-mini-toolbar")) {
+    return;
+  }
+
+  clearAllRememberedBibleSelections();
+});
 
 // ----------------------------------------------------
 // Mini-editor text formatting
@@ -2915,6 +2939,7 @@ document.addEventListener("keydown", (event) => {
 window.setDrawingTool = setDrawingTool;
 window.rememberCurrentSelectionOffsets = rememberCurrentSelectionOffsets;
 window.clearSavedBibleSelection = clearSavedBibleSelection;
+window.clearAllRememberedBibleSelections = clearAllRememberedBibleSelections;
 window.clearBibleSelectionFormat = clearBibleSelectionFormat;
 window.clearSelectedDrawnAnnotation = clearSelectedDrawnAnnotation;
 window.clearSelectedBibleAnnotation = clearSelectedBibleAnnotation;
