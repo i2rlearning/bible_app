@@ -2833,3 +2833,123 @@ body.is-reordering-linked-scripture {
     width: 100%;
   }
 }
+
+/* ========================================================================== 
+   Scoped cross-tab refresh for Referenced Scriptures
+   Detection is automatic, but the section changes only when the user presses
+   Refresh. This notice intentionally lives inside the Referenced Scriptures card.
+   ========================================================================== */
+
+.study-referenced-refresh-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 9px 10px;
+  border: 1px solid #c9d8ff;
+  border-radius: 10px;
+  background: #f4f7ff;
+  color: var(--study-navy);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.study-referenced-refresh-notice[hidden] {
+  display: none;
+}
+
+.study-referenced-refresh-text {
+  min-width: 0;
+}
+
+.study-referenced-refresh-button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid #b9cbff;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #255bea;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.study-referenced-refresh-button:hover:not(:disabled) {
+  background: #edf3ff;
+}
+
+.study-referenced-refresh-button:focus-visible {
+  outline: 3px solid rgba(37, 91, 234, 0.20);
+  outline-offset: 2px;
+}
+
+.study-referenced-refresh-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Whole-study changes are different from section-level changes. They get one
+   clear top-level notice with a deliberate Load Latest action. */
+.study-status.is-conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 0;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #efd59a;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: var(--study-navy);
+  line-height: 1.4;
+}
+
+.study-conflict-copy {
+  min-width: 0;
+}
+
+.study-conflict-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.study-conflict-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d5b86e;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--study-navy);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.study-conflict-button:hover {
+  background: #fff4d8;
+}
+
+.study-conflict-button.is-secondary {
+  border-color: var(--study-border);
+  color: var(--study-muted);
+}
+
+@media (max-width: 520px) {
+  .study-referenced-refresh-notice,
+  .study-status.is-conflict {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .study-referenced-refresh-button,
+  .study-conflict-actions,
+  .study-conflict-button {
+    width: 100%;
+  }
+}
