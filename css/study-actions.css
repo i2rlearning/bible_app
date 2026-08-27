@@ -257,7 +257,9 @@
 }
 
 @media only screen and (max-width: 639px) {
+  /* On compact screens Add to Study lives inside the Actions menu, beside Keywords. */
   #bible-mini-toolbar .mobile-study-selection-trigger {
+    display: none !important;
     flex: 0 0 38px !important;
     width: 38px !important;
     min-width: 38px !important;
