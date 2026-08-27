@@ -4,6 +4,7 @@
   const state = {
     menu: null,
     trigger: null,
+    positionAnchor: null,
     selection: null,
     studies: [],
     savedOffsets: null,
@@ -112,6 +113,12 @@
     }
 
     return null;
+  }
+
+  function clearRememberedBibleSelection() {
+    state.savedOffsets = null;
+    state.savedAt = 0;
+    state.selection = null;
   }
 
   function rememberBibleSelection() {
@@ -325,7 +332,8 @@
 
     if (menu.hidden || !state.trigger) return;
 
-    const trigger = state.trigger.getBoundingClientRect();
+    const anchor = state.positionAnchor || state.trigger;
+    const trigger = anchor.getBoundingClientRect();
     const margin = 10;
     const gap = 8;
 
@@ -352,6 +360,7 @@
     menu.innerHTML = "";
     setExpanded(false);
     state.trigger = null;
+    state.positionAnchor = null;
   }
 
   function headerHtml(title, subtitle) {
@@ -635,7 +644,16 @@
       const index = state.studies.findIndex((item) => item.id === saveResult.study.id);
       if (index >= 0) state.studies[index] = saveResult.study;
 
-      publishStudySync("study-updated", { study: saveResult.study });
+      if (mode === "linked-scripture") {
+        publishStudySync("referenced-scriptures-changed", {
+          study: saveResult.study,
+          source: "verse-selection"
+        });
+      } else {
+        publishStudySync("study-updated", { study: saveResult.study });
+      }
+
+      clearRememberedBibleSelection();
 
       menu.innerHTML =
         headerHtml("Added to Study", saveResult.study.title || "Study") +
@@ -662,6 +680,10 @@
     rememberBibleSelection();
     state.selection = captureSelection();
     state.trigger = trigger;
+    state.positionAnchor =
+      trigger?.dataset?.studySelectionMobileAction === "true"
+        ? document.getElementById("mobile-actions-toggle") || trigger
+        : trigger;
 
     if (typeof window.closeMobileToolbarMenus === "function") {
       window.closeMobileToolbarMenus();
@@ -722,7 +744,17 @@
     const target = event.target;
 
     if (!(target instanceof Element)) return;
-    if (target.closest("#selection-study-menu, [data-study-selection-trigger]")) return;
+
+    // Toolbar interactions intentionally preserve the current Bible selection so
+    // formatting and the mobile Actions menu can use it. Clicking anywhere else
+    // means the user has moved on, so an invisible old selection must not remain
+    // available to "Add to Study".
+    if (target.closest("#selection-study-menu, #bible-mini-toolbar, [data-study-selection-trigger]")) {
+      return;
+    }
+
+    clearRememberedBibleSelection();
+
     if (state.menu && !state.menu.hidden) closeMenu();
   });
 
