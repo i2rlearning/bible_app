@@ -123,12 +123,25 @@
           </label> -->
 
           <div class="scripture-search-row">
-            <input
-              type="search"
-              id="search-input"
-              autocomplete="off"
-              placeholder='Try "kingdom of heaven", east, or John 3:16'
-            >
+            <div class="search-input-shell">
+              <input
+                type="search"
+                id="search-input"
+                autocomplete="off"
+                placeholder='Try "kingdom of heaven", Healing, or John 3:16'
+                aria-autocomplete="list"
+                aria-controls="keyword-search-suggestions"
+                aria-expanded="false"
+              >
+
+              <div
+                id="keyword-search-suggestions"
+                class="search-keyword-suggestions"
+                role="listbox"
+                aria-label="Keyword suggestions"
+                hidden
+              ></div>
+            </div>
 
             <button type="submit" class="scripture-search-button">
               Search
@@ -148,7 +161,7 @@
         </form>
 
         <p class="search-help">
-          Smart search shows exact matches first and highlights variant forms when they are returned. Use quotes for an exact phrase, or the checkbox for exact matches.
+          Smart search shows exact matches first and highlights variant forms when they are returned. Use quotes for an exact phrase, or the checkbox for exact matches. When signed in, matching Keywords appear as you type, and Scripture references can show their associated Keywords.
         </p>
       </section>
 
@@ -171,6 +184,15 @@
         </div>
 
         <div id="search-status" class="search-status"></div>
+
+        <div
+          id="keyword-search-results"
+          class="search-keyword-results"
+          aria-live="polite"
+          hidden
+        ></div>
+
+        <h3 id="bible-results-label" class="search-results-section-label" hidden>Bible Results</h3>
         <div id="results-list" class="search-results-list"></div>
 
         <div class="search-pagination" id="search-pagination"></div>
@@ -185,5 +207,6 @@
     <script src="js/user-preferences.js"></script>
     <script src="js/menu.js" defer></script>
     <script src="js/search.js" defer></script>
+    <script src="js/search-keywords.js" defer></script>
   </body>
 </html>
