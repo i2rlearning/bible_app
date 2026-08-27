@@ -107,7 +107,7 @@
 
     <main class="search-page">
       <section class="search-card" aria-labelledby="search-title">
-        <p class="search-eyebrow">Scripture Search</p>
+        <p class="search-eyebrow" id="search-mode-eyebrow">Search</p>
         <h1 id="search-title">Find a verse or passage</h1>
 
         <div class="search-bible-strip">
@@ -115,6 +115,27 @@
           <strong class="search-current-bible" id="search-current-bible">
             Loading Bible...
           </strong>
+        </div>
+
+        <div class="search-mode-tabs" role="tablist" aria-label="Search type">
+          <button
+            type="button"
+            id="scripture-search-tab"
+            class="search-mode-tab is-active"
+            role="tab"
+            aria-selected="true"
+            aria-controls="scripture-search-form"
+            data-search-mode="scripture"
+          >Scripture Search</button>
+          <button
+            type="button"
+            id="keyword-search-tab"
+            class="search-mode-tab"
+            role="tab"
+            aria-selected="false"
+            aria-controls="scripture-search-form"
+            data-search-mode="keyword"
+          >Keyword Search</button>
         </div>
 
         <form id="scripture-search-form" class="scripture-search-form">
@@ -128,7 +149,7 @@
                 type="search"
                 id="search-input"
                 autocomplete="off"
-                placeholder='Try "kingdom of heaven", Healing, or John 3:16'
+                placeholder='Try "kingdom of heaven", east, or John 3:16'
                 aria-autocomplete="list"
                 aria-controls="keyword-search-suggestions"
                 aria-expanded="false"
@@ -138,7 +159,7 @@
                 id="keyword-search-suggestions"
                 class="search-keyword-suggestions"
                 role="listbox"
-                aria-label="Keyword suggestions"
+                aria-label="Search suggestions"
                 hidden
               ></div>
             </div>
@@ -152,7 +173,7 @@
             </button>
           </div>
 
-          <div class="search-options">
+          <div class="search-options" id="scripture-search-options">
             <label class="search-option">
               <input type="checkbox" id="exact-word-only">
               <span>Exact word only</span>
@@ -160,8 +181,8 @@
           </div>
         </form>
 
-        <p class="search-help">
-          Smart search shows exact matches first and highlights variant forms when they are returned. Use quotes for an exact phrase, or the checkbox for exact matches. When signed in, matching Keywords appear as you type, and Scripture references can show their associated Keywords.
+        <p class="search-help" id="search-help">
+          Smart search shows exact matches first and highlights variant forms when they are returned. Use quotes for an exact phrase, or the checkbox for exact matches.
         </p>
       </section>
 
@@ -173,7 +194,7 @@
             <p id="search-results-summary"></p>
           </div>
 
-          <label class="search-page-size-control" for="results-page-size">
+          <label class="search-page-size-control" id="results-page-size-control" for="results-page-size">
             <span>Show</span>
             <select id="results-page-size">
               <option value="10" selected>10</option>
@@ -192,7 +213,6 @@
           hidden
         ></div>
 
-        <h3 id="bible-results-label" class="search-results-section-label" hidden>Bible Results</h3>
         <div id="results-list" class="search-results-list"></div>
 
         <div class="search-pagination" id="search-pagination"></div>
