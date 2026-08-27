@@ -156,6 +156,10 @@
     return range.cloneRange();
   }
 
+  function clearRememberedSelection() {
+    savedSelectionOffsets = null;
+  }
+
   function getSavedSelectionRangeInsideBibleText() {
     const bibleText = getBibleText();
 
@@ -494,6 +498,7 @@
   window.AnchoredAnnotations = {
     createFromCurrentSelection,
     rememberCurrentSelection,
+    clearRememberedSelection,
     clearSelected,
     clearIntersectingCurrentSelection,
     clearIntersectingRange,
