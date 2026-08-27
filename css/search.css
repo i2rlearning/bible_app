@@ -881,3 +881,201 @@ body.basic_search {
     max-width: calc(100vw - 120px);
   }
 }
+
+/* ========================================================================== */
+/* Step 4 - separate Scripture Search and Keyword Search tabs                 */
+/* ========================================================================== */
+
+.search-mode-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 18px;
+  padding: 4px;
+  border: 1px solid rgba(18, 63, 124, 0.18);
+  border-radius: 12px;
+  background: rgba(241, 245, 251, 0.86);
+}
+
+.search-mode-tab {
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  padding: 0 16px;
+  background: transparent;
+  color: var(--search-muted);
+  font-family: Arial, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.search-mode-tab:hover,
+.search-mode-tab:focus-visible {
+  outline: none;
+  color: var(--search-blue);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.search-mode-tab.is-active {
+  background: #fff;
+  color: var(--search-blue-dark);
+  box-shadow: 0 2px 8px rgba(18, 63, 124, 0.12);
+}
+
+#scripture-search-options[hidden],
+#results-page-size-control[hidden],
+.search-mode-keywords #search-status,
+.search-mode-keywords #results-list,
+.search-mode-keywords #search-pagination {
+  display: none !important;
+}
+
+.search-mode-scripture #keyword-search-results {
+  display: none !important;
+}
+
+/* Keyword autocomplete is only used in the Keyword Search tab. */
+.search-scripture-suggestion {
+  background: rgba(244, 248, 255, 0.78);
+}
+
+.search-keyword-suggestion-heading:not(:first-child) {
+  border-top: 1px solid rgba(18, 63, 124, 0.12);
+  margin-top: 2px;
+}
+
+/* The results panel itself is already a card. Avoid nesting another large card. */
+.search-mode-keywords .search-keyword-results {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.search-mode-keywords .search-keyword-result-heading {
+  padding-bottom: 13px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(83, 56, 28, 0.13);
+}
+
+.search-mode-keywords .search-keyword-result-heading h3 {
+  font-size: 1.28rem;
+}
+
+.search-keyword-scripture-list {
+  gap: 10px;
+}
+
+.search-mode-keywords .search-keyword-scripture-row {
+  align-items: flex-start;
+  gap: 18px;
+  border: 1px solid rgba(18, 63, 124, 0.14);
+  border-radius: 12px;
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.search-keyword-scripture-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.search-mode-keywords .search-keyword-scripture-text strong {
+  color: var(--search-blue);
+  font-size: 1.03rem;
+}
+
+.search-keyword-scripture-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  margin: 7px 0 0 !important;
+  color: var(--search-text) !important;
+  font-family: Georgia, "Times New Roman", serif !important;
+  font-size: 0.98rem !important;
+  line-height: 1.55 !important;
+}
+
+.search-keyword-scripture-preview.is-loading {
+  color: var(--search-muted) !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 0.84rem !important;
+}
+
+.search-keyword-relationship-note {
+  margin: 7px 0 0 !important;
+  padding-top: 7px;
+  border-top: 1px solid rgba(18, 63, 124, 0.08);
+  color: var(--search-muted) !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 0.8rem !important;
+  line-height: 1.4 !important;
+}
+
+.search-mode-keywords .search-keyword-open-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  margin-top: 1px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.search-keyword-show-more-scriptures {
+  display: block;
+  margin: 14px auto 0;
+  min-height: 38px;
+  border: 1px solid rgba(18, 63, 124, 0.28);
+  border-radius: 999px;
+  padding: 0 16px;
+  background: #fff;
+  color: var(--search-blue);
+  font-family: Arial, sans-serif;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.search-keyword-show-more-scriptures:hover,
+.search-keyword-show-more-scriptures:focus-visible {
+  outline: none;
+  border-color: var(--search-blue);
+  background: rgba(18, 63, 124, 0.05);
+}
+
+.search-reference-preview-wrap {
+  margin-bottom: 17px;
+}
+
+.search-associated-keyword-heading {
+  margin: 18px 0 10px;
+  color: #1e2633;
+  font-family: Arial, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .search-mode-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .search-mode-tab {
+    min-width: 0;
+    padding: 0 10px;
+  }
+
+  .search-mode-keywords .search-keyword-scripture-row {
+    flex-direction: column;
+  }
+
+  .search-mode-keywords .search-keyword-open-link {
+    align-self: flex-start;
+  }
+}
