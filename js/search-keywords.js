@@ -1,7 +1,7 @@
 "use strict";
 
 // ============================================================================
-// Step 4 - Keyword-aware Search
+// Keyword-aware Search
 //
 // This module extends search.html without changing the existing Bible-search
 // engine in search.js. It adds two private, user-specific search directions:
