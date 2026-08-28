@@ -121,17 +121,19 @@ body.basic_search {
 }
 
 .search-bible-strip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 18px;
-  border: 1px solid rgba(18, 63, 124, 0.22);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 22px;
+  border: 1px solid rgba(18, 63, 124, 0.16);
   border-radius: 999px;
-  padding: 7px 13px;
-  background: rgba(255, 255, 255, 0.78);
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.64);
   color: #34404d;
   font-family: Arial, sans-serif;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .search-bible-label {
@@ -197,7 +199,7 @@ body.basic_search {
 }
 
 .search-card h1 {
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   color: #201915;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(1.8rem, 4vw, 2.7rem);
@@ -806,11 +808,15 @@ body.basic_search {
 
 @media (max-width: 640px) {
   .search-bible-strip {
-    display: flex;
-    justify-content: center;
-    width: fit-content;
-    max-width: 100%;
-    margin-bottom: 16px;
+    justify-content: flex-start;
+    width: 100%;
+    margin-bottom: 18px;
+  }
+
+  .search-current-bible-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
   }
 
   .search-page {
@@ -887,10 +893,12 @@ body.basic_search {
 /* ========================================================================== */
 
 .search-mode-tabs {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
-  margin: 0 0 18px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 14px;
   padding: 4px;
   border: 1px solid rgba(18, 63, 124, 0.18);
   border-radius: 12px;
