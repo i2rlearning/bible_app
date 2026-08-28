@@ -1,7 +1,7 @@
 "use strict";
 
 // ============================================================================
-// Step 4 - Keyword Search tab
+// Keyword Search tab
 //
 // Keeps the existing Scripture Search engine in search.js separate from the
 // user-specific Keyword relationship search:
@@ -56,8 +56,8 @@
   const elements = {};
   const createResponsiveFitController =
     window.UIFitController?.createResponsiveFitController || (() => null);
-  const isElementWrapped =
-    window.UIFitController?.isElementWrapped || (() => false);
+  const measureNaturalWidth =
+    window.UIFitController?.measureNaturalWidth || ((element) => Number(element?.scrollWidth) || 0);
   let bibleStripFitController = null;
 
   const state = {
@@ -136,7 +136,7 @@
         label.hidden = mode === "compact";
       },
       isEnabled: () => Boolean(strip.isConnected && availableContainer.clientWidth > 0),
-      doesFit: () => !isElementWrapped(label),
+      getRequiredWidth: () => measureNaturalWidth(strip),
       fitMargin: 6,
       restoreMargin: 24,
       mutationElement: strip,
