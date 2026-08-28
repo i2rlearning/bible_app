@@ -882,11 +882,6 @@ body.basic_search {
 }
 
 
-@media (max-width: 560px) {
-  .search-current-bible-select {
-    max-width: calc(100vw - 120px);
-  }
-}
 
 /* ========================================================================== */
 /* Step 4 - separate Scripture Search and Keyword Search tabs                 */
