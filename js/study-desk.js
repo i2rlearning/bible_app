@@ -67,6 +67,9 @@
   const STUDY_SYNC_POLL_MS = 15000;
   const STUDY_TOOLBAR_FIT_MARGIN = 8;
   const STUDY_TOOLBAR_RESTORE_MARGIN = 24;
+  const PREVIEW_SCRIPTURE_COLUMN_BASE_WIDTH = 310;
+  const PREVIEW_SCRIPTURE_COLUMN_MAX_WIDTH = 390;
+  const PREVIEW_SCRIPTURE_COLUMN_FIT_MARGIN = 4;
   const linkedScripturePreviewCache = new Map();
   const linkedScriptureBookCache = new Map();
   let activeScripturePopupAnchor = null;
@@ -81,6 +84,7 @@
   let studySyncChannel = null;
   let studyToolbarFitController = null;
   let keywordManagerFitController = null;
+  let previewReferencedFitController = null;
   let lastQuillSelection = null;
 
   const els = {};
@@ -93,7 +97,10 @@
 
   // Shared responsive-fit logic lives in js/ui-fit-controller.js.
   // Keep the component-specific mode definitions in this file.
-  const createResponsiveFitController = window.UIFitController?.createResponsiveFitController;
+  const createResponsiveFitController =
+    window.UIFitController?.createResponsiveFitController || (() => null);
+  const measureNaturalWidth =
+    window.UIFitController?.measureNaturalWidth || ((element) => Number(element?.scrollWidth) || 0);
 
   function cacheElements() {
     els.authMessage = byId("study-auth-message");
@@ -2174,6 +2181,85 @@
     });
   }
 
+  function getPreviewReferencedRequiredColumnWidth(section, heading) {
+    if (!section || !heading) return PREVIEW_SCRIPTURE_COLUMN_BASE_WIDTH;
+
+    const sectionStyle = window.getComputedStyle(section);
+    const horizontalChrome =
+      (Number.parseFloat(sectionStyle.paddingLeft) || 0) +
+      (Number.parseFloat(sectionStyle.paddingRight) || 0) +
+      (Number.parseFloat(sectionStyle.borderLeftWidth) || 0) +
+      (Number.parseFloat(sectionStyle.borderRightWidth) || 0);
+
+    const headingWidth = measureNaturalWidth(heading);
+    const requiredWidth = Math.ceil(
+      headingWidth + horizontalChrome + PREVIEW_SCRIPTURE_COLUMN_FIT_MARGIN
+    );
+
+    return Math.max(
+      PREVIEW_SCRIPTURE_COLUMN_BASE_WIDTH,
+      Math.min(PREVIEW_SCRIPTURE_COLUMN_MAX_WIDTH, requiredWidth)
+    );
+  }
+
+  function setPreviewScriptureColumnWidth(width) {
+    if (!els.preview) return;
+
+    const safeWidth = Math.max(
+      PREVIEW_SCRIPTURE_COLUMN_BASE_WIDTH,
+      Math.min(PREVIEW_SCRIPTURE_COLUMN_MAX_WIDTH, Math.ceil(Number(width) || 0))
+    );
+
+    els.preview.style.setProperty("--study-preview-side-width", `${safeWidth}px`);
+  }
+
+  function initPreviewReferencedResponsiveFit(section, heading, count) {
+    previewReferencedFitController?.destroy();
+    previewReferencedFitController = null;
+
+    if (!section || !heading || !count || !els.preview) return;
+
+    // Keep the reference sidebar visually identical to Edit at the base width.
+    // If the complete heading needs a few more pixels (for example a larger
+    // reference count), grow only this column by the exact amount required.
+    // The notes/document column naturally gives up the same amount of space.
+    count.hidden = false;
+    setPreviewScriptureColumnWidth(PREVIEW_SCRIPTURE_COLUMN_BASE_WIDTH);
+
+    previewReferencedFitController = createResponsiveFitController({
+      measureElement: els.preview,
+      observeElement: els.preview,
+      mutationElement: heading,
+      modes: ["base", "expanded"],
+      applyMode(mode) {
+        heading.dataset.fitMode = mode;
+        count.hidden = false;
+
+        const width = mode === "expanded"
+          ? getPreviewReferencedRequiredColumnWidth(section, heading)
+          : PREVIEW_SCRIPTURE_COLUMN_BASE_WIDTH;
+
+        setPreviewScriptureColumnWidth(width);
+      },
+      isEnabled: () => Boolean(
+        state.isPreview &&
+        els.preview &&
+        !els.preview.hidden &&
+        els.preview.clientWidth > 0
+      ),
+      doesFit: () => (
+        getPreviewReferencedRequiredColumnWidth(section, heading) <=
+        PREVIEW_SCRIPTURE_COLUMN_BASE_WIDTH
+      ),
+      restoreMargin: 0,
+      observeMutations: true
+    });
+  }
+
+  function schedulePreviewReferencedFit() {
+    previewReferencedFitController?.schedule();
+  }
+
   function ensurePreviewScriptureTabs() {
     if (els.previewScriptureTabsReady || !els.previewLinkedScriptures) return;
 
@@ -2201,6 +2287,8 @@
     els.previewRelatedScripturePanel = related.panel;
     els.previewRelatedScriptureList = related.list;
     els.previewScriptureTabsReady = true;
+
+    initPreviewReferencedResponsiveFit(section, heading, count);
 
     related.button.addEventListener("click", () => {
       state.previewRelatedScripturesExpanded = !state.previewRelatedScripturesExpanded;
@@ -2256,6 +2344,8 @@
       "is-expanded",
       state.previewRelatedScripturesExpanded
     );
+
+    schedulePreviewReferencedFit();
   }
 
   function invalidateRelatedScriptures(options = {}) {
@@ -3698,6 +3788,7 @@
     setPreviewWorkspaceMode(true);
     els.form.hidden = true;
     els.preview.hidden = false;
+    schedulePreviewReferencedFit();
     els.previewButton.hidden = true;
     els.editButton.hidden = false;
   
