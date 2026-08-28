@@ -54,11 +54,6 @@
   CANONICAL_BOOK_ID_MAP.set("song of songs", "SNG");
 
   const elements = {};
-  const createResponsiveFitController =
-    window.UIFitController?.createResponsiveFitController || (() => null);
-  const measureNaturalWidth =
-    window.UIFitController?.measureNaturalWidth || ((element) => Number(element?.scrollWidth) || 0);
-  let bibleStripFitController = null;
 
   const state = {
     mode: "scripture",
@@ -100,8 +95,6 @@
     elements.keywordTab = document.getElementById("keyword-search-tab");
     elements.searchTitle = document.getElementById("search-title");
     elements.searchHelp = document.getElementById("search-help");
-    elements.bibleStrip = document.querySelector(".search-bible-strip");
-    elements.bibleLabel = elements.bibleStrip?.querySelector(".search-bible-label") || null;
 
     if (!elements.form || !elements.input || !elements.keywordResults) {
       return;
@@ -112,40 +105,8 @@
     captureScriptureHeader();
     bindKeywordSearchEvents();
     syncSearchModeUi();
-    initSearchBibleResponsiveFit();
 
     loadKeywordLibrary().catch(() => {});
-  }
-
-  function initSearchBibleResponsiveFit() {
-    bibleStripFitController?.destroy();
-    bibleStripFitController = null;
-
-    const strip = elements.bibleStrip;
-    const label = elements.bibleLabel;
-    const availableContainer = strip?.parentElement;
-
-    if (!strip || !label || !availableContainer) return;
-
-    bibleStripFitController = createResponsiveFitController({
-      measureElement: availableContainer,
-      observeElement: availableContainer,
-      modes: ["full", "compact"],
-      applyMode(mode) {
-        strip.dataset.fitMode = mode;
-        label.hidden = mode === "compact";
-      },
-      isEnabled: () => Boolean(strip.isConnected && availableContainer.clientWidth > 0),
-      getRequiredWidth: () => measureNaturalWidth(strip),
-      fitMargin: 6,
-      restoreMargin: 24,
-      mutationElement: strip,
-      observeMutations: true
-    });
-  }
-
-  function scheduleSearchBibleFit() {
-    bibleStripFitController?.schedule();
   }
 
   function bindKeywordSearchEvents() {
@@ -178,7 +139,6 @@
     document.addEventListener("change", (event) => {
       if (event.target?.id !== "search-bible-select") return;
       resetBibleDependentCaches();
-      scheduleSearchBibleFit();
 
       if (state.mode === "keyword" && state.keywordQuery) {
         window.setTimeout(() => runKeywordSearch(state.keywordQuery), 0);
@@ -187,7 +147,6 @@
 
     window.addEventListener("bible-preferences-changed", () => {
       resetBibleDependentCaches();
-      scheduleSearchBibleFit();
 
       if (state.mode === "keyword" && state.keywordQuery) {
         window.setTimeout(() => runKeywordSearch(state.keywordQuery), 0);
