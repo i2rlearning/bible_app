@@ -693,6 +693,14 @@
     return String(value || "").trim().replace(/\s+/g, " ");
   }
 
+  function properCaseKeywordName(value) {
+    return normalizeName(value)
+      .toLocaleLowerCase("en-US")
+      .replace(/(^|[\s\-\/(])([\p{L}])/gu, (match, prefix, letter) => {
+        return `${prefix}${letter.toLocaleUpperCase("en-US")}`;
+      });
+  }
+
   const SCRIPTURE_BOOK_ALIAS_GROUPS = [
     ["Genesis", ["gen", "ge", "gn"]],
     ["Exodus", ["exod", "exo", "ex"]],
@@ -2029,7 +2037,7 @@
 
     if (!raw || els.addTag?.disabled) return;
 
-    const name = raw.replace(/\s+/g, " ");
+    const name = properCaseKeywordName(raw);
     const existing = state.availableTags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
     let tag = existing;
 
@@ -5789,7 +5797,7 @@
   }
 
   async function createManagedTagFromLibrary(nameInput, getColor, button, feedback) {
-    const name = normalizeName(nameInput?.value);
+    const name = properCaseKeywordName(nameInput?.value);
     const color = normalizeColorValue(getColor?.()) || "#dbeafe";
 
     if (!name) {
@@ -6126,7 +6134,7 @@
   }
 
   async function addManagedTag() {
-    const name = normalizeName(els.newTagName.value);
+    const name = properCaseKeywordName(els.newTagName.value);
     const selectedColor = normalizeColorValue(state.newTagColor);
     const color = selectedColor || "#dbeafe";
 
