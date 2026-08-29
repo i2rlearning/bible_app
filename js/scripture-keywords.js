@@ -43,6 +43,14 @@
     return String(value || "").replace(/\s+/g, " ").trim();
   }
 
+  function properCaseKeywordName(value) {
+    return normalizeText(value)
+      .toLocaleLowerCase("en-US")
+      .replace(/(^|[\s\-\/(])([\p{L}])/gu, (match, prefix, letter) => {
+        return `${prefix}${letter.toLocaleUpperCase("en-US")}`;
+      });
+  }
+
   async function parseResponse(response) {
     const text = await response.text();
 
@@ -572,7 +580,7 @@
     const createStatus = createWrap.querySelector(".scripture-keyword-inline-status");
 
     async function createAndAddKeyword() {
-      const name = normalizeText(createInput.value);
+      const name = properCaseKeywordName(createInput.value);
 
       if (!name) {
         createStatus.textContent = "Enter a keyword name.";
