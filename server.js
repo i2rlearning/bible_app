@@ -488,6 +488,16 @@ function normalizeText(value) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+// Keyword names are stored in Proper Case regardless of which UI created them.
+// Examples: "holy spirit" -> "Holy Spirit", "GOD'S GRACE" -> "God's Grace".
+function properCaseKeywordName(value) {
+  return normalizeText(value)
+    .toLocaleLowerCase("en-US")
+    .replace(/(^|[\s\-\/(])([\p{L}])/gu, (match, prefix, letter) => {
+      return `${prefix}${letter.toLocaleUpperCase("en-US")}`;
+    });
+}
+
 function normalizeOptionalText(value) {
   if (typeof value !== "string") return "";
   return value.trim();
@@ -1157,7 +1167,7 @@ app.get("/api/study-tags", requireAuth(), async (req, res) => {
 app.post("/api/study-tags", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
-    const name = normalizeText(req.body.name);
+    const name = properCaseKeywordName(req.body.name);
 
     if (!name) {
       return res.status(400).json({
@@ -1212,7 +1222,7 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
-    const name = normalizeText(req.body.name);
+    const name = properCaseKeywordName(req.body.name);
 
     if (!name) {
       return res.status(400).json({
