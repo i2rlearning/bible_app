@@ -1,10 +1,12 @@
-
+<!DOCTYPE html>
+<html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link href="css/menu.css" rel="stylesheet">
     <link href="css/bible-main.css" rel="stylesheet">
+    <link href="css/bible-selector.css" rel="stylesheet">
     <link href="css/study-desk.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
@@ -32,7 +34,7 @@
             <span>Home</span>
           </a>
           
-          <button type="button" class="study-nav-link" id="openPassagePickerFromMenu">
+          <button type="button" class="study-nav-link" data-open-passage>
             <svg
               class="study-nav-icon"
               viewBox="0 0 24 24"
@@ -382,35 +384,13 @@
 
     <script src="js/my_key.js"></script>
     <script src="js/auth.js"></script>
-    <script src="js/ui-fit-controller.js"></script>
     <script src="js/bible-version-visibility.js"></script>
     <script src="js/bible-language.js"></script>
     <script src="js/bible-selector.js"></script>
 
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const passagePickerRoot = document.getElementById("passage-picker");
-
-        if (!passagePickerRoot || !window.BibleSelector) {
-          return;
-        }
-
-        try {
-          const passagePicker = window.BibleSelector.createPassagePicker({
-            root: passagePickerRoot,
-            openButtonLabel: "Open"
-          });
-
-          document.querySelectorAll("[data-open-passage]").forEach((button) => {
-            button.addEventListener("click", () => {
-              passagePicker.setOpen(true);
-            });
-          });
-        } catch (error) {
-          console.error("Unable to initialize Study Desk passage picker:", error);
-        }
-      });
-    </script>
+    <script src="js/user-preferences.js"></script>
+    <script src="js/passage-picker.js"></script>
+    <script src="js/ui-fit-controller.js"></script>
     
     <script src="js/study-desk.js"></script>
   </body>
