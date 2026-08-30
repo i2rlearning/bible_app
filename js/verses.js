@@ -7,8 +7,6 @@ const searchInput = document.querySelector("#search-input");
 const bibleSectionList = document.querySelector("#section-list");
 const chapterText = document.querySelector("#chapter-text");
 
-let versePassagePicker = null;
-
 const urlParams = new URLSearchParams(window.location.search);
 
 const bibleVersionID =
@@ -91,122 +89,6 @@ function updateCurrentPassageLocationLabels() {
   if (menuLabel) {
     menuLabel.textContent = fullLabel;
   }
-}
-
-function openCurrentPassagePickerFromCompactButton() {
-  if (
-    typeof window.closeMobileToolbarMenus ===
-    "function"
-  ) {
-    window.closeMobileToolbarMenus();
-  }
-
-  window.setTimeout(
-    () => {
-      if (
-        versePassagePicker &&
-        typeof versePassagePicker.setOpen ===
-          "function"
-      ) {
-        versePassagePicker.setOpen(true);
-      }
-    },
-    0
-  );
-}
-
-function configureCompactCurrentPassageButton() {
-  const mobileButton =
-    document.getElementById(
-      "mobile-current-passage-button"
-    );
-
-  if (!mobileButton) {
-    return;
-  }
-
-  mobileButton.addEventListener(
-    "click",
-    (event) => {
-      event.preventDefault();
-      openCurrentPassagePickerFromCompactButton();
-    }
-  );
-}
-
-
-function initializePassagePicker() {
-  if (!window.BibleSelector) {
-    console.error(
-      "BibleSelector is unavailable."
-    );
-
-    return;
-  }
-
-  versePassagePicker =
-    window.BibleSelector.createPassagePicker({
-      root:
-        document.getElementById(
-          "passage-picker"
-        ),
-      languageController:
-        window.BibleLanguage,
-      current: {
-        bibleId: bibleVersionID,
-        bibleAbbr: abbreviation,
-        bibleName,
-        bookId: bibleBookID,
-        bookName: bibleBookName,
-        chapterId: bibleChapterID
-      }
-    });
-}
-
-function configureMobilePassagePickerMenu() {
-  const menuPassageLink =
-    document.getElementById(
-      "openPassagePickerFromMenu"
-    );
-
-  if (!menuPassageLink) {
-    return;
-  }
-
-  menuPassageLink.addEventListener(
-    "click",
-    (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (
-        typeof window.closeNav ===
-        "function"
-      ) {
-        window.closeNav();
-      }
-
-      if (
-        typeof window.closeMobileToolbarMenus ===
-        "function"
-      ) {
-        window.closeMobileToolbarMenus();
-      }
-
-      window.setTimeout(
-        () => {
-          if (
-            versePassagePicker &&
-            typeof versePassagePicker.setOpen ===
-              "function"
-          ) {
-            versePassagePicker.setOpen(true);
-          }
-        },
-        0
-      );
-    }
-  );
 }
 
 function normalizeCurrentVerseUrl() {
@@ -440,10 +322,7 @@ const preloadedArrowImages = [
         );
       } else {
         initializeBibleIdentity();
-        initializePassagePicker();
         updateCurrentPassageLocationLabels();
-        configureMobilePassagePickerMenu();
-        configureCompactCurrentPassageButton();
       }
 
 const chapterParts = bibleChapterID.split(".");
@@ -1884,8 +1763,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
 
       function isKeyboardNavigationBlocked(event) {
         if (
-          versePassagePicker &&
-          versePassagePicker.isOpen()
+          window.PagePassagePicker?.isOpen?.()
         ) {
           return true;
         }
