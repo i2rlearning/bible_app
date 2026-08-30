@@ -77,6 +77,7 @@
                   type="button"
                   id="mobile-current-passage-button"
                   class="mobile-current-passage-button"
+                  data-open-passage
                   aria-label="Open current passage"
                 >
                   <span id="mobile-current-passage-label">Loading...</span>
@@ -212,7 +213,7 @@
           </div>
 
           <a href="./index.html?stay=home">Home</a>
-          <a href="#" id="openPassagePickerFromMenu" class="mobile-passage-link">Open Passage</a>
+          <a href="#" id="openPassagePickerFromMenu" class="mobile-passage-link" data-open-passage>Open Passage</a>
           <a href="#" id="openMyNotes" class="disabled" aria-disabled="true">My Notes</a>
           <a href="./search.html">Search</a>
           <a href="#" id="openPreferences">Preferences</a>
@@ -813,9 +814,9 @@
     <script src="js/bible-language.js"></script>
     <script src="js/bible-selector.js"></script>
     <script src="js/user-preferences.js"></script>
+    <script src="js/passage-picker.js"></script>
     <script src="js/copyright-footer.js"></script>
 
-    <script src="js/ui-fit-controller.js"></script>
     <script src="js/verses.js" defer></script>
     <script src="js/scripture-reference-popup.js" defer></script>
     <script src="js/anchored-annotations.js"></script>
