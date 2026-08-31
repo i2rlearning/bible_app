@@ -150,11 +150,13 @@
             <p id="keyword-auth-message">Keywords and their Scripture connections are saved to your account. Log in to search them.</p>
           </div>
 
-          <a
-            id="keyword-auth-login-link"
+          <button
+            type="button"
+            id="keyword-auth-login-button"
             class="search-keyword-auth-login"
-            href="./sign-in.html"
-          >Log In</a>
+            data-open-login
+            data-keyword-auth-login
+          >Log In</button>
         </div>
 
         <div class="search-bible-strip">
@@ -246,6 +248,7 @@
     <script src="js/bible-selector.js"></script>
     <script src="js/user-preferences.js"></script>
     <script src="js/menu.js" defer></script>
+    <script src="js/auth.js"></script>
     <script src="js/search.js" defer></script>
     <script src="js/search-keywords.js" defer></script>
   </body>
