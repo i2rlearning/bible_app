@@ -1197,3 +1197,12 @@ body.basic_search {
     margin-left: 49px;
   }
 }
+
+.search-keyword-auth-login[hidden] {
+  display: none !important;
+}
+
+.search-keyword-auth-notice[data-state="error"] {
+  border-color: rgba(132, 91, 25, 0.22);
+  background: rgba(255, 249, 237, 0.94);
+}
