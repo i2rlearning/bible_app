@@ -98,6 +98,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Inactivity timer is disabled. Clerk handles the active session.
     }
+
+    // Shared notification for pages that need to react immediately when
+    // Clerk signs a user in or out without navigating away from the page.
+    window.dispatchEvent(
+      new CustomEvent("auth-state-changed", {
+        detail: {
+          signedIn: Boolean(clerkUser)
+        }
+      })
+    );
   };
 
   // ==========================================
@@ -448,7 +458,7 @@ async function openSignup() {
   // GLOBAL CLICK CAPTURE
   // ==========================================
   document.addEventListener("click", (event) => {
-    const loginTarget = event.target.closest("#login");
+    const loginTarget = event.target.closest("#login, [data-open-login]");
     const signupTarget = event.target.closest("#signup");
     const myNotesTarget = event.target.closest("#openMyNotes");
     const deleteNoteTarget = event.target.closest(".delete-note");
