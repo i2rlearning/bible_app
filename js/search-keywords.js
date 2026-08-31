@@ -67,6 +67,7 @@
     keywordLibraryLoaded: false,
     keywordLibraryUnavailable: false,
     keywordLibraryPromise: null,
+    keywordAccess: "unknown",
     resultRequestId: 0,
     suggestionRequestId: 0,
     bookOrder: [],
@@ -95,6 +96,9 @@
     elements.keywordTab = document.getElementById("keyword-search-tab");
     elements.searchTitle = document.getElementById("search-title");
     elements.searchHelp = document.getElementById("search-help");
+    elements.submit = document.getElementById("search-submit-button");
+    elements.keywordAuthNotice = document.getElementById("keyword-auth-notice");
+    elements.keywordAuthLogin = document.getElementById("keyword-auth-login-link");
 
     if (!elements.form || !elements.input || !elements.keywordResults) {
       return;
@@ -104,9 +108,72 @@
     state.scriptureExact = Boolean(elements.exactWordOnly?.checked);
     captureScriptureHeader();
     bindKeywordSearchEvents();
+    configureKeywordLoginLink();
     syncSearchModeUi();
 
-    loadKeywordLibrary().catch(() => {});
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+
+    if (requestedMode === "keyword") {
+      setSearchMode("keyword");
+    }
+  }
+
+  function configureKeywordLoginLink() {
+    if (!elements.keywordAuthLogin) return;
+
+    const redirectUrl = new URL(window.location.href);
+    redirectUrl.searchParams.set("mode", "keyword");
+
+    elements.keywordAuthLogin.href =
+      `./sign-in.html?redirect=${encodeURIComponent(redirectUrl.href)}`;
+  }
+
+  function isKeywordSearchBlocked() {
+    return state.keywordAccess === "signed-out" || state.keywordAccess === "checking";
+  }
+
+  function syncKeywordAccessUi() {
+    const keywordMode = state.mode === "keyword";
+    const signedOut = state.keywordAccess === "signed-out";
+    const checking = state.keywordAccess === "checking";
+
+    if (elements.keywordAuthNotice) {
+      elements.keywordAuthNotice.hidden = !(keywordMode && signedOut);
+    }
+
+    if (elements.submit) {
+      elements.submit.disabled = keywordMode && (signedOut || checking);
+      elements.submit.setAttribute(
+        "aria-disabled",
+        elements.submit.disabled ? "true" : "false"
+      );
+    }
+
+    if (keywordMode && signedOut) {
+      elements.input.placeholder = "Sign in to search your Keywords...";
+      elements.input.setAttribute("aria-describedby", "keyword-auth-notice");
+      closeSuggestions();
+    } else {
+      elements.input.removeAttribute("aria-describedby");
+
+      if (keywordMode) {
+        elements.input.placeholder = "Search a Keyword or Scripture reference...";
+      }
+    }
+  }
+
+  async function prepareKeywordSearchAccess() {
+    if (state.mode !== "keyword") return false;
+
+    state.keywordAccess = "checking";
+    syncKeywordAccessUi();
+
+    await loadKeywordLibrary({ force: true });
+
+    if (state.mode !== "keyword") return false;
+
+    syncKeywordAccessUi();
+    return state.keywordAccess === "granted";
   }
 
   function bindKeywordSearchEvents() {
@@ -164,6 +231,12 @@
     event.preventDefault();
     event.stopImmediatePropagation();
 
+    if (isKeywordSearchBlocked()) {
+      syncKeywordAccessUi();
+      elements.keywordAuthLogin?.focus();
+      return;
+    }
+
     const query = normalizeSearchText(elements.input.value || "");
     state.keywordQuery = query;
     closeSuggestions();
@@ -215,14 +288,22 @@
 
     if (state.mode === "keyword") {
       elements.input.value = state.keywordQuery;
-      loadKeywordLibrary().catch(() => {});
       ensureSelectedBibleBookOrder().catch(() => {});
 
-      if (state.keywordQuery) {
-        runKeywordSearch(state.keywordQuery);
-      } else {
-        clearKeywordResults("Search a Keyword or Scripture reference.");
-      }
+      prepareKeywordSearchAccess().then((hasAccess) => {
+        if (!hasAccess || state.mode !== "keyword") {
+          if (state.keywordAccess === "signed-out") {
+            clearKeywordResults("Sign in to use Keyword Search.");
+          }
+          return;
+        }
+
+        if (state.keywordQuery) {
+          runKeywordSearch(state.keywordQuery);
+        } else {
+          clearKeywordResults("Search a Keyword or Scripture reference.");
+        }
+      });
     } else {
       state.resultRequestId += 1;
       elements.input.value = state.scriptureQuery;
@@ -271,6 +352,8 @@
       }
       elements.keywordResults.hidden = true;
     }
+
+    syncKeywordAccessUi();
   }
 
   function setTabState(tab, active) {
@@ -345,16 +428,22 @@
         state.keywords = Array.isArray(result.tags) ? result.tags : [];
         state.keywordLibraryLoaded = true;
         state.keywordLibraryUnavailable = false;
+        state.keywordAccess = "granted";
+        syncKeywordAccessUi();
         return state.keywords;
       } catch (error) {
         if (error.status === 401 || error.status === 403) {
           state.keywordLibraryUnavailable = true;
           state.keywordLibraryLoaded = false;
+          state.keywordAccess = "signed-out";
           state.keywords = [];
           closeSuggestions();
+          syncKeywordAccessUi();
           return [];
         }
 
+        state.keywordAccess = "error";
+        syncKeywordAccessUi();
         console.warn("Could not load Keyword Library for Search:", error);
         return [];
       } finally {
@@ -593,6 +682,11 @@
   async function updateKeywordSuggestions() {
     if (state.mode !== "keyword" || !elements.keywordSuggestions) return;
 
+    if (isKeywordSearchBlocked() || state.keywordAccess === "unknown") {
+      closeSuggestions();
+      return;
+    }
+
     const query = normalizeSearchText(elements.input.value || "");
     const requestId = ++state.suggestionRequestId;
 
@@ -817,6 +911,12 @@
 
   async function runKeywordSearch(query) {
     if (state.mode !== "keyword") return;
+
+    if (state.keywordAccess === "signed-out") {
+      syncKeywordAccessUi();
+      clearKeywordResults("Sign in to use Keyword Search.");
+      return;
+    }
 
     const normalizedQuery = normalizeSearchText(query);
     state.keywordQuery = normalizedQuery;
