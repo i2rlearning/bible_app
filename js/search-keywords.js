@@ -96,13 +96,18 @@
     elements.keywordTab = document.getElementById("keyword-search-tab");
     elements.searchTitle = document.getElementById("search-title");
     elements.searchHelp = document.getElementById("search-help");
-    elements.submit = document.getElementById("search-submit-button");
+    elements.submit =
+      document.getElementById("search-submit-button") ||
+      elements.form?.querySelector('button[type="submit"]') ||
+      document.querySelector(".scripture-search-button");
     elements.keywordAuthNotice = document.getElementById("keyword-auth-notice");
     elements.keywordAuthLogin = document.getElementById("keyword-auth-login-link");
 
     if (!elements.form || !elements.input || !elements.keywordResults) {
       return;
     }
+
+    ensureKeywordAuthNotice();
 
     state.scriptureQuery = normalizeSearchText(elements.input.value || "");
     state.scriptureExact = Boolean(elements.exactWordOnly?.checked);
@@ -118,6 +123,58 @@
     }
   }
 
+  function ensureKeywordAuthNotice() {
+    if (!elements.keywordAuthNotice) {
+      const notice = document.createElement("div");
+      notice.id = "keyword-auth-notice";
+      notice.className = "search-keyword-auth-notice";
+      notice.setAttribute("role", "status");
+      notice.setAttribute("aria-live", "polite");
+      notice.hidden = true;
+      notice.innerHTML = `
+        <span class="search-keyword-auth-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M7 10V8a5 5 0 0 1 10 0v2"></path>
+            <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+          </svg>
+        </span>
+        <div class="search-keyword-auth-copy">
+          <strong>Log in to use Keyword Search</strong>
+          <p>Keywords and their Scripture connections are saved to your account. Log in to search them.</p>
+        </div>
+        <a
+          id="keyword-auth-login-link"
+          class="search-keyword-auth-login"
+          href="./sign-in.html"
+        >Log In</a>
+      `;
+
+      const bibleStrip = document.querySelector(".search-bible-strip");
+      const searchCard = elements.form.closest(".search-card");
+
+      if (bibleStrip?.parentNode) {
+        bibleStrip.parentNode.insertBefore(notice, bibleStrip);
+      } else if (searchCard) {
+        searchCard.insertBefore(notice, elements.form);
+      } else {
+        elements.form.parentNode?.insertBefore(notice, elements.form);
+      }
+
+      elements.keywordAuthNotice = notice;
+      elements.keywordAuthLogin = notice.querySelector("#keyword-auth-login-link");
+    }
+
+    elements.keywordAuthTitle =
+      elements.keywordAuthNotice.querySelector(".search-keyword-auth-copy strong");
+    elements.keywordAuthMessage =
+      elements.keywordAuthNotice.querySelector(".search-keyword-auth-copy p");
+
+    if (!elements.keywordAuthLogin) {
+      elements.keywordAuthLogin =
+        elements.keywordAuthNotice.querySelector("#keyword-auth-login-link");
+    }
+  }
+
   function configureKeywordLoginLink() {
     if (!elements.keywordAuthLogin) return;
 
@@ -129,20 +186,43 @@
   }
 
   function isKeywordSearchBlocked() {
-    return state.keywordAccess === "signed-out" || state.keywordAccess === "checking";
+    return (
+      state.keywordAccess === "signed-out" ||
+      state.keywordAccess === "checking" ||
+      state.keywordAccess === "error"
+    );
   }
 
   function syncKeywordAccessUi() {
     const keywordMode = state.mode === "keyword";
     const signedOut = state.keywordAccess === "signed-out";
     const checking = state.keywordAccess === "checking";
+    const accessError = state.keywordAccess === "error";
+    const showNotice = keywordMode && (signedOut || accessError);
 
     if (elements.keywordAuthNotice) {
-      elements.keywordAuthNotice.hidden = !(keywordMode && signedOut);
+      elements.keywordAuthNotice.hidden = !showNotice;
+      elements.keywordAuthNotice.dataset.state = accessError ? "error" : "signed-out";
+    }
+
+    if (elements.keywordAuthTitle) {
+      elements.keywordAuthTitle.textContent = accessError
+        ? "Keyword Search is temporarily unavailable"
+        : "Log in to use Keyword Search";
+    }
+
+    if (elements.keywordAuthMessage) {
+      elements.keywordAuthMessage.textContent = accessError
+        ? "We could not verify access to your Keyword Library. Please try again in a moment."
+        : "Keywords and their Scripture connections are saved to your account. Log in to search them.";
+    }
+
+    if (elements.keywordAuthLogin) {
+      elements.keywordAuthLogin.hidden = accessError;
     }
 
     if (elements.submit) {
-      elements.submit.disabled = keywordMode && (signedOut || checking);
+      elements.submit.disabled = keywordMode && (signedOut || checking || accessError);
       elements.submit.setAttribute(
         "aria-disabled",
         elements.submit.disabled ? "true" : "false"
@@ -150,7 +230,11 @@
     }
 
     if (keywordMode && signedOut) {
-      elements.input.placeholder = "Sign in to search your Keywords...";
+      elements.input.placeholder = "Log in to search your Keywords...";
+      elements.input.setAttribute("aria-describedby", "keyword-auth-notice");
+      closeSuggestions();
+    } else if (keywordMode && accessError) {
+      elements.input.placeholder = "Keyword Search is temporarily unavailable...";
       elements.input.setAttribute("aria-describedby", "keyword-auth-notice");
       closeSuggestions();
     } else {
@@ -432,7 +516,7 @@
         syncKeywordAccessUi();
         return state.keywords;
       } catch (error) {
-        if (error.status === 401 || error.status === 403) {
+        if ([401, 403, 404].includes(Number(error.status))) {
           state.keywordLibraryUnavailable = true;
           state.keywordLibraryLoaded = false;
           state.keywordAccess = "signed-out";
