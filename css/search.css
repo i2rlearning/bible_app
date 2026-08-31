@@ -1162,10 +1162,45 @@ body.basic_search {
   white-space: nowrap;
 }
 
+
+.search-keyword-auth-login {
+  font-family: Arial, sans-serif;
+  cursor: pointer;
+}
+
 .search-keyword-auth-login:hover,
 .search-keyword-auth-login:focus-visible {
   outline: none;
   background: rgba(18, 63, 124, 0.06);
+}
+
+
+#search-input:disabled {
+  border-color: #c8d1dc;
+  background: #f3f5f8;
+  color: #7a8796;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+#search-input:disabled::placeholder {
+  color: #8793a0;
+  opacity: 1;
+}
+
+.search-clear-button:disabled {
+  border-color: #c8d1dc;
+  background: #f3f5f8;
+  color: #6f7c8a;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.search-clear-button:disabled:hover,
+.search-clear-button:disabled:focus-visible {
+  transform: none;
+  box-shadow: none;
 }
 
 .scripture-search-button:disabled {
