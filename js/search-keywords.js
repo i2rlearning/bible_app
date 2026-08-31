@@ -246,12 +246,49 @@
     }
   }
 
+  function setKeywordSignedOutState() {
+    state.keywordLibraryUnavailable = true;
+    state.keywordLibraryLoaded = false;
+    state.keywordAccess = "signed-out";
+    state.keywords = [];
+    closeSuggestions();
+    syncKeywordAccessUi();
+  }
+
   async function prepareKeywordSearchAccess() {
     if (state.mode !== "keyword") return false;
 
+    // Do not use a protected Keyword endpoint itself as the login detector.
+    // Auth middleware may redirect/handshake for a logged-out request, which a
+    // browser fetch can follow and turn into an unrelated 200 response.
+    // /api/auth-status always returns JSON and gives us an unambiguous answer.
     state.keywordAccess = "checking";
     syncKeywordAccessUi();
 
+    try {
+      const authStatus = await fetchAppJson("/api/auth-status");
+
+      if (state.mode !== "keyword") return false;
+
+      if (authStatus?.signedIn !== true) {
+        setKeywordSignedOutState();
+        return false;
+      }
+    } catch (error) {
+      if (state.mode !== "keyword") return false;
+
+      state.keywordAccess = "error";
+      state.keywordLibraryUnavailable = true;
+      state.keywordLibraryLoaded = false;
+      state.keywords = [];
+      closeSuggestions();
+      syncKeywordAccessUi();
+      console.warn("Could not verify login status for Keyword Search:", error);
+      return false;
+    }
+
+    // The user is signed in. Now load the private Keyword Library.
+    state.keywordLibraryUnavailable = false;
     await loadKeywordLibrary({ force: true });
 
     if (state.mode !== "keyword") return false;
@@ -509,7 +546,19 @@
     state.keywordLibraryPromise = (async () => {
       try {
         const result = await fetchAppJson("/api/study-tags");
-        state.keywords = Array.isArray(result.tags) ? result.tags : [];
+
+        // A successful Keyword Library response must actually contain a tags
+        // array. Never interpret an auth redirect or unrelated HTML response
+        // that happened to finish with HTTP 200 as authenticated access.
+        if (!Array.isArray(result?.tags)) {
+          const invalidResponseError = new Error(
+            "Keyword Library returned an unexpected response."
+          );
+          invalidResponseError.code = "INVALID_KEYWORD_LIBRARY_RESPONSE";
+          throw invalidResponseError;
+        }
+
+        state.keywords = result.tags;
         state.keywordLibraryLoaded = true;
         state.keywordLibraryUnavailable = false;
         state.keywordAccess = "granted";
@@ -517,12 +566,7 @@
         return state.keywords;
       } catch (error) {
         if ([401, 403, 404].includes(Number(error.status))) {
-          state.keywordLibraryUnavailable = true;
-          state.keywordLibraryLoaded = false;
-          state.keywordAccess = "signed-out";
-          state.keywords = [];
-          closeSuggestions();
-          syncKeywordAccessUi();
+          setKeywordSignedOutState();
           return [];
         }
 
