@@ -90,6 +90,17 @@ app.get("/sign-up", (req, res) => {
   res.sendFile(path.join(__dirname, "sign-up.html"));
 });
 
+// Public auth-state check for UI features that need to know whether the
+// current browser session is signed in before calling protected APIs.
+// This route intentionally does not use requireAuth(), so logged-out users
+// always receive a small JSON response instead of an auth redirect/handshake.
+app.get("/api/auth-status", (req, res) => {
+  res.json({
+    ok: true,
+    signedIn: Boolean(req.auth?.userId)
+  });
+});
+
 // Returns current user context back to your client-side auth handlers
 app.get("/api/me", requireAuth(), (req, res) => {
   res.json({
