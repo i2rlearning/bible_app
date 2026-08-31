@@ -1082,3 +1082,118 @@ body.basic_search {
     align-self: flex-start;
   }
 }
+
+/* ========================================================================== */
+/* Keyword Search - signed-out access notice                                  */
+/* ========================================================================== */
+
+.search-keyword-auth-notice {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(18, 63, 124, 0.18);
+  border-radius: 12px;
+  background: rgba(244, 248, 255, 0.92);
+  color: #1e2633;
+  font-family: Arial, sans-serif;
+}
+
+.search-keyword-auth-notice[hidden] {
+  display: none !important;
+}
+
+.search-keyword-auth-icon {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(18, 63, 124, 0.09);
+  color: var(--search-blue);
+}
+
+.search-keyword-auth-icon svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.search-keyword-auth-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.search-keyword-auth-copy strong {
+  display: block;
+  color: var(--search-blue-dark);
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.search-keyword-auth-copy p {
+  margin: 3px 0 0;
+  color: var(--search-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.search-keyword-auth-login {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid #123f7c;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--search-blue);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.search-keyword-auth-login:hover,
+.search-keyword-auth-login:focus-visible {
+  outline: none;
+  background: rgba(18, 63, 124, 0.06);
+}
+
+.scripture-search-button:disabled {
+  border-color: #b8c2cf;
+  background: #d8dfe8;
+  color: #647181;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.scripture-search-button:disabled:hover,
+.scripture-search-button:disabled:focus-visible {
+  transform: none;
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .search-keyword-auth-notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .search-keyword-auth-copy {
+    flex-basis: calc(100% - 52px);
+  }
+
+  .search-keyword-auth-login {
+    margin-left: 49px;
+  }
+}
