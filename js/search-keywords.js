@@ -101,7 +101,7 @@
       elements.form?.querySelector('button[type="submit"]') ||
       document.querySelector(".scripture-search-button");
     elements.keywordAuthNotice = document.getElementById("keyword-auth-notice");
-    elements.keywordAuthLogin = document.getElementById("keyword-auth-login-link");
+    elements.keywordAuthLogin = document.querySelector("[data-keyword-auth-login]");
 
     if (!elements.form || !elements.input || !elements.keywordResults) {
       return;
@@ -113,7 +113,6 @@
     state.scriptureExact = Boolean(elements.exactWordOnly?.checked);
     captureScriptureHeader();
     bindKeywordSearchEvents();
-    configureKeywordLoginLink();
     syncSearchModeUi();
 
     const requestedMode = new URLSearchParams(window.location.search).get("mode");
@@ -142,11 +141,13 @@
           <strong>Log in to use Keyword Search</strong>
           <p>Keywords and their Scripture connections are saved to your account. Log in to search them.</p>
         </div>
-        <a
-          id="keyword-auth-login-link"
+        <button
+          type="button"
+          id="keyword-auth-login-button"
           class="search-keyword-auth-login"
-          href="./sign-in.html"
-        >Log In</a>
+          data-open-login
+          data-keyword-auth-login
+        >Log In</button>
       `;
 
       const bibleStrip = document.querySelector(".search-bible-strip");
@@ -161,7 +162,7 @@
       }
 
       elements.keywordAuthNotice = notice;
-      elements.keywordAuthLogin = notice.querySelector("#keyword-auth-login-link");
+      elements.keywordAuthLogin = notice.querySelector("[data-keyword-auth-login]");
     }
 
     elements.keywordAuthTitle =
@@ -171,19 +172,10 @@
 
     if (!elements.keywordAuthLogin) {
       elements.keywordAuthLogin =
-        elements.keywordAuthNotice.querySelector("#keyword-auth-login-link");
+        elements.keywordAuthNotice.querySelector("[data-keyword-auth-login]");
     }
   }
 
-  function configureKeywordLoginLink() {
-    if (!elements.keywordAuthLogin) return;
-
-    const redirectUrl = new URL(window.location.href);
-    redirectUrl.searchParams.set("mode", "keyword");
-
-    elements.keywordAuthLogin.href =
-      `./sign-in.html?redirect=${encodeURIComponent(redirectUrl.href)}`;
-  }
 
   function isKeywordSearchBlocked() {
     return (
@@ -221,11 +213,29 @@
       elements.keywordAuthLogin.hidden = accessError;
     }
 
+    const controlsBlocked = keywordMode && (signedOut || checking || accessError);
+
     if (elements.submit) {
-      elements.submit.disabled = keywordMode && (signedOut || checking || accessError);
+      elements.submit.disabled = controlsBlocked;
       elements.submit.setAttribute(
         "aria-disabled",
         elements.submit.disabled ? "true" : "false"
+      );
+    }
+
+    if (elements.input) {
+      elements.input.disabled = controlsBlocked;
+      elements.input.setAttribute(
+        "aria-disabled",
+        elements.input.disabled ? "true" : "false"
+      );
+    }
+
+    if (elements.clear) {
+      elements.clear.disabled = controlsBlocked;
+      elements.clear.setAttribute(
+        "aria-disabled",
+        elements.clear.disabled ? "true" : "false"
       );
     }
 
@@ -340,6 +350,43 @@
         window.setTimeout(() => runKeywordSearch(state.keywordQuery), 0);
       }
     });
+
+    window.addEventListener("auth-state-changed", (event) => {
+      const signedIn = event.detail?.signedIn === true;
+
+      if (!signedIn) {
+        if (state.mode === "keyword") {
+          setKeywordSignedOutState();
+          clearKeywordResults("Sign in to use Keyword Search.");
+        } else {
+          state.keywordAccess = "signed-out";
+          state.keywordLibraryLoaded = false;
+          state.keywordLibraryUnavailable = true;
+          state.keywords = [];
+        }
+        return;
+      }
+
+      state.keywordAccess = "unknown";
+      state.keywordLibraryLoaded = false;
+      state.keywordLibraryUnavailable = false;
+
+      if (state.mode === "keyword") {
+        // Clerk's modal sign-in stays on this page. Re-check the backend session
+        // after Clerk reports the signed-in state, then unlock Keyword Search.
+        window.setTimeout(() => {
+          prepareKeywordSearchAccess().then((hasAccess) => {
+            if (!hasAccess || state.mode !== "keyword") return;
+
+            if (state.keywordQuery) {
+              runKeywordSearch(state.keywordQuery);
+            } else {
+              clearKeywordResults("Search a Keyword or Scripture reference.");
+            }
+          });
+        }, 100);
+      }
+    });
   }
 
   function handleFormSubmitCapture(event) {
@@ -436,7 +483,9 @@
       restoreScriptureHeader();
     }
 
-    elements.input.focus();
+    if (!elements.input.disabled) {
+      elements.input.focus();
+    }
   }
 
   function syncSearchModeUi() {
