@@ -131,6 +131,32 @@
           >Keyword Search</button>
         </div>
 
+        <div
+          id="keyword-auth-notice"
+          class="search-keyword-auth-notice"
+          role="status"
+          aria-live="polite"
+          hidden
+        >
+          <span class="search-keyword-auth-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M7 10V8a5 5 0 0 1 10 0v2"></path>
+              <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+            </svg>
+          </span>
+
+          <div class="search-keyword-auth-copy">
+            <strong>Sign in to use Keyword Search</strong>
+            <p>Your Keywords are saved to your account. Sign in to search your Keywords and their connected Scriptures.</p>
+          </div>
+
+          <a
+            id="keyword-auth-login-link"
+            class="search-keyword-auth-login"
+            href="./sign-in.html"
+          >Log In</a>
+        </div>
+
         <div class="search-bible-strip">
           <strong class="search-current-bible" id="search-current-bible">
             Loading Bible...
@@ -159,7 +185,7 @@
               ></div>
             </div>
 
-            <button type="submit" class="scripture-search-button">
+            <button type="submit" id="search-submit-button" class="scripture-search-button">
               Search
             </button>
 
