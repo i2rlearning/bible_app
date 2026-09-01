@@ -6,4 +6,4 @@ Through a user account these are stored and displayed as user-generated annotati
 Study Desk
 Allows for the user to add sermon notes, journal entries, quiet times notes... (categories are endless)
 Select scriptures from a passage and append to either to the notes or Referenced Scriptures section
-Add tags 
+Add keywords. 
