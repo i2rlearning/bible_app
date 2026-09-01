@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link href="css/menu.css" rel="stylesheet">
     <link href="css/bible-main.css" rel="stylesheet">
@@ -55,6 +55,7 @@
               ></i>
               <span>Login</span>
             </button>
+
           
             <button
               type="button"
@@ -136,7 +137,8 @@
       <div class="preferences-dialog" role="dialog" aria-modal="true" aria-labelledby="preferences-title">
         <button type="button" id="closePreferences" class="preferences-close" aria-label="Close preferences">&times;</button>
 
-        <h2 id="preferences-title">Preferences</h2>
+      
+  <h2 id="preferences-title">Preferences</h2>
         <!--<p class="preferences-intro">Choose your default language, Bible, and starting page.</p>-->
 
         <label class="preferences-field" for="preferences-language">
@@ -208,7 +210,7 @@
           class="verse-of-day-status"
           aria-live="polite"
         >
-          Loading today’s verse...
+          Loading today's verse...
         </div>
 
         <div id="verse-of-day-content" class="verse-of-day-content" hidden>
@@ -241,15 +243,6 @@
           >
             Open Full Chapter
           </button>
-
-          <!--<button
-            type="button"
-            id="verse-of-day-cancel"
-            class="verse-of-day-button verse-of-day-button-plain"
-          >
-            Close
-          </button> -->
-          
         </div>
       </div>
     </div>
@@ -361,6 +354,28 @@
 
           <button
             type="button"
+            id="landing-study-desk-action"
+            class="landing-action-card"
+            disabled
+            title="Log in to access your Study Desk"
+            onclick="window.location.href='./study-desk.html'"
+          >
+            <span class="landing-action-icon" aria-hidden="true">
+              <i class="fa fa-pencil-square-o"></i>
+            </span>
+
+            <span class="landing-action-content">
+              <strong>Study Desk</strong>
+              <span>Open your personal study workspace</span>
+            </span>
+
+            <span class="landing-action-arrow" aria-hidden="true">
+              &rsaquo;
+            </span>
+          </button>
+
+          <button
+            type="button"
             id="landing-search-action"
             class="landing-action-card"
             onclick="window.location.href='./search.html'"
@@ -392,7 +407,7 @@
 
             <span class="landing-action-content">
               <strong>Verse of the Day</strong>
-              <span>Read today’s selected Scripture</span>
+              <span>Read today's selected Scripture</span>
             </span>
 
             <span class="landing-action-arrow" aria-hidden="true">
@@ -443,7 +458,6 @@
     <script src="js/bible-selector.js"></script>
     <script src="js/user-preferences.js"></script>
     <script src="js/passage-picker.js"></script>
-    <!--<script src="js/misc.js"></script>-->
     <script src="js/verse-of-day.js"></script>
   </body>
 </html>
