@@ -61,6 +61,13 @@ document.addEventListener("DOMContentLoaded", () => {
       studyDeskBtn.disabled = false;
       studyDeskBtn.removeAttribute("title");
     }
+
+    const studyDeskLink = document.getElementById("openStudyDesk");
+
+    if (studyDeskLink) {
+      studyDeskLink.classList.remove("disabled");
+      studyDeskLink.setAttribute("aria-disabled", "false");
+    }
   }
 
   function setLoggedOutUI() {
@@ -90,6 +97,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (studyDeskBtn) {
       studyDeskBtn.disabled = true;
       studyDeskBtn.setAttribute("title", "Log in to access your Study Desk");
+    }
+
+    const studyDeskLink = document.getElementById("openStudyDesk");
+
+    if (studyDeskLink) {
+      studyDeskLink.classList.add("disabled");
+      studyDeskLink.setAttribute("aria-disabled", "true");
     }
   }
 
@@ -500,6 +514,22 @@ async function openSignup() {
       deleteNote(noteId);
 
       return;
+    }
+
+    const studyDeskTarget = event.target.closest("#openStudyDesk");
+
+    if (studyDeskTarget) {
+      if (studyDeskTarget.classList.contains("disabled")) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (typeof closeNav === "function") {
+          closeNav();
+        }
+
+        openLogin();
+        return;
+      }
     }
 
     if (myNotesTarget) {
