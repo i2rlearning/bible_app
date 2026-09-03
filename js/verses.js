@@ -1855,9 +1855,21 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
 
       initializeChapterArrows();
 
-    //******************************************************
-    // Modified verse loading that checks offline first
-    //******************************************************
+    /**
+     * VERSE LOADING WITH OFFLINE SUPPORT
+     *
+     * Purpose: Modified verse loading logic that checks offline storage first
+     *          before attempting network requests. Falls back gracefully.
+     *
+     * Functions:
+     * - loadVerseContent() - Main loader with offline/online logic
+     * - showOfflineError() - Displays user-friendly offline error message
+     *
+     * Behavior:
+     * - Online: Uses API normally
+     * - Offline: Uses IndexedDB if version is downloaded
+     * - Offline without downloaded version: Shows error
+     */
     async function loadVerseContent(bibleId, bookId, chapterId, verseNum = null) {
       const isOffline = !navigator.onLine;
       
