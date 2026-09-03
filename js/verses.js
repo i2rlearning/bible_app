@@ -1854,3 +1854,78 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
       );
 
       initializeChapterArrows();
+
+    //******************************************************
+    // Modified verse loading that checks offline first
+    //******************************************************
+    async function loadVerseContent(bibleId, bookId, chapterId, verseNum = null) {
+      const isOffline = !navigator.onLine;
+      
+      try {
+        // Check if we have this version offline
+        const isDownloaded = await window.OfflineBible.isVersionDownloaded(bibleId);
+        
+        if (isOffline && !isDownloaded) {
+          showOfflineError();
+          return null;
+        }
+        
+        let verseData;
+        
+        if (isOffline) {
+          // Load from IndexedDB
+          verseData = await window.OfflineBible.getChapter(bibleId, bookId, chapterId);
+          
+          if (!verseData) {
+            showOfflineError();
+            return null;
+          }
+        } else {
+          // Load from API
+          const response = await fetch(`/api/bible/${bibleId}/${bookId}/${chapterId}`);
+          
+          if (!response.ok) {
+            throw new Error('Failed to load verse');
+          }
+          
+          verseData = await response.json();
+          
+          // Optionally store in IndexedDB for future offline use
+          // await window.OfflineBible.storeChapter({
+          //   id: `${bibleId}::${bookId}::${chapterId}`,
+          //   bibleId, bookId, chapterId,
+          //   data: verseData
+          // });
+        }
+        
+        return verseData;
+        
+      } catch (error) {
+        console.error('Error loading verse:', error);
+        showError('Failed to load the passage. Please try again.');
+        return null;
+      }
+    }
+    
+    function showOfflineError() {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'offline-error';
+      errorDiv.style.padding = '20px';
+      errorDiv.style.background = '#fff8f8';
+      errorDiv.style.border = '1px solid #ffcccc';
+      errorDiv.style.borderRadius = '4px';
+      errorDiv.style.margin = '20px 0';
+      errorDiv.style.color = '#d32f2f';
+      errorDiv.textContent = 'This Bible version is not available offline. Please go online to download it or select a downloaded version.';
+      
+      const bibleTextDiv = document.getElementById('bible-text');
+      if (bibleTextDiv) {
+        bibleTextDiv.innerHTML = '';
+        bibleTextDiv.appendChild(errorDiv);
+      }
+    }
+    
+    function showError(message) {
+      // Use your existing error display logic
+      alert(message);
+    }
