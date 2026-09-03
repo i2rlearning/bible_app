@@ -47,118 +47,274 @@ class OfflineManager {
   }
   
   setupUI() {
-    // Create modal if it doesn't exist
-    if (!document.getElementById('offline-modal')) {
-      this.createModal();
-    }
-    
-    this.ui.modal = document.getElementById('offline-modal');
-    this.ui.versionList = document.getElementById('offline-versions-list');
-    this.ui.progressBar = document.getElementById('offline-progress');
-    this.ui.statusText = document.getElementById('offline-status');
-    this.ui.toggleButton = document.getElementById('toggle-offline-mode');
-    this.ui.closeButton = document.getElementById('close-offline-modal');
+  // Create modal if it doesn't exist
+  if (!document.getElementById('offline-modal')) {
+    this.createModal();
   }
-  
-  createModal() {
-    const modalHTML = `
-      <div id="offline-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow: auto;">
-          <button type="button" id="close-offline-modal" class="modal-close" style="float: right; font-size: 28px; cursor: pointer;">&times;</button>
-          
-          <h2 style="margin-top: 0;">Offline Bible Setup</h2>
-          
-          <p style="margin-bottom: 20px;">Select Bible versions to download for offline use. You can download up to 3 versions.</p>
-          
-          <div id="offline-versions-list" style="margin-bottom: 20px;"></div>
-          
-          <div id="offline-progress" style="display: none; margin-bottom: 15px;">
-            <div style="height: 20px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
-              <div id="offline-progress-bar" style="height: 100%; width: 0%; background: #4CAF50; transition: width 0.3s;"></div>
-            </div>
-          </div>
-          
-          <div id="offline-status" style="margin-bottom: 15px; min-height: 20px;"></div>
-          
-          <div style="text-align: right;">
-            <button type="button" id="download-selected" class="btn btn-primary" style="padding: 8px 16px;">Download Selected</button>
-            <button type="button" id="close-offline-btn" class="btn btn-secondary" style="padding: 8px 16px; margin-left: 10px;">Close</button>
+
+  this.ui.modal = document.getElementById('offline-modal');
+  this.ui.versionList = document.getElementById('offline-versions-list');
+  this.ui.progressBar = document.getElementById('offline-progress');
+  this.ui.statusText = document.getElementById('offline-status');
+  this.ui.closeButton = document.getElementById('close-offline-modal');
+
+  // Add button based on current page
+  this.addPageSpecificButton();
+}
+
+addPageSpecificButton() {
+  // Check if button already exists
+  if (document.getElementById('toggle-offline-mode')) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'toggle-offline-mode';
+  button.className = 'offline-toggle-btn';
+  button.innerHTML = '<i class="fa fa-download" aria-hidden="true"></i><span>Offline</span>';
+  button.title = 'Manage offline Bible versions';
+
+  // Page-specific placement
+  const path = window.location.pathname;
+
+  if (path.includes('study-desk.html')) {
+    // Study Desk: Add to left sidebar
+    const sidebar = document.querySelector('.study-sidebar') ||
+                   document.querySelector('.sidebar') ||
+                   document.querySelector('.nav-left');
+    
+    if (sidebar) {
+      const newStudyBtn = sidebar.querySelector('.btn, button');
+      if (newStudyBtn) {
+        newStudyBtn.insertAdjacentElement('afterend', button);
+      } else {
+        sidebar.appendChild(button);
+      }
+    }
+
+  } else if (path.includes('search.html')) {
+    // Search: Add to menu area
+    const menuArea = document.querySelector('.search-header') ||
+                    document.querySelector('.search-toolbar') ||
+                    document.querySelector('header') ||
+                    document.querySelector('.container.flex');
+    
+    if (menuArea) {
+      menuArea.appendChild(button);
+    }
+
+  } else if (path.includes('verse.html')) {
+    // Verse: Add to toolbar
+    const toolbar = document.querySelector('.verse-toolbar') ||
+                   document.querySelector('.toolbar') ||
+                   document.querySelector('.verse-header');
+    
+    if (toolbar) {
+      toolbar.appendChild(button);
+    }
+
+  } else {
+    // Default: index.html or others - add to header
+    const header = document.querySelector('.landing-header-actions') ||
+                  document.querySelector('header') ||
+                  document.querySelector('.container.flex');
+    
+    if (header) {
+      header.appendChild(button);
+    }
+  }
+}
+
+createModal() {
+  const modalHTML = `
+    <div id="offline-modal" class="modal" style="display: none;">
+      <div class="modal-content offline-modal-content">
+        <button type="button" id="close-offline-modal" class="modal-close">&times;</button>
+        
+        <h2>Offline Bible Setup</h2>
+        
+        <p>Select Bible versions to download for offline use. You can download up to 3 versions.</p>
+        
+        <div id="offline-versions-list" style="margin: 20px 0;"></div>
+        
+        <div id="offline-progress" style="display: none; margin: 15px 0;">
+          <div class="progress-bar-container">
+            <div id="offline-progress-bar" class="progress-bar"></div>
           </div>
         </div>
+        
+        <div id="offline-status" style="margin: 15px 0; min-height: 20px;"></div>
+        
+        <div class="modal-actions">
+          <button type="button" id="download-selected" class="btn btn-primary">Download Selected</button>
+          <button type="button" id="close-offline-btn" class="btn btn-secondary">Close</button>
+        </div>
       </div>
+    </div>
+
+    <style>
+      /* Offline Modal Styles */
+      #offline-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+      }
       
-      <style>
-        #offline-modal .modal-content {
-          padding: 20px;
-          background: white;
-          border-radius: 8px;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-        }
-        #offline-modal .version-item {
-          padding: 10px;
-          margin: 5px 0;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-        }
-        #offline-modal .version-item:hover {
-          background: #f9f9f9;
-        }
-        #offline-modal .version-item input[type="checkbox"] {
-          margin-right: 10px;
-        }
-        #offline-modal .version-item .version-name {
-          flex: 1;
-          font-weight: bold;
-        }
-        #offline-modal .version-item .version-abbr {
-          color: #666;
-          margin-left: 10px;
-        }
-        #offline-modal .version-item .version-downloaded {
-          color: #4CAF50;
-          margin-left: 10px;
-          font-size: 12px;
-        }
-        #offline-modal .btn {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-        }
-        #offline-modal .btn-primary {
-          background: #4CAF50;
-          color: white;
-        }
-        #offline-modal .btn-secondary {
-          background: #f0f0f0;
-          color: #333;
-        }
-      </style>
-    `;
-    
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Add offline toggle button to your header
-    if (!document.getElementById('toggle-offline-mode')) {
-      const headerActions = document.querySelector('.landing-header-actions') ||
-                           document.querySelector('.verse-toolbar-left') ||
-                           document.querySelector('.container.flex') ||
-                           document.body;
+      #offline-modal .modal-content {
+        background: white;
+        padding: 25px;
+        border-radius: 8px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow: auto;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
       
-      const offlineBtn = document.createElement('button');
-      offlineBtn.type = 'button';
-      offlineBtn.id = 'toggle-offline-mode';
-      offlineBtn.className = 'auth-button';
-      offlineBtn.innerHTML = '<i class="fa fa-download" aria-hidden="true"></i><span>Offline</span>';
-      offlineBtn.title = 'Manage offline Bible versions';
-      offlineBtn.style.marginLeft = '10px';
+      #offline-modal .modal-close {
+        float: right;
+        font-size: 28px;
+        cursor: pointer;
+        background: none;
+        border: none;
+        color: #666;
+      }
       
-      headerActions.appendChild(offlineBtn);
-    }
+      #offline-modal h2 {
+        margin-top: 0;
+        color: #333;
+      }
+      
+      #offline-modal p {
+        color: #666;
+        margin-bottom: 20px;
+      }
+      
+      .version-item {
+        padding: 12px;
+        margin: 8px 0;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        transition: background 0.2s;
+      }
+      
+      .version-item:hover {
+        background: #f9f9f9;
+      }
+      
+      .version-item input[type="checkbox"] {
+        margin-right: 12px;
+      }
+      
+      .version-item .version-name {
+        flex: 1;
+        font-weight: 500;
+        color: #333;
+      }
+      
+      .version-item .version-abbr {
+        color: #777;
+        margin-left: 10px;
+        font-size: 0.9em;
+      }
+      
+      .version-item .version-downloaded {
+        color: #4CAF50;
+        margin-left: 10px;
+        font-size: 0.85em;
+        font-weight: 500;
+      }
+      
+      .progress-bar-container {
+        height: 20px;
+        background: #f0f0f0;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      
+      .progress-bar {
+        height: 100%;
+        width: 0%;
+        background: #4CAF50;
+        transition: width 0.3s ease;
+      }
+      
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      
+      .btn-primary {
+        background: #4CAF50;
+        color: white;
+      }
+      
+      .btn-secondary {
+        background: #f5f5f5;
+        color: #333;
+      }
+      
+      /* Offline Toggle Button Styles */
+      .offline-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        background: #1976d2;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.2s;
+        margin-left: 8px;
+      }
+      
+      .offline-toggle-btn:hover {
+        background: #1565c0;
+      }
+      
+      .offline-toggle-btn i {
+        font-size: 16px;
+      }
+      
+      /* Study Desk specific - move button to left sidebar */
+      .study-sidebar .offline-toggle-btn {
+        width: 100%;
+        justify-content: center;
+        margin: 10px 0;
+      }
+      
+      /* Search page specific */
+      .search-header .offline-toggle-btn {
+        margin-left: 15px;
+      }
+    </style>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
   }
+}
   
   setupEventListeners() {
     // Toggle modal
