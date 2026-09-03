@@ -2380,9 +2380,21 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`Bible app running on port ${PORT}`);
 });
 
-// =========================================================================
-// OFFLINE BIBLE ENDPOINTS
-// =========================================================================
+/**
+ * =========================================================================
+ * OFFLINE BIBLE API ENDPOINTS
+ *
+ * Purpose: Server-side endpoints for the offline Bible functionality.
+ *          Fetches data from API.Bible and serves it to the client.
+ *
+ * Endpoints:
+ * - GET /api/bible-versions     - List available Bible versions
+ * - GET /api/bible-download/:bibleId - Download full Bible version data
+ * - GET /api/bible/:bibleId/:bookId/:chapterId - Get specific chapter
+ *
+ * Note: Requires API_BIBLE_KEY environment variable
+ * =========================================================================
+ */
 
 // Get list of available Bible versions
 app.get('/api/bible-versions', async (req, res) => {
