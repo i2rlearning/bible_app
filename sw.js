@@ -1,5 +1,17 @@
-// Service Worker for Bible App - Offline First
-// This caches all app assets so the entire app works offline
+/**
+ * SERVICE WORKER FOR BIBLE APP
+ *
+ * Purpose: Caches all app assets (HTML, CSS, JS, images) so the entire app
+ *          works offline. Uses a cache-first strategy for static assets.
+ *
+ * Features:
+ * - Caches app shell on install
+ * - Serves cached assets when offline
+ * - Auto-updates when new versions are deployed
+ * - Skips API calls (handled separately by IndexedDB)
+ *
+ * Scope: Controls all pages under the root domain
+ */
 
 const CACHE_NAME = 'bible-app-v1';
 const OFFLINE_URL = '/index.html';
