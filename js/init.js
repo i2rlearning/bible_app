@@ -1,6 +1,18 @@
-// /js/init.js - Global initialization for the Bible App
+/**
+ * GLOBAL INITIALIZATION FOR BIBLE APP
+ *
+ * Purpose: Central initialization file loaded by every HTML page.
+ *          Registers the service worker and handles other global setup.
+ *
+ * Features:
+ * - Service worker registration
+ * - Placeholder for future global initialization (Clerk, analytics, etc.)
+ *
+ * Usage: Include <script src="js/init.js"></script> in every HTML file
+ *        before the closing </body> tag.
+ */
 
-// 1. Register service worker for offline support
+// Register service worker for offline support
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
@@ -13,5 +25,5 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// 2. Future global initialization goes here
+// Reserved for future global initialization 
 //    (Clerk, analytics, error tracking, etc.)
