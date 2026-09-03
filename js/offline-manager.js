@@ -1,4 +1,19 @@
-// /js/offline-manager.js - Manage offline Bible versions
+/**
+ * OFFLINE MANAGER - USER INTERFACE & DOWNLOAD LOGIC
+ *
+ * Purpose: Provides the UI modal and logic for users to select and download
+ *          Bible versions for offline use. Manages the download process.
+ *
+ * Features:
+ * - Modal UI for selecting Bible versions
+ * - Progress tracking during downloads
+ * - Storage of downloaded versions in IndexedDB
+ * - Limit of 3 versions (configurable)
+ * - Automatic UI updates
+ *
+ * Usage: Access via window.OfflineManager instance
+ *        Automatically adds "Offline" button to header
+ */
 
 class OfflineManager {
   constructor() {
