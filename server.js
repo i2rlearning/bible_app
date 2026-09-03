@@ -2379,3 +2379,82 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Bible app running on port ${PORT}`);
 });
+
+// =========================================================================
+// OFFLINE BIBLE ENDPOINTS
+// =========================================================================
+
+// Get list of available Bible versions
+app.get('/api/bible-versions', async (req, res) => {
+  try {
+    const apiKey = process.env.API_BIBLE_KEY;
+    const response = await fetch(
+      'https://api.bible/v1/bibles',
+      { headers: { 'api-key': apiKey } }
+    );
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch Bible versions' });
+    }
+
+    const data = await response.json();
+    res.json({
+      versions: data.data.map(v => ({
+        id: v.id,
+        name: v.name,
+        abbreviation: v.abbreviation,
+        language: v.language?.name || 'Unknown'
+      }))
+    });
+  } catch (error) {
+    console.error('Bible versions error:', error);
+    res.status(500).json({ error: 'Failed to load Bible versions' });
+  }
+});
+
+// Download a specific Bible version for offline storage
+app.get('/api/bible-download/:bibleId', async (req, res) => {
+  try {
+    const { bibleId } = req.params;
+    const apiKey = process.env.API_BIBLE_KEY;
+
+    // Fetch the full Bible data
+    const response = await fetch(
+      `https://api.bible/v1/bibles/${bibleId}`,
+      { headers: { 'api-key': apiKey } }
+    );
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Bible version not found' });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Bible download error:', error);
+    res.status(500).json({ error: 'Failed to download Bible text' });
+  }
+});
+
+// Get a specific chapter for offline use
+app.get('/api/bible/:bibleId/:bookId/:chapterId', async (req, res) => {
+  try {
+    const { bibleId, bookId, chapterId } = req.params;
+    const apiKey = process.env.API_BIBLE_KEY;
+
+    const response = await fetch(
+      `https://api.bible/v1/bibles/${bibleId}/books/${bookId}/chapters/${chapterId}`,
+      { headers: { 'api-key': apiKey } }
+    );
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Chapter not found' });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Chapter fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch chapter' });
+  }
+});
