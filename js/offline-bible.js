@@ -1,4 +1,16 @@
-// /js/offline-bible.js - Complete IndexedDB storage for Bible text
+/**
+ * OFFLINE BIBLE DATABASE WRAPPER
+ *
+ * Purpose: Manages IndexedDB storage for Bible text, books, and chapters.
+ *          Enables offline reading of downloaded Bible versions.
+ *
+ * Database Structure:
+ * - bibleVersions: Stores complete Bible version data (key: bibleId)
+ * - bibleBooks: Stores book metadata (key: bibleId::bookId)
+ * - bibleChapters: Stores chapter metadata (key: bibleId::bookId::chapterId)
+ *
+ * Usage: Access via window.OfflineBible.* methods
+ */
 
 const DB_NAME = 'BibleAppOfflineDB';
 const DB_VERSION = 1;
