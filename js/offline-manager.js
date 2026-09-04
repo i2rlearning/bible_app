@@ -36,13 +36,14 @@ class OfflineManager {
         throw new Error('API.Bible key not found in my_key.js');
       }
       
-      const response = await fetch(
-        'https://api.scripture.api.bible/v1/bibles',
-        { 
-          headers: { 
-            'api-key': apiKey 
-          } 
-        }
+      //const response = await fetch(
+      //  'https://api.scripture.api.bible/v1/bibles',
+      //  { 
+      //    headers: { 
+      //      'api-key': apiKey 
+      //    } 
+      //  }
+        window.BibleLanguage.getSelectedApiUrl()
       );
       
       if (!response.ok) {
