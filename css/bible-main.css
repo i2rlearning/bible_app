@@ -1482,11 +1482,11 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
   }
 }
 
-/* ==========================================
-   OFFLINE TOGGLE BUTTON - Global Styles
-   ========================================== */
+/* ======================================================================
+   OFFLINE BIBLE SUPPORT STYLES
+   ====================================================================== */
 
-/* Base button styles */
+ /* Offline Toggle Button */
 .offline-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -1500,6 +1500,7 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
   font-size: 14px;
   font-weight: 500;
   transition: background 0.2s;
+  white-space: nowrap;
 }
 
 .offline-toggle-btn:hover {
@@ -1510,13 +1511,147 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
   font-size: 16px;
 }
 
-/* Context-specific overrides */
+/* Offline Modal */
+#offline-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+#offline-modal .modal-content {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+#offline-modal .modal-close {
+  float: right;
+  font-size: 28px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #666;
+}
+
+#offline-modal h2 {
+  margin-top: 0;
+  color: #333;
+  font-size: 24px;
+}
+
+#offline-modal p {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.version-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  margin: 8px 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.version-item:hover {
+  background: #f9f9f9;
+}
+
+.version-item input[type="checkbox"] {
+  margin-right: 12px;
+  cursor: pointer;
+}
+
+.version-item .version-name {
+  flex: 1;
+  font-weight: 500;
+  color: #333;
+}
+
+.version-item .version-abbr {
+  color: #777;
+  margin-left: 10px;
+  font-size: 0.9em;
+}
+
+.version-item .version-downloaded {
+  color: #4CAF50;
+  margin-left: 10px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.progress-bar-container {
+  height: 20px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 15px 0;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: #4CAF50;
+  transition: width 0.3s ease;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+#offline-modal .btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+#offline-modal .btn-primary {
+  background: #4CAF50;
+  color: white;
+}
+
+#offline-modal .btn-primary:hover {
+  background: #45a049;
+}
+
+#offline-modal .btn-secondary {
+  background: #f5f5f5;
+  color: #333;
+}
+
+#offline-modal .btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+/* Context-specific button positioning */
 .landing-header-actions .offline-toggle-btn,
 header .offline-toggle-btn {
   margin-left: 8px;
 }
 
-.study-sidebar .offline-toggle-btn {
+.study-sidebar .offline-toggle-btn,
+.left-panel .offline-toggle-btn,
+.sidebar .offline-toggle-btn {
   width: 100%;
   justify-content: center;
   margin: 10px 0;
