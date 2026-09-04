@@ -16,7 +16,6 @@
 const CACHE_NAME = 'bible-app-v1';
 const OFFLINE_URL = '/index.html';
 
-// All files to cache for offline use
 const ASSETS_TO_CACHE = [
   // Root
   '/',
@@ -59,6 +58,9 @@ const ASSETS_TO_CACHE = [
   '/js/editor.js',
   '/js/verses.js',
   '/js/search.js',
+  '/js/offline-bible.js',
+  '/js/offline-manager.js',
+  '/js/init.js',
 
   // Images
   '/img/favicon.ico',
@@ -68,18 +70,13 @@ const ASSETS_TO_CACHE = [
   '/img/orig_left_stamp.png',
   '/img/orig_right_stamp.png',
 
-  // Font Awesome (self-hosted alternative would be better)
+  // External resources (optional - may not work due to CORS)
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css',
-  'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css',
-  'https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/dist/css/quill-blot-formatter2.css',
-  'https://cdn.scripture.api.bible/fums/fumsv2.min.js',
-  'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js',
 ];
 
-// Install: Cache all assets
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
-
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -95,10 +92,9 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: Clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
-
+  
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -113,16 +109,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Serve cached assets when offline
 self.addEventListener('fetch', (event) => {
-  // Skip API calls and external resources - let the app handle those
   if (event.request.url.includes('/api/') ||
       event.request.url.includes('api.bible') ||
       event.request.url.includes('clerk')) {
     return fetch(event.request);
   }
 
-  // For everything else, try cache first, fall back to network
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -134,7 +127,6 @@ self.addEventListener('fetch', (event) => {
         console.log(`[SW] Fetching from network: ${event.request.url}`);
         return fetch(event.request)
           .then((response) => {
-            // Clone and cache the response for future offline use
             const responseClone = response.clone();
             caches.open(CACHE_NAME)
               .then((cache) => {
@@ -144,20 +136,8 @@ self.addEventListener('fetch', (event) => {
           });
       })
       .catch(() => {
-        // If both cache and network fail, serve the offline page
         console.log(`[SW] Offline fallback for: ${event.request.url}`);
         return caches.match(OFFLINE_URL);
       })
   );
-});
-
-// Listen for messages from the app (for manual cache updates)
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'CACHE_BIBLE_TEXT') {
-    const { url, text } = event.data;
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        cache.put(url, new Response(text));
-      });
-  }
 });
