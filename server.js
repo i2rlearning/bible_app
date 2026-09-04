@@ -2430,7 +2430,6 @@ app.get('/api/bible-download/:bibleId', async (req, res) => {
     const { bibleId } = req.params;
     const apiKey = process.env.API_BIBLE_KEY;
 
-    // Fetch the full Bible data
     const response = await fetch(
       `https://api.bible/v1/bibles/${bibleId}`,
       { headers: { 'api-key': apiKey } }
