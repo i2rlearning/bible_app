@@ -1,7 +1,6 @@
 /**
- * OFFLINE MANAGER - PHASE 1
+ * OFFLINE MANAGER
  *
- * Phase 1 responsibilities:
  * - Provide one Offline button per page.
  * - Open/close the offline setup modal.
  * - Load available Bible versions from API.Bible.
