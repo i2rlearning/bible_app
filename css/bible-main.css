@@ -1538,11 +1538,19 @@ body:not(.landing-page) .subheader .mobile-current-passage-button span {
 
 #offline-modal .modal-close {
   float: right;
-  font-size: 28px;
+  font-size: 32px;
+  font-weight: normal;
+  transition: all 0.2s ease;
   cursor: pointer;
   background: none;
   border: none;
   color: #666;
+}
+
+.modal-close:hover {
+    color: red;
+    font-weight: bold;
+    cursor: pointer;
 }
 
 #offline-modal h2 {
