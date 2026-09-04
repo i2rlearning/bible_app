@@ -12,7 +12,7 @@
  *        before the closing </body> tag.
  */
 
-// Register service worker for offline support
+// 1. Register service worker for offline support
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
@@ -25,5 +25,11 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Reserved for future global initialization 
-//    (Clerk, analytics, error tracking, etc.)
+// 2. Initialize offline manager when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.OfflineManager) {
+    // Already initialized by offline-manager.js
+  }
+});
+
+// 3. Future global initialization goes here
