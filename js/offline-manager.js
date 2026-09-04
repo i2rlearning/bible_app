@@ -1,12 +1,16 @@
-/** * OFFLINE MANAGER - USER INTERFACE & DOWNLOAD LOGIC * Includes: * -
-Offline button * - Bible version search * - Language filtering (All /
-English / Greek / Hebrew) * - Hidden version filtering * - Download
-selection */
+/** * OFFLINE MANAGER - USER INTERFACE & DOWNLOAD LOGIC Purpose:
+Provides the UI modal and logic for users to select and download * Bible
+versions for offline use. * Uses client-side API.Bible calls (via
+my_key.js) - no server endpoints needed. */
 
 class OfflineManager { constructor() { this.availableVersions = [];
-this.filteredVersions = []; this.downloading = new Set(); this.ui = {};
-this.button = null; this.selectedLanguage = “all”; this.searchTerm = ““;
-this.initialized = false; this.init(); }
+this.filteredVersions = []; this.searchTerm = ““; this.selectedLanguage
+=”all”; this.downloading = new Set(); this.ui = {}; this.button = null;
+this.initialized = false;
+
+    this.init();
+
+}
 
 async init() { if (this.initialized) return; this.initialized = true;
 
@@ -17,202 +21,318 @@ async init() { if (this.initialized) return; this.initialized = true;
 
 }
 
-async loadAvailableVersions() { try { const apiKey = typeof API_KEY !==
-“undefined” ? API_KEY : null;
+async loadAvailableVersions() { try { // Use the API key from my_key.js
+(same as rest of your app) const apiKey = typeof API_KEY !== “undefined”
+? API_KEY : (window.API_BIBLE_KEY || window.apiBibleKey);
 
-      if (!apiKey) throw new Error("API key missing");
-
-      const response = await fetch(
-        "https://api.scripture.api.bible/v1/bibles",
-        {
-          headers: {
-            "api-key": apiKey
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
+      if (!apiKey) {
+        throw new Error('API.Bible key not found in my_key.js');
       }
-
+      
+      const response = await fetch(
+        'https://api.scripture.api.bible/v1/bibles',
+        { headers: { 'api-key': apiKey } }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API.Bible returned ${response.status}`);
+      }
+      
       const data = await response.json();
-
-      const hidden = window.HiddenBibleVersions || [];
+      const hiddenVersions = window.HiddenBibleVersions || [];
 
       this.availableVersions = data.data
-        .filter(v => !hidden.includes(v.id))
+        .filter(v => !hiddenVersions.includes(v.id))
         .map(v => ({
           id: v.id,
           name: v.name,
-          abbreviation: v.abbreviation || "",
-          language: (v.language?.name || "").toLowerCase()
+          abbreviation: v.abbreviation,
+          language: v.language?.name || 'Unknown'
         }));
 
       this.filteredVersions = [...this.availableVersions];
-
-      console.log("[Offline] Loaded", this.availableVersions.length);
-    } catch (e) {
-      console.error("[Offline] Loading failed", e);
+      
+      console.log('[Offline] Loaded', this.availableVersions.length, 'Bible versions');
+    } catch (error) {
+      console.error('[Offline] Failed to load Bible versions:', error);
       this.availableVersions = [];
-      this.filteredVersions = [];
     }
 
 }
 
-createModal() { if (document.getElementById(“offline-modal”)) return;
+createModal() { if (document.getElementById(‘offline-modal’)) return;
 
-    document.body.insertAdjacentHTML("beforeend", `
-      <div id="offline-modal" class="modal" style="display:none;">
+    const modalHTML = `
+      <div id="offline-modal" class="modal" style="display: none;">
         <div class="modal-content offline-modal-content">
-
-          <button id="close-offline-modal" class="modal-close">&times;</button>
-
+          <button type="button" id="close-offline-modal" class="modal-close">&times;</button>
           <h2>Offline Bible Setup</h2>
           <p>Select Bible versions to download for offline use. You can download up to 3 versions.</p>
-
-          <input id="offline-search"
-                 class="offline-search"
-                 placeholder="Search Bible versions...">
-
-          <select id="offline-language-filter">
+          <input id="offline-search" type="search" placeholder="Search Bible versions..." style="width:100%;margin-bottom:10px;">
+          <select id="offline-language-filter" style="width:100%;margin-bottom:10px;">
             <option value="all">All Languages</option>
-            <option value="english">English</option>
-            <option value="greek">Greek</option>
-            <option value="hebrew">Hebrew</option>
+            <option value="English">English</option>
+            <option value="Greek">Greek</option>
+            <option value="Hebrew">Hebrew</option>
           </select>
-
           <div id="offline-versions-list"></div>
-
-          <div id="offline-progress" style="display:none;">
-            <div id="offline-progress-bar"></div>
+          <div id="offline-progress" style="display: none; margin: 15px 0;">
+            <div class="progress-bar-container">
+              <div id="offline-progress-bar" class="progress-bar" style="width: 0%;"></div>
+            </div>
           </div>
-
-          <div id="offline-status"></div>
-
-          <button id="download-selected" class="btn btn-primary">
-            Download Selected
-          </button>
-
-          <button id="close-offline-btn" class="btn btn-secondary">
-            Close
-          </button>
-
+          <div id="offline-status" style="margin: 15px 0; min-height: 20px;"></div>
+          <div class="modal-actions">
+            <button type="button" id="download-selected" class="btn btn-primary">Download Selected</button>
+            <button type="button" id="close-offline-btn" class="btn btn-secondary">Close</button>
+          </div>
         </div>
       </div>
-    `);
+    `;
 
-    this.ui.modal = document.getElementById("offline-modal");
-    this.ui.versionList = document.getElementById("offline-versions-list");
-    this.ui.closeButton = document.getElementById("close-offline-modal");
-    this.ui.search = document.getElementById("offline-search");
-    this.ui.language = document.getElementById("offline-language-filter");
-    this.ui.statusText = document.getElementById("offline-status");
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    this.ui.modal = document.getElementById('offline-modal');
+    this.ui.versionList = document.getElementById('offline-versions-list');
+    this.ui.progressBar = document.getElementById('offline-progress');
+    this.ui.progressBarInner = document.getElementById('offline-progress-bar');
+    this.ui.statusText = document.getElementById('offline-status');
 
 }
 
-addButtonToPage() { if (document.getElementById(“toggle-offline-mode”))
+addButtonToPage() { if (document.getElementById(‘toggle-offline-mode’))
 return;
 
-    this.button = document.createElement("button");
-    this.button.id = "toggle-offline-mode";
-    this.button.type = "button";
-    this.button.className = "offline-toggle-btn auth-button";
-    this.button.textContent = "Offline";
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.id = 'toggle-offline-mode';
+    this.button.className = 'offline-toggle-btn auth-button';
+    this.button.innerHTML = '<i class="fa fa-download" aria-hidden="true"></i><span>Offline</span>';
+    this.button.title = 'Manage offline Bible versions';
 
-    const header =
-      document.querySelector(".landing-header-actions") ||
-      document.querySelector(".header-actions") ||
-      document.querySelector("header");
+    const path = window.location.pathname;
 
-    if (header) {
-      header.appendChild(this.button);
-    } else {
-      document.body.prepend(this.button);
+    // Study Desk: Add below New Study button in left sidebar
+    if (path.includes('study-desk.html')) {
+      const sidebarButtons = document.querySelectorAll('.study-sidebar button, .left-panel button, .menu button, .sidebar button');
+      if (sidebarButtons.length > 0) {
+        sidebarButtons[0].insertAdjacentElement('afterend', this.button);
+        return;
+      }
+    }
+
+    // Search, Verse, Index: Add to header (same location as Preferences/Logout)
+    const headerSelectors = [
+      '.landing-header-actions',
+      'header .container',
+      '.header-right',
+      '.header-actions',
+      '.header .flex',
+      '.container.flex',
+      'header'
+    ];
+
+    for (const selector of headerSelectors) {
+      const header = document.querySelector(selector);
+      if (header) {
+        const children = header.children;
+        if (children.length > 0) {
+          header.insertBefore(this.button, children[children.length - 1]);
+        } else {
+          header.appendChild(this.button);
+        }
+        return;
+      }
+    }
+
+    // Fallback
+    console.warn('[Offline] Could not find header - using fallback');
+    document.body.insertBefore(this.button, document.body.firstChild);
+
+}
+
+setupEventListeners() { if (this.button) {
+this.button.addEventListener(‘click’, (e) => { e.preventDefault();
+e.stopPropagation(); this.showModal(); }); }
+
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'toggle-offline-mode') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showModal();
+      }
+    });
+
+    if (this.ui.closeButton) {
+      this.ui.closeButton.addEventListener('click', () => this.hideModal());
+    }
+
+    const closeBtn = document.getElementById('close-offline-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.hideModal());
+    }
+
+    if (this.ui.search) {
+      this.ui.search.addEventListener('input', (e) => {
+        this.searchTerm = e.target.value.toLowerCase();
+        this.renderVersionList();
+      });
+    }
+
+    if (this.ui.languageFilter) {
+      this.ui.languageFilter.addEventListener('change', (e) => {
+        this.selectedLanguage = e.target.value;
+        this.renderVersionList();
+      });
+    }
+
+    const downloadBtn = document.getElementById('download-selected');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => this.downloadSelectedVersions());
+    }
+
+    if (this.ui.modal) {
+      this.ui.modal.addEventListener('click', (e) => {
+        if (e.target === this.ui.modal) this.hideModal();
+      });
     }
 
 }
 
-setupEventListeners() { this.button?.addEventListener(“click”, () =>
-this.showModal());
+async showModal() { await this.renderVersionList();
+this.ui.modal.style.display = ‘flex’; this.ui.modal.style.zIndex =
+‘10000’; }
 
-    this.ui.closeButton?.addEventListener(
-      "click",
-      () => this.hideModal()
-    );
+hideModal() { this.ui.modal.style.display = ‘none’; }
 
-    document.getElementById("close-offline-btn")
-      ?.addEventListener("click", () => this.hideModal());
+async renderVersionList() { if (!this.ui.versionList) return;
 
-    this.ui.search.addEventListener("input", e => {
-      this.searchTerm = e.target.value.toLowerCase();
-      this.renderVersionList();
-    });
+    this.ui.versionList.innerHTML = '<p style="text-align: center; color: #666;">Loading Bible versions...</p>';
 
-    this.ui.language.addEventListener("change", e => {
-      this.selectedLanguage = e.target.value;
-      this.renderVersionList();
-    });
+    const downloaded = await window.OfflineBible.listDownloadedVersions();
+    const downloadedIds = new Set(downloaded.map(v => v.bibleId));
 
-    document.getElementById("download-selected")
-      ?.addEventListener("click", () => this.downloadSelectedVersions());
+    if (this.availableVersions.length === 0) {
+      this.ui.versionList.innerHTML = `
+        <p style="text-align: center; color: #d32f2f;">
+          No Bible versions available. Please check your internet connection.
+        </p>
+      `;
+      return;
+    }
 
-}
+    const listHTML = this.availableVersions
+      .filter(version => {
+        const searchMatch = !this.searchTerm ||
+          `${version.name} ${version.abbreviation}`.toLowerCase().includes(this.searchTerm);
 
-showModal() { this.renderVersionList(); this.ui.modal.style.display =
-“flex”; }
+        const languageMatch = this.selectedLanguage === 'all' ||
+          version.language.toLowerCase().includes(this.selectedLanguage.toLowerCase());
 
-hideModal() { this.ui.modal.style.display = “none”; }
-
-renderVersionList() { if (!this.ui.versionList) return;
-
-    let versions = this.availableVersions.filter(v => {
-
-      const text = `${v.name} ${v.abbreviation}`.toLowerCase();
-
-      const matchesSearch =
-        !this.searchTerm || text.includes(this.searchTerm);
-
-      const lang = v.language;
-
-      const matchesLanguage =
-        this.selectedLanguage === "all" ||
-        lang.includes(this.selectedLanguage);
-
-      return matchesSearch && matchesLanguage;
-    });
-
-    this.ui.versionList.innerHTML =
-      versions.map(v => `
+        return searchMatch && languageMatch;
+      })
+      .map(version => {
+      const isDownloaded = downloadedIds.has(version.id);
+      return `
         <label class="version-item">
-          <input type="checkbox"
-                 name="bible-version"
-                 value="${v.id}">
-          <span>${v.name}</span>
-          <span>(${v.abbreviation})</span>
+          <input type="checkbox" name="bible-version" value="${version.id}"
+                 ${isDownloaded ? 'checked disabled' : ''} ${this.downloading.has(version.id) ? 'disabled' : ''}>
+          <span class="version-name">${version.name}</span>
+          <span class="version-abbr">(${version.abbreviation})</span>
+          ${isDownloaded ? '<span class="version-downloaded">✓ Downloaded</span>' : ''}
         </label>
-      `).join("") || "<p>No versions found</p>";
+      `;
+    }).join('');
+
+    this.ui.versionList.innerHTML = listHTML;
 
 }
 
-async downloadSelectedVersions() { const selected =
-[…document.querySelectorAll( “#offline-versions-list input:checked”
-)].map(x => x.value);
+async downloadSelectedVersions() { const checkboxes =
+document.querySelectorAll(‘#offline-versions-list
+input[type=“checkbox”]:checked:not([disabled])’);
 
-    if (selected.length === 0) {
-      this.ui.statusText.textContent =
-        "Please select a version.";
+    if (checkboxes.length === 0) {
+      this.ui.statusText.textContent = 'Please select at least one Bible version.';
+      this.ui.statusText.style.color = '#d32f2f';
       return;
     }
 
-    if (selected.length > 3) {
-      this.ui.statusText.textContent =
-        "Maximum 3 versions allowed.";
+    if (checkboxes.length > 3) {
+      this.ui.statusText.textContent = 'Maximum of 3 versions allowed.';
+      this.ui.statusText.style.color = '#d32f2f';
       return;
     }
 
-    this.ui.statusText.textContent =
-      "Downloading...";
+    const versionsToDownload = Array.from(checkboxes).map(cb => cb.value);
+    this.ui.progressBar.style.display = 'block';
+    this.ui.progressBarInner.style.width = '0%';
+    this.ui.statusText.textContent = `Downloading ${versionsToDownload.length} version(s)...`;
+    this.ui.statusText.style.color = '#333';
 
-} }
+    let downloadedCount = 0;
 
-window.OfflineManager = OfflineManager;
+    for (const versionId of versionsToDownload) {
+      this.downloading.add(versionId);
+      this.renderVersionList();
+      
+      try {
+        const progress = Math.round(((downloadedCount + 1) / versionsToDownload.length) * 100);
+        this.ui.progressBarInner.style.width = `${progress}%`;
+        await this.downloadVersion(versionId);
+        downloadedCount++;
+        this.ui.statusText.textContent = `Downloaded ${downloadedCount} of ${versionsToDownload.length}`;
+      } catch (error) {
+        console.error(`Failed to download ${versionId}:`, error);
+        this.ui.statusText.textContent = `Error downloading ${versionId}`;
+        this.ui.statusText.style.color = '#d32f2f';
+      } finally {
+        this.downloading.delete(versionId);
+        this.renderVersionList();
+      }
+    }
+
+    this.ui.statusText.textContent = `✓ ${downloadedCount} version(s) ready for offline use!`;
+    this.ui.statusText.style.color = '#4CAF50';
+    setTimeout(() => { this.ui.progressBar.style.display = 'none'; }, 2000);
+
+}
+
+async downloadVersion(bibleId) { try { const apiKey = typeof API_KEY !==
+“undefined” ? API_KEY : (window.API_BIBLE_KEY || window.apiBibleKey);
+
+      if (!apiKey) {
+        throw new Error('API.Bible key not found');
+      }
+      
+      const response = await fetch(
+        `https://api.scripture.api.bible/v1/bibles/${bibleId}`,
+        { headers: { 'api-key': apiKey } }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API.Bible returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      await window.OfflineBible.storeBibleVersion(bibleId, data);
+      await this.storeBooksAndChapters(bibleId, data);
+      return true;
+    } catch (error) {
+      console.error(`[Offline] Failed to download ${bibleId}:`, error);
+      throw error;
+    }
+
+}
+
+async storeBooksAndChapters(bibleId, bibleData) { if (bibleData.books &&
+Array.isArray(bibleData.books)) { for (const book of bibleData.books) {
+await window.OfflineBible.storeBook({ id: ${bibleId}::${book.id},
+bibleId, bookId: book.id, name: book.name, abbreviation:
+book.abbreviation, testament: book.testament }); if (book.chapters &&
+Array.isArray(book.chapters)) { for (const chapter of book.chapters) {
+await window.OfflineBible.storeChapter({ id:
+${bibleId}::${book.id}::${chapter.id}, bibleId, bookId: book.id,
+chapterId: chapter.id, reference: chapter.reference }); } } } } } }
+
+// Export class window.OfflineManager = OfflineManager;
