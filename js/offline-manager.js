@@ -95,6 +95,7 @@ class OfflineManager {
     this.ui.progressBar = document.getElementById('offline-progress');
     this.ui.progressBarInner = document.getElementById('offline-progress-bar');
     this.ui.statusText = document.getElementById('offline-status');
+    this.ui.closeButton = document.getElementById('close-offline-modal');
   }
   
   addButtonToPage() {
