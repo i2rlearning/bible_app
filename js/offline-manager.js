@@ -3,8 +3,6 @@
  *
  * Purpose: Provides the UI modal and logic for users to select and download
  *          Bible versions for offline use.
- *
- * Usage: Initialize with `new OfflineManager()` AFTER DOM is ready
  */
 
 class OfflineManager {
@@ -13,11 +11,15 @@ class OfflineManager {
     this.downloading = new Set();
     this.ui = {};
     this.button = null;
+    this.initialized = false;
     
     this.init();
   }
   
   async init() {
+    if (this.initialized) return;
+    this.initialized = true;
+    
     await this.loadAvailableVersions();
     this.createModal();
     this.addButtonToPage();
@@ -28,14 +30,22 @@ class OfflineManager {
     try {
       const response = await fetch('/api/bible-versions');
       const data = await response.json();
-      this.availableVersions = data.versions || [];
+      
+      if (data.error) {
+        console.error('[Offline] Server error:', data.error);
+        this.availableVersions = [];
+      } else {
+        this.availableVersions = data.versions || [];
+      }
     } catch (error) {
-      console.error('Failed to load Bible versions:', error);
+      console.error('[Offline] Failed to load Bible versions:', error);
       this.availableVersions = [];
     }
   }
   
   createModal() {
+    if (document.getElementById('offline-modal')) return;
+    
     const modalHTML = `
       <div id="offline-modal" class="modal" style="display: none;">
         <div class="modal-content offline-modal-content">
@@ -72,37 +82,70 @@ class OfflineManager {
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.id = 'toggle-offline-mode';
-    this.button.className = 'offline-toggle-btn';
+    this.button.className = 'offline-toggle-btn auth-button';
     this.button.innerHTML = '<i class="fa fa-download" aria-hidden="true"></i><span>Offline</span>';
     this.button.title = 'Manage offline Bible versions';
     
     const path = window.location.pathname;
     
-    // Study Desk: Add below New Study button
+    // Study Desk: Add below New Study button in left sidebar
     if (path.includes('study-desk.html')) {
-      const newStudyBtn = document.querySelector('.study-sidebar button, .left-panel button, .menu button');
-      if (newStudyBtn) {
-        newStudyBtn.insertAdjacentElement('afterend', this.button);
+      const sidebarButtons = document.querySelectorAll('.study-sidebar button, .left-panel button, .menu button, .sidebar button');
+      if (sidebarButtons.length > 0) {
+        sidebarButtons[0].insertAdjacentElement('afterend', this.button);
         return;
       }
     }
     
-    // Search, Verse, Index: Add to header
-    const header = document.querySelector('.landing-header-actions, header, .header, .container.flex');
-    if (header) {
-      header.appendChild(this.button);
-      return;
+    // Search, Verse, Index: Add to header (same location as Preferences/Logout)
+    // Try multiple selector combinations
+    const headerSelectors = [
+      '.landing-header-actions',
+      'header .container',
+      '.header-right',
+      '.header-actions',
+      '.header .flex',
+      '.container.flex',
+      'header'
+    ];
+    
+    for (const selector of headerSelectors) {
+      const header = document.querySelector(selector);
+      if (header) {
+        // Insert before the last child (usually Logout)
+        const children = header.children;
+        if (children.length > 0) {
+          header.insertBefore(this.button, children[children.length - 1]);
+        } else {
+          header.appendChild(this.button);
+        }
+        return;
+      }
     }
     
-    // Fallback
-    document.body.appendChild(this.button);
+    // Fallback: add to body (shouldn't happen)
+    console.warn('[Offline] Could not find header - using fallback');
+    document.body.insertBefore(this.button, document.body.firstChild);
   }
   
   setupEventListeners() {
-    // Direct listener on the button (now it exists)
+    // Direct listener on button
     if (this.button) {
-      this.button.addEventListener('click', () => this.showModal());
+      this.button.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showModal();
+      });
     }
+    
+    // Also use event delegation as backup
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'toggle-offline-mode') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showModal();
+      }
+    });
     
     if (this.ui.closeButton) {
       this.ui.closeButton.addEventListener('click', () => this.hideModal());
@@ -128,6 +171,7 @@ class OfflineManager {
   async showModal() {
     await this.renderVersionList();
     this.ui.modal.style.display = 'flex';
+    this.ui.modal.style.zIndex = '10000';
   }
   
   hideModal() {
@@ -143,7 +187,12 @@ class OfflineManager {
     const downloadedIds = new Set(downloaded.map(v => v.bibleId));
     
     if (this.availableVersions.length === 0) {
-      this.ui.versionList.innerHTML = '<p style="text-align: center; color: #d32f2f;">No Bible versions available. Please check your internet connection.</p>';
+      this.ui.versionList.innerHTML = `
+        <p style="text-align: center; color: #d32f2f;">
+          No Bible versions available. Please check your internet connection.
+          <br><small>Also ensure API_BIBLE_KEY is set in Railway environment variables.</small>
+        </p>
+      `;
       return;
     }
     
@@ -249,5 +298,5 @@ class OfflineManager {
   }
 }
 
-// Export the class - DON'T instantiate yet
+// Export class
 window.OfflineManager = OfflineManager;
