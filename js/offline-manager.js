@@ -37,8 +37,12 @@ class OfflineManager {
       }
       
       const response = await fetch(
-        'https://api.bible/v1/bibles',
-        { headers: { 'api-key': apiKey } }
+        'https://api.scripture.api.bible/v1/bibles',
+        { 
+          headers: { 
+            'api-key': apiKey 
+          } 
+        }
       );
       
       if (!response.ok) {
