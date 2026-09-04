@@ -3,6 +3,7 @@
  *
  * Purpose: Provides the UI modal and logic for users to select and download
  *          Bible versions for offline use.
+ *          Uses client-side API.Bible calls (via my_key.js) - no server endpoints needed.
  */
 
 class OfflineManager {
@@ -28,15 +29,31 @@ class OfflineManager {
   
   async loadAvailableVersions() {
     try {
-      const response = await fetch('/api/bible-versions');
-      const data = await response.json();
+      // Use the API key from my_key.js (same as rest of your app)
+      const apiKey = window.API_BIBLE_KEY || window.apiBibleKey;
       
-      if (data.error) {
-        console.error('[Offline] Server error:', data.error);
-        this.availableVersions = [];
-      } else {
-        this.availableVersions = data.versions || [];
+      if (!apiKey) {
+        throw new Error('API.Bible key not found in my_key.js');
       }
+      
+      const response = await fetch(
+        'https://api.bible/v1/bibles',
+        { headers: { 'api-key': apiKey } }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API.Bible returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      this.availableVersions = data.data.map(v => ({
+        id: v.id,
+        name: v.name,
+        abbreviation: v.abbreviation,
+        language: v.language?.name || 'Unknown'
+      }));
+      
+      console.log('[Offline] Loaded', this.availableVersions.length, 'Bible versions');
     } catch (error) {
       console.error('[Offline] Failed to load Bible versions:', error);
       this.availableVersions = [];
@@ -98,7 +115,6 @@ class OfflineManager {
     }
     
     // Search, Verse, Index: Add to header (same location as Preferences/Logout)
-    // Try multiple selector combinations
     const headerSelectors = [
       '.landing-header-actions',
       'header .container',
@@ -112,7 +128,6 @@ class OfflineManager {
     for (const selector of headerSelectors) {
       const header = document.querySelector(selector);
       if (header) {
-        // Insert before the last child (usually Logout)
         const children = header.children;
         if (children.length > 0) {
           header.insertBefore(this.button, children[children.length - 1]);
@@ -123,13 +138,12 @@ class OfflineManager {
       }
     }
     
-    // Fallback: add to body (shouldn't happen)
+    // Fallback
     console.warn('[Offline] Could not find header - using fallback');
     document.body.insertBefore(this.button, document.body.firstChild);
   }
   
   setupEventListeners() {
-    // Direct listener on button
     if (this.button) {
       this.button.addEventListener('click', (e) => {
         e.preventDefault();
@@ -138,7 +152,6 @@ class OfflineManager {
       });
     }
     
-    // Also use event delegation as backup
     document.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'toggle-offline-mode') {
         e.preventDefault();
@@ -190,7 +203,6 @@ class OfflineManager {
       this.ui.versionList.innerHTML = `
         <p style="text-align: center; color: #d32f2f;">
           No Bible versions available. Please check your internet connection.
-          <br><small>Also ensure API_BIBLE_KEY is set in Railway environment variables.</small>
         </p>
       `;
       return;
@@ -262,8 +274,21 @@ class OfflineManager {
   
   async downloadVersion(bibleId) {
     try {
-      const response = await fetch(`/api/bible-download/${bibleId}`);
-      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      const apiKey = window.API_BIBLE_KEY || window.apiBibleKey;
+      
+      if (!apiKey) {
+        throw new Error('API.Bible key not found');
+      }
+      
+      const response = await fetch(
+        `https://api.bible/v1/bibles/${bibleId}`,
+        { headers: { 'api-key': apiKey } }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API.Bible returned ${response.status}`);
+      }
+      
       const data = await response.json();
       await window.OfflineBible.storeBibleVersion(bibleId, data);
       await this.storeBooksAndChapters(bibleId, data);
