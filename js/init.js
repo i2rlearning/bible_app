@@ -1,8 +1,5 @@
 /**
  * GLOBAL INITIALIZATION FOR BIBLE APP
- *
- * Purpose: Central initialization file loaded by every HTML page.
- *          Registers the service worker and initializes all managers.
  */
 
 // 1. Register service worker
@@ -14,10 +11,17 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// 2. Initialize everything when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  // Initialize OfflineManager - this creates the button and modal
-  if (window.OfflineManager) {
-    window.offlineManager = new OfflineManager();
+// 2. Initialize OfflineManager when DOM is fully ready
+function initializeOfflineManager() {
+  if (window.OfflineManager && !window.offlineManagerInstance) {
+    window.offlineManagerInstance = new OfflineManager();
+    console.log('[Offline] Manager initialized');
   }
-});
+}
+
+// Run initialization
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeOfflineManager);
+} else {
+  initializeOfflineManager();
+}
