@@ -1669,3 +1669,73 @@ header .offline-toggle-btn {
 .search-header .offline-toggle-btn {
   margin-left: 15px;
 }
+
+/* ======================================================================
+   PHASE 1 OFFLINE BUTTON STABILITY
+   ====================================================================== */
+
+#toggle-offline-mode {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 82px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #123f7c !important;
+  border-radius: 6px !important;
+  background-color: #072d61 !important;
+  background-image: linear-gradient(180deg, #123f7c 0%, #072d61 100%) !important;
+  box-shadow: 0 4px 10px rgba(7, 45, 97, 0.18);
+  color: #fff !important;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+#toggle-offline-mode i {
+  color: #fff !important;
+  font-size: 0.9rem;
+}
+
+#toggle-offline-mode:hover {
+  border-color: #185294 !important;
+  background-color: #0a3976 !important;
+  background-image: linear-gradient(180deg, #185294 0%, #0a3976 100%) !important;
+  box-shadow: 0 6px 14px rgba(7, 45, 97, 0.24);
+  transform: translateY(-1px);
+}
+
+#toggle-offline-mode:focus-visible {
+  outline: 2px solid #2f9ae0;
+  outline-offset: 2px;
+}
+
+#offline-modal .modal-close:hover {
+  color: red;
+  font-weight: 700;
+}
+
+/* Search page uses a three-zone top bar. Keep the Offline button on the
+   right so it cannot push the hamburger away from the center. */
+.search-topbar #toggle-offline-mode {
+  grid-column: 3;
+  justify-self: end;
+  margin-left: 0;
+}
+
+/* Study Desk header has its own action row. */
+.study-header-actions #toggle-offline-mode {
+  margin-left: 0;
+}
+
+/* Verse toolbar already owns the authentication/action area. */
+.verse-auth-buttons #toggle-offline-mode {
+  margin-left: 0;
+}
