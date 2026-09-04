@@ -2,17 +2,9 @@
  * OFFLINE MANAGER - USER INTERFACE & DOWNLOAD LOGIC
  *
  * Purpose: Provides the UI modal and logic for users to select and download
- *          Bible versions for offline use. Manages the download process.
+ *          Bible versions for offline use.
  *
- * Features:
- * - Modal UI for selecting Bible versions
- * - Progress tracking during downloads
- * - Storage of downloaded versions in IndexedDB
- * - Limit of 3 versions (configurable)
- * - Automatic UI updates
- *
- * Usage: Access via window.OfflineManager instance
- *        Automatically adds "Offline" button to appropriate locations
+ * Usage: Initialize with `new OfflineManager()` AFTER DOM is ready
  */
 
 class OfflineManager {
@@ -48,21 +40,15 @@ class OfflineManager {
       <div id="offline-modal" class="modal" style="display: none;">
         <div class="modal-content offline-modal-content">
           <button type="button" id="close-offline-modal" class="modal-close">&times;</button>
-          
           <h2>Offline Bible Setup</h2>
-          
           <p>Select Bible versions to download for offline use. You can download up to 3 versions.</p>
-          
           <div id="offline-versions-list"></div>
-          
           <div id="offline-progress" style="display: none; margin: 15px 0;">
             <div class="progress-bar-container">
               <div id="offline-progress-bar" class="progress-bar" style="width: 0%;"></div>
             </div>
           </div>
-          
           <div id="offline-status" style="margin: 15px 0; min-height: 20px;"></div>
-          
           <div class="modal-actions">
             <button type="button" id="download-selected" class="btn btn-primary">Download Selected</button>
             <button type="button" id="close-offline-btn" class="btn btn-secondary">Close</button>
@@ -92,47 +78,31 @@ class OfflineManager {
     
     const path = window.location.pathname;
     
-    // Study Desk: Add below New Study button in left sidebar
+    // Study Desk: Add below New Study button
     if (path.includes('study-desk.html')) {
-      const newStudyBtn = document.querySelector('.study-sidebar button, .left-panel button, .menu button, [class*="new-study"], [class*="New Study"]');
+      const newStudyBtn = document.querySelector('.study-sidebar button, .left-panel button, .menu button');
       if (newStudyBtn) {
         newStudyBtn.insertAdjacentElement('afterend', this.button);
         return;
       }
     }
     
-    // Search: Add to header toolbar (same as index/verse)
-    if (path.includes('search.html')) {
-      const header = document.querySelector('.landing-header-actions, header, .header, .container.flex, .search-header');
-      if (header) {
-        header.appendChild(this.button);
-        return;
-      }
-    }
-    
-    // Verse: Add to toolbar
-    if (path.includes('verse.html')) {
-      const toolbar = document.querySelector('.verse-toolbar, .toolbar, .verse-header, .header-toolbar');
-      if (toolbar) {
-        toolbar.appendChild(this.button);
-        return;
-      }
-    }
-    
-    // Default (index.html): Add to header
+    // Search, Verse, Index: Add to header
     const header = document.querySelector('.landing-header-actions, header, .header, .container.flex');
     if (header) {
       header.appendChild(this.button);
+      return;
     }
+    
+    // Fallback
+    document.body.appendChild(this.button);
   }
   
   setupEventListeners() {
-    // Use event delegation for the button since it's added dynamically
-    document.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'toggle-offline-mode') {
-        this.showModal();
-      }
-    });
+    // Direct listener on the button (now it exists)
+    if (this.button) {
+      this.button.addEventListener('click', () => this.showModal());
+    }
     
     if (this.ui.closeButton) {
       this.ui.closeButton.addEventListener('click', () => this.hideModal());
@@ -150,9 +120,7 @@ class OfflineManager {
     
     if (this.ui.modal) {
       this.ui.modal.addEventListener('click', (e) => {
-        if (e.target === this.ui.modal) {
-          this.hideModal();
-        }
+        if (e.target === this.ui.modal) this.hideModal();
       });
     }
   }
@@ -181,10 +149,9 @@ class OfflineManager {
     
     const listHTML = this.availableVersions.map(version => {
       const isDownloaded = downloadedIds.has(version.id);
-      
       return `
         <label class="version-item">
-          <input type="checkbox" name="bible-version" value="${version.id}" 
+          <input type="checkbox" name="bible-version" value="${version.id}"
                  ${isDownloaded ? 'checked disabled' : ''} ${this.downloading.has(version.id) ? 'disabled' : ''}>
           <span class="version-name">${version.name}</span>
           <span class="version-abbr">(${version.abbreviation})</span>
@@ -212,7 +179,6 @@ class OfflineManager {
     }
     
     const versionsToDownload = Array.from(checkboxes).map(cb => cb.value);
-    
     this.ui.progressBar.style.display = 'block';
     this.ui.progressBarInner.style.width = '0%';
     this.ui.statusText.textContent = `Downloading ${versionsToDownload.length} version(s)...`;
@@ -227,9 +193,7 @@ class OfflineManager {
       try {
         const progress = Math.round(((downloadedCount + 1) / versionsToDownload.length) * 100);
         this.ui.progressBarInner.style.width = `${progress}%`;
-        
         await this.downloadVersion(versionId);
-        
         downloadedCount++;
         this.ui.statusText.textContent = `Downloaded ${downloadedCount} of ${versionsToDownload.length}`;
       } catch (error) {
@@ -244,24 +208,16 @@ class OfflineManager {
     
     this.ui.statusText.textContent = `✓ ${downloadedCount} version(s) ready for offline use!`;
     this.ui.statusText.style.color = '#4CAF50';
-    
-    setTimeout(() => {
-      this.ui.progressBar.style.display = 'none';
-    }, 2000);
+    setTimeout(() => { this.ui.progressBar.style.display = 'none'; }, 2000);
   }
   
   async downloadVersion(bibleId) {
     try {
       const response = await fetch(`/api/bible-download/${bibleId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
-      }
-      
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
       const data = await response.json();
       await window.OfflineBible.storeBibleVersion(bibleId, data);
       await this.storeBooksAndChapters(bibleId, data);
-      
       return true;
     } catch (error) {
       console.error(`[Offline] Failed to download ${bibleId}:`, error);
@@ -274,20 +230,16 @@ class OfflineManager {
       for (const book of bibleData.books) {
         await window.OfflineBible.storeBook({
           id: `${bibleId}::${book.id}`,
-          bibleId,
-          bookId: book.id,
+          bibleId, bookId: book.id,
           name: book.name,
           abbreviation: book.abbreviation,
           testament: book.testament
         });
-        
         if (book.chapters && Array.isArray(book.chapters)) {
           for (const chapter of book.chapters) {
             await window.OfflineBible.storeChapter({
               id: `${bibleId}::${book.id}::${chapter.id}`,
-              bibleId,
-              bookId: book.id,
-              chapterId: chapter.id,
+              bibleId, bookId: book.id, chapterId: chapter.id,
               reference: chapter.reference
             });
           }
@@ -297,7 +249,5 @@ class OfflineManager {
   }
 }
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  window.OfflineManager = new OfflineManager();
-});
+// Export the class - DON'T instantiate yet
+window.OfflineManager = OfflineManager;
