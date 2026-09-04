@@ -19,22 +19,16 @@ class OfflineManager {
   constructor() {
     this.availableVersions = [];
     this.downloading = new Set();
-    this.ui = {
-      modal: null,
-      versionList: null,
-      progressBar: null,
-      progressBarInner: null,
-      statusText: null,
-      toggleButton: null,
-      closeButton: null
-    };
+    this.ui = {};
+    this.button = null;
     
     this.init();
   }
   
   async init() {
     await this.loadAvailableVersions();
-    this.setupUI();
+    this.createModal();
+    this.addButtonToPage();
     this.setupEventListeners();
   }
   
@@ -47,21 +41,6 @@ class OfflineManager {
       console.error('Failed to load Bible versions:', error);
       this.availableVersions = [];
     }
-  }
-  
-  setupUI() {
-    if (!document.getElementById('offline-modal')) {
-      this.createModal();
-    }
-    
-    this.ui.modal = document.getElementById('offline-modal');
-    this.ui.versionList = document.getElementById('offline-versions-list');
-    this.ui.progressBar = document.getElementById('offline-progress');
-    this.ui.progressBarInner = document.getElementById('offline-progress-bar');
-    this.ui.statusText = document.getElementById('offline-status');
-    this.ui.closeButton = document.getElementById('close-offline-modal');
-    
-    this.addButtonToPage();
   }
   
   createModal() {
@@ -93,39 +72,40 @@ class OfflineManager {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    this.ui.modal = document.getElementById('offline-modal');
+    this.ui.versionList = document.getElementById('offline-versions-list');
+    this.ui.progressBar = document.getElementById('offline-progress');
+    this.ui.progressBarInner = document.getElementById('offline-progress-bar');
+    this.ui.statusText = document.getElementById('offline-status');
   }
   
   addButtonToPage() {
     if (document.getElementById('toggle-offline-mode')) return;
     
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.id = 'toggle-offline-mode';
-    button.className = 'offline-toggle-btn';
-    button.innerHTML = '<i class="fa fa-download" aria-hidden="true"></i><span>Offline</span>';
-    button.title = 'Manage offline Bible versions';
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.id = 'toggle-offline-mode';
+    this.button.className = 'offline-toggle-btn';
+    this.button.innerHTML = '<i class="fa fa-download" aria-hidden="true"></i><span>Offline</span>';
+    this.button.title = 'Manage offline Bible versions';
     
     const path = window.location.pathname;
     
-    // Study Desk: Add to left sidebar
+    // Study Desk: Add below New Study button in left sidebar
     if (path.includes('study-desk.html')) {
-      const sidebar = document.querySelector('.left-panel, .sidebar, .study-sidebar, .nav-left, .menu, [class*="sidebar"], [class*="panel"]');
-      if (sidebar) {
-        const newStudyBtn = sidebar.querySelector('button, .btn, [type="button"]');
-        if (newStudyBtn) {
-          newStudyBtn.insertAdjacentElement('afterend', button);
-        } else {
-          sidebar.appendChild(button);
-        }
+      const newStudyBtn = document.querySelector('.study-sidebar button, .left-panel button, .menu button, [class*="new-study"], [class*="New Study"]');
+      if (newStudyBtn) {
+        newStudyBtn.insertAdjacentElement('afterend', this.button);
         return;
       }
     }
     
-    // Search: Add to search container
+    // Search: Add to header toolbar (same as index/verse)
     if (path.includes('search.html')) {
-      const searchContainer = document.querySelector('.search-container, .search-form, .search-box, .search-wrapper, .search-header, form, .container');
-      if (searchContainer) {
-        searchContainer.appendChild(button);
+      const header = document.querySelector('.landing-header-actions, header, .header, .container.flex, .search-header');
+      if (header) {
+        header.appendChild(this.button);
         return;
       }
     }
@@ -134,7 +114,7 @@ class OfflineManager {
     if (path.includes('verse.html')) {
       const toolbar = document.querySelector('.verse-toolbar, .toolbar, .verse-header, .header-toolbar');
       if (toolbar) {
-        toolbar.appendChild(button);
+        toolbar.appendChild(this.button);
         return;
       }
     }
@@ -142,14 +122,17 @@ class OfflineManager {
     // Default (index.html): Add to header
     const header = document.querySelector('.landing-header-actions, header, .header, .container.flex');
     if (header) {
-      header.appendChild(button);
+      header.appendChild(this.button);
     }
   }
   
   setupEventListeners() {
-    if (this.ui.toggleButton) {
-      this.ui.toggleButton.addEventListener('click', () => this.showModal());
-    }
+    // Use event delegation for the button since it's added dynamically
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'toggle-offline-mode') {
+        this.showModal();
+      }
+    });
     
     if (this.ui.closeButton) {
       this.ui.closeButton.addEventListener('click', () => this.hideModal());
@@ -314,4 +297,7 @@ class OfflineManager {
   }
 }
 
-window.OfflineManager = new OfflineManager();
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  window.OfflineManager = new OfflineManager();
+});
