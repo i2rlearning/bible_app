@@ -4,7 +4,7 @@ versions for offline use. * Uses client-side API.Bible calls (via
 my_key.js) - no server endpoints needed. */
 
 class OfflineManager { constructor() { this.availableVersions = [];
-this.filteredVersions = []; this.searchTerm = ""; this.selectedLanguage
+this.filteredVersions = []; this.searchTerm = ““; this.selectedLanguage
 =”all”; this.downloading = new Set(); this.ui = {}; this.button = null;
 this.initialized = false;
 
@@ -24,7 +24,7 @@ async init() { if (this.initialized) return; this.initialized = true;
 }
 
 async loadAvailableVersions() { try { // Use the API key from my_key.js
-(same as rest of your app) const apiKey = typeof API_KEY !== "undefined"
+(same as rest of your app) const apiKey = typeof API_KEY !== “undefined”
 ? API_KEY : (window.API_BIBLE_KEY || window.apiBibleKey);
 
       if (!apiKey) {
@@ -99,11 +99,20 @@ createModal() { if (document.getElementById(‘offline-modal’)) return;
     this.ui.progressBar = document.getElementById('offline-progress');
     this.ui.progressBarInner = document.getElementById('offline-progress-bar');
     this.ui.statusText = document.getElementById('offline-status');
+    this.ui.closeButton = document.getElementById('close-offline-modal');
+    this.ui.search = document.getElementById('offline-search');
+    this.ui.languageFilter = document.getElementById('offline-language-filter');
 
 }
 
-addButtonToPage() { if (document.getElementById(‘toggle-offline-mode’))
-return;
+addButtonToPage() { const existingButtons =
+document.querySelectorAll(‘#toggle-offline-mode’);
+
+    if (existingButtons.length > 0) {
+      console.warn('[Offline] Existing Offline button found:', existingButtons.length);
+      this.button = existingButtons[0];
+      return;
+    }
 
     this.button = document.createElement('button');
     this.button.type = 'button';
@@ -329,12 +338,12 @@ async downloadVersion(bibleId) { try { const apiKey = typeof API_KEY !==
 
 async storeBooksAndChapters(bibleId, bibleData) { if (bibleData.books &&
 Array.isArray(bibleData.books)) { for (const book of bibleData.books) {
-await window.OfflineBible.storeBook({ id: ${bibleId}::${book.id},
-bibleId, bookId: book.id, name: book.name, abbreviation:
-book.abbreviation, testament: book.testament }); if (book.chapters &&
+await window.OfflineBible.storeBook({ id: bibleId : :{book.id}, bibleId,
+bookId: book.id, name: book.name, abbreviation: book.abbreviation,
+testament: book.testament }); if (book.chapters &&
 Array.isArray(book.chapters)) { for (const chapter of book.chapters) {
 await window.OfflineBible.storeChapter({ id:
-${bibleId}::${book.id}::${chapter.id}, bibleId, bookId: book.id,
+bibleId : :{book.id}::${chapter.id}, bibleId, bookId: book.id,
 chapterId: chapter.id, reference: chapter.reference }); } } } } } }
 
 // Export class window.OfflineManager = OfflineManager;
