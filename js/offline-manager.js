@@ -4,7 +4,7 @@ versions for offline use. * Uses client-side API.Bible calls (via
 my_key.js) - no server endpoints needed. */
 
 class OfflineManager { constructor() { this.availableVersions = [];
-this.filteredVersions = []; this.searchTerm = ““; this.selectedLanguage
+this.filteredVersions = []; this.searchTerm = ""; this.selectedLanguage
 =”all”; this.downloading = new Set(); this.ui = {}; this.button = null;
 this.initialized = false;
 
@@ -14,15 +14,17 @@ this.initialized = false;
 
 async init() { if (this.initialized) return; this.initialized = true;
 
-    await this.loadAvailableVersions();
+    if (this.initialized) return;
+    this.initialized = true;
     this.createModal();
     this.addButtonToPage();
     this.setupEventListeners();
+    await this.loadAvailableVersions();
 
 }
 
 async loadAvailableVersions() { try { // Use the API key from my_key.js
-(same as rest of your app) const apiKey = typeof API_KEY !== “undefined”
+(same as rest of your app) const apiKey = typeof API_KEY !== "undefined"
 ? API_KEY : (window.API_BIBLE_KEY || window.apiBibleKey);
 
       if (!apiKey) {
