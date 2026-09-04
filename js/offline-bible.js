@@ -30,7 +30,6 @@ function openDB() {
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
         
-        // Create stores if they don't exist
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: 'bibleId' });
         }
@@ -181,12 +180,10 @@ async function getBookChapters(bibleId, bookId) {
 
 // ========== Initialize ==========
 
-// Initialize database on load
 if (typeof window !== 'undefined') {
   openDB().catch(console.error);
 }
 
-// Export for use in other modules
 window.OfflineBible = {
   storeBibleVersion,
   getBibleVersion,
