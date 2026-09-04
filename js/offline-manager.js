@@ -30,7 +30,7 @@ class OfflineManager {
   async loadAvailableVersions() {
     try {
       // Use the API key from my_key.js (same as rest of your app)
-      const apiKey = window.API_BIBLE_KEY || window.apiBibleKey;
+      const apiKey = typeof API_KEY !== "undefined" ? API_KEY : null;
       
       if (!apiKey) {
         throw new Error('API.Bible key not found in my_key.js');
@@ -278,7 +278,7 @@ class OfflineManager {
   
   async downloadVersion(bibleId) {
     try {
-      const apiKey = window.API_BIBLE_KEY || window.apiBibleKey;
+      const apiKey = typeof API_KEY !== "undefined" ? API_KEY : null;
       
       if (!apiKey) {
         throw new Error('API.Bible key not found');
