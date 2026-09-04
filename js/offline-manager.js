@@ -43,7 +43,7 @@ class OfflineManager {
       //      'api-key': apiKey 
       //    } 
       //  }
-        window.BibleLanguage.getSelectedApiUrl()
+        window.BibleLanguage.getSelectedApiUrl();
       );
       
       if (!response.ok) {
