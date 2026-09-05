@@ -1739,3 +1739,110 @@ header .offline-toggle-btn {
 .verse-auth-buttons #toggle-offline-mode {
   margin-left: 0;
 }
+
+/* Offline version filters and download status */
+.offline-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.42fr);
+  gap: 8px 12px;
+  margin: 18px 0 8px;
+}
+
+.offline-search-label,
+.offline-language-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.offline-search-label {
+  grid-column: 1;
+}
+
+.offline-language-label {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.offline-search,
+.offline-language-filter {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #cfd8e3;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  font: inherit;
+}
+
+.offline-search {
+  grid-column: 1;
+}
+
+.offline-language-filter {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.offline-search:focus,
+.offline-language-filter:focus {
+  outline: 2px solid #2f9ae0;
+  outline-offset: 1px;
+  border-color: #185294;
+}
+
+.offline-filter-summary {
+  min-height: 20px;
+  margin: 6px 0 10px;
+  color: #777;
+  font-size: 0.85rem;
+}
+
+.offline-loading,
+.offline-message {
+  text-align: center;
+  color: #666;
+  padding: 18px 8px;
+}
+
+.offline-message-error {
+  color: #d32f2f;
+}
+
+.version-item-downloading {
+  opacity: 0.65;
+}
+
+.version-item .version-language {
+  margin-left: 10px;
+  color: #888;
+  font-size: 0.82em;
+}
+
+#offline-progress-label {
+  margin-bottom: 7px;
+  color: #444;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+#offline-modal .btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .offline-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .offline-search-label,
+  .offline-search,
+  .offline-language-label,
+  .offline-language-filter {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
