@@ -1,6 +1,7 @@
 /**
- * SERVICE WORKER FOR BIBLE APP 
+ * SERVICE WORKER FOR BIBLE APP
  *
+ * Responsibilities:
  * - Cache the local application shell.
  * - Serve cached local assets when offline.
  * - Never cache API.Bible, Clerk, or other live API requests here.
@@ -12,7 +13,7 @@
 
 "use strict";
 
-const CACHE_NAME = "bible-app-v2";
+const CACHE_NAME = "bible-app-v3";
 const OFFLINE_URL = "/index.html";
 
 const ASSETS_TO_CACHE = [
