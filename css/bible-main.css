@@ -1846,3 +1846,73 @@ header .offline-toggle-btn {
     grid-row: auto;
   }
 }
+
+/* Offline version management controls */
+.offline-storage-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.btn-danger-outline {
+  background: #fff;
+  color: #b3261e;
+  border: 1px solid #b3261e !important;
+}
+
+.btn-danger-outline:hover {
+  background: #fff4f3;
+  color: #8f1d18;
+}
+
+#offline-modal .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.version-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.version-item-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.version-download-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+
+.version-remove-btn {
+  padding: 5px 9px;
+  border: 1px solid #b3261e;
+  border-radius: 4px;
+  background: #fff;
+  color: #b3261e;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.version-remove-btn:hover {
+  background: #fff4f3;
+  color: #8f1d18;
+}
+
+.offline-progress {
+  margin: 15px 0;
+}
+
+.offline-status {
+  margin: 15px 0;
+  min-height: 20px;
+}
