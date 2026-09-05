@@ -1,5 +1,5 @@
 /**
- * GLOBAL INITIALIZATION FOR BIBLE APP - PHASE 1
+ * GLOBAL INITIALIZATION FOR BIBLE APP
  *
  * Responsibilities:
  * - Register the service worker once the page has loaded.
