@@ -69,7 +69,7 @@ app.get("/api/test-db", async (req, res) => {
     const result = await pool.query("SELECT NOW() AS current_time");
     res.json({
       ok: true,
-      message: "Connected to Aiven PostgreSQL",
+      message: "Connected to PostgreSQL",
       database_time: result.rows[0].current_time
     });
   } catch (error) {
@@ -131,6 +131,7 @@ app.get("/api/quill-notes", requireAuth(), async (req, res) => {
         page_key,
         quill_delta_json,
         quill_plain_text,
+        version,
         created_at,
         updated_at
       FROM saved_quill_notes
@@ -163,9 +164,18 @@ app.post("/api/quill-notes", requireAuth(), async (req, res) => {
       quillDelta,
       plainText
     } = req.body;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.body.expectedVersion);
 
     if (!bibleVersionID || !bibleChapterID || !pageKey) {
       return res.status(400).json({ ok: false, message: "Missing Bible page information" });
+    }
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "QUILL_NOTE_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
+      });
     }
 
     const result = await pool.query(
@@ -189,7 +199,10 @@ app.post("/api/quill-notes", requireAuth(), async (req, res) => {
         page_url = EXCLUDED.page_url,
         quill_delta_json = EXCLUDED.quill_delta_json,
         quill_plain_text = EXCLUDED.quill_plain_text,
+        version = saved_quill_notes.version + 1,
         updated_at = NOW()
+      WHERE $8::integer IS NULL
+         OR saved_quill_notes.version = $8
       RETURNING *
       `,
       [
@@ -199,9 +212,29 @@ app.post("/api/quill-notes", requireAuth(), async (req, res) => {
         pageKey,
         pageUrl || "",
         quillDelta,
-        plainText || ""
+        plainText || "",
+        expectedVersion
       ]
     );
+
+    if (!result.rows.length) {
+      const latest = await pool.query(
+        `
+        SELECT *
+        FROM saved_quill_notes
+        WHERE user_id = $1 AND page_key = $2
+        LIMIT 1
+        `,
+        [userId, pageKey]
+      );
+
+      return res.status(409).json({
+        ok: false,
+        code: "QUILL_NOTE_VERSION_CONFLICT",
+        message: "These notes changed since they were loaded.",
+        latestNote: latest.rows[0] || null
+      });
+    }
 
     return res.json({ ok: true, message: "Notes saved", note: result.rows[0] });
   } catch (error) {
@@ -214,15 +247,46 @@ app.delete("/api/quill-notes", requireAuth(), async (req, res) => {
   try {
     const { pageKey } = req.query;
     const userId = req.auth.userId;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.query.expectedVersion);
 
     if (!pageKey) {
       return res.status(400).json({ ok: false, message: "Missing pageKey" });
     }
 
-    await pool.query(
-      `DELETE FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2`,
-      [userId, pageKey]
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "QUILL_NOTE_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      DELETE FROM saved_quill_notes
+      WHERE user_id = $1
+        AND page_key = $2
+        AND ($3::integer IS NULL OR version = $3)
+      RETURNING id
+      `,
+      [userId, pageKey, expectedVersion]
     );
+
+    if (!result.rows.length && expectedVersion !== null) {
+      const latest = await pool.query(
+        `SELECT * FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+        [userId, pageKey]
+      );
+
+      if (latest.rows.length) {
+        return res.status(409).json({
+          ok: false,
+          code: "QUILL_NOTE_VERSION_CONFLICT",
+          message: "These notes changed before they could be deleted.",
+          latestNote: latest.rows[0]
+        });
+      }
+    }
 
     return res.json({ ok: true, message: "Quill notes deleted" });
   } catch (error) {
@@ -258,6 +322,7 @@ app.get("/api/mini-editor-page", requireAuth(), async (req, res) => {
         has_highlights,
         has_drawings,
         has_text_formats,
+        version,
         created_at,
         updated_at
       FROM saved_mini_editor_pages
@@ -293,9 +358,18 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
       hasDrawings,
       hasTextFormats
     } = req.body;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.body.expectedVersion);
 
     if (!bibleVersionID || !bibleChapterID || !pageKey || !miniEditorJson) {
       return res.status(400).json({ ok: false, message: "Missing mini-editor page information" });
+    }
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "MINI_EDITOR_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
+      });
     }
 
     const result = await pool.query(
@@ -327,7 +401,10 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
         has_highlights = EXCLUDED.has_highlights,
         has_drawings = EXCLUDED.has_drawings,
         has_text_formats = EXCLUDED.has_text_formats,
+        version = saved_mini_editor_pages.version + 1,
         updated_at = NOW()
+      WHERE $12::integer IS NULL
+         OR saved_mini_editor_pages.version = $12
       RETURNING *
       `,
       [
@@ -341,9 +418,24 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
         miniEditorJson,
         !!hasHighlights,
         !!hasDrawings,
-        !!hasTextFormats
+        !!hasTextFormats,
+        expectedVersion
       ]
     );
+
+    if (!result.rows.length) {
+      const latest = await pool.query(
+        `SELECT * FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+        [userId, pageKey]
+      );
+
+      return res.status(409).json({
+        ok: false,
+        code: "MINI_EDITOR_VERSION_CONFLICT",
+        message: "This Bible page changed since it was loaded.",
+        latestPage: latest.rows[0] || null
+      });
+    }
 
     return res.json({ ok: true, message: "Mini-editor page saved", page: result.rows[0] });
   } catch (error) {
@@ -363,15 +455,46 @@ app.delete("/api/mini-editor-page", requireAuth(), async (req, res) => {
   try {
     const { pageKey } = req.query;
     const userId = req.auth.userId;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.query.expectedVersion);
 
     if (!pageKey) {
       return res.status(400).json({ ok: false, message: "Missing pageKey" });
     }
 
-    await pool.query(
-      `DELETE FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2`,
-      [userId, pageKey]
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "MINI_EDITOR_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      DELETE FROM saved_mini_editor_pages
+      WHERE user_id = $1
+        AND page_key = $2
+        AND ($3::integer IS NULL OR version = $3)
+      RETURNING id
+      `,
+      [userId, pageKey, expectedVersion]
     );
+
+    if (!result.rows.length && expectedVersion !== null) {
+      const latest = await pool.query(
+        `SELECT * FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+        [userId, pageKey]
+      );
+
+      if (latest.rows.length) {
+        return res.status(409).json({
+          ok: false,
+          code: "MINI_EDITOR_VERSION_CONFLICT",
+          message: "This Bible page changed before it could be deleted.",
+          latestPage: latest.rows[0]
+        });
+      }
+    }
 
     return res.json({ ok: true, message: "Mini-editor page deleted" });
   } catch (error) {
@@ -405,6 +528,8 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
         COALESCE(m.has_drawings, FALSE) AS has_drawings,
         COALESCE(m.has_text_formats, FALSE) AS has_text_formats,
         COALESCE(q.quill_plain_text, '') AS preview,
+        q.version AS quill_version,
+        m.version AS mini_editor_version,
         GREATEST(
           COALESCE(q.updated_at, '1970-01-01'::timestamptz),
           COALESCE(m.updated_at, '1970-01-01'::timestamptz)
@@ -431,6 +556,8 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
       hasDrawings: !!row.has_drawings,
       hasTextFormats: !!row.has_text_formats,
       preview: row.preview || "",
+      quillVersion: row.quill_version === null ? null : Number(row.quill_version) || 1,
+      miniEditorVersion: row.mini_editor_version === null ? null : Number(row.mini_editor_version) || 1,
       updatedAt: row.updated_at
     }));
 
@@ -444,30 +571,86 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
 app.delete("/api/my-notes/:pageKey", requireAuth(), async (req, res) => {
   const { pageKey } = req.params;
   const userId = req.auth.userId;
+  const quillVersion = normalizeOptionalExpectedVersion(req.query.quillVersion);
+  const miniEditorVersion = normalizeOptionalExpectedVersion(req.query.miniEditorVersion);
+  const client = await pool.connect();
 
   try {
-    await pool.query("BEGIN");
+    if (Number.isNaN(quillVersion) || Number.isNaN(miniEditorVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "MY_NOTES_VERSION_INVALID",
+        message: "Version values must be positive integers"
+      });
+    }
 
-    await pool.query(
-      "DELETE FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2",
-      [userId, pageKey]
+    await client.query("BEGIN");
+
+    const quillResult = await client.query(
+      `
+      DELETE FROM saved_quill_notes
+      WHERE user_id = $1
+        AND page_key = $2
+        AND ($3::integer IS NULL OR version = $3)
+      RETURNING id
+      `,
+      [userId, pageKey, quillVersion]
     );
 
-    await pool.query(
-      "DELETE FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2",
-      [userId, pageKey]
+    const miniResult = await client.query(
+      `
+      DELETE FROM saved_mini_editor_pages
+      WHERE user_id = $1
+        AND page_key = $2
+        AND ($3::integer IS NULL OR version = $3)
+      RETURNING id
+      `,
+      [userId, pageKey, miniEditorVersion]
     );
 
-    await pool.query("COMMIT");
+    if (
+      (quillVersion !== null && !quillResult.rows.length) ||
+      (miniEditorVersion !== null && !miniResult.rows.length)
+    ) {
+      const latest = await client.query(
+        `
+        SELECT
+          q.version AS quill_version,
+          m.version AS mini_editor_version
+        FROM (SELECT $2::text AS page_key) requested
+        LEFT JOIN saved_quill_notes q
+          ON q.user_id = $1 AND q.page_key = requested.page_key
+        LEFT JOIN saved_mini_editor_pages m
+          ON m.user_id = $1 AND m.page_key = requested.page_key
+        `,
+        [userId, pageKey]
+      );
+
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+        ok: false,
+        code: "MY_NOTES_VERSION_CONFLICT",
+        message: "This note changed before it could be deleted.",
+        latestVersions: latest.rows[0] || {
+          quill_version: null,
+          mini_editor_version: null
+        }
+      });
+    }
+
+    await client.query("COMMIT");
 
     res.json({
       ok: true,
       message: "Note deleted successfully from all tables"
     });
   } catch (error) {
-    await pool.query("ROLLBACK");
+    await client.query("ROLLBACK");
     console.error("Delete full note error:", error);
     res.status(500).json({ ok: false, message: "Failed to delete note" });
+  } finally {
+    client.release();
   }
 });
 
@@ -525,6 +708,15 @@ function normalizeSortOrder(value, fallback = 0) {
   return Number.isFinite(number) ? Math.trunc(number) : fallback;
 }
 
+function normalizeOptionalExpectedVersion(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const version = Number(value);
+  return Number.isInteger(version) && version >= 1 ? version : NaN;
+}
+
 function normalizeJsonArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -579,6 +771,7 @@ function mapCategoryRow(row) {
     name: row.name,
     sortOrder: row.sort_order || 0,
     isDefault: !!row.is_default,
+    version: Number(row.version) || 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -591,6 +784,7 @@ function mapTagRow(row) {
     name: row.name,
     color: normalizeColor(row.color),
     sortOrder: row.sort_order || 0,
+    version: Number(row.version) || 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -617,6 +811,7 @@ function mapTagScriptureRow(row) {
     endVerse: row.end_verse,
     note: row.note || "",
     sortOrder: Number(row.sort_order) || 0,
+    version: Number(row.version) || 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -718,6 +913,7 @@ async function getTagScriptureById(client, userId, tagId, relationshipId) {
       tsr.scripture_reference_id,
       tsr.note,
       tsr.sort_order,
+      tsr.version,
       tsr.created_at,
       tsr.updated_at,
       sr.normalized_reference,
@@ -825,6 +1021,7 @@ async function getUserCategories(userId) {
       name,
       sort_order,
       is_default,
+      version,
       created_at,
       updated_at
     FROM user_study_categories
@@ -846,6 +1043,7 @@ async function getUserTags(userId) {
       ut.name,
       ut.color,
       ut.sort_order,
+      ut.version,
       ut.created_at,
       ut.updated_at,
       COUNT(tsr.id)::int AS scripture_count
@@ -1051,11 +1249,20 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
     const userId = req.auth.userId;
     const { id } = req.params;
     const name = normalizeText(req.body.name);
+    const expectedVersion = normalizeOptionalExpectedVersion(req.body.expectedVersion);
 
     if (!name) {
       return res.status(400).json({
         ok: false,
         message: "Category name is required"
+      });
+    }
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "CATEGORY_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
       });
     }
 
@@ -1065,23 +1272,37 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
       SET
         name = $3,
         sort_order = $4,
+        version = version + 1,
         updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
+        AND ($5::integer IS NULL OR version = $5)
       RETURNING *
       `,
       [
         userId,
         id,
         name,
-        normalizeSortOrder(req.body.sortOrder)
+        normalizeSortOrder(req.body.sortOrder),
+        expectedVersion
       ]
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({
+      const latest = await pool.query(
+        `SELECT * FROM user_study_categories WHERE user_id = $1 AND id = $2 LIMIT 1`,
+        [userId, id]
+      );
+
+      if (!latest.rows.length) {
+        return res.status(404).json({ ok: false, message: "Category not found" });
+      }
+
+      return res.status(409).json({
         ok: false,
-        message: "Category not found"
+        code: "CATEGORY_VERSION_CONFLICT",
+        message: "This category changed since it was loaded.",
+        latestCategory: mapCategoryRow(latest.rows[0])
       });
     }
 
@@ -1105,13 +1326,25 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.query.expectedVersion);
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "CATEGORY_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
+      });
+    }
 
     await client.query("BEGIN");
 
     await client.query(
       `
       UPDATE saved_studies
-      SET category_id = NULL
+      SET
+        category_id = NULL,
+        version = version + 1,
+        updated_at = NOW()
       WHERE user_id = $1
         AND category_id = $2
       `,
@@ -1123,17 +1356,29 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
       DELETE FROM user_study_categories
       WHERE user_id = $1
         AND id = $2
+        AND ($3::integer IS NULL OR version = $3)
       RETURNING id
       `,
-      [userId, id]
+      [userId, id, expectedVersion]
     );
 
     if (!result.rows.length) {
+      const latest = await client.query(
+        `SELECT * FROM user_study_categories WHERE user_id = $1 AND id = $2 LIMIT 1`,
+        [userId, id]
+      );
+
       await client.query("ROLLBACK");
 
-      return res.status(404).json({
+      if (!latest.rows.length) {
+        return res.status(404).json({ ok: false, message: "Category not found" });
+      }
+
+      return res.status(409).json({
         ok: false,
-        message: "Category not found"
+        code: "CATEGORY_VERSION_CONFLICT",
+        message: "This category changed before it could be deleted.",
+        latestCategory: mapCategoryRow(latest.rows[0])
       });
     }
 
@@ -1204,6 +1449,7 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
       DO UPDATE SET
         color = EXCLUDED.color,
         sort_order = EXCLUDED.sort_order,
+        version = user_tags.version + 1,
         updated_at = NOW()
       RETURNING *
       `,
@@ -1234,11 +1480,20 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
     const userId = req.auth.userId;
     const { id } = req.params;
     const name = properCaseKeywordName(req.body.name);
+    const expectedVersion = normalizeOptionalExpectedVersion(req.body.expectedVersion);
 
     if (!name) {
       return res.status(400).json({
         ok: false,
         message: "Tag name is required"
+      });
+    }
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "TAG_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
       });
     }
 
@@ -1249,9 +1504,11 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
         name = $3,
         color = $4,
         sort_order = $5,
+        version = version + 1,
         updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
+        AND ($6::integer IS NULL OR version = $6)
       RETURNING *
       `,
       [
@@ -1259,14 +1516,26 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
         id,
         name,
         normalizeColor(req.body.color),
-        normalizeSortOrder(req.body.sortOrder)
+        normalizeSortOrder(req.body.sortOrder),
+        expectedVersion
       ]
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({
+      const latest = await pool.query(
+        `SELECT * FROM user_tags WHERE user_id = $1 AND id = $2 LIMIT 1`,
+        [userId, id]
+      );
+
+      if (!latest.rows.length) {
+        return res.status(404).json({ ok: false, message: "Tag not found" });
+      }
+
+      return res.status(409).json({
         ok: false,
-        message: "Tag not found"
+        code: "TAG_VERSION_CONFLICT",
+        message: "This Keyword changed since it was loaded.",
+        latestTag: mapTagRow(latest.rows[0])
       });
     }
 
@@ -1288,21 +1557,42 @@ app.delete("/api/study-tags/:id", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.query.expectedVersion);
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "TAG_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
+      });
+    }
 
     const result = await pool.query(
       `
       DELETE FROM user_tags
       WHERE user_id = $1
         AND id = $2
+        AND ($3::integer IS NULL OR version = $3)
       RETURNING id
       `,
-      [userId, id]
+      [userId, id, expectedVersion]
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({
+      const latest = await pool.query(
+        `SELECT * FROM user_tags WHERE user_id = $1 AND id = $2 LIMIT 1`,
+        [userId, id]
+      );
+
+      if (!latest.rows.length) {
+        return res.status(404).json({ ok: false, message: "Tag not found" });
+      }
+
+      return res.status(409).json({
         ok: false,
-        message: "Tag not found"
+        code: "TAG_VERSION_CONFLICT",
+        message: "This Keyword changed before it could be deleted.",
+        latestTag: mapTagRow(latest.rows[0])
       });
     }
 
@@ -1312,8 +1602,7 @@ app.delete("/api/study-tags/:id", requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error("Delete study tag error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       ok: false,
       message: "Failed to delete tag"
     });
@@ -1344,6 +1633,7 @@ app.get("/api/study-tags/:id/scriptures", requireAuth(), async (req, res) => {
         tsr.scripture_reference_id,
         tsr.note,
         tsr.sort_order,
+        tsr.version,
         tsr.created_at,
         tsr.updated_at,
         sr.normalized_reference,
@@ -1559,6 +1849,7 @@ app.put("/api/study-tags/:id/scriptures/reorder", requireAuth(), async (req, res
         UPDATE tag_scripture_references
         SET
           sort_order = $4,
+          version = version + 1,
           updated_at = NOW()
         WHERE user_id = $1
           AND tag_id = $2
@@ -1593,11 +1884,20 @@ app.put("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), async (
     const userId = req.auth.userId;
     const tagId = req.params.id;
     const { relationshipId } = req.params;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.body.expectedVersion);
 
     if (!isUuid(tagId) || !isUuid(relationshipId)) {
       return res.status(404).json({
         ok: false,
         message: "Scripture relationship not found"
+      });
+    }
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "TAG_SCRIPTURE_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
       });
     }
 
@@ -1661,17 +1961,20 @@ app.put("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), async (
       ? normalizeSortOrder(req.body.sortOrder, existing.sort_order)
       : existing.sort_order;
 
-    await client.query(
+    const updateResult = await client.query(
       `
       UPDATE tag_scripture_references
       SET
         scripture_reference_id = $4,
         note = $5,
         sort_order = $6,
+        version = version + 1,
         updated_at = NOW()
       WHERE user_id = $1
         AND tag_id = $2
         AND id = $3
+        AND ($7::integer IS NULL OR version = $7)
+      RETURNING id
       `,
       [
         userId,
@@ -1679,9 +1982,22 @@ app.put("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), async (
         relationshipId,
         scriptureReference.id,
         note,
-        sortOrder
+        sortOrder,
+        expectedVersion
       ]
     );
+
+    if (!updateResult.rows.length) {
+      const latest = await getTagScriptureById(client, userId, tagId, relationshipId);
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_SCRIPTURE_VERSION_CONFLICT",
+        message: "This Keyword Scripture changed since it was loaded.",
+        latestScripture: latest ? mapTagScriptureRow(latest) : null
+      });
+    }
 
     const relationship = await getTagScriptureById(
       client,
@@ -1722,11 +2038,20 @@ app.delete("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), asyn
     const userId = req.auth.userId;
     const tagId = req.params.id;
     const { relationshipId } = req.params;
+    const expectedVersion = normalizeOptionalExpectedVersion(req.query.expectedVersion);
 
     if (!isUuid(tagId) || !isUuid(relationshipId)) {
       return res.status(404).json({
         ok: false,
         message: "Scripture relationship not found"
+      });
+    }
+
+    if (Number.isNaN(expectedVersion)) {
+      return res.status(400).json({
+        ok: false,
+        code: "TAG_SCRIPTURE_VERSION_INVALID",
+        message: "expectedVersion must be a positive integer"
       });
     }
 
@@ -1736,15 +2061,24 @@ app.delete("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), asyn
       WHERE user_id = $1
         AND tag_id = $2
         AND id = $3
+        AND ($4::integer IS NULL OR version = $4)
       RETURNING id
       `,
-      [userId, tagId, relationshipId]
+      [userId, tagId, relationshipId, expectedVersion]
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({
+      const latest = await getTagScriptureById(pool, userId, tagId, relationshipId);
+
+      if (!latest) {
+        return res.status(404).json({ ok: false, message: "Scripture relationship not found" });
+      }
+
+      return res.status(409).json({
         ok: false,
-        message: "Scripture relationship not found"
+        code: "TAG_SCRIPTURE_VERSION_CONFLICT",
+        message: "This Keyword Scripture changed before it could be deleted.",
+        latestScripture: mapTagScriptureRow(latest)
       });
     }
 
