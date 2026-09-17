@@ -422,10 +422,25 @@ async function openSignup() {
     }
 
     try {
-      const response = await fetch(`/api/my-notes/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        credentials: "include"
-      });
+      const note = allMyNotes.find((item) => String(item.pageKey) === String(id));
+      const params = new URLSearchParams();
+
+      if (Number.isInteger(Number(note?.quillVersion)) && Number(note.quillVersion) >= 1) {
+        params.set("quillVersion", String(Number(note.quillVersion)));
+      }
+
+      if (Number.isInteger(Number(note?.miniEditorVersion)) && Number(note.miniEditorVersion) >= 1) {
+        params.set("miniEditorVersion", String(Number(note.miniEditorVersion)));
+      }
+
+      const query = params.toString();
+      const response = await fetch(
+        `/api/my-notes/${encodeURIComponent(id)}${query ? `?${query}` : ""}`,
+        {
+          method: "DELETE",
+          credentials: "include"
+        }
+      );
 
       const result = await response.json();
 
@@ -436,6 +451,12 @@ async function openSignup() {
           reloadPageAfterMyNotesClose = true;
         }
 
+        await loadMyNotes();
+      } else if (response.status === 409) {
+        alert(
+          "This note changed on another device before it could be deleted. " +
+          "The latest saved version will now be reloaded."
+        );
         await loadMyNotes();
       } else {
         alert("Error: " + (result.message || "Could not delete note."));
@@ -691,11 +712,3 @@ window.addEventListener("load", async () => {
         window.updateAuthUI(user || null);
       }
     });
-
-    if (typeof window.updateAuthUI === "function") {
-      window.updateAuthUI(clerkObj.user || null);
-    }
-  } catch (error) {
-    console.error("Failed to initialize Clerk:", error);
-  }
-});
