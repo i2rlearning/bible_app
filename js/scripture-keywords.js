@@ -51,6 +51,12 @@
       });
   }
 
+  function withExpectedVersion(url, value) {
+    const version = Number(value);
+    if (!Number.isInteger(version) || version < 1) return url;
+    return `${url}${url.includes("?") ? "&" : "?"}expectedVersion=${encodeURIComponent(version)}`;
+  }
+
   async function parseResponse(response) {
     const text = await response.text();
 
@@ -78,6 +84,7 @@
       const error = new Error(result.message || "Request failed");
       error.status = response.status;
       error.code = result.code || "";
+      error.data = result;
       throw error;
     }
 
@@ -628,6 +635,7 @@
           state.connectedKeywords.push({
             ...keyword,
             relationshipId: linked.scripture?.id || "",
+            relationshipVersion: linked.scripture?.version ? Number(linked.scripture.version) : null,
             note: linked.scripture?.note || ""
           });
 
@@ -724,7 +732,10 @@
     try {
       if (existing?.relationshipId) {
         await requestJson(
-          `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures/${encodeURIComponent(existing.relationshipId)}`,
+          withExpectedVersion(
+            `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures/${encodeURIComponent(existing.relationshipId)}`,
+            existing.relationshipVersion
+          ),
           { method: "DELETE" }
         );
 
@@ -743,6 +754,7 @@
         state.connectedKeywords.push({
           ...keyword,
           relationshipId: linked.scripture?.id || "",
+          relationshipVersion: linked.scripture?.version ? Number(linked.scripture.version) : null,
           note: linked.scripture?.note || ""
         });
       }
