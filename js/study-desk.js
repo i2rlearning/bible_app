@@ -1040,6 +1040,17 @@
     return /^#[0-9a-f]{6}$/i.test(color) ? color : "";
   }
 
+  function getExpectedVersion(value) {
+    const version = Number(value);
+    return Number.isInteger(version) && version >= 1 ? version : null;
+  }
+
+  function withExpectedVersion(url, value) {
+    const version = getExpectedVersion(value);
+    if (version === null) return url;
+    return `${url}${url.includes("?") ? "&" : "?"}expectedVersion=${encodeURIComponent(version)}`;
+  }
+
   function sortByOrderAndName(items) {
     items.sort((a, b) => ((a.sortOrder || 0) - (b.sortOrder || 0)) || String(a.name || "").localeCompare(String(b.name || "")));
   }
@@ -4717,7 +4728,11 @@
         `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
         {
           method: "PUT",
-          body: JSON.stringify({ reference, note })
+          body: JSON.stringify({
+            reference,
+            note,
+            expectedVersion: getExpectedVersion(item.version)
+          })
         }
       );
 
@@ -4763,7 +4778,10 @@
 
     try {
       await fetchJson(
-        `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
+        withExpectedVersion(
+          `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
+          item.version
+        ),
         { method: "DELETE" }
       );
 
@@ -4793,18 +4811,42 @@
   }
 
   function persistManagedTagScriptureOrder(tagId, orderedIds) {
+    const orderedItems = orderedIds.map((id) => {
+      const item = state.managedTagScriptures.find((scripture) => scripture.id === id);
+      return {
+        id,
+        expectedVersion: getExpectedVersion(item?.version)
+      };
+    });
+
     managedTagScriptureReorderQueue = managedTagScriptureReorderQueue
       .then(() =>
         fetchJson(`/api/study-tags/${encodeURIComponent(tagId)}/scriptures/reorder`, {
           method: "PUT",
-          body: JSON.stringify({ orderedIds })
+          body: JSON.stringify({ orderedItems })
         })
       )
-      .then(() => {
+      .then((result) => {
+        if (Array.isArray(result.scriptures)) {
+          const versionById = new Map(
+            result.scriptures.map((item) => [String(item.id), item])
+          );
+
+          state.managedTagScriptures = state.managedTagScriptures.map((item) => {
+            const updated = versionById.get(String(item.id));
+            return updated
+              ? { ...item, sortOrder: updated.sortOrder, version: updated.version }
+              : item;
+          });
+        }
+
         publishKeywordDataChanged();
       })
       .catch((error) => {
-        setStatus(error.message || "Failed to save Scripture order.", "error");
+        const message = error?.status === 409
+          ? "Scripture order changed on another device. The latest order will be loaded."
+          : (error.message || "Failed to save Scripture order.");
+        setStatus(message, "error");
 
         if (state.managedTagId === tagId) {
           loadManagedTagScriptures(tagId, { force: true });
@@ -5717,7 +5759,8 @@
           body: JSON.stringify({
             name,
             color,
-            sortOrder: latest.sortOrder || 0
+            sortOrder: latest.sortOrder || 0,
+            expectedVersion: getExpectedVersion(latest.version)
           })
         });
 
@@ -6186,7 +6229,11 @@
     try {
       const result = await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
         method: "PUT",
-        body: JSON.stringify({ name, sortOrder: category.sortOrder || 0 })
+        body: JSON.stringify({
+          name,
+          sortOrder: category.sortOrder || 0,
+          expectedVersion: getExpectedVersion(category.version)
+        })
       });
 
       const updated = result.category;
@@ -6220,7 +6267,12 @@
     try {
       const result = await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
         method: "PUT",
-        body: JSON.stringify({ name, color, sortOrder: tag.sortOrder || 0 })
+        body: JSON.stringify({
+          name,
+          color,
+          sortOrder: tag.sortOrder || 0,
+          expectedVersion: getExpectedVersion(tag.version)
+        })
       });
 
       const updated = {
@@ -6249,9 +6301,13 @@
     }
 
     try {
-      await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
-        method: "DELETE"
-      });
+      await fetchJson(
+        withExpectedVersion(
+          `/api/study-categories/${encodeURIComponent(category.id)}`,
+          category.version
+        ),
+        { method: "DELETE" }
+      );
 
       state.categories = state.categories.filter((item) => item.id !== category.id);
 
@@ -6265,7 +6321,12 @@
 
       state.studies = state.studies.map((study) => {
         if (study.categoryId !== category.id) return study;
-        return { ...study, categoryId: null, category: null };
+        return {
+          ...study,
+          categoryId: null,
+          category: null,
+          version: (Number(study.version) || 1) + 1
+        };
       });
 
       renderCategoryDropdown();
@@ -6285,9 +6346,10 @@
     }
 
     try {
-      await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
-        method: "DELETE"
-      });
+      await fetchJson(
+        withExpectedVersion(`/api/study-tags/${encodeURIComponent(tag.id)}`, tag.version),
+        { method: "DELETE" }
+      );
 
       state.availableTags = state.availableTags.filter((item) => item.id !== tag.id);
       state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
