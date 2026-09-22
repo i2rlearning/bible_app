@@ -165,16 +165,24 @@ body.scripture-keywords-open {
   margin-bottom: 18px;
 }
 
-.scripture-keyword-chip {
+.scripture-keyword-chip-wrap {
   --keyword-chip-color: #dbeafe;
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--keyword-chip-color) 72%, #9aa8ba);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--keyword-chip-color) 72%, #ffffff);
+  overflow: hidden;
+}
+
+.scripture-keyword-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   min-height: 34px;
-  padding: 6px 10px;
-  border: 1px solid color-mix(in srgb, var(--keyword-chip-color) 72%, #9aa8ba);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--keyword-chip-color) 72%, #ffffff);
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  background: transparent;
   color: var(--keyword-navy);
   cursor: pointer;
   font: inherit;
@@ -183,11 +191,35 @@ body.scripture-keywords-open {
   line-height: 1.2;
 }
 
+.scripture-keyword-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 34px;
+  padding: 0 9px 1px 7px;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--keyword-chip-color) 58%, #aab4c2);
+  background: transparent;
+  color: #7a2930;
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .scripture-keyword-chip:hover,
-.scripture-keyword-chip:focus-visible {
+.scripture-keyword-chip:focus-visible,
+.scripture-keyword-chip-remove:hover,
+.scripture-keyword-chip-remove:focus-visible {
+  background: rgba(255, 255, 255, 0.42);
+  outline: none;
+}
+
+.scripture-keyword-chip-wrap:focus-within {
   border-color: #9eb7f8;
   box-shadow: 0 0 0 3px rgba(37, 91, 234, 0.08);
-  outline: none;
 }
 
 .scripture-keyword-chip-dot {
