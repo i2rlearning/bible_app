@@ -735,6 +735,31 @@ body.study-desk-page {
   font-family: Georgia, "Times New Roman", serif;
 }
 
+/* Consecutive Quill blockquote lines are separate blocks internally.
+   Present them as one continuous quotation while preserving the real line breaks. */
+.study-quill-editor .ql-editor blockquote:has(+ blockquote),
+.study-preview-content blockquote:has(+ blockquote) {
+  margin-bottom: 0;
+  padding-bottom: 5px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.study-quill-editor .ql-editor blockquote + blockquote,
+.study-preview-content blockquote + blockquote {
+  margin-top: 0;
+  padding-top: 5px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.study-quill-editor .ql-editor blockquote + blockquote:has(+ blockquote),
+.study-preview-content blockquote + blockquote:has(+ blockquote) {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .study-editor-footer {
   display: flex;
   justify-content: space-between;
