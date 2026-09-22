@@ -399,7 +399,10 @@ function unlockEditorTools() {
 // Quill notes save/load
 // ----------------------------------------------------
 let quillSaveTimer = null;
+let quillSaveQueue = Promise.resolve();
 let quillNotesLoaded = false;
+let quillNotesVersion = 0;
+let quillConflictActive = false;
 
 function getCurrentBiblePageIdentity() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -491,6 +494,9 @@ async function loadQuillNotes() {
 
   if (!pageIdentity) return;
 
+  quillNotesLoaded = false;
+  quillConflictActive = false;
+
   try {
     const response = await fetch(`/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
       method: "GET",
@@ -503,6 +509,8 @@ async function loadQuillNotes() {
       throw new Error(result.message || `Failed to load Quill notes. Status: ${response.status}`);
     }
 
+    quillNotesVersion = result.note?.version ? Number(result.note.version) : 0;
+
     if (result.note && result.note.quill_delta_json) {
       quill.setContents(result.note.quill_delta_json);
     }
@@ -512,6 +520,34 @@ async function loadQuillNotes() {
     console.error("Load Quill notes error:", error);
     quillNotesLoaded = true;
   }
+}
+
+function showEditorVersionConflict(options = {}) {
+  const title = options.title || "Newer version saved on another device";
+  const message =
+    options.message ||
+    "Your changes were not allowed to overwrite the newer saved version.";
+
+  if (window.AppConflictDialog?.show) {
+    window.AppConflictDialog.show({
+      key: options.key || title,
+      title,
+      message,
+      detail:
+        options.detail ||
+        "Your current work is still visible on this device. Saving is paused until you load the latest saved version.",
+      secondaryLabel: "Keep this screen",
+      primaryLabel: "Load latest",
+      onPrimary: () => {
+        if (typeof options.onLoadLatest === "function") {
+          options.onLoadLatest();
+        }
+      }
+    });
+    return;
+  }
+
+  window.alert(`${title}\n\n${message}`);
 }
 
 async function saveQuillNotes() {
@@ -528,18 +564,29 @@ async function saveQuillNotes() {
     const plainText = quill.getText().trim();
 
     if (!plainText) {
+      const deleteParams = new URLSearchParams({ pageKey: pageIdentity.pageKey });
+      deleteParams.set("expectedVersion", String(Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0));
+
       const deleteResponse = await fetch(
-        `/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
+        `/api/quill-notes?${deleteParams.toString()}`,
         {
           method: "DELETE",
           credentials: "include"
         }
       );
+      const deleteResult = await parseResponseSafely(deleteResponse);
 
       if (!deleteResponse.ok) {
-        throw new Error("Failed to delete empty notes");
+        if (deleteResponse.status === 409) {
+          const conflictError = new Error(deleteResult.message || "These notes changed on another device.");
+          conflictError.code = deleteResult.code || "QUILL_NOTE_VERSION_CONFLICT";
+          conflictError.data = deleteResult;
+          throw conflictError;
+        }
+        throw new Error(deleteResult.message || "Failed to delete empty notes");
       }
 
+      quillNotesVersion = 0;
       console.log("Empty Quill notes deleted");
       setEditorSaveStatus("Saved");
       return;
@@ -558,16 +605,21 @@ async function saveQuillNotes() {
         pageUrl: window.location.pathname + window.location.search,
         bookChapterLabel: getCurrentBookChapterLabel(),
         quillDelta,
-        plainText
+        plainText,
+        expectedVersion: Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0
       })
     });
 
     const result = await parseResponseSafely(response);
 
     if (!response.ok) {
-      throw new Error(result.message || `Failed to save Quill editor notes. Status: ${response.status}`);
+      const saveError = new Error(result.message || `Failed to save Quill editor notes. Status: ${response.status}`);
+      saveError.code = result.code || "";
+      saveError.data = result;
+      throw saveError;
     }
 
+    quillNotesVersion = result.note?.version ? Number(result.note.version) : quillNotesVersion;
     console.log("Quill notes saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
@@ -576,6 +628,19 @@ async function saveQuillNotes() {
     }
 
     console.error("Save Quill notes error:", error);
+    if (error?.code === "QUILL_NOTE_VERSION_CONFLICT") {
+      quillConflictActive = true;
+      setEditorSaveStatus("Conflict - newer notes exist");
+      showEditorVersionConflict({
+        key: `quill:${pageIdentity.pageKey}:${error?.data?.latestNote?.version || "newer"}`,
+        title: "Newer My Notes version available",
+        message: "My Notes was changed on another device before this save reached the server.",
+        onLoadLatest: () => {
+          loadQuillNotes();
+        }
+      });
+      return;
+    }
     setEditorSaveStatus("Save failed");
   }
 }
@@ -583,13 +648,14 @@ async function saveQuillNotes() {
 function scheduleQuillNotesSave() {
   if (!editorToolsUnlocked) return;
   if (!quillNotesLoaded) return;
+  if (quillConflictActive) return;
 
   setEditorSaveStatus("Saving...");
 
   clearTimeout(quillSaveTimer);
 
   quillSaveTimer = setTimeout(() => {
-    saveQuillNotes();
+    quillSaveQueue = quillSaveQueue.then(() => saveQuillNotes());
   }, 1200);
 }
 
@@ -692,7 +758,10 @@ function startBibleLayoutObservers() {
 // Mini-editor save/load
 // ----------------------------------------------------
 let miniEditorSaveTimer = null;
+let miniEditorSaveQueue = Promise.resolve();
 let miniEditorLoaded = false;
+let miniEditorVersion = 0;
+let miniEditorConflictActive = false;
 let miniEditorApplyingState = false;
 let miniEditorObserver = null;
 
@@ -1104,6 +1173,8 @@ async function loadMiniEditorPage() {
 
   if (!pageIdentity) return;
 
+  miniEditorConflictActive = false;
+
   try {
     const response = await fetch(`/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
       method: "GET",
@@ -1115,6 +1186,8 @@ async function loadMiniEditorPage() {
     if (!response.ok) {
       throw new Error(result.message || `Failed to load mini-editor page. Status: ${response.status}`);
     }
+
+    miniEditorVersion = result.page?.version ? Number(result.page.version) : 0;
 
     if (result.page && result.page.mini_editor_json) {
       const savedState =
@@ -1151,6 +1224,7 @@ async function reloadMiniEditorPageAfterChapterRender() {
   }
 
   miniEditorLoaded = false;
+  miniEditorVersion = 0;
   miniEditorHistoryReady = false;
   miniEditorUndoStack = [];
   miniEditorRedoStack = [];
@@ -1175,19 +1249,29 @@ async function saveMiniEditorPage() {
 
   try {
     if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
+      const deleteParams = new URLSearchParams({ pageKey: pageIdentity.pageKey });
+      deleteParams.set("expectedVersion", String(Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0));
+
       const deleteResponse = await fetch(
-        `/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`,
+        `/api/mini-editor-page?${deleteParams.toString()}`,
         {
           method: "DELETE",
           credentials: "include"
         }
       );
+      const deleteResult = await parseResponseSafely(deleteResponse);
 
       if (!deleteResponse.ok) {
-        const result = await parseResponseSafely(deleteResponse);
-        throw new Error(result.message || "Failed to delete empty mini-editor page");
+        if (deleteResponse.status === 409) {
+          const conflictError = new Error(deleteResult.message || "This Bible page changed on another device.");
+          conflictError.code = deleteResult.code || "MINI_EDITOR_VERSION_CONFLICT";
+          conflictError.data = deleteResult;
+          throw conflictError;
+        }
+        throw new Error(deleteResult.message || "Failed to delete empty mini-editor page");
       }
 
+      miniEditorVersion = 0;
       console.log("Empty mini-editor page deleted");
       setEditorSaveStatus("Saved");
       return;
@@ -1210,7 +1294,8 @@ async function saveMiniEditorPage() {
         miniEditorJson,
         hasHighlights: flags.hasHighlights,
         hasDrawings: flags.hasDrawings,
-        hasTextFormats: flags.hasTextFormats
+        hasTextFormats: flags.hasTextFormats,
+        expectedVersion: Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0
       })
     });
 
@@ -1226,9 +1311,13 @@ async function saveMiniEditorPage() {
         .filter(Boolean)
         .join(" | ");
     
-      throw new Error(detailedError || `Failed to save mini-editor page. Status: ${response.status}`);
+      const saveError = new Error(detailedError || `Failed to save mini-editor page. Status: ${response.status}`);
+      saveError.code = result.code || "";
+      saveError.data = result;
+      throw saveError;
     }
 
+    miniEditorVersion = result.page?.version ? Number(result.page.version) : miniEditorVersion;
     console.log("Mini-editor page saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
@@ -1237,6 +1326,19 @@ async function saveMiniEditorPage() {
     }
 
     console.error("Save mini-editor page error:", error);
+    if (error?.code === "MINI_EDITOR_VERSION_CONFLICT") {
+      miniEditorConflictActive = true;
+      setEditorSaveStatus("Conflict - newer annotations exist");
+      showEditorVersionConflict({
+        key: `mini:${pageIdentity.pageKey}:${error?.data?.latestPage?.version || "newer"}`,
+        title: "Newer annotation version available",
+        message: "Highlights, formatting, drawings, or annotations changed on another device before this save reached the server.",
+        onLoadLatest: () => {
+          reloadMiniEditorPageAfterChapterRender();
+        }
+      });
+      return;
+    }
     setEditorSaveStatus("Save failed");
   }
 }
@@ -1245,13 +1347,14 @@ function scheduleMiniEditorSave() {
   if (!editorToolsUnlocked) return;
   if (!miniEditorLoaded) return;
   if (miniEditorApplyingState) return;
+  if (miniEditorConflictActive) return;
 
   setEditorSaveStatus("Saving...");
 
   clearTimeout(miniEditorSaveTimer);
 
   miniEditorSaveTimer = setTimeout(() => {
-    saveMiniEditorPage();
+    miniEditorSaveQueue = miniEditorSaveQueue.then(() => saveMiniEditorPage());
   }, 1200);
 }
 
