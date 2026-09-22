@@ -164,7 +164,7 @@ app.post("/api/quill-notes", requireAuth(), async (req, res) => {
       quillDelta,
       plainText
     } = req.body;
-    const expectedVersion = normalizeOptionalExpectedVersion(req.body.expectedVersion);
+    const expectedVersion = normalizeOptionalExpectedVersionAllowZero(req.body.expectedVersion);
 
     if (!bibleVersionID || !bibleChapterID || !pageKey) {
       return res.status(400).json({ ok: false, message: "Missing Bible page information" });
@@ -174,7 +174,7 @@ app.post("/api/quill-notes", requireAuth(), async (req, res) => {
       return res.status(400).json({
         ok: false,
         code: "QUILL_NOTE_VERSION_INVALID",
-        message: "expectedVersion must be a positive integer"
+        message: "expectedVersion must be zero or a positive integer"
       });
     }
 
@@ -247,7 +247,7 @@ app.delete("/api/quill-notes", requireAuth(), async (req, res) => {
   try {
     const { pageKey } = req.query;
     const userId = req.auth.userId;
-    const expectedVersion = normalizeOptionalExpectedVersion(req.query.expectedVersion);
+    const expectedVersion = normalizeOptionalExpectedVersionAllowZero(req.query.expectedVersion);
 
     if (!pageKey) {
       return res.status(400).json({ ok: false, message: "Missing pageKey" });
@@ -257,7 +257,7 @@ app.delete("/api/quill-notes", requireAuth(), async (req, res) => {
       return res.status(400).json({
         ok: false,
         code: "QUILL_NOTE_VERSION_INVALID",
-        message: "expectedVersion must be a positive integer"
+        message: "expectedVersion must be zero or a positive integer"
       });
     }
 
@@ -358,7 +358,7 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
       hasDrawings,
       hasTextFormats
     } = req.body;
-    const expectedVersion = normalizeOptionalExpectedVersion(req.body.expectedVersion);
+    const expectedVersion = normalizeOptionalExpectedVersionAllowZero(req.body.expectedVersion);
 
     if (!bibleVersionID || !bibleChapterID || !pageKey || !miniEditorJson) {
       return res.status(400).json({ ok: false, message: "Missing mini-editor page information" });
@@ -368,7 +368,7 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
       return res.status(400).json({
         ok: false,
         code: "MINI_EDITOR_VERSION_INVALID",
-        message: "expectedVersion must be a positive integer"
+        message: "expectedVersion must be zero or a positive integer"
       });
     }
 
@@ -455,7 +455,7 @@ app.delete("/api/mini-editor-page", requireAuth(), async (req, res) => {
   try {
     const { pageKey } = req.query;
     const userId = req.auth.userId;
-    const expectedVersion = normalizeOptionalExpectedVersion(req.query.expectedVersion);
+    const expectedVersion = normalizeOptionalExpectedVersionAllowZero(req.query.expectedVersion);
 
     if (!pageKey) {
       return res.status(400).json({ ok: false, message: "Missing pageKey" });
@@ -465,7 +465,7 @@ app.delete("/api/mini-editor-page", requireAuth(), async (req, res) => {
       return res.status(400).json({
         ok: false,
         code: "MINI_EDITOR_VERSION_INVALID",
-        message: "expectedVersion must be a positive integer"
+        message: "expectedVersion must be zero or a positive integer"
       });
     }
 
@@ -715,6 +715,15 @@ function normalizeOptionalExpectedVersion(value) {
 
   const version = Number(value);
   return Number.isInteger(version) && version >= 1 ? version : NaN;
+}
+
+function normalizeOptionalExpectedVersionAllowZero(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const version = Number(value);
+  return Number.isInteger(version) && version >= 0 ? version : NaN;
 }
 
 function normalizeJsonArray(value) {
@@ -1428,7 +1437,27 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
     if (!name) {
       return res.status(400).json({
         ok: false,
-        message: "Tag name is required"
+        message: "Keyword name is required"
+      });
+    }
+
+    const existing = await pool.query(
+      `
+      SELECT *
+      FROM user_tags
+      WHERE user_id = $1
+        AND LOWER(name) = LOWER($2)
+      LIMIT 1
+      `,
+      [userId, name]
+    );
+
+    if (existing.rows.length) {
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_DUPLICATE",
+        message: "Keyword already exists.",
+        existingTag: mapTagRow(existing.rows[0])
       });
     }
 
@@ -1445,12 +1474,6 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
         updated_at
       )
       VALUES ($1, $2, $3, $4, NOW(), NOW())
-      ON CONFLICT (user_id, name)
-      DO UPDATE SET
-        color = EXCLUDED.color,
-        sort_order = EXCLUDED.sort_order,
-        version = user_tags.version + 1,
-        updated_at = NOW()
       RETURNING *
       `,
       [
@@ -1466,14 +1489,23 @@ app.post("/api/study-tags", requireAuth(), async (req, res) => {
       tag: mapTagRow(result.rows[0])
     });
   } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_DUPLICATE",
+        message: "Keyword already exists."
+      });
+    }
+
     console.error("Create study tag error:", error);
 
     res.status(500).json({
       ok: false,
-      message: "Failed to save tag"
+      message: "Failed to save Keyword"
     });
   }
 });
+
 
 app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
   try {
@@ -1544,6 +1576,14 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
       tag: mapTagRow(result.rows[0])
     });
   } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({
+        ok: false,
+        code: "TAG_DUPLICATE",
+        message: "Keyword already exists."
+      });
+    }
+
     console.error("Update study tag error:", error);
 
     res.status(500).json({
@@ -1793,15 +1833,36 @@ app.put("/api/study-tags/:id/scriptures/reorder", requireAuth(), async (req, res
   try {
     const userId = req.auth.userId;
     const tagId = req.params.id;
-    const orderedIds = Array.isArray(req.body.orderedIds)
-      ? req.body.orderedIds
-      : [];
+    const orderedItems = Array.isArray(req.body.orderedItems)
+      ? req.body.orderedItems
+      : null;
+    const orderedIds = orderedItems
+      ? orderedItems.map((item) => item?.id)
+      : (Array.isArray(req.body.orderedIds) ? req.body.orderedIds : []);
 
     if (!orderedIds.every(isUuid) || new Set(orderedIds.map((id) => id.toLowerCase())).size !== orderedIds.length) {
       return res.status(400).json({
         ok: false,
         message: "orderedIds must contain unique relationship IDs"
       });
+    }
+
+    const expectedVersions = new Map();
+
+    if (orderedItems) {
+      for (const item of orderedItems) {
+        const expectedVersion = normalizeOptionalExpectedVersion(item?.expectedVersion);
+
+        if (!item || !isUuid(item.id) || Number.isNaN(expectedVersion) || expectedVersion === null) {
+          return res.status(400).json({
+            ok: false,
+            code: "TAG_SCRIPTURE_VERSION_INVALID",
+            message: "Each reordered Scripture must include a valid expectedVersion"
+          });
+        }
+
+        expectedVersions.set(String(item.id).toLowerCase(), expectedVersion);
+      }
     }
 
     await client.query("BEGIN");
@@ -1816,7 +1877,7 @@ app.put("/api/study-tags/:id/scriptures/reorder", requireAuth(), async (req, res
 
     const existing = await client.query(
       `
-      SELECT id
+      SELECT id, version
       FROM tag_scripture_references
       WHERE user_id = $1
         AND tag_id = $2
@@ -1844,7 +1905,9 @@ app.put("/api/study-tags/:id/scriptures/reorder", requireAuth(), async (req, res
     }
 
     for (let index = 0; index < orderedIds.length; index += 1) {
-      await client.query(
+      const relationshipId = orderedIds[index];
+      const expectedVersion = expectedVersions.get(String(relationshipId).toLowerCase()) ?? null;
+      const updateResult = await client.query(
         `
         UPDATE tag_scripture_references
         SET
@@ -1854,16 +1917,43 @@ app.put("/api/study-tags/:id/scriptures/reorder", requireAuth(), async (req, res
         WHERE user_id = $1
           AND tag_id = $2
           AND id = $3
+          AND ($5::integer IS NULL OR version = $5)
+        RETURNING id
         `,
-        [userId, tagId, orderedIds[index], index]
+        [userId, tagId, relationshipId, index, expectedVersion]
       );
+
+      if (!updateResult.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          ok: false,
+          code: "TAG_SCRIPTURE_REORDER_VERSION_CONFLICT",
+          message: "Scripture order changed on another device. Refresh and try again."
+        });
+      }
     }
+
+    const updated = await client.query(
+      `
+      SELECT id, sort_order, version
+      FROM tag_scripture_references
+      WHERE user_id = $1
+        AND tag_id = $2
+      ORDER BY sort_order, created_at, id
+      `,
+      [userId, tagId]
+    );
 
     await client.query("COMMIT");
 
     return res.json({
       ok: true,
-      message: "Scripture order updated"
+      message: "Scripture order updated",
+      scriptures: updated.rows.map((row) => ({
+        id: row.id,
+        sortOrder: Number(row.sort_order) || 0,
+        version: Number(row.version) || 1
+      }))
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -2116,11 +2206,13 @@ app.get("/api/scripture-references/tags", requireAuth(), async (req, res) => {
         t.name,
         t.color,
         t.sort_order,
+        t.version,
         t.created_at,
         t.updated_at,
         tsr.id AS relationship_id,
         tsr.note AS relationship_note,
-        tsr.sort_order AS relationship_sort_order
+        tsr.sort_order AS relationship_sort_order,
+        tsr.version AS relationship_version
       FROM scripture_references sr
       INNER JOIN tag_scripture_references tsr
         ON tsr.scripture_reference_id = sr.id
@@ -2140,6 +2232,7 @@ app.get("/api/scripture-references/tags", requireAuth(), async (req, res) => {
       tags: result.rows.map((row) => ({
         ...mapTagRow(row),
         relationshipId: row.relationship_id,
+        relationshipVersion: Number(row.relationship_version) || 1,
         note: row.relationship_note || "",
         relationshipSortOrder: Number(row.relationship_sort_order) || 0
       }))
