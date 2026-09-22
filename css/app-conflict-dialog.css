@@ -1,0 +1,119 @@
+.app-conflict-dialog[hidden] {
+  display: none !important;
+}
+
+.app-conflict-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.app-conflict-dialog-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid #d7dfeb;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #15233b;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.24);
+}
+
+.app-conflict-dialog-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: #fff4e5;
+  color: #9a4d00;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.app-conflict-dialog-content {
+  min-width: 0;
+}
+
+.app-conflict-dialog-content h2 {
+  margin: 0;
+  color: #10294f;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.app-conflict-dialog-content p {
+  margin: 9px 0 0;
+  color: #44546a;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.app-conflict-dialog-detail {
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #f7f9fc;
+}
+
+.app-conflict-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+.app-conflict-dialog-actions button {
+  min-height: 42px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.app-conflict-dialog-secondary {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.app-conflict-dialog-primary {
+  border: 1px solid #255bea;
+  background: #255bea;
+  color: #ffffff;
+}
+
+.app-conflict-dialog-actions button:focus-visible {
+  outline: 3px solid rgba(37, 91, 234, 0.24);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .app-conflict-dialog {
+    padding: 12px;
+  }
+
+  .app-conflict-dialog-card {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 10px;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .app-conflict-dialog-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+  }
