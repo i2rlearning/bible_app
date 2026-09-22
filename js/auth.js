@@ -422,10 +422,25 @@ async function openSignup() {
     }
 
     try {
-      const response = await fetch(`/api/my-notes/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        credentials: "include"
-      });
+      const note = allMyNotes.find((item) => String(item.pageKey) === String(id));
+      const params = new URLSearchParams();
+
+      if (Number.isInteger(Number(note?.quillVersion)) && Number(note.quillVersion) >= 1) {
+        params.set("quillVersion", String(Number(note.quillVersion)));
+      }
+
+      if (Number.isInteger(Number(note?.miniEditorVersion)) && Number(note.miniEditorVersion) >= 1) {
+        params.set("miniEditorVersion", String(Number(note.miniEditorVersion)));
+      }
+
+      const query = params.toString();
+      const response = await fetch(
+        `/api/my-notes/${encodeURIComponent(id)}${query ? `?${query}` : ""}`,
+        {
+          method: "DELETE",
+          credentials: "include"
+        }
+      );
 
       const result = await response.json();
 
@@ -437,6 +452,24 @@ async function openSignup() {
         }
 
         await loadMyNotes();
+      } else if (response.status === 409) {
+        if (window.AppConflictDialog?.show) {
+          window.AppConflictDialog.show({
+            key: `my-notes-delete:${id}:${result?.latestQuillNote?.version || result?.latestMiniEditorPage?.version || "newer"}`,
+            title: "Newer My Notes version available",
+            message: "This note changed on another device before it could be deleted.",
+            detail: "The delete was blocked so the newer saved version was not lost.",
+            secondaryLabel: null,
+            primaryLabel: "Reload notes",
+            onPrimary: () => loadMyNotes()
+          });
+        } else {
+          alert(
+            "This note changed on another device before it could be deleted. " +
+            "The latest saved version will now be reloaded."
+          );
+          await loadMyNotes();
+        }
       } else {
         alert("Error: " + (result.message || "Could not delete note."));
       }
