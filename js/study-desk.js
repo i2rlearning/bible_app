@@ -35,6 +35,7 @@
     isLoadingManagedTagScriptures: false,
     isMutatingManagedTagScripture: false,
     keywordDataStale: false,
+    managedTagConflictId: "",
     managedTagScriptureFeedback: null,
     tagManagerTab: "study",
     tagManagerSearch: "",
@@ -86,6 +87,7 @@
   let keywordManagerFitController = null;
   let previewReferencedFitController = null;
   let lastQuillSelection = null;
+  let lastStudyConflictDialogKey = "";
 
   const els = {};
   let statusClearTimer = null;
@@ -231,6 +233,80 @@
     updateStudyActionAvailability();
   }
 
+  function showStudyConflictDialog(sourceLabel = "another device") {
+    if (!state.remoteStudy || state.remoteStudy.deleted) return;
+
+    const remoteVersion = Number(state.remoteStudy.version) || 0;
+    const key = `study:${state.activeStudyId || "unknown"}:${remoteVersion}`;
+
+    if (lastStudyConflictDialogKey === key) return;
+    lastStudyConflictDialogKey = key;
+
+    if (!window.AppConflictDialog?.show) return;
+
+    window.AppConflictDialog.show({
+      key,
+      title: "Newer study version available",
+      message: `This study was saved from ${sourceLabel} after the version currently open here.`,
+      detail: state.hasUnsavedChanges
+        ? "Your unsaved changes are still visible. Save is paused so they cannot overwrite the newer version."
+        : "Saving is paused until you review or load the newer version.",
+      secondaryLabel: "Keep this screen",
+      primaryLabel: "Review conflict",
+      onPrimary: () => {
+        els.status?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        els.status?.querySelector?.(".study-conflict-button")?.focus?.();
+      }
+    });
+  }
+
+  function showStudyDataConflict(error, label = "This item") {
+    const code = error?.data?.code || error?.code || "";
+
+    if (!String(code).includes("VERSION_CONFLICT")) {
+      return false;
+    }
+
+    if (window.AppConflictDialog?.show) {
+      window.AppConflictDialog.show({
+        key: `${code}:${error?.data?.latestTag?.version || error?.data?.latestScripture?.version || "newer"}`,
+        title: `${label} changed on another device`,
+        message: "Your change was not allowed to overwrite the newer saved version.",
+        detail: "Refresh this page to load the latest saved data before making another change.",
+        secondaryLabel: "Keep this screen",
+        primaryLabel: "Refresh page",
+        onPrimary: () => window.location.reload()
+      });
+    }
+
+    return true;
+  }
+
+  function showDuplicateKeywordNotice(error, keywordName = "") {
+    const code = error?.data?.code || error?.code || "";
+
+    if (code !== "TAG_DUPLICATE") {
+      return false;
+    }
+
+    const name = normalizeName(keywordName);
+
+    if (window.AppConflictDialog?.show) {
+      window.AppConflictDialog.show({
+        key: `duplicate-keyword:${name.toLowerCase()}`,
+        title: "Keyword already exists",
+        message: name
+          ? `"${name}" already exists in your Keyword library.`
+          : "That Keyword already exists in your Keyword library.",
+        detail: "Use the existing Keyword instead of creating another copy.",
+        secondaryLabel: null,
+        primaryLabel: "OK"
+      });
+    }
+
+    return true;
+  }
+
   function renderStudyConflictNotice(sourceLabel = "another window or device", confirmDiscard = false) {
     if (!els.status || !state.remoteStudy || state.remoteStudy.deleted) return;
 
@@ -294,6 +370,10 @@
     els.status.append(text, actions);
     setSaveState("Newer version available");
     updateStudyActionAvailability();
+
+    if (!confirmDiscard) {
+      showStudyConflictDialog(sourceLabel);
+    }
   }
 
   function ensureReferencedScriptureFeedback() {
@@ -1035,9 +1115,100 @@
     };
   }
   
+  function validateScriptureReferenceList(value) {
+    const cleaned = normalizeName(value);
+
+    if (!cleaned) {
+      return {
+        valid: false,
+        code: "EMPTY",
+        reference: "",
+        references: [],
+        message: "Enter a Scripture reference."
+      };
+    }
+
+    const rawSegments = String(value)
+      .split(";")
+      .map((segment) => normalizeName(segment))
+      .filter(Boolean);
+
+    if (!rawSegments.length) {
+      return {
+        valid: false,
+        code: "EMPTY",
+        reference: "",
+        references: [],
+        message: "Enter a Scripture reference."
+      };
+    }
+
+    const references = [];
+    const seen = new Set();
+    let currentBook = "";
+
+    for (const rawSegment of rawSegments) {
+      let candidate = rawSegment;
+
+      if (/^\d/.test(candidate) && currentBook) {
+        candidate = `${currentBook} ${candidate}`;
+      }
+
+      const validation = validateScriptureReference(candidate);
+
+      if (!validation.valid) {
+        return {
+          valid: false,
+          code: validation.code,
+          reference: references.length
+            ? `${references.join("; ")}; ${normalizeScriptureReference(candidate)}`
+            : normalizeScriptureReference(candidate),
+          references,
+          message: `"${rawSegment}" is not valid. ${validation.message}`
+        };
+      }
+
+      currentBook = validation.parsed?.book || currentBook;
+      const reference = validation.reference;
+      const key = reference.toLowerCase();
+
+      if (seen.has(key)) {
+        return {
+          valid: false,
+          code: "DUPLICATE_REFERENCE",
+          reference: [...references, reference].join("; "),
+          references,
+          message: `${reference} appears more than once.`
+        };
+      }
+
+      seen.add(key);
+      references.push(reference);
+    }
+
+    return {
+      valid: true,
+      code: "",
+      reference: references.join("; "),
+      references,
+      message: ""
+    };
+  }
+
   function normalizeColorValue(value) {
     const color = String(value || "").trim();
     return /^#[0-9a-f]{6}$/i.test(color) ? color : "";
+  }
+
+  function getExpectedVersion(value) {
+    const version = Number(value);
+    return Number.isInteger(version) && version >= 1 ? version : null;
+  }
+
+  function withExpectedVersion(url, value) {
+    const version = getExpectedVersion(value);
+    if (version === null) return url;
+    return `${url}${url.includes("?") ? "&" : "?"}expectedVersion=${encodeURIComponent(version)}`;
   }
 
   function sortByOrderAndName(items) {
@@ -1131,6 +1302,7 @@
     const loadedVersion = Number(data.version);
     state.activeStudyVersion = Number.isInteger(loadedVersion) && loadedVersion >= 1 ? loadedVersion : null;
     state.remoteStudy = null;
+    lastStudyConflictDialogKey = "";
     state.referencedScripturesStale = false;
     state.referencedScripturesRemoteStudy = null;
     state.referencedScripturesDirty = false;
@@ -1352,6 +1524,18 @@
       );
       setSaveState("Study deleted elsewhere");
       updateStudyActionAvailability();
+
+      if (window.AppConflictDialog?.show) {
+        window.AppConflictDialog.show({
+          key: `study-deleted:${studyId}`,
+          title: "Study deleted on another device",
+          message: "This study was deleted elsewhere while you still have unsaved changes open here.",
+          detail: "Your local work is still visible. It has not been silently discarded.",
+          secondaryLabel: null,
+          primaryLabel: "OK"
+        });
+      }
+
       return;
     }
 
@@ -2068,6 +2252,7 @@
       els.tagInput.focus();
     } catch (error) {
       setStatus(error.message, "error");
+      showDuplicateKeywordNotice(error, name);
     }
   }
 
@@ -2910,7 +3095,7 @@
     const referenceInput = document.createElement("input");
     referenceInput.type = "text";
     referenceInput.value = item.reference || "";
-    referenceInput.placeholder = "Reference, e.g. John 3:16";
+    referenceInput.placeholder = "Reference, e.g. Job 9:9; 38:31-33";
     referenceInput.addEventListener("input", () => {
       setReferencedScriptureFeedback("", "");
       updateReferencedScriptureRefreshNotice();
@@ -3061,12 +3246,12 @@
   }
 
   function updateAddScriptureButtonState() {
-    const validation = validateScriptureReference(els.scriptureReference.value);
+    const validation = validateScriptureReferenceList(els.scriptureReference.value);
     els.addScripture.disabled = !validation.valid;
   }
 
   function addLinkedScripture() {
-    const validation = validateScriptureReference(els.scriptureReference.value);
+    const validation = validateScriptureReferenceList(els.scriptureReference.value);
     const note = els.scriptureNote.value.trim();
 
     if (!validation.valid) {
@@ -3077,24 +3262,48 @@
       return;
     }
 
-    const reference = validation.reference;
+    const existing = [];
+    const added = [];
 
-    if (hasScriptureReference(state.linkedScriptures, reference)) {
-      setReferencedScriptureFeedback(`${reference} already exists.`, "error");
+    validation.references.forEach((reference) => {
+      if (hasScriptureReference(state.linkedScriptures, reference)) {
+        existing.push(reference);
+        return;
+      }
+
+      state.linkedScriptures.push({ reference, note });
+      added.push(reference);
+    });
+
+    if (!added.length) {
+      setReferencedScriptureFeedback(
+        existing.length === 1
+          ? `${existing[0]} already exists.`
+          : "Those Scripture references already exist.",
+        "error"
+      );
       els.scriptureReference.focus();
       return;
     }
 
-    setReferencedScriptureFeedback("", "");
-    state.linkedScriptures.push({ reference, note });
     state.editingScriptureIndex = null;
-
     els.scriptureReference.value = "";
     els.scriptureNote.value = "";
     updateAddScriptureButtonState();
     renderLinkedScriptures();
     renderRelatedScriptures();
     markReferencedScripturesDirty();
+
+    if (existing.length) {
+      setReferencedScriptureFeedback(
+        `Added ${added.length} ${added.length === 1 ? "reference" : "references"}. Skipped ${existing.length} duplicate ${existing.length === 1 ? "reference" : "references"}.`,
+        "success"
+      );
+    } else if (added.length > 1) {
+      setReferencedScriptureFeedback(`${added.length} Scripture references added.`, "success");
+    } else {
+      setReferencedScriptureFeedback(`${added[0]} added.`, "success");
+    }
   }
 
   function getPreviewBibleState() {
@@ -4568,7 +4777,7 @@
 
   function updateManagedTagScriptureAddButton(referenceInput, button) {
     if (!referenceInput || !button) return;
-    const validation = validateScriptureReference(referenceInput.value);
+    const validation = validateScriptureReferenceList(referenceInput.value);
     button.disabled = !validation.valid;
   }
 
@@ -4576,7 +4785,7 @@
     if (!tag?.id || !referenceInput || !noteInput || !button) return;
     if (state.isMutatingManagedTagScripture) return;
 
-    const validation = validateScriptureReference(referenceInput.value);
+    const validation = validateScriptureReferenceList(referenceInput.value);
     const note = noteInput.value.trim();
 
     if (!validation.valid) {
@@ -4587,40 +4796,58 @@
       return;
     }
 
-    const reference = validation.reference;
+    const existingReferences = validation.references.filter((reference) =>
+      hasScriptureReference(state.managedTagScriptures, reference)
+    );
+    const referencesToAdd = validation.references.filter((reference) =>
+      !hasScriptureReference(state.managedTagScriptures, reference)
+    );
 
-    if (hasScriptureReference(state.managedTagScriptures, reference)) {
+    if (!referencesToAdd.length) {
       setManagedTagScriptureFeedback(
-        "You already added that reference to this keyword.",
+        existingReferences.length === 1
+          ? "You already added that reference to this keyword."
+          : "Those Scripture references are already connected to this keyword.",
         "warning"
       );
       referenceInput.focus();
       return;
     }
 
-    // Invalidate any older background GET before starting the mutation. Otherwise an
-    // in-flight refresh can finish after this POST and overwrite the newly added item.
     managedTagScriptureLoadToken += 1;
     state.isMutatingManagedTagScripture = true;
 
     setManagedTagScriptureFeedback("", "");
-    referenceInput.value = reference;
+    referenceInput.value = validation.reference;
     const originalText = button.textContent;
     button.disabled = true;
-    button.textContent = "Adding...";
+    button.textContent = referencesToAdd.length > 1 ? "Adding..." : "Adding...";
+
+    const added = [];
 
     try {
-      const result = await fetchJson(
-        `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures`,
-        {
-          method: "POST",
-          body: JSON.stringify({ reference, note })
+      for (const reference of referencesToAdd) {
+        const result = await fetchJson(
+          `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures`,
+          {
+            method: "POST",
+            body: JSON.stringify({ reference, note })
+          }
+        );
+
+        if (result.scripture) {
+          added.push(result.scripture);
         }
-      );
+      }
 
       if (state.managedTagId !== tag.id) return;
 
-      state.managedTagScriptures.push(result.scripture);
+      added.forEach((scripture) => {
+        if (!hasScriptureReference(state.managedTagScriptures, scripture.reference)) {
+          state.managedTagScriptures.push(scripture);
+        }
+      });
+
       state.managedTagScripturesTagId = tag.id;
       state.editingManagedTagScriptureId = "";
 
@@ -4629,18 +4856,34 @@
         currentTag.scriptureCount = state.managedTagScriptures.length;
       }
 
-      setManagedTagScriptureFeedback(`${result.scripture.reference} added.`, "success");
-      setStatus("Scripture connected to keyword.", "success");
+      referenceInput.value = "";
+      noteInput.value = "";
+      updateManagedTagScriptureAddButton(referenceInput, button);
+
+      if (existingReferences.length) {
+        setManagedTagScriptureFeedback(
+          `Added ${added.length} ${added.length === 1 ? "Scripture" : "Scriptures"}. Skipped ${existingReferences.length} duplicate ${existingReferences.length === 1 ? "reference" : "references"}.`,
+          "success"
+        );
+      } else if (added.length > 1) {
+        setManagedTagScriptureFeedback(`${added.length} Scriptures added.`, "success");
+      } else {
+        setManagedTagScriptureFeedback(`${added[0]?.reference || referencesToAdd[0]} added.`, "success");
+      }
+
+      setStatus(
+        added.length > 1 ? "Scriptures connected to keyword." : "Scripture connected to keyword.",
+        "success"
+      );
       invalidateRelatedScriptures({ refresh: true });
       publishKeywordDataChanged();
 
-      // Update only the pieces that changed. This keeps the Keyword editor stable
-      // instead of rebuilding the entire modal and producing the visible flicker.
       renderTagLibraryList();
       renderManagedTagScriptureConnectionsInPlace(tag.id);
     } catch (error) {
       const feedback = getManagedTagScriptureErrorMessage(error);
       setManagedTagScriptureFeedback(feedback.message, feedback.type);
+      showStudyDataConflict(error, "Keyword Scripture");
 
       if (!error?.data?.code) {
         setStatus(error.message || "Failed to connect Scripture to keyword.", "error");
@@ -4717,7 +4960,11 @@
         `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
         {
           method: "PUT",
-          body: JSON.stringify({ reference, note })
+          body: JSON.stringify({
+            reference,
+            note,
+            expectedVersion: getExpectedVersion(item.version)
+          })
         }
       );
 
@@ -4739,6 +4986,7 @@
     } catch (error) {
       const feedback = getManagedTagScriptureErrorMessage(error);
       setManagedTagScriptureFeedback(feedback.message, feedback.type);
+      showStudyDataConflict(error, "Keyword Scripture");
 
       if (!error?.data?.code) {
         setStatus(error.message || "Failed to update Scripture connection.", "error");
@@ -4763,7 +5011,10 @@
 
     try {
       await fetchJson(
-        `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
+        withExpectedVersion(
+          `/api/study-tags/${encodeURIComponent(tag.id)}/scriptures/${encodeURIComponent(item.id)}`,
+          item.version
+        ),
         { method: "DELETE" }
       );
 
@@ -4789,22 +5040,48 @@
       renderTagManager();
     } catch (error) {
       setStatus(error.message || "Failed to remove Scripture from keyword.", "error");
+      showStudyDataConflict(error, "Keyword Scripture");
     }
   }
 
   function persistManagedTagScriptureOrder(tagId, orderedIds) {
+    const orderedItems = orderedIds.map((id) => {
+      const item = state.managedTagScriptures.find((scripture) => scripture.id === id);
+      return {
+        id,
+        expectedVersion: getExpectedVersion(item?.version)
+      };
+    });
+
     managedTagScriptureReorderQueue = managedTagScriptureReorderQueue
       .then(() =>
         fetchJson(`/api/study-tags/${encodeURIComponent(tagId)}/scriptures/reorder`, {
           method: "PUT",
-          body: JSON.stringify({ orderedIds })
+          body: JSON.stringify({ orderedItems })
         })
       )
-      .then(() => {
+      .then((result) => {
+        if (Array.isArray(result.scriptures)) {
+          const versionById = new Map(
+            result.scriptures.map((item) => [String(item.id), item])
+          );
+
+          state.managedTagScriptures = state.managedTagScriptures.map((item) => {
+            const updated = versionById.get(String(item.id));
+            return updated
+              ? { ...item, sortOrder: updated.sortOrder, version: updated.version }
+              : item;
+          });
+        }
+
         publishKeywordDataChanged();
       })
       .catch((error) => {
-        setStatus(error.message || "Failed to save Scripture order.", "error");
+        const message = error?.status === 409
+          ? "Scripture order changed on another device. The latest order will be loaded."
+          : (error.message || "Failed to save Scripture order.");
+        setStatus(message, "error");
+        showStudyDataConflict(error, "Keyword Scripture order");
 
         if (state.managedTagId === tagId) {
           loadManagedTagScriptures(tagId, { force: true });
@@ -5230,7 +5507,7 @@
       updateKeywordRefreshNotice();
     });
     referenceInput.addEventListener("blur", () => {
-      const validation = validateScriptureReference(referenceInput.value);
+      const validation = validateScriptureReferenceList(referenceInput.value);
       referenceInput.value = validation.reference;
       updateManagedTagScriptureAddButton(referenceInput, addButton);
 
@@ -5688,6 +5965,15 @@
   function performManagedTagAutoSave(tag, nameInput, getColor, statusElement) {
     if (!tag?.id || !nameInput) return Promise.resolve();
 
+    if (state.managedTagConflictId === tag.id) {
+      setManagedTagAutoSaveStatus(
+        statusElement,
+        "Conflict - refresh to load the newer Keyword.",
+        "error"
+      );
+      return Promise.resolve();
+    }
+
     const name = normalizeName(nameInput.value);
     const color = normalizeColorValue(getColor?.()) || tag.color || "#dbeafe";
 
@@ -5717,7 +6003,8 @@
           body: JSON.stringify({
             name,
             color,
-            sortOrder: latest.sortOrder || 0
+            sortOrder: latest.sortOrder || 0,
+            expectedVersion: getExpectedVersion(latest.version)
           })
         });
 
@@ -5751,6 +6038,9 @@
           error?.message || "Could not save keyword changes.",
           "error"
         );
+        if (showStudyDataConflict(error, "Keyword")) {
+          state.managedTagConflictId = tag.id;
+        }
       });
 
     return managedTagAutoSaveQueue;
@@ -5848,6 +6138,7 @@
       loadManagedTagScriptures(tag.id, { force: true });
     } catch (error) {
       setManagedTagAutoSaveStatus(feedback, error?.message || "Could not create keyword.", "error");
+      showDuplicateKeywordNotice(error, name);
       if (button) {
         button.disabled = false;
         button.textContent = originalText;
@@ -6173,6 +6464,7 @@
       setStatus("Keyword saved.", "success");
     } catch (error) {
       setStatus(error.message, "error");
+      showDuplicateKeywordNotice(error, name);
     }
   }
 
@@ -6186,7 +6478,11 @@
     try {
       const result = await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
         method: "PUT",
-        body: JSON.stringify({ name, sortOrder: category.sortOrder || 0 })
+        body: JSON.stringify({
+          name,
+          sortOrder: category.sortOrder || 0,
+          expectedVersion: getExpectedVersion(category.version)
+        })
       });
 
       const updated = result.category;
@@ -6204,6 +6500,7 @@
       setStatus("Category updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
+      showStudyDataConflict(error, "Category");
     }
   }
 
@@ -6220,7 +6517,12 @@
     try {
       const result = await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
         method: "PUT",
-        body: JSON.stringify({ name, color, sortOrder: tag.sortOrder || 0 })
+        body: JSON.stringify({
+          name,
+          color,
+          sortOrder: tag.sortOrder || 0,
+          expectedVersion: getExpectedVersion(tag.version)
+        })
       });
 
       const updated = {
@@ -6238,6 +6540,8 @@
       setStatus("Keyword updated.", "success");
     } catch (error) {
       setStatus(error.message, "error");
+      showStudyDataConflict(error, "Keyword");
+      showDuplicateKeywordNotice(error, name);
     }
   }
 
@@ -6249,9 +6553,13 @@
     }
 
     try {
-      await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
-        method: "DELETE"
-      });
+      await fetchJson(
+        withExpectedVersion(
+          `/api/study-categories/${encodeURIComponent(category.id)}`,
+          category.version
+        ),
+        { method: "DELETE" }
+      );
 
       state.categories = state.categories.filter((item) => item.id !== category.id);
 
@@ -6265,7 +6573,12 @@
 
       state.studies = state.studies.map((study) => {
         if (study.categoryId !== category.id) return study;
-        return { ...study, categoryId: null, category: null };
+        return {
+          ...study,
+          categoryId: null,
+          category: null,
+          version: (Number(study.version) || 1) + 1
+        };
       });
 
       renderCategoryDropdown();
@@ -6274,6 +6587,7 @@
       setStatus("Category deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
+      showStudyDataConflict(error, "Category");
     }
   }
 
@@ -6285,9 +6599,10 @@
     }
 
     try {
-      await fetchJson(`/api/study-tags/${encodeURIComponent(tag.id)}`, {
-        method: "DELETE"
-      });
+      await fetchJson(
+        withExpectedVersion(`/api/study-tags/${encodeURIComponent(tag.id)}`, tag.version),
+        { method: "DELETE" }
+      );
 
       state.availableTags = state.availableTags.filter((item) => item.id !== tag.id);
       state.selectedTags = state.selectedTags.filter((item) => item.id !== tag.id);
@@ -6316,6 +6631,7 @@
       setStatus("Keyword deleted.", "success");
     } catch (error) {
       setStatus(error.message, "error");
+      showStudyDataConflict(error, "Keyword");
     }
   }
 
@@ -6375,7 +6691,7 @@
     });
     
     els.scriptureReference.addEventListener("blur", () => {
-      const validation = validateScriptureReference(els.scriptureReference.value);
+      const validation = validateScriptureReferenceList(els.scriptureReference.value);
       els.scriptureReference.value = validation.reference;
       updateAddScriptureButtonState();
 
@@ -6770,13 +7086,58 @@
     scheduleStudyToolbarFit();
   }
 
+  function exitStudyBlockquoteAtEnd(range, context) {
+    if (!state.quill || !context?.format?.blockquote) {
+      return true;
+    }
+
+    const [line, offset] = state.quill.getLine(range.index);
+    if (!line) return true;
+
+    const lineLength = Math.max(1, Number(line.length?.()) || 1);
+    const atLineEnd = offset >= lineLength - 1;
+
+    if (!atLineEnd) {
+      return true;
+    }
+
+    const nextIndex = Math.min(range.index + 1, Math.max(0, state.quill.getLength() - 1));
+    const [nextLine] = state.quill.getLine(nextIndex);
+
+    if (nextLine && nextLine !== line) {
+      const nextFormat = state.quill.getFormat(nextIndex, 1);
+      if (nextFormat?.blockquote) {
+        return true;
+      }
+    }
+
+    if (range.length) {
+      state.quill.deleteText(range.index, range.length, Quill.sources.USER);
+    }
+
+    state.quill.insertText(range.index, "\n", Quill.sources.USER);
+    state.quill.formatLine(range.index + 1, 1, "blockquote", false, Quill.sources.USER);
+    state.quill.setSelection(range.index + 1, 0, Quill.sources.SILENT);
+    return false;
+  }
+
   function initQuill() {
     registerQuillDivider();
 
     state.quill = new Quill("#study-editor", {
       theme: "snow",
       modules: {
-        toolbar: "#study-quill-toolbar"
+        toolbar: "#study-quill-toolbar",
+        keyboard: {
+          bindings: {
+            exitBlockquoteAtEnd: {
+              key: "Enter",
+              shiftKey: false,
+              format: ["blockquote"],
+              handler: exitStudyBlockquoteAtEnd
+            }
+          }
+        }
       },
       placeholder: "Write your notes, insights, outline, sermon, lesson, or reflection here..."
     });
