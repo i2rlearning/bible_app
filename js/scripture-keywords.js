@@ -51,6 +51,12 @@
       });
   }
 
+  function withExpectedVersion(url, value) {
+    const version = Number(value);
+    if (!Number.isInteger(version) || version < 1) return url;
+    return `${url}${url.includes("?") ? "&" : "?"}expectedVersion=${encodeURIComponent(version)}`;
+  }
+
   async function parseResponse(response) {
     const text = await response.text();
 
@@ -78,6 +84,7 @@
       const error = new Error(result.message || "Request failed");
       error.status = response.status;
       error.code = result.code || "";
+      error.data = result;
       throw error;
     }
 
@@ -453,6 +460,32 @@
     return error && (error.status === 401 || error.status === 403);
   }
 
+  function showKeywordVersionConflict(error) {
+    const code = error?.code || error?.data?.code || "";
+
+    if (!String(code).includes("VERSION_CONFLICT")) {
+      return false;
+    }
+
+    if (window.AppConflictDialog?.show) {
+      window.AppConflictDialog.show({
+        key: `keyword:${state.activeReference}:${code}`,
+        title: "Newer Keyword data available",
+        message: "This Keyword connection changed on another device before your change reached the server.",
+        detail: "Your change was not allowed to overwrite the newer saved version.",
+        secondaryLabel: "Keep this screen",
+        primaryLabel: "Reload Keywords",
+        onPrimary: () => {
+          if (state.activeReference) {
+            loadReferenceKeywords(state.activeReference, state.activeDisplayReference);
+          }
+        }
+      });
+    }
+
+    return true;
+  }
+
   function renderNeedSelection() {
     openShell();
     setHeader("Keywords");
@@ -478,13 +511,16 @@
   }
 
   function createConnectedKeywordChip(keyword) {
+    const wrap = document.createElement("span");
+    wrap.className = "scripture-keyword-chip-wrap";
+    applyKeywordColor(wrap, keyword.color);
+
     const button = document.createElement("button");
     button.type = "button";
     button.className = "scripture-keyword-chip";
     button.dataset.keywordId = keyword.id;
     button.title = `View Scriptures connected to ${keyword.name}`;
     button.setAttribute("aria-label", `View Scriptures connected to ${keyword.name}`);
-    applyKeywordColor(button, keyword.color);
 
     const dot = document.createElement("span");
     dot.className = "scripture-keyword-chip-dot";
@@ -495,7 +531,28 @@
 
     button.append(dot, label);
     button.addEventListener("click", () => openKeywordScriptures(keyword));
-    return button;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "scripture-keyword-chip-remove";
+    remove.textContent = "×";
+    remove.title = `Remove ${keyword.name} from this Scripture`;
+    remove.setAttribute(
+      "aria-label",
+      `Remove ${keyword.name} from ${state.activeDisplayReference || state.activeReference}. This does not delete the Keyword.`
+    );
+    remove.addEventListener("click", () => {
+      const reference = state.activeDisplayReference || state.activeReference || "this Scripture";
+      const confirmed = window.confirm(
+        `Remove "${keyword.name}" from ${reference}? This will not delete the Keyword itself.`
+      );
+
+      if (!confirmed) return;
+      toggleKeywordConnection(keyword, remove);
+    });
+
+    wrap.append(button, remove);
+    return wrap;
   }
 
   function createChooserRow(keyword, connectedMap) {
@@ -628,6 +685,7 @@
           state.connectedKeywords.push({
             ...keyword,
             relationshipId: linked.scripture?.id || "",
+            relationshipVersion: linked.scripture?.version ? Number(linked.scripture.version) : null,
             note: linked.scripture?.note || ""
           });
 
@@ -724,7 +782,10 @@
     try {
       if (existing?.relationshipId) {
         await requestJson(
-          `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures/${encodeURIComponent(existing.relationshipId)}`,
+          withExpectedVersion(
+            `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures/${encodeURIComponent(existing.relationshipId)}`,
+            existing.relationshipVersion
+          ),
           { method: "DELETE" }
         );
 
@@ -743,6 +804,7 @@
         state.connectedKeywords.push({
           ...keyword,
           relationshipId: linked.scripture?.id || "",
+          relationshipVersion: linked.scripture?.version ? Number(linked.scripture.version) : null,
           note: linked.scripture?.note || ""
         });
       }
@@ -750,6 +812,11 @@
       notifyKeywordDataChanged();
       renderKeywordsView({ focusChooser: true });
     } catch (error) {
+      if (showKeywordVersionConflict(error)) {
+        renderMessage("A newer Keyword connection exists. Reload Keywords to continue.", "error");
+        return;
+      }
+
       renderMessage(
         isAuthError(error)
           ? "Log in to manage Scripture Keywords."
