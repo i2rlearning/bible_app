@@ -402,6 +402,7 @@ let quillSaveTimer = null;
 let quillSaveQueue = Promise.resolve();
 let quillNotesLoaded = false;
 let quillNotesVersion = 0;
+let quillNotesStoragePageKey = "";
 let quillConflictActive = false;
 
 function getCurrentBiblePageIdentity() {
@@ -496,11 +497,19 @@ async function loadQuillNotes() {
 
   quillNotesLoaded = false;
   quillConflictActive = false;
+  quillNotesStoragePageKey = pageIdentity.pageKey;
 
   try {
-    const response = await fetch(`/api/quill-notes?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
+    const loadParams = new URLSearchParams({
+      pageKey: pageIdentity.pageKey,
+      bibleVersionID: pageIdentity.bibleVersionID,
+      bibleChapterID: pageIdentity.bibleChapterID
+    });
+
+    const response = await fetch(`/api/quill-notes?${loadParams.toString()}`, {
       method: "GET",
-      credentials: "include"
+      credentials: "include",
+      cache: "no-store"
     });
 
     const result = await parseResponseSafely(response);
@@ -510,6 +519,7 @@ async function loadQuillNotes() {
     }
 
     quillNotesVersion = result.note?.version ? Number(result.note.version) : 0;
+    quillNotesStoragePageKey = result.note?.page_key || pageIdentity.pageKey;
 
     if (result.note && result.note.quill_delta_json) {
       quill.setContents(result.note.quill_delta_json);
@@ -564,7 +574,7 @@ async function saveQuillNotes() {
     const plainText = quill.getText().trim();
 
     if (!plainText) {
-      const deleteParams = new URLSearchParams({ pageKey: pageIdentity.pageKey });
+      const deleteParams = new URLSearchParams({ pageKey: quillNotesStoragePageKey || pageIdentity.pageKey });
       deleteParams.set("expectedVersion", String(Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0));
 
       const deleteResponse = await fetch(
@@ -601,7 +611,7 @@ async function saveQuillNotes() {
       body: JSON.stringify({
         bibleVersionID: pageIdentity.bibleVersionID,
         bibleChapterID: pageIdentity.bibleChapterID,
-        pageKey: pageIdentity.pageKey,
+        pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
         pageUrl: window.location.pathname + window.location.search,
         bookChapterLabel: getCurrentBookChapterLabel(),
         quillDelta,
@@ -761,6 +771,7 @@ let miniEditorSaveTimer = null;
 let miniEditorSaveQueue = Promise.resolve();
 let miniEditorLoaded = false;
 let miniEditorVersion = 0;
+let miniEditorStoragePageKey = "";
 let miniEditorConflictActive = false;
 let miniEditorApplyingState = false;
 let miniEditorObserver = null;
@@ -1174,11 +1185,19 @@ async function loadMiniEditorPage() {
   if (!pageIdentity) return;
 
   miniEditorConflictActive = false;
+  miniEditorStoragePageKey = pageIdentity.pageKey;
 
   try {
-    const response = await fetch(`/api/mini-editor-page?pageKey=${encodeURIComponent(pageIdentity.pageKey)}`, {
+    const loadParams = new URLSearchParams({
+      pageKey: pageIdentity.pageKey,
+      bibleVersionID: pageIdentity.bibleVersionID,
+      bibleChapterID: pageIdentity.bibleChapterID
+    });
+
+    const response = await fetch(`/api/mini-editor-page?${loadParams.toString()}`, {
       method: "GET",
-      credentials: "include"
+      credentials: "include",
+      cache: "no-store"
     });
 
     const result = await parseResponseSafely(response);
@@ -1188,6 +1207,7 @@ async function loadMiniEditorPage() {
     }
 
     miniEditorVersion = result.page?.version ? Number(result.page.version) : 0;
+    miniEditorStoragePageKey = result.page?.page_key || pageIdentity.pageKey;
 
     if (result.page && result.page.mini_editor_json) {
       const savedState =
@@ -1225,6 +1245,7 @@ async function reloadMiniEditorPageAfterChapterRender() {
 
   miniEditorLoaded = false;
   miniEditorVersion = 0;
+  miniEditorStoragePageKey = "";
   miniEditorHistoryReady = false;
   miniEditorUndoStack = [];
   miniEditorRedoStack = [];
@@ -1249,7 +1270,7 @@ async function saveMiniEditorPage() {
 
   try {
     if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
-      const deleteParams = new URLSearchParams({ pageKey: pageIdentity.pageKey });
+      const deleteParams = new URLSearchParams({ pageKey: miniEditorStoragePageKey || pageIdentity.pageKey });
       deleteParams.set("expectedVersion", String(Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0));
 
       const deleteResponse = await fetch(
@@ -1286,7 +1307,7 @@ async function saveMiniEditorPage() {
       body: JSON.stringify({
         bibleVersionID: pageIdentity.bibleVersionID,
         bibleChapterID: pageIdentity.bibleChapterID,
-        pageKey: pageIdentity.pageKey,
+        pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
         pageUrl: window.location.pathname + window.location.search,
         bibleName: new URLSearchParams(window.location.search).get("bibleAbbr") ||
           new URLSearchParams(window.location.search).get("abbr") || "",
@@ -3041,6 +3062,18 @@ document.addEventListener("keydown", (event) => {
 // ----------------------------------------------------
 window.setDrawingTool = setDrawingTool;
 window.rememberCurrentSelectionOffsets = rememberCurrentSelectionOffsets;
+window.getRememberedBibleSelectionRange = function () {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText || !savedBibleSelectionOffsets) return null;
+  if (Date.now() - savedBibleSelectionTimestamp > 120000) return null;
+
+  return getRangeFromTextOffsets(
+    bibleText,
+    savedBibleSelectionOffsets.start,
+    savedBibleSelectionOffsets.end
+  );
+};
 window.clearSavedBibleSelection = clearSavedBibleSelection;
 window.clearAllRememberedBibleSelections = clearAllRememberedBibleSelections;
 window.clearBibleSelectionFormat = clearBibleSelectionFormat;
