@@ -268,13 +268,18 @@
     }
 
     if (window.AppConflictDialog?.show) {
+      const latestTag = error?.data?.latestTag || null;
+      const isKeyword = label === "Keyword" && latestTag;
+
       window.AppConflictDialog.show({
-        key: `${code}:${error?.data?.latestTag?.version || error?.data?.latestScripture?.version || "newer"}`,
+        key: `${code}:${latestTag?.version || error?.data?.latestScripture?.version || "newer"}`,
         title: `${label} changed on another device`,
-        message: "Your change was not allowed to overwrite the newer saved version.",
-        detail: "Refresh this page to load the latest saved data before making another change.",
+        message: isKeyword
+          ? `The saved Keyword is now “${latestTag.name}”. Your current edit was not saved.`
+          : "Your change was not allowed to overwrite the newer saved version.",
+        detail: "Your current screen has been left unchanged so nothing is lost. Load the latest saved data before continuing.",
         secondaryLabel: "Keep this screen",
-        primaryLabel: "Refresh page",
+        primaryLabel: "Load latest",
         onPrimary: () => window.location.reload()
       });
     }
@@ -3077,11 +3082,23 @@
   }
 
   function deleteLinkedScripture(index) {
+    const item = state.linkedScriptures[index];
+
+    if (!item) return;
+
+    const reference = normalizeName(item.reference) || "this Scripture";
+    const confirmed = window.confirm(
+      `Remove ${reference} from Referenced Scriptures?`
+    );
+
+    if (!confirmed) return;
+
     state.linkedScriptures.splice(index, 1);
     state.editingScriptureIndex = null;
     renderLinkedScriptures();
     renderRelatedScriptures();
     markReferencedScripturesDirty();
+    setReferencedScriptureFeedback(`${reference} removed.`, "success");
   }
 
   function renderLinkedScriptureEditor(item, index) {
