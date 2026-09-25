@@ -1,561 +1,73 @@
 "use strict";
 
 // ============================================================================
-// Keyword Search tab
+// Scripture <-> Keyword access from the Bible reading page
 //
-// Keeps the existing Scripture Search engine in search.js separate from the
-// user-specific Keyword relationship search:
+// User-facing language says "Keyword", while the existing backend/API continues
+// to use the established tag model. This file does not change database structure.
 //
-//   Keyword -> connected Scriptures
-//   Scripture reference -> associated Keywords
-//
-// The two result types never share a result count or result list.
+// UX:
+// - Select Scripture text and press the Keywords button, OR click a verse number.
+// - A right-side drawer shows Keywords connected to that Scripture reference.
+// - Add/remove existing Keywords from the same drawer.
+// - Create a new Keyword and connect it immediately.
+// - Click a connected Keyword to see all Scriptures connected to that Keyword.
 // ============================================================================
 
 (function () {
-  const KEYWORD_SUGGESTION_LIMIT = 6;
-  const BOOK_SUGGESTION_LIMIT = 3;
-  const KEYWORD_RESULT_LIMIT = 8;
-  const KEYWORD_SCRIPTURE_BATCH_SIZE = 10;
-  const SCRIPTURE_PREVIEW_LIMIT = 230;
-
-  const CANONICAL_BOOKS = [
-    ["Genesis", "GEN"], ["Exodus", "EXO"], ["Leviticus", "LEV"],
-    ["Numbers", "NUM"], ["Deuteronomy", "DEU"], ["Joshua", "JOS"],
-    ["Judges", "JDG"], ["Ruth", "RUT"], ["1 Samuel", "1SA"],
-    ["2 Samuel", "2SA"], ["1 Kings", "1KI"], ["2 Kings", "2KI"],
-    ["1 Chronicles", "1CH"], ["2 Chronicles", "2CH"], ["Ezra", "EZR"],
-    ["Nehemiah", "NEH"], ["Esther", "EST"], ["Job", "JOB"],
-    ["Psalms", "PSA"], ["Proverbs", "PRO"], ["Ecclesiastes", "ECC"],
-    ["Song of Solomon", "SNG"], ["Isaiah", "ISA"], ["Jeremiah", "JER"],
-    ["Lamentations", "LAM"], ["Ezekiel", "EZK"], ["Daniel", "DAN"],
-    ["Hosea", "HOS"], ["Joel", "JOL"], ["Amos", "AMO"],
-    ["Obadiah", "OBA"], ["Jonah", "JON"], ["Micah", "MIC"],
-    ["Nahum", "NAM"], ["Habakkuk", "HAB"], ["Zephaniah", "ZEP"],
-    ["Haggai", "HAG"], ["Zechariah", "ZEC"], ["Malachi", "MAL"],
-    ["Matthew", "MAT"], ["Mark", "MRK"], ["Luke", "LUK"],
-    ["John", "JHN"], ["Acts", "ACT"], ["Romans", "ROM"],
-    ["1 Corinthians", "1CO"], ["2 Corinthians", "2CO"],
-    ["Galatians", "GAL"], ["Ephesians", "EPH"], ["Philippians", "PHP"],
-    ["Colossians", "COL"], ["1 Thessalonians", "1TH"],
-    ["2 Thessalonians", "2TH"], ["1 Timothy", "1TI"],
-    ["2 Timothy", "2TI"], ["Titus", "TIT"], ["Philemon", "PHM"],
-    ["Hebrews", "HEB"], ["James", "JAS"], ["1 Peter", "1PE"],
-    ["2 Peter", "2PE"], ["1 John", "1JN"], ["2 John", "2JN"],
-    ["3 John", "3JN"], ["Jude", "JUD"], ["Revelation", "REV"]
-  ].map(([name, id]) => ({ name, id, abbreviation: id }));
-
-  const CANONICAL_BOOK_ID_MAP = new Map(
-    CANONICAL_BOOKS.map((book) => [normalizeReferenceBookKey(book.name), book.id])
-  );
-
-  // Common alternate canonical labels.
-  CANONICAL_BOOK_ID_MAP.set("psalm", "PSA");
-  CANONICAL_BOOK_ID_MAP.set("song of songs", "SNG");
-
-  const elements = {};
+  const STUDY_SYNC_CHANNEL_NAME = "branch-of-israel-study-sync-v1";
+  const STUDY_SYNC_STORAGE_KEY = "branchOfIsraelStudySync";
 
   const state = {
-    mode: "scripture",
-    scriptureQuery: "",
-    scriptureExact: false,
-    scriptureHeaderSnapshot: null,
-    keywordQuery: "",
-    keywordSummary: "Search a Keyword or Scripture reference.",
-    keywordHasRendered: false,
-    keywords: [],
-    keywordLibraryLoaded: false,
-    keywordLibraryUnavailable: false,
-    keywordLibraryPromise: null,
-    keywordAccess: "unknown",
-    resultRequestId: 0,
-    suggestionRequestId: 0,
-    bookOrder: [],
-    bookOrderBibleId: "",
-    bookOrderPromise: null,
-    passageCache: new Map()
+    drawer: null,
+    backdrop: null,
+    body: null,
+    title: null,
+    referenceLabel: null,
+    activeReference: "",
+    activeDisplayReference: "",
+    activeKeyword: null,
+    allKeywords: [],
+    connectedKeywords: [],
+    savedOffsets: null,
+    savedAt: 0,
+    lastVerseReference: "",
+    lastVerseDisplayReference: "",
+    lastFocusedElement: null,
+    requestId: 0,
+    chooserOpen: false,
+    searchQuery: ""
   };
 
-  document.addEventListener("DOMContentLoaded", initializeKeywordSearch);
-
-  function initializeKeywordSearch() {
-    elements.form = document.getElementById("scripture-search-form");
-    elements.input = document.getElementById("search-input");
-    elements.exactWordOnly = document.getElementById("exact-word-only");
-    elements.clear = document.getElementById("clear-search");
-    elements.keywordSuggestions = document.getElementById("keyword-search-suggestions");
-    elements.keywordResults = document.getElementById("keyword-search-results");
-    elements.resultsList = document.getElementById("results-list");
-    elements.resultsSummary = document.getElementById("search-results-summary");
-    elements.resultsTitle = document.getElementById("search-results-title");
-    elements.status = document.getElementById("search-status");
-    elements.pagination = document.getElementById("search-pagination");
-    elements.pageSizeControl = document.getElementById("results-page-size-control");
-    elements.scriptureOptions = document.getElementById("scripture-search-options");
-    elements.scriptureTab = document.getElementById("scripture-search-tab");
-    elements.keywordTab = document.getElementById("keyword-search-tab");
-    elements.searchTitle = document.getElementById("search-title");
-    elements.searchHelp = document.getElementById("search-help");
-    elements.submit =
-      document.getElementById("search-submit-button") ||
-      elements.form?.querySelector('button[type="submit"]') ||
-      document.querySelector(".scripture-search-button");
-    elements.keywordAuthNotice = document.getElementById("keyword-auth-notice");
-    elements.keywordAuthLogin = document.querySelector("[data-keyword-auth-login]");
-
-    if (!elements.form || !elements.input || !elements.keywordResults) {
-      return;
-    }
-
-    ensureKeywordAuthNotice();
-
-    state.scriptureQuery = normalizeSearchText(elements.input.value || "");
-    state.scriptureExact = Boolean(elements.exactWordOnly?.checked);
-    captureScriptureHeader();
-    bindKeywordSearchEvents();
-    syncSearchModeUi();
-
-    const requestedMode = new URLSearchParams(window.location.search).get("mode");
-
-    if (requestedMode === "keyword") {
-      setSearchMode("keyword");
-    }
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
   }
 
-  function ensureKeywordAuthNotice() {
-    if (!elements.keywordAuthNotice) {
-      const notice = document.createElement("div");
-      notice.id = "keyword-auth-notice";
-      notice.className = "search-keyword-auth-notice";
-      notice.setAttribute("role", "status");
-      notice.setAttribute("aria-live", "polite");
-      notice.hidden = true;
-      notice.innerHTML = `
-        <span class="search-keyword-auth-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M7 10V8a5 5 0 0 1 10 0v2"></path>
-            <rect x="5" y="10" width="14" height="10" rx="2"></rect>
-          </svg>
-        </span>
-        <div class="search-keyword-auth-copy">
-          <strong>Log in to use Keyword Search</strong>
-          <p>Keywords and their Scripture connections are saved to your account. Log in to search them.</p>
-        </div>
-        <button
-          type="button"
-          id="keyword-auth-login-button"
-          class="search-keyword-auth-login"
-          data-open-login
-          data-keyword-auth-login
-        >Log In</button>
-      `;
-
-      const bibleStrip = document.querySelector(".search-bible-strip");
-      const searchCard = elements.form.closest(".search-card");
-
-      if (bibleStrip?.parentNode) {
-        bibleStrip.parentNode.insertBefore(notice, bibleStrip);
-      } else if (searchCard) {
-        searchCard.insertBefore(notice, elements.form);
-      } else {
-        elements.form.parentNode?.insertBefore(notice, elements.form);
-      }
-
-      elements.keywordAuthNotice = notice;
-      elements.keywordAuthLogin = notice.querySelector("[data-keyword-auth-login]");
-    }
-
-    elements.keywordAuthTitle =
-      elements.keywordAuthNotice.querySelector(".search-keyword-auth-copy strong");
-    elements.keywordAuthMessage =
-      elements.keywordAuthNotice.querySelector(".search-keyword-auth-copy p");
-
-    if (!elements.keywordAuthLogin) {
-      elements.keywordAuthLogin =
-        elements.keywordAuthNotice.querySelector("[data-keyword-auth-login]");
-    }
+  function properCaseKeywordName(value) {
+    return normalizeText(value)
+      .toLocaleLowerCase("en-US")
+      .replace(/(^|[\s\-\/(])([\p{L}])/gu, (match, prefix, letter) => {
+        return `${prefix}${letter.toLocaleUpperCase("en-US")}`;
+      });
   }
 
-
-  function isKeywordSearchBlocked() {
-    return (
-      state.keywordAccess === "signed-out" ||
-      state.keywordAccess === "checking" ||
-      state.keywordAccess === "error"
-    );
+  function withExpectedVersion(url, value) {
+    const version = Number(value);
+    if (!Number.isInteger(version) || version < 1) return url;
+    return `${url}${url.includes("?") ? "&" : "?"}expectedVersion=${encodeURIComponent(version)}`;
   }
 
-  function syncKeywordAccessUi() {
-    const keywordMode = state.mode === "keyword";
-    const signedOut = state.keywordAccess === "signed-out";
-    const checking = state.keywordAccess === "checking";
-    const accessError = state.keywordAccess === "error";
-    const showNotice = keywordMode && (signedOut || accessError);
-
-    if (elements.keywordAuthNotice) {
-      elements.keywordAuthNotice.hidden = !showNotice;
-      elements.keywordAuthNotice.dataset.state = accessError ? "error" : "signed-out";
-    }
-
-    if (elements.keywordAuthTitle) {
-      elements.keywordAuthTitle.textContent = accessError
-        ? "Keyword Search is temporarily unavailable"
-        : "Log in to use Keyword Search";
-    }
-
-    if (elements.keywordAuthMessage) {
-      elements.keywordAuthMessage.textContent = accessError
-        ? "We could not verify access to your Keyword Library. Please try again in a moment."
-        : "Keywords and their Scripture connections are saved to your account. Log in to search them.";
-    }
-
-    if (elements.keywordAuthLogin) {
-      elements.keywordAuthLogin.hidden = accessError;
-    }
-
-    const controlsBlocked = keywordMode && (signedOut || checking || accessError);
-
-    if (elements.submit) {
-      elements.submit.disabled = controlsBlocked;
-      elements.submit.setAttribute(
-        "aria-disabled",
-        elements.submit.disabled ? "true" : "false"
-      );
-    }
-
-    if (elements.input) {
-      elements.input.disabled = controlsBlocked;
-      elements.input.setAttribute(
-        "aria-disabled",
-        elements.input.disabled ? "true" : "false"
-      );
-    }
-
-    if (elements.clear) {
-      elements.clear.disabled = controlsBlocked;
-      elements.clear.setAttribute(
-        "aria-disabled",
-        elements.clear.disabled ? "true" : "false"
-      );
-    }
-
-    if (keywordMode && signedOut) {
-      elements.input.placeholder = "Log in to search your Keywords...";
-      elements.input.setAttribute("aria-describedby", "keyword-auth-notice");
-      closeSuggestions();
-    } else if (keywordMode && accessError) {
-      elements.input.placeholder = "Keyword Search is temporarily unavailable...";
-      elements.input.setAttribute("aria-describedby", "keyword-auth-notice");
-      closeSuggestions();
-    } else {
-      elements.input.removeAttribute("aria-describedby");
-
-      if (keywordMode) {
-        elements.input.placeholder = "Search a Keyword or Scripture reference...";
-      }
-    }
-  }
-
-  function setKeywordSignedOutState() {
-    state.keywordLibraryUnavailable = true;
-    state.keywordLibraryLoaded = false;
-    state.keywordAccess = "signed-out";
-    state.keywords = [];
-    closeSuggestions();
-    syncKeywordAccessUi();
-  }
-
-  async function prepareKeywordSearchAccess() {
-    if (state.mode !== "keyword") return false;
-
-    // Do not use a protected Keyword endpoint itself as the login detector.
-    // Auth middleware may redirect/handshake for a logged-out request, which a
-    // browser fetch can follow and turn into an unrelated 200 response.
-    // /api/auth-status always returns JSON and gives us an unambiguous answer.
-    state.keywordAccess = "checking";
-    syncKeywordAccessUi();
+  async function parseResponse(response) {
+    const text = await response.text();
 
     try {
-      const authStatus = await fetchAppJson("/api/auth-status");
-
-      if (state.mode !== "keyword") return false;
-
-      if (authStatus?.signedIn !== true) {
-        setKeywordSignedOutState();
-        return false;
-      }
+      return text ? JSON.parse(text) : {};
     } catch (error) {
-      if (state.mode !== "keyword") return false;
-
-      state.keywordAccess = "error";
-      state.keywordLibraryUnavailable = true;
-      state.keywordLibraryLoaded = false;
-      state.keywords = [];
-      closeSuggestions();
-      syncKeywordAccessUi();
-      console.warn("Could not verify login status for Keyword Search:", error);
-      return false;
-    }
-
-    // The user is signed in. Now load the private Keyword Library.
-    state.keywordLibraryUnavailable = false;
-    await loadKeywordLibrary({ force: true });
-
-    if (state.mode !== "keyword") return false;
-
-    syncKeywordAccessUi();
-    return state.keywordAccess === "granted";
-  }
-
-  function bindKeywordSearchEvents() {
-    elements.scriptureTab?.addEventListener("click", () => setSearchMode("scripture"));
-    elements.keywordTab?.addEventListener("click", () => setSearchMode("keyword"));
-
-    // Capture phase lets Keyword Search own submit/clear while that tab is active,
-    // without changing the existing search.js Scripture Search implementation.
-    elements.form.addEventListener("submit", handleFormSubmitCapture, true);
-    elements.clear?.addEventListener("click", handleClearCapture, true);
-
-    elements.input.addEventListener("input", () => {
-      if (state.mode !== "keyword") return;
-      state.keywordQuery = normalizeSearchText(elements.input.value || "");
-      updateKeywordSuggestions();
-    });
-
-    elements.input.addEventListener("focus", () => {
-      if (state.mode === "keyword") updateKeywordSuggestions();
-    });
-
-    elements.input.addEventListener("keydown", handleInputKeydown);
-    elements.keywordSuggestions?.addEventListener("keydown", handleSuggestionKeydown);
-
-    document.addEventListener("pointerdown", (event) => {
-      if (state.mode !== "keyword") return;
-      if (!event.target.closest(".search-input-shell")) closeSuggestions();
-    });
-
-    document.addEventListener("change", (event) => {
-      if (event.target?.id !== "search-bible-select") return;
-      resetBibleDependentCaches();
-
-      if (state.mode === "keyword" && state.keywordQuery) {
-        window.setTimeout(() => runKeywordSearch(state.keywordQuery), 0);
-      }
-    });
-
-    window.addEventListener("bible-preferences-changed", () => {
-      resetBibleDependentCaches();
-
-      if (state.mode === "keyword" && state.keywordQuery) {
-        window.setTimeout(() => runKeywordSearch(state.keywordQuery), 0);
-      }
-    });
-
-    window.addEventListener("auth-state-changed", (event) => {
-      const signedIn = event.detail?.signedIn === true;
-
-      if (!signedIn) {
-        if (state.mode === "keyword") {
-          setKeywordSignedOutState();
-          clearKeywordResults("Sign in to use Keyword Search.");
-        } else {
-          state.keywordAccess = "signed-out";
-          state.keywordLibraryLoaded = false;
-          state.keywordLibraryUnavailable = true;
-          state.keywords = [];
-        }
-        return;
-      }
-
-      state.keywordAccess = "unknown";
-      state.keywordLibraryLoaded = false;
-      state.keywordLibraryUnavailable = false;
-
-      if (state.mode === "keyword") {
-        // Clerk's modal sign-in stays on this page. Re-check the backend session
-        // after Clerk reports the signed-in state, then unlock Keyword Search.
-        window.setTimeout(() => {
-          prepareKeywordSearchAccess().then((hasAccess) => {
-            if (!hasAccess || state.mode !== "keyword") return;
-
-            if (state.keywordQuery) {
-              runKeywordSearch(state.keywordQuery);
-            } else {
-              clearKeywordResults("Search a Keyword or Scripture reference.");
-            }
-          });
-        }, 100);
-      }
-    });
-  }
-
-  function handleFormSubmitCapture(event) {
-    if (state.mode !== "keyword") {
-      state.scriptureQuery = normalizeSearchText(elements.input.value || "");
-      state.scriptureExact = Boolean(elements.exactWordOnly?.checked);
-      return;
-    }
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-
-    if (isKeywordSearchBlocked()) {
-      syncKeywordAccessUi();
-      elements.keywordAuthLogin?.focus();
-      return;
-    }
-
-    const query = normalizeSearchText(elements.input.value || "");
-    state.keywordQuery = query;
-    closeSuggestions();
-
-    if (!query) {
-      clearKeywordResults("Enter a Keyword or Scripture reference.");
-      elements.input.focus();
-      return;
-    }
-
-    runKeywordSearch(query);
-  }
-
-  function handleClearCapture(event) {
-    if (state.mode !== "keyword") return;
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-
-    state.resultRequestId += 1;
-    state.keywordQuery = "";
-    elements.input.value = "";
-    closeSuggestions();
-    clearKeywordResults("Search a Keyword or Scripture reference.");
-    elements.input.focus();
-  }
-
-  function setSearchMode(nextMode) {
-    if (nextMode !== "scripture" && nextMode !== "keyword") return;
-    if (nextMode === state.mode) return;
-
-    if (state.mode === "scripture") {
-      state.scriptureQuery = normalizeSearchText(elements.input.value || "");
-      state.scriptureExact = Boolean(elements.exactWordOnly?.checked);
-      captureScriptureHeader();
-
-      // The first time the user opens Keyword Search, carry the current search
-      // text over as a convenience. Thereafter each tab remembers its own query.
-      if (!state.keywordQuery) {
-        state.keywordQuery = state.scriptureQuery;
-      }
-    } else {
-      state.keywordQuery = normalizeSearchText(elements.input.value || "");
-    }
-
-    state.mode = nextMode;
-    closeSuggestions();
-    syncSearchModeUi();
-
-    if (state.mode === "keyword") {
-      elements.input.value = state.keywordQuery;
-      ensureSelectedBibleBookOrder().catch(() => {});
-
-      prepareKeywordSearchAccess().then((hasAccess) => {
-        if (!hasAccess || state.mode !== "keyword") {
-          if (state.keywordAccess === "signed-out") {
-            clearKeywordResults("Sign in to use Keyword Search.");
-          }
-          return;
-        }
-
-        if (state.keywordQuery) {
-          runKeywordSearch(state.keywordQuery);
-        } else {
-          clearKeywordResults("Search a Keyword or Scripture reference.");
-        }
-      });
-    } else {
-      state.resultRequestId += 1;
-      elements.input.value = state.scriptureQuery;
-
-      if (elements.exactWordOnly) {
-        elements.exactWordOnly.checked = state.scriptureExact;
-      }
-
-      restoreScriptureHeader();
-    }
-
-    if (!elements.input.disabled) {
-      elements.input.focus();
+      return { message: text || "Unexpected server response" };
     }
   }
 
-  function syncSearchModeUi() {
-    const keywordMode = state.mode === "keyword";
-
-    document.body.classList.toggle("search-mode-keywords", keywordMode);
-    document.body.classList.toggle("search-mode-scripture", !keywordMode);
-
-    setTabState(elements.scriptureTab, !keywordMode);
-    setTabState(elements.keywordTab, keywordMode);
-
-    if (elements.scriptureOptions) elements.scriptureOptions.hidden = keywordMode;
-    if (elements.pageSizeControl) elements.pageSizeControl.hidden = keywordMode;
-    if (elements.status) elements.status.hidden = keywordMode;
-    if (elements.resultsList) elements.resultsList.hidden = keywordMode;
-    if (elements.pagination) elements.pagination.hidden = keywordMode;
-
-    if (keywordMode) {
-      elements.input.placeholder = "Search a Keyword or Scripture reference...";
-      if (elements.searchTitle) elements.searchTitle.textContent = "Find Keywords and connected Scripture";
-      if (elements.searchHelp) {
-        elements.searchHelp.textContent =
-          "Search a Keyword to see its connected Scriptures, or enter a Scripture reference to see the Keywords associated with it.";
-      }
-      if (elements.resultsTitle) elements.resultsTitle.textContent = "Keyword Results";
-      if (elements.resultsSummary) elements.resultsSummary.textContent = state.keywordSummary;
-      elements.keywordResults.hidden = !state.keywordHasRendered;
-    } else {
-      elements.input.placeholder = 'Try "kingdom of heaven", east, or John 3:16';
-      if (elements.searchTitle) elements.searchTitle.textContent = "Find a verse or passage";
-      if (elements.searchHelp) {
-        elements.searchHelp.textContent =
-          "Smart search shows exact matches first and highlights variant forms when they are returned. Use quotes for an exact phrase, or the checkbox for exact matches.";
-      }
-      elements.keywordResults.hidden = true;
-    }
-
-    syncKeywordAccessUi();
-  }
-
-  function setTabState(tab, active) {
-    if (!tab) return;
-    tab.classList.toggle("is-active", active);
-    tab.setAttribute("aria-selected", active ? "true" : "false");
-    tab.tabIndex = active ? 0 : -1;
-  }
-
-  function captureScriptureHeader() {
-    state.scriptureHeaderSnapshot = {
-      title: elements.resultsTitle?.textContent || "Results",
-      summary: elements.resultsSummary?.textContent || ""
-    };
-  }
-
-  function restoreScriptureHeader() {
-    const snapshot = state.scriptureHeaderSnapshot;
-    if (!snapshot) return;
-    if (elements.resultsTitle) elements.resultsTitle.textContent = snapshot.title;
-    if (elements.resultsSummary) elements.resultsSummary.textContent = snapshot.summary;
-  }
-
-  function resetBibleDependentCaches() {
-    state.bookOrder = [];
-    state.bookOrderBibleId = "";
-    state.bookOrderPromise = null;
-    state.passageCache.clear();
-    state.suggestionRequestId += 1;
-  }
-
-  async function fetchAppJson(url, options = {}) {
+  async function requestJson(url, options = {}) {
     const response = await fetch(url, {
       credentials: "include",
       cache: "no-store",
@@ -566,1096 +78,1001 @@
       }
     });
 
-    let result = {};
-
-    try {
-      result = await response.json();
-    } catch (error) {
-      result = { message: "Unexpected server response" };
-    }
+    const result = await parseResponse(response);
 
     if (!response.ok) {
-      const requestError = new Error(result.message || "Request failed");
-      requestError.status = response.status;
-      requestError.code = result.code || "";
-      requestError.data = result;
-      throw requestError;
+      const error = new Error(result.message || "Request failed");
+      error.status = response.status;
+      error.code = result.code || "";
+      error.data = result;
+      throw error;
     }
 
     return result;
   }
 
-  async function loadKeywordLibrary(options = {}) {
-    const force = Boolean(options.force);
+  function notifyKeywordDataChanged() {
+    const message = {
+      type: "keyword-data-changed",
+      source: "bible",
+      sentAt: Date.now()
+    };
 
-    if (state.keywordLibraryUnavailable && !force) return [];
-    if (state.keywordLibraryLoaded && !force) return state.keywords;
-    if (state.keywordLibraryPromise) return state.keywordLibraryPromise;
-
-    state.keywordLibraryPromise = (async () => {
+    if ("BroadcastChannel" in window) {
       try {
-        const result = await fetchAppJson("/api/study-tags");
-
-        // A successful Keyword Library response must actually contain a tags
-        // array. Never interpret an auth redirect or unrelated HTML response
-        // that happened to finish with HTTP 200 as authenticated access.
-        if (!Array.isArray(result?.tags)) {
-          const invalidResponseError = new Error(
-            "Keyword Library returned an unexpected response."
-          );
-          invalidResponseError.code = "INVALID_KEYWORD_LIBRARY_RESPONSE";
-          throw invalidResponseError;
-        }
-
-        state.keywords = result.tags;
-        state.keywordLibraryLoaded = true;
-        state.keywordLibraryUnavailable = false;
-        state.keywordAccess = "granted";
-        syncKeywordAccessUi();
-        return state.keywords;
+        const channel = new BroadcastChannel(STUDY_SYNC_CHANNEL_NAME);
+        channel.postMessage(message);
+        window.setTimeout(() => channel.close(), 0);
+        return;
       } catch (error) {
-        if ([401, 403, 404].includes(Number(error.status))) {
-          setKeywordSignedOutState();
-          return [];
-        }
-
-        state.keywordAccess = "error";
-        syncKeywordAccessUi();
-        console.warn("Could not load Keyword Library for Search:", error);
-        return [];
-      } finally {
-        state.keywordLibraryPromise = null;
+        console.warn("Keyword sync channel failed:", error);
       }
-    })();
-
-    return state.keywordLibraryPromise;
-  }
-
-  function normalizeSearchText(value) {
-    return String(value || "")
-      .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function normalizeKeywordQuery(value) {
-    return normalizeSearchText(value)
-      .replace(/^"|"$/g, "")
-      .toLowerCase();
-  }
-
-  function normalizeReferenceBookKey(value) {
-    return String(value || "")
-      .toLowerCase()
-      .replace(/[.'’]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function getKeywordMatches(query) {
-    const needle = normalizeKeywordQuery(query);
-    if (needle.length < 2) return [];
-
-    return state.keywords
-      .filter((keyword) => normalizeKeywordQuery(keyword.name).includes(needle))
-      .map((keyword) => {
-        const name = normalizeKeywordQuery(keyword.name);
-        let rank = 2;
-        if (name === needle) rank = 0;
-        else if (name.startsWith(needle)) rank = 1;
-        return { keyword, rank };
-      })
-      .sort((a, b) => {
-        if (a.rank !== b.rank) return a.rank - b.rank;
-        const countA = Math.max(0, Number(a.keyword.scriptureCount) || 0);
-        const countB = Math.max(0, Number(b.keyword.scriptureCount) || 0);
-        if (countA !== countB) return countB - countA;
-        return String(a.keyword.name || "").localeCompare(String(b.keyword.name || ""));
-      })
-      .map((item) => item.keyword);
-  }
-
-  function parseReferenceQuery(query) {
-    const normalized = normalizeSearchText(query)
-      .replace(/^"|"$/g, "")
-      .replace(/[.;,]+$/g, "")
-      .trim();
-
-    if (!normalized) return null;
-
-    const match = normalized.match(
-      /^(.+?)\s+(\d+(?:-\d+|:\d+(?:-\d+(?::\d+)?)?)?)$/u
-    );
-
-    if (!match) return null;
-
-    return {
-      original: normalized,
-      bookText: normalizeSearchText(match[1]),
-      locator: normalizeSearchText(match[2])
-    };
-  }
-
-  function getCurrentBibleState() {
-    const params = new URLSearchParams(window.location.search);
-    const select = document.getElementById("search-bible-select");
-    const selectedOption = select?.options?.[select.selectedIndex] || null;
-    const preferences = readPreferences();
-
-    return {
-      bibleId:
-        select?.value ||
-        params.get("bible") ||
-        preferences.bibleId ||
-        "bba9f40183526463-018",
-      bibleAbbr:
-        selectedOption?.dataset?.abbr ||
-        params.get("bibleAbbr") ||
-        preferences.bibleAbbr ||
-        "BSB",
-      bibleName:
-        selectedOption?.dataset?.name ||
-        params.get("bibleName") ||
-        preferences.bibleName ||
-        "Berean Standard Bible"
-    };
-  }
-
-  function readPreferences() {
-    if (window.UserPreferences?.read) return window.UserPreferences.read();
+    }
 
     try {
-      return JSON.parse(localStorage.getItem("branchOfIsraelPreferences") || "{}");
+      localStorage.setItem(STUDY_SYNC_STORAGE_KEY, JSON.stringify(message));
+      localStorage.removeItem(STUDY_SYNC_STORAGE_KEY);
     } catch (error) {
-      return {};
+      console.warn("Keyword sync fallback failed:", error);
     }
   }
 
-  async function ensureSelectedBibleBookOrder() {
-    const bible = getCurrentBibleState();
-    if (!bible.bibleId) return [];
+  function getBibleContext() {
+    const params = new URLSearchParams(window.location.search);
+    const chapterId = params.get("chapter") || "";
+    const chapterParts = chapterId.split(".");
+    const bookId =
+      params.get("book") ||
+      (chapterParts.length > 1 ? chapterParts[0] : "") ||
+      "";
 
-    if (state.bookOrderBibleId === bible.bibleId && state.bookOrder.length) {
-      return state.bookOrder;
+    return {
+      // bookId is the stable API.Bible book identifier (for example JHN).
+      // It is used for Keyword lookups so connections do not depend on the
+      // displayed language or Bible translation.
+      bookId,
+      // bookName is display-only and may be localized (John, Yochanan, etc.).
+      bookName:
+        params.get("bookName") ||
+        params.get("name") ||
+        bookId ||
+        "",
+      chapterNumber: chapterParts[chapterParts.length - 1] || ""
+    };
+  }
+
+  function getReferenceBooks(context) {
+    return {
+      lookupBook: normalizeText(context.bookId || context.bookName),
+      displayBook: normalizeText(context.bookName || context.bookId)
+    };
+  }
+
+  function getTextOffset(root, targetNode, targetOffset) {
+    let offset = 0;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+
+      if (node === targetNode) {
+        return offset + targetOffset;
+      }
+
+      offset += node.nodeValue.length;
     }
 
-    if (state.bookOrderPromise) return state.bookOrderPromise;
-    if (typeof API_KEY === "undefined" || !API_KEY) return [];
+    return offset;
+  }
 
-    state.bookOrderPromise = (async () => {
-      try {
-        const response = await fetch(
-          `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bible.bibleId)}/books`,
-          { headers: { "api-key": API_KEY } }
-        );
-        const result = await response.json();
+  function getRangeFromOffsets(root, startOffset, endOffset) {
+    const range = document.createRange();
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let currentOffset = 0;
+    let startSet = false;
 
-        if (!response.ok) {
-          throw new Error(result.message || "Could not load Bible books.");
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const nextOffset = currentOffset + node.nodeValue.length;
+
+      if (!startSet && startOffset >= currentOffset && startOffset <= nextOffset) {
+        range.setStart(node, startOffset - currentOffset);
+        startSet = true;
+      }
+
+      if (startSet && endOffset >= currentOffset && endOffset <= nextOffset) {
+        range.setEnd(node, endOffset - currentOffset);
+        return range;
+      }
+
+      currentOffset = nextOffset;
+    }
+
+    return null;
+  }
+
+  function clearRememberedBibleSelection() {
+    state.savedOffsets = null;
+    state.savedAt = 0;
+  }
+
+  function rememberBibleSelection() {
+    const selection = window.getSelection();
+    const bibleText = document.getElementById("bible-text");
+
+    if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+
+    if (!bibleText.contains(range.commonAncestorContainer)) {
+      return;
+    }
+
+    const start = getTextOffset(bibleText, range.startContainer, range.startOffset);
+    const end = getTextOffset(bibleText, range.endContainer, range.endOffset);
+
+    if (start === end) return;
+
+    state.savedOffsets = { start, end };
+    state.savedAt = Date.now();
+  }
+
+  function getSelectionRange() {
+    const bibleText = document.getElementById("bible-text");
+    const selection = window.getSelection();
+
+    if (!bibleText) return null;
+
+    if (selection && selection.rangeCount && !selection.isCollapsed) {
+      const liveRange = selection.getRangeAt(0);
+
+      if (bibleText.contains(liveRange.commonAncestorContainer)) {
+        return liveRange.cloneRange();
+      }
+    }
+
+    if (state.savedOffsets && Date.now() - state.savedAt <= 120000) {
+      return getRangeFromOffsets(
+        bibleText,
+        state.savedOffsets.start,
+        state.savedOffsets.end
+      );
+    }
+
+    if (typeof window.getRememberedBibleSelectionRange === "function") {
+      const editorRange = window.getRememberedBibleSelectionRange();
+
+      if (editorRange && bibleText.contains(editorRange.commonAncestorContainer)) {
+        return editorRange.cloneRange();
+      }
+    }
+
+    return null;
+  }
+
+  function getVerseNumber(marker) {
+    const sid = marker.getAttribute("data-sid") || "";
+    const verseId = marker.getAttribute("data-verse-id") || marker.getAttribute("id") || "";
+
+    return (
+      sid.match(/:(\d+(?:-\d+)?)$/)?.[1] ||
+      verseId.match(/\.(\d+(?:-\d+)?)$/)?.[1] ||
+      normalizeText(marker.textContent).match(/^(\d+(?:-\d+)?)/)?.[1] ||
+      ""
+    );
+  }
+
+  function getMarkerOffset(root, marker) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(root);
+      range.setEndBefore(marker);
+      return range.toString().length;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function buildReferenceFromRange(range) {
+    const bibleText = document.getElementById("bible-text");
+    const context = getBibleContext();
+    const books = getReferenceBooks(context);
+    const lookupBookChapter = `${books.lookupBook} ${context.chapterNumber}`.trim();
+    const displayBookChapter = `${books.displayBook} ${context.chapterNumber}`.trim();
+
+    if (!bibleText || !range || !lookupBookChapter) {
+      return null;
+    }
+
+    const startOffset = getTextOffset(
+      bibleText,
+      range.startContainer,
+      range.startOffset
+    );
+
+    const endOffset = getTextOffset(
+      bibleText,
+      range.endContainer,
+      range.endOffset
+    );
+
+    const markers = Array.from(bibleText.querySelectorAll(".v"))
+      .map((marker) => ({
+        verse: getVerseNumber(marker),
+        offset: getMarkerOffset(bibleText, marker)
+      }))
+      .filter((item) => item.verse && Number.isFinite(item.offset));
+
+    let startVerse = "";
+    let endVerse = "";
+
+    markers.forEach((item) => {
+      if (item.offset <= startOffset) startVerse = item.verse;
+      if (item.offset < endOffset) endVerse = item.verse;
+    });
+
+    if (!startVerse && markers.length) startVerse = markers[0].verse;
+    if (!endVerse) endVerse = startVerse;
+    if (!startVerse) {
+      return {
+        reference: lookupBookChapter,
+        displayReference: displayBookChapter || lookupBookChapter
+      };
+    }
+
+    const start = startVerse.split("-")[0];
+    const end = endVerse.split("-").pop();
+    const suffix = end && end !== start
+      ? `:${start}-${end}`
+      : `:${start}`;
+
+    return {
+      reference: `${lookupBookChapter}${suffix}`,
+      displayReference: `${displayBookChapter || lookupBookChapter}${suffix}`
+    };
+  }
+
+  function buildReferenceFromVerseMarker(marker) {
+    const context = getBibleContext();
+    const books = getReferenceBooks(context);
+    const verse = getVerseNumber(marker);
+    const lookupBookChapter = `${books.lookupBook} ${context.chapterNumber}`.trim();
+    const displayBookChapter = `${books.displayBook} ${context.chapterNumber}`.trim();
+
+    if (!lookupBookChapter || !verse) return null;
+
+    return {
+      reference: `${lookupBookChapter}:${verse}`,
+      displayReference: `${displayBookChapter || lookupBookChapter}:${verse}`
+    };
+  }
+
+  function getCurrentTargetReference() {
+    const range = getSelectionRange();
+    const selectedTarget = range ? buildReferenceFromRange(range) : null;
+
+    if (selectedTarget?.reference) {
+      return selectedTarget;
+    }
+
+    if (!state.lastVerseReference) return null;
+
+    return {
+      reference: state.lastVerseReference,
+      displayReference: state.lastVerseDisplayReference || state.lastVerseReference
+    };
+  }
+
+  function createDrawer() {
+    if (state.drawer) return state.drawer;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "scripture-keywords-backdrop";
+    backdrop.hidden = true;
+
+    const drawer = document.createElement("aside");
+    drawer.className = "scripture-keywords-drawer";
+    drawer.setAttribute("role", "dialog");
+    drawer.setAttribute("aria-modal", "true");
+    drawer.setAttribute("aria-labelledby", "scripture-keywords-title");
+    drawer.hidden = true;
+
+    drawer.innerHTML = `
+      <div class="scripture-keywords-header">
+        <div class="scripture-keywords-header-copy">
+          <h2 id="scripture-keywords-title">Keywords</h2>
+          <p class="scripture-keywords-reference"></p>
+        </div>
+        <button type="button" class="scripture-keywords-close" aria-label="Close Keywords">&times;</button>
+      </div>
+      <div class="scripture-keywords-body"></div>
+    `;
+
+    document.body.append(backdrop, drawer);
+
+    state.drawer = drawer;
+    state.backdrop = backdrop;
+    state.body = drawer.querySelector(".scripture-keywords-body");
+    state.title = drawer.querySelector("#scripture-keywords-title");
+    state.referenceLabel = drawer.querySelector(".scripture-keywords-reference");
+
+    drawer
+      .querySelector(".scripture-keywords-close")
+      ?.addEventListener("click", closeDrawer);
+
+    backdrop.addEventListener("click", closeDrawer);
+
+    return drawer;
+  }
+
+  function setTriggerExpanded(expanded) {
+    document.querySelectorAll("[data-scripture-keywords-trigger]").forEach((trigger) => {
+      trigger.setAttribute("aria-expanded", String(expanded));
+    });
+  }
+
+  function openShell() {
+    createDrawer();
+
+    state.lastFocusedElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    state.backdrop.hidden = false;
+    state.drawer.hidden = false;
+    document.body.classList.add("scripture-keywords-open");
+    setTriggerExpanded(true);
+
+    window.setTimeout(() => {
+      state.drawer?.querySelector(".scripture-keywords-close")?.focus();
+    }, 0);
+  }
+
+  function closeDrawer() {
+    if (!state.drawer) return;
+
+    state.requestId += 1;
+    state.drawer.hidden = true;
+    state.backdrop.hidden = true;
+    document.body.classList.remove("scripture-keywords-open");
+    setTriggerExpanded(false);
+    state.activeKeyword = null;
+    state.chooserOpen = false;
+    state.searchQuery = "";
+
+    if (state.lastFocusedElement && document.contains(state.lastFocusedElement)) {
+      state.lastFocusedElement.focus();
+    }
+  }
+
+  function setHeader(title, reference = "") {
+    createDrawer();
+    state.title.textContent = title;
+    state.referenceLabel.textContent = reference;
+    state.referenceLabel.hidden = !reference;
+  }
+
+  function renderMessage(message, type = "") {
+    createDrawer();
+    state.body.innerHTML = "";
+
+    const status = document.createElement("div");
+    status.className = `scripture-keywords-status${type ? ` is-${type}` : ""}`;
+    status.textContent = message;
+    state.body.appendChild(status);
+  }
+
+  function isAuthError(error) {
+    return error && (error.status === 401 || error.status === 403);
+  }
+
+  function showKeywordVersionConflict(error) {
+    const code = error?.code || error?.data?.code || "";
+
+    if (!String(code).includes("VERSION_CONFLICT")) {
+      return false;
+    }
+
+    if (window.AppConflictDialog?.show) {
+      window.AppConflictDialog.show({
+        key: `keyword:${state.activeReference}:${code}`,
+        title: "Newer Keyword data available",
+        message: "This Keyword connection changed on another device before your change reached the server.",
+        detail: "Your change was not allowed to overwrite the newer saved version.",
+        secondaryLabel: "Keep this screen",
+        primaryLabel: "Reload Keywords",
+        onPrimary: () => {
+          if (state.activeReference) {
+            loadReferenceKeywords(state.activeReference, state.activeDisplayReference);
+          }
         }
-
-        state.bookOrder = (result.data || []).map((book) => ({
-          id: book.id || "",
-          name: book.name || "",
-          abbreviation: book.abbreviation || ""
-        }));
-        state.bookOrderBibleId = bible.bibleId;
-        return state.bookOrder;
-      } catch (error) {
-        console.warn("Could not load Bible books for Keyword Search:", error);
-        state.bookOrder = [];
-        state.bookOrderBibleId = bible.bibleId;
-        return [];
-      } finally {
-        state.bookOrderPromise = null;
-      }
-    })();
-
-    return state.bookOrderPromise;
-  }
-
-  function getAllSearchableBooks() {
-    const byId = new Map();
-
-    CANONICAL_BOOKS.forEach((book) => byId.set(book.id, { ...book }));
-
-    state.bookOrder.forEach((book) => {
-      const id = String(book.id || "").toUpperCase();
-      if (!id) return;
-      byId.set(id, {
-        id,
-        name: book.name || byId.get(id)?.name || id,
-        abbreviation: book.abbreviation || id
       });
-    });
-
-    return Array.from(byId.values());
-  }
-
-  function getBookMatches(bookText) {
-    const needle = normalizeReferenceBookKey(bookText);
-    if (!needle) return [];
-
-    return getAllSearchableBooks()
-      .map((book) => {
-        const candidates = [book.name, book.abbreviation, book.id]
-          .filter(Boolean)
-          .map(normalizeReferenceBookKey);
-
-        let rank = 99;
-        if (candidates.some((value) => value === needle)) rank = 0;
-        else if (candidates.some((value) => value.startsWith(needle))) rank = 1;
-        else if (candidates.some((value) => value.includes(needle))) rank = 2;
-
-        return { book, rank };
-      })
-      .filter((item) => item.rank < 99)
-      .sort((a, b) => {
-        if (a.rank !== b.rank) return a.rank - b.rank;
-        return String(a.book.name || "").localeCompare(String(b.book.name || ""));
-      })
-      .map((item) => item.book);
-  }
-
-  function getBookIdSync(bookText) {
-    const key = normalizeReferenceBookKey(bookText);
-    if (!key) return "";
-
-    const canonical = CANONICAL_BOOK_ID_MAP.get(key);
-    if (canonical) return canonical;
-
-    const selected = state.bookOrder.find((book) => {
-      return [book.id, book.name, book.abbreviation]
-        .filter(Boolean)
-        .some((value) => normalizeReferenceBookKey(value) === key);
-    });
-
-    return String(selected?.id || "").toUpperCase();
-  }
-
-  async function getStableBookIdForReferenceBook(bookText) {
-    let id = getBookIdSync(bookText);
-    if (id) return id;
-
-    await ensureSelectedBibleBookOrder();
-    id = getBookIdSync(bookText);
-
-    if (id) return id;
-
-    const partialMatches = getBookMatches(bookText);
-    return partialMatches.length === 1 ? partialMatches[0].id : "";
-  }
-
-  async function getKeywordLookupReference(query) {
-    const parsed = parseReferenceQuery(query);
-    if (!parsed) return "";
-
-    const bookId = await getStableBookIdForReferenceBook(parsed.bookText);
-    if (!bookId) return "";
-
-    return `${bookId} ${parsed.locator}`;
-  }
-
-  async function updateKeywordSuggestions() {
-    if (state.mode !== "keyword" || !elements.keywordSuggestions) return;
-
-    if (isKeywordSearchBlocked() || state.keywordAccess === "unknown") {
-      closeSuggestions();
-      return;
     }
 
-    const query = normalizeSearchText(elements.input.value || "");
-    const requestId = ++state.suggestionRequestId;
-
-    if (query.length < 2) {
-      closeSuggestions();
-      return;
-    }
-
-    await Promise.all([
-      loadKeywordLibrary(),
-      ensureSelectedBibleBookOrder()
-    ]);
-
-    if (
-      requestId !== state.suggestionRequestId ||
-      state.mode !== "keyword"
-    ) {
-      return;
-    }
-
-    const keywordMatches = state.keywordLibraryUnavailable
-      ? []
-      : getKeywordMatches(query).slice(0, KEYWORD_SUGGESTION_LIMIT);
-    const scriptureSuggestions = getScriptureSuggestions(query);
-    const parsedReference = parseReferenceQuery(query);
-
-    if (!keywordMatches.length && !scriptureSuggestions.length) {
-      closeSuggestions();
-      return;
-    }
-
-    const panel = elements.keywordSuggestions;
-    panel.innerHTML = "";
-
-    const addKeywords = () => {
-      if (!keywordMatches.length) return;
-      appendSuggestionHeading(panel, "Keywords");
-      keywordMatches.forEach((keyword) => {
-        panel.appendChild(createKeywordSuggestionButton(keyword));
-      });
-    };
-
-    const addScripture = () => {
-      if (!scriptureSuggestions.length) return;
-      appendSuggestionHeading(panel, "Scripture");
-      scriptureSuggestions.forEach((suggestion) => {
-        panel.appendChild(createScriptureSuggestionButton(suggestion));
-      });
-    };
-
-    // Once a chapter/reference pattern is present, Scripture intent becomes the
-    // more likely choice. For ordinary words or a bare book name, Keywords stay first.
-    if (parsedReference) {
-      addScripture();
-      addKeywords();
-    } else {
-      addKeywords();
-      addScripture();
-    }
-
-    panel.hidden = false;
-    elements.input.setAttribute("aria-expanded", "true");
+    return true;
   }
 
-  function getScriptureSuggestions(query) {
-    const normalized = normalizeSearchText(query);
-    const parsed = parseReferenceQuery(normalized);
-
-    if (parsed) {
-      const matches = getBookMatches(parsed.bookText).slice(0, BOOK_SUGGESTION_LIMIT);
-      return matches.map((book) => ({
-        type: "reference",
-        complete: true,
-        value: `${book.name} ${parsed.locator}`,
-        label: `${book.name} ${parsed.locator}`,
-        hint: "Find associated Keywords"
-      }));
-    }
-
-    // Bare book-name suggestions are useful for ambiguous cases such as a
-    // Keyword named "Romans". Choosing the Scripture option simply fills the
-    // book name and lets the user continue with chapter/verse.
-    if (/\d/.test(normalized)) return [];
-
-    return getBookMatches(normalized)
-      .slice(0, BOOK_SUGGESTION_LIMIT)
-      .map((book) => ({
-        type: "book",
-        complete: false,
-        value: `${book.name} `,
-        label: book.name,
-        hint: "Type a chapter or verse"
-      }));
+  function renderNeedSelection() {
+    openShell();
+    setHeader("Keywords");
+    state.body.innerHTML = `
+      <div class="scripture-keywords-empty-card">
+        <i class="fa fa-tags" aria-hidden="true"></i>
+        <strong>Choose a Scripture first</strong>
+        <p>Select Scripture text and press Keywords, or click a verse number to open its Keywords.</p>
+      </div>
+    `;
   }
 
-  function appendSuggestionHeading(panel, text) {
-    const heading = document.createElement("div");
-    heading.className = "search-keyword-suggestion-heading";
-    heading.textContent = text;
-    panel.appendChild(heading);
+  function connectedKeywordMap() {
+    return new Map(state.connectedKeywords.map((keyword) => [String(keyword.id), keyword]));
   }
 
-  function createKeywordSuggestionButton(keyword) {
+  function applyKeywordColor(element, color) {
+    const safeColor = /^#[0-9a-f]{6}$/i.test(String(color || ""))
+      ? color
+      : "#dbeafe";
+
+    element.style.setProperty("--keyword-chip-color", safeColor);
+  }
+
+  function createConnectedKeywordChip(keyword) {
+    const wrap = document.createElement("span");
+    wrap.className = "scripture-keyword-chip-wrap";
+    applyKeywordColor(wrap, keyword.color);
+
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "search-keyword-suggestion";
-    button.dataset.searchSuggestion = "keyword";
-    button.setAttribute("role", "option");
-
-    const name = document.createElement("span");
-    name.className = "search-keyword-suggestion-name";
-    name.textContent = keyword.name || "Keyword";
-
-    const count = document.createElement("span");
-    count.className = "search-keyword-suggestion-count";
-    const scriptureCount = Math.max(0, Number(keyword.scriptureCount) || 0);
-    count.textContent = `${scriptureCount} Scripture${scriptureCount === 1 ? "" : "s"}`;
-
-    button.append(name, count);
-    button.addEventListener("click", () => selectKeywordAndSearch(keyword));
-    return button;
-  }
-
-  function createScriptureSuggestionButton(suggestion) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "search-keyword-suggestion search-scripture-suggestion";
-    button.dataset.searchSuggestion = "scripture";
-    button.setAttribute("role", "option");
-
-    const name = document.createElement("span");
-    name.className = "search-keyword-suggestion-name";
-    name.textContent = suggestion.label;
-
-    const hint = document.createElement("span");
-    hint.className = "search-keyword-suggestion-count";
-    hint.textContent = suggestion.hint;
-
-    button.append(name, hint);
-    button.addEventListener("click", () => {
-      elements.input.value = suggestion.value;
-      state.keywordQuery = normalizeSearchText(suggestion.value);
-      closeSuggestions();
-
-      if (suggestion.complete) {
-        runKeywordSearch(state.keywordQuery);
-      } else {
-        elements.input.focus();
-        updateKeywordSuggestions();
-      }
-    });
-
-    return button;
-  }
-
-  function selectKeywordAndSearch(keyword) {
-    if (!keyword?.name) return;
-    elements.input.value = keyword.name;
-    state.keywordQuery = keyword.name;
-    closeSuggestions();
-    runKeywordSearch(keyword.name);
-  }
-
-  function closeSuggestions() {
-    state.suggestionRequestId += 1;
-
-    if (elements.keywordSuggestions) {
-      elements.keywordSuggestions.hidden = true;
-      elements.keywordSuggestions.innerHTML = "";
-    }
-
-    elements.input?.setAttribute("aria-expanded", "false");
-  }
-
-  function handleInputKeydown(event) {
-    if (state.mode !== "keyword") return;
-
-    if (event.key === "ArrowDown" && !elements.keywordSuggestions?.hidden) {
-      const first = elements.keywordSuggestions.querySelector(
-        "button[data-search-suggestion]"
-      );
-
-      if (first) {
-        event.preventDefault();
-        first.focus();
-      }
-      return;
-    }
-
-    if (event.key === "Escape") closeSuggestions();
-  }
-
-  function handleSuggestionKeydown(event) {
-    if (state.mode !== "keyword" || elements.keywordSuggestions?.hidden) return;
-
-    const buttons = Array.from(
-      elements.keywordSuggestions.querySelectorAll("button[data-search-suggestion]")
-    );
-
-    if (!buttons.length) return;
-    const currentIndex = buttons.indexOf(document.activeElement);
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      buttons[(currentIndex + 1 + buttons.length) % buttons.length].focus();
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      if (currentIndex <= 0) elements.input.focus();
-      else buttons[currentIndex - 1].focus();
-      return;
-    }
-
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeSuggestions();
-      elements.input.focus();
-    }
-  }
-
-  async function runKeywordSearch(query) {
-    if (state.mode !== "keyword") return;
-
-    if (state.keywordAccess === "signed-out") {
-      syncKeywordAccessUi();
-      clearKeywordResults("Sign in to use Keyword Search.");
-      return;
-    }
-
-    const normalizedQuery = normalizeSearchText(query);
-    state.keywordQuery = normalizedQuery;
-    state.resultRequestId += 1;
-    const requestId = state.resultRequestId;
-
-    closeSuggestions();
-    clearKeywordContainer();
-
-    await Promise.all([
-      loadKeywordLibrary(),
-      ensureSelectedBibleBookOrder()
-    ]);
-
-    if (requestId !== state.resultRequestId || state.mode !== "keyword") return;
-
-    if (state.keywordLibraryUnavailable) {
-      renderSimpleKeywordMessage(
-        "Keyword Search",
-        "Log in to search your private Keywords.",
-        ""
-      );
-      return;
-    }
-
-    const parsedReference = parseReferenceQuery(normalizedQuery);
-
-    // Valid Scripture structure takes priority over an identically named Keyword.
-    if (parsedReference) {
-      const lookupReference = await getKeywordLookupReference(normalizedQuery);
-      if (requestId !== state.resultRequestId) return;
-
-      if (!lookupReference) {
-        renderSimpleKeywordMessage(
-          "Scripture",
-          `Could not recognize the Bible book in “${normalizedQuery}”.`,
-          "Try selecting the Scripture suggestion as you type."
-        );
-        return;
-      }
-
-      await renderReferenceKeywordResults(normalizedQuery, lookupReference, requestId);
-      return;
-    }
-
-    const matches = getKeywordMatches(normalizedQuery);
-    const exact = matches.find(
-      (keyword) => normalizeKeywordQuery(keyword.name) === normalizeKeywordQuery(normalizedQuery)
-    );
-
-    if (exact) {
-      await renderKeywordDetail(exact, requestId);
-      return;
-    }
-
-    if (matches.length) {
-      renderKeywordMatchResults(matches, normalizedQuery);
-      return;
-    }
-
-    const bookMatches = getBookMatches(normalizedQuery);
-
-    if (bookMatches.some((book) => normalizeReferenceBookKey(book.name) === normalizeReferenceBookKey(normalizedQuery))) {
-      renderSimpleKeywordMessage(
-        "Scripture",
-        `Enter a chapter or verse after ${bookMatches[0].name}.`,
-        `For example: ${bookMatches[0].name} 12:3`
-      );
-      return;
-    }
-
-    renderSimpleKeywordMessage(
-      "Keyword Search",
-      `No Keywords match “${normalizedQuery}”.`,
-      "Try part of a Keyword name, or enter a Scripture reference such as John 3:16."
-    );
-  }
-
-  function clearKeywordContainer() {
-    elements.keywordResults.innerHTML = "";
-    elements.keywordResults.hidden = false;
-    state.keywordHasRendered = true;
-  }
-
-  function clearKeywordResults(summary) {
-    state.keywordSummary = summary || "";
-    state.keywordHasRendered = false;
-    elements.keywordResults.innerHTML = "";
-    elements.keywordResults.hidden = true;
-    if (state.mode === "keyword" && elements.resultsSummary) {
-      elements.resultsSummary.textContent = state.keywordSummary;
-    }
-  }
-
-  function setKeywordSummary(summary) {
-    state.keywordSummary = summary || "";
-    if (state.mode === "keyword" && elements.resultsSummary) {
-      elements.resultsSummary.textContent = state.keywordSummary;
-    }
-  }
-
-  function renderSimpleKeywordMessage(eyebrow, message, detail) {
-    clearKeywordContainer();
-    setKeywordSummary(message);
-
-    elements.keywordResults.appendChild(
-      createKeywordSectionHeading(eyebrow, message)
-    );
-
-    if (detail) {
-      const note = document.createElement("p");
-      note.className = "search-keyword-empty";
-      note.textContent = detail;
-      elements.keywordResults.appendChild(note);
-    }
-  }
-
-  function createKeywordSectionHeading(eyebrow, title, meta = "") {
-    const heading = document.createElement("div");
-    heading.className = "search-keyword-result-heading";
-
-    const text = document.createElement("div");
-
-    const label = document.createElement("p");
-    label.className = "search-keyword-result-eyebrow";
-    label.textContent = eyebrow;
-
-    const name = document.createElement("h3");
-    name.textContent = title;
-
-    text.append(label, name);
-    heading.appendChild(text);
-
-    if (meta) {
-      const count = document.createElement("span");
-      count.className = "search-keyword-result-meta";
-      count.textContent = meta;
-      heading.appendChild(count);
-    }
-
-    return heading;
-  }
-
-  function renderKeywordMatchResults(matches, query) {
-    clearKeywordContainer();
-    setKeywordSummary(`${matches.length} Keyword match${matches.length === 1 ? "" : "es"} for “${query}”.`);
-
-    const visible = matches.slice(0, KEYWORD_RESULT_LIMIT);
-
-    elements.keywordResults.appendChild(
-      createKeywordSectionHeading(
-        "Keyword Matches",
-        `Keywords matching “${query}”`,
-        `${matches.length} match${matches.length === 1 ? "" : "es"}`
-      )
-    );
-
-    const list = document.createElement("div");
-    list.className = "search-keyword-match-list";
-
-    const renderRows = (keywords) => {
-      list.innerHTML = "";
-      keywords.forEach((keyword) => list.appendChild(createKeywordMatchRow(keyword)));
-    };
-
-    renderRows(visible);
-    elements.keywordResults.appendChild(list);
-
-    if (matches.length > visible.length) {
-      const more = document.createElement("button");
-      more.type = "button";
-      more.className = "search-keyword-view-all";
-      more.textContent = `View all ${matches.length} Keyword matches`;
-      more.addEventListener("click", () => {
-        renderRows(matches);
-        list.classList.add("is-expanded");
-        more.remove();
-      });
-      elements.keywordResults.appendChild(more);
-    }
-  }
-
-  function createKeywordMatchRow(keyword) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "search-keyword-match-row";
-
-    const main = document.createElement("span");
-    main.className = "search-keyword-match-main";
+    button.className = "scripture-keyword-chip";
+    button.dataset.keywordId = keyword.id;
+    button.title = `View Scriptures connected to ${keyword.name}`;
+    button.setAttribute("aria-label", `View Scriptures connected to ${keyword.name}`);
 
     const dot = document.createElement("span");
-    dot.className = "search-keyword-color-dot";
-    dot.style.background = keyword.color || "#dbeafe";
+    dot.className = "scripture-keyword-chip-dot";
+    dot.setAttribute("aria-hidden", "true");
 
-    const name = document.createElement("strong");
-    name.textContent = keyword.name || "Keyword";
-    main.append(dot, name);
+    const label = document.createElement("span");
+    label.textContent = keyword.name;
 
-    const count = document.createElement("span");
-    count.className = "search-keyword-match-count";
-    const scriptureCount = Math.max(0, Number(keyword.scriptureCount) || 0);
-    count.textContent = `${scriptureCount} Scripture${scriptureCount === 1 ? "" : "s"}`;
+    button.append(dot, label);
+    button.addEventListener("click", () => openKeywordScriptures(keyword));
 
-    button.append(main, count);
-    button.addEventListener("click", () => selectKeywordAndSearch(keyword));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "scripture-keyword-chip-remove";
+    remove.textContent = "×";
+    remove.title = `Remove ${keyword.name} from this Scripture`;
+    remove.setAttribute(
+      "aria-label",
+      `Remove ${keyword.name} from ${state.activeDisplayReference || state.activeReference}. This does not delete the Keyword.`
+    );
+    remove.addEventListener("click", () => {
+      const reference = state.activeDisplayReference || state.activeReference || "this Scripture";
+      const confirmed = window.confirm(
+        `Remove "${keyword.name}" from ${reference}? This will not delete the Keyword itself.`
+      );
+
+      if (!confirmed) return;
+      toggleKeywordConnection(keyword, remove);
+    });
+
+    wrap.append(button, remove);
+    return wrap;
+  }
+
+  function createChooserRow(keyword, connectedMap) {
+    const connected = connectedMap.get(String(keyword.id)) || null;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "scripture-keyword-choice";
+    button.dataset.keywordId = keyword.id;
+    button.setAttribute("aria-pressed", String(Boolean(connected)));
+    applyKeywordColor(button, keyword.color);
+
+    const swatch = document.createElement("span");
+    swatch.className = "scripture-keyword-choice-swatch";
+    swatch.setAttribute("aria-hidden", "true");
+
+    const name = document.createElement("span");
+    name.className = "scripture-keyword-choice-name";
+    name.textContent = keyword.name;
+
+    const stateIcon = document.createElement("span");
+    stateIcon.className = "scripture-keyword-choice-state";
+    stateIcon.setAttribute("aria-hidden", "true");
+    stateIcon.textContent = connected ? "✓" : "+";
+
+    button.append(swatch, name, stateIcon);
+    button.addEventListener("click", () => toggleKeywordConnection(keyword, button));
     return button;
   }
 
-  async function renderKeywordDetail(keyword, requestId) {
-    clearKeywordContainer();
+  function renderChooser(container) {
+    const chooser = document.createElement("section");
+    chooser.className = "scripture-keyword-chooser";
 
-    const initialCount = Math.max(0, Number(keyword.scriptureCount) || 0);
-    setKeywordSummary(
-      `${keyword.name || "Keyword"} - ${initialCount} connected Scripture${initialCount === 1 ? "" : "s"}.`
-    );
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "scripture-keyword-search";
+    search.placeholder = "Search keywords...";
+    search.setAttribute("aria-label", "Search keywords");
+    search.value = state.searchQuery;
 
-    elements.keywordResults.appendChild(
-      createKeywordSectionHeading(
-        "Keyword",
-        keyword.name || "Keyword",
-        `${initialCount} Scripture${initialCount === 1 ? "" : "s"}`
-      )
-    );
+    const list = document.createElement("div");
+    list.className = "scripture-keyword-choice-list";
 
-    const loading = document.createElement("p");
-    loading.className = "search-keyword-loading";
-    loading.textContent = "Loading connected Scriptures...";
-    elements.keywordResults.appendChild(loading);
+    const createWrap = document.createElement("div");
+    createWrap.className = "scripture-keyword-create";
+    createWrap.innerHTML = `
+      <label for="scripture-new-keyword">New keyword</label>
+      <div class="scripture-keyword-create-row">
+        <input id="scripture-new-keyword" type="text" maxlength="100" placeholder="e.g. Covenant">
+        <button type="button">Create &amp; Add</button>
+      </div>
+      <div class="scripture-keyword-inline-status" aria-live="polite"></div>
+    `;
 
-    try {
-      const result = await fetchAppJson(
-        `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures`
-      );
+    function renderChoices() {
+      const query = normalizeText(search.value).toLowerCase();
+      state.searchQuery = search.value;
+      const connectedMap = connectedKeywordMap();
+      const matches = state.allKeywords.filter((keyword) => {
+        return !query || String(keyword.name || "").toLowerCase().includes(query);
+      });
 
-      if (requestId !== state.resultRequestId || state.mode !== "keyword") return;
+      list.innerHTML = "";
 
-      const scriptures = Array.isArray(result.scriptures) ? result.scriptures : [];
-      elements.keywordResults.innerHTML = "";
-      setKeywordSummary(
-        `${keyword.name || "Keyword"} - ${scriptures.length} connected Scripture${scriptures.length === 1 ? "" : "s"}.`
-      );
-
-      elements.keywordResults.appendChild(
-        createKeywordSectionHeading(
-          "Keyword",
-          keyword.name || "Keyword",
-          `${scriptures.length} Scripture${scriptures.length === 1 ? "" : "s"}`
-        )
-      );
-
-      if (!scriptures.length) {
-        const empty = document.createElement("p");
-        empty.className = "search-keyword-empty";
-        empty.textContent = "No Scriptures are connected to this Keyword yet.";
-        elements.keywordResults.appendChild(empty);
+      if (!matches.length) {
+        const empty = document.createElement("div");
+        empty.className = "scripture-keywords-small-empty";
+        empty.textContent = "No matching keywords.";
+        list.appendChild(empty);
         return;
       }
 
-      const list = document.createElement("div");
-      list.className = "search-keyword-scripture-list";
-      elements.keywordResults.appendChild(list);
+      matches.forEach((keyword) => {
+        list.appendChild(createChooserRow(keyword, connectedMap));
+      });
+    }
 
-      renderKeywordScriptureBatches(scriptures, list, requestId);
-    } catch (error) {
-      if (requestId !== state.resultRequestId) return;
+    search.addEventListener("input", renderChoices);
 
-      elements.keywordResults.innerHTML = "";
-      elements.keywordResults.appendChild(
-        createKeywordSectionHeading("Keyword", keyword.name || "Keyword")
-      );
+    const createInput = createWrap.querySelector("input");
+    const createButton = createWrap.querySelector("button");
+    const createStatus = createWrap.querySelector(".scripture-keyword-inline-status");
 
-      const message = document.createElement("p");
-      message.className = "search-keyword-empty is-error";
-      message.textContent = error.status === 401
-        ? "Log in to search your private Keywords."
-        : (error.message || "Could not load this Keyword's Scriptures.");
-      elements.keywordResults.appendChild(message);
+    async function createAndAddKeyword() {
+      const name = properCaseKeywordName(createInput.value);
+
+      if (!name) {
+        createStatus.textContent = "Enter a keyword name.";
+        createStatus.className = "scripture-keyword-inline-status is-error";
+        return;
+      }
+
+      createInput.disabled = true;
+      createButton.disabled = true;
+      createStatus.textContent = "Creating...";
+      createStatus.className = "scripture-keyword-inline-status";
+
+      try {
+        const created = await requestJson("/api/study-tags", {
+          method: "POST",
+          body: JSON.stringify({ name })
+        });
+
+        const keyword = created.tag;
+
+        if (!keyword?.id) {
+          throw new Error("Could not create the keyword.");
+        }
+
+        const existingIndex = state.allKeywords.findIndex((item) => item.id === keyword.id);
+
+        if (existingIndex >= 0) {
+          state.allKeywords[existingIndex] = keyword;
+        } else {
+          state.allKeywords.push(keyword);
+          state.allKeywords.sort((a, b) => {
+            const sortDiff = (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+            return sortDiff || String(a.name || "").localeCompare(String(b.name || ""));
+          });
+        }
+
+        notifyKeywordDataChanged();
+
+        if (!connectedKeywordMap().has(String(keyword.id))) {
+          const linked = await requestJson(`/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures`, {
+            method: "POST",
+            body: JSON.stringify({ reference: state.activeReference })
+          });
+
+          state.connectedKeywords.push({
+            ...keyword,
+            relationshipId: linked.scripture?.id || "",
+            relationshipVersion: linked.scripture?.version ? Number(linked.scripture.version) : null,
+            note: linked.scripture?.note || ""
+          });
+
+          notifyKeywordDataChanged();
+        }
+
+        createInput.value = "";
+        createStatus.textContent = "Keyword added.";
+        createStatus.className = "scripture-keyword-inline-status is-success";
+        renderKeywordsView({ focusChooser: true });
+      } catch (error) {
+        createStatus.textContent = isAuthError(error)
+          ? "Log in to create Keywords."
+          : (error.message || "Could not create the keyword.");
+        createStatus.className = "scripture-keyword-inline-status is-error";
+        createInput.disabled = false;
+        createButton.disabled = false;
+      }
+    }
+
+    createButton.addEventListener("click", createAndAddKeyword);
+    createInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        createAndAddKeyword();
+      }
+    });
+
+    chooser.append(search, list, createWrap);
+    container.appendChild(chooser);
+    renderChoices();
+  }
+
+  function renderKeywordsView(options = {}) {
+    openShell();
+    setHeader("Keywords", state.activeDisplayReference || state.activeReference);
+    state.activeKeyword = null;
+    state.body.innerHTML = "";
+
+    const intro = document.createElement("p");
+    intro.className = "scripture-keywords-intro";
+    intro.textContent = "Keywords connected to this Scripture in your library.";
+
+    const topRow = document.createElement("div");
+    topRow.className = "scripture-keywords-section-heading";
+
+    const label = document.createElement("strong");
+    label.textContent = `Connected Keywords (${state.connectedKeywords.length})`;
+
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "scripture-keywords-add-button";
+    addButton.textContent = state.chooserOpen ? "Done" : "+ Add Keyword";
+    addButton.addEventListener("click", () => {
+      state.chooserOpen = !state.chooserOpen;
+      renderKeywordsView({ focusChooser: state.chooserOpen });
+    });
+
+    topRow.append(label, addButton);
+
+    const chips = document.createElement("div");
+    chips.className = "scripture-keyword-chip-list";
+
+    if (state.connectedKeywords.length) {
+      state.connectedKeywords.forEach((keyword) => {
+        chips.appendChild(createConnectedKeywordChip(keyword));
+      });
+    } else {
+      const empty = document.createElement("div");
+      empty.className = "scripture-keywords-small-empty";
+      empty.textContent = "No Keywords are connected to this Scripture yet.";
+      chips.appendChild(empty);
+    }
+
+    state.body.append(intro, topRow, chips);
+
+    if (state.chooserOpen) {
+      renderChooser(state.body);
+    }
+
+    if (options.focusChooser) {
+      window.setTimeout(() => {
+        state.body.querySelector(".scripture-keyword-search")?.focus();
+      }, 0);
     }
   }
 
-  function renderKeywordScriptureBatches(scriptures, list, requestId) {
-    let shown = 0;
-    let moreButton = null;
+  async function toggleKeywordConnection(keyword, button) {
+    if (!state.activeReference || button.disabled) return;
 
-    const appendNextBatch = () => {
-      if (moreButton) {
-        moreButton.remove();
-        moreButton = null;
+    const existing = connectedKeywordMap().get(String(keyword.id));
+    button.disabled = true;
+
+    try {
+      if (existing?.relationshipId) {
+        await requestJson(
+          withExpectedVersion(
+            `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures/${encodeURIComponent(existing.relationshipId)}`,
+            existing.relationshipVersion
+          ),
+          { method: "DELETE" }
+        );
+
+        state.connectedKeywords = state.connectedKeywords.filter(
+          (item) => String(item.id) !== String(keyword.id)
+        );
+      } else {
+        const linked = await requestJson(
+          `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures`,
+          {
+            method: "POST",
+            body: JSON.stringify({ reference: state.activeReference })
+          }
+        );
+
+        state.connectedKeywords.push({
+          ...keyword,
+          relationshipId: linked.scripture?.id || "",
+          relationshipVersion: linked.scripture?.version ? Number(linked.scripture.version) : null,
+          note: linked.scripture?.note || ""
+        });
       }
 
-      const next = scriptures.slice(shown, shown + KEYWORD_SCRIPTURE_BATCH_SIZE);
-      next.forEach((item) => list.appendChild(createKeywordScriptureCard(item, requestId)));
-      shown += next.length;
-
-      if (shown < scriptures.length) {
-        const remaining = scriptures.length - shown;
-        const nextCount = Math.min(KEYWORD_SCRIPTURE_BATCH_SIZE, remaining);
-        moreButton = document.createElement("button");
-        moreButton.type = "button";
-        moreButton.className = "search-keyword-show-more-scriptures";
-        moreButton.textContent = `Show ${nextCount} more Scripture${nextCount === 1 ? "" : "s"}`;
-        moreButton.addEventListener("click", appendNextBatch);
-        elements.keywordResults.appendChild(moreButton);
+      notifyKeywordDataChanged();
+      renderKeywordsView({ focusChooser: true });
+    } catch (error) {
+      if (showKeywordVersionConflict(error)) {
+        renderMessage("A newer Keyword connection exists. Reload Keywords to continue.", "error");
+        return;
       }
-    };
 
-    appendNextBatch();
+      renderMessage(
+        isAuthError(error)
+          ? "Log in to manage Scripture Keywords."
+          : (error.message || "Could not update this Keyword."),
+        "error"
+      );
+    }
   }
 
-  function createKeywordScriptureCard(item, requestId, options = {}) {
-    const row = document.createElement("article");
-    row.className = "search-keyword-scripture-row";
+  async function loadReferenceKeywords(reference, displayReference = reference) {
+    const requestId = ++state.requestId;
+    state.activeReference = reference;
+    state.activeDisplayReference = displayReference || reference;
+    state.activeKeyword = null;
+    state.chooserOpen = false;
+    state.searchQuery = "";
 
-    const text = document.createElement("div");
-    text.className = "search-keyword-scripture-text";
+    openShell();
+    setHeader("Keywords", state.activeDisplayReference);
+    renderMessage("Loading Keywords...");
+
+    try {
+      const [allResult, connectedResult] = await Promise.all([
+        requestJson("/api/study-tags"),
+        requestJson(`/api/scripture-references/tags?reference=${encodeURIComponent(reference)}`)
+      ]);
+
+      if (requestId !== state.requestId) return;
+
+      state.allKeywords = Array.isArray(allResult.tags) ? allResult.tags : [];
+      state.connectedKeywords = Array.isArray(connectedResult.tags) ? connectedResult.tags : [];
+      renderKeywordsView();
+    } catch (error) {
+      if (requestId !== state.requestId) return;
+
+      setHeader("Keywords", state.activeDisplayReference);
+      renderMessage(
+        isAuthError(error)
+          ? "Log in to view and manage your Scripture Keywords."
+          : (error.message || "Could not load Scripture Keywords."),
+        "error"
+      );
+    }
+  }
+
+  function renderKeywordScriptureRow(item) {
+    const row = document.createElement("div");
+    row.className = "scripture-keyword-scripture-row";
 
     const reference = document.createElement("strong");
-    reference.textContent = item.reference || item.normalizedReference || options.displayReference || "Scripture";
-    text.appendChild(reference);
+    reference.textContent = item.reference || item.normalizedReference || "Scripture";
 
-    const preview = document.createElement("p");
-    preview.className = "search-keyword-scripture-preview is-loading";
-    preview.textContent = "Loading verse preview...";
-    text.appendChild(preview);
+    row.appendChild(reference);
 
     if (item.note) {
       const note = document.createElement("p");
-      note.className = "search-keyword-relationship-note";
-      note.textContent = `Keyword note: ${item.note}`;
-      text.appendChild(note);
+      note.textContent = item.note;
+      row.appendChild(note);
     }
-
-    const open = document.createElement("a");
-    open.className = "search-keyword-open-link";
-    open.href = buildKeywordScriptureUrl(item);
-    open.textContent = "View Chapter";
-
-    row.append(text, open);
-
-    fetchScripturePreview(item)
-      .then((previewText) => {
-        if (requestId !== state.resultRequestId || !row.isConnected) return;
-        preview.classList.remove("is-loading");
-        preview.textContent = previewText || "Verse preview unavailable.";
-      })
-      .catch(() => {
-        if (requestId !== state.resultRequestId || !row.isConnected) return;
-        preview.classList.remove("is-loading");
-        preview.textContent = "Verse preview unavailable.";
-      });
 
     return row;
   }
 
-  async function renderReferenceKeywordResults(displayReference, lookupReference, requestId) {
-    clearKeywordContainer();
-    setKeywordSummary(`Checking Keywords associated with ${displayReference}.`);
+  async function openKeywordScriptures(keyword) {
+    const requestId = ++state.requestId;
+    state.activeKeyword = keyword;
+    state.chooserOpen = false;
 
-    elements.keywordResults.appendChild(
-      createKeywordSectionHeading("Scripture", displayReference)
-    );
+    setHeader(keyword.name, "Scriptures connected to this Keyword");
+    state.body.innerHTML = "";
 
-    const previewWrap = document.createElement("div");
-    previewWrap.className = "search-reference-preview-wrap";
-    previewWrap.appendChild(
-      createKeywordScriptureCard({ reference: displayReference }, requestId)
-    );
-    elements.keywordResults.appendChild(previewWrap);
+    const backButton = document.createElement("button");
+    backButton.type = "button";
+    backButton.className = "scripture-keywords-back-button";
+    backButton.textContent = "‹ Back to Scripture Keywords";
+    backButton.addEventListener("click", () => {
+      state.requestId += 1;
+      renderKeywordsView();
+    });
 
-    const loading = document.createElement("p");
-    loading.className = "search-keyword-loading";
-    loading.textContent = "Checking associated Keywords...";
-    elements.keywordResults.appendChild(loading);
+    state.body.appendChild(backButton);
+    const loading = document.createElement("div");
+    loading.className = "scripture-keywords-status";
+    loading.textContent = "Loading Scriptures...";
+    state.body.appendChild(loading);
 
     try {
-      const result = await fetchAppJson(
-        `/api/scripture-references/tags?reference=${encodeURIComponent(lookupReference)}`
+      const result = await requestJson(
+        `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures`
       );
 
-      if (requestId !== state.resultRequestId || state.mode !== "keyword") return;
+      if (requestId !== state.requestId) return;
 
-      const keywords = Array.isArray(result.tags) ? result.tags : [];
-      loading.remove();
-      setKeywordSummary(
-        `${displayReference} - ${keywords.length} associated Keyword${keywords.length === 1 ? "" : "s"}.`
-      );
+      const scriptures = Array.isArray(result.scriptures) ? result.scriptures : [];
+      state.body.innerHTML = "";
+      state.body.appendChild(backButton);
 
-      const subheading = document.createElement("div");
-      subheading.className = "search-associated-keyword-heading";
-      subheading.textContent = `Associated Keywords (${keywords.length})`;
-      elements.keywordResults.appendChild(subheading);
+      const summary = document.createElement("p");
+      summary.className = "scripture-keywords-intro";
+      summary.textContent = `${scriptures.length} Scripture${scriptures.length === 1 ? "" : "s"} connected to ${keyword.name}.`;
+      state.body.appendChild(summary);
 
-      if (!keywords.length) {
-        const empty = document.createElement("p");
-        empty.className = "search-keyword-empty";
-        empty.textContent = "No Keywords are associated with this Scripture yet.";
-        elements.keywordResults.appendChild(empty);
-        return;
+      const list = document.createElement("div");
+      list.className = "scripture-keyword-scripture-list";
+
+      if (!scriptures.length) {
+        const empty = document.createElement("div");
+        empty.className = "scripture-keywords-small-empty";
+        empty.textContent = "No Scriptures are connected to this Keyword yet.";
+        list.appendChild(empty);
+      } else {
+        scriptures.forEach((item) => list.appendChild(renderKeywordScriptureRow(item)));
       }
 
-      const chips = document.createElement("div");
-      chips.className = "search-associated-keyword-list";
+      state.body.appendChild(list);
+    } catch (error) {
+      if (requestId !== state.requestId) return;
 
-      keywords.forEach((keyword) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "search-associated-keyword-chip";
+      state.body.innerHTML = "";
+      state.body.appendChild(backButton);
+      const message = document.createElement("div");
+      message.className = "scripture-keywords-status is-error";
+      message.textContent = error.message || "Could not load Scriptures for this Keyword.";
+      state.body.appendChild(message);
+    }
+  }
 
-        const dot = document.createElement("span");
-        dot.className = "search-keyword-color-dot";
-        dot.style.background = keyword.color || "#dbeafe";
+  function openFromCurrentContext() {
+    rememberBibleSelection();
+    const target = getCurrentTargetReference();
 
-        const name = document.createElement("span");
-        name.textContent = keyword.name || "Keyword";
+    if (!target?.reference) {
+      renderNeedSelection();
+      return;
+    }
 
-        button.append(dot, name);
-        button.addEventListener("click", () => selectKeywordAndSearch(keyword));
-        chips.appendChild(button);
+    loadReferenceKeywords(target.reference, target.displayReference);
+  }
+
+  function bindTriggers() {
+    document.querySelectorAll("[data-scripture-keywords-trigger]").forEach((trigger) => {
+      if (trigger.dataset.keywordTriggerReady === "true") return;
+      trigger.dataset.keywordTriggerReady = "true";
+
+      trigger.addEventListener("pointerdown", (event) => {
+        rememberBibleSelection();
+        event.preventDefault();
       });
 
-      elements.keywordResults.appendChild(chips);
-    } catch (error) {
-      if (requestId !== state.resultRequestId) return;
-      loading.remove();
+      trigger.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
 
-      if (error.status === 400) {
-        setKeywordSummary(`Could not recognize ${displayReference}.`);
-        const message = document.createElement("p");
-        message.className = "search-keyword-empty is-error";
-        message.textContent = "Enter a valid Scripture reference, for example John 3:16.";
-        elements.keywordResults.appendChild(message);
-        return;
-      }
+        if (typeof window.closeMobileToolbarMenus === "function") {
+          window.closeMobileToolbarMenus();
+        }
 
-      const message = document.createElement("p");
-      message.className = "search-keyword-empty is-error";
-      message.textContent = error.status === 401
-        ? "Log in to see your private Keywords for this Scripture."
-        : (error.message || "Could not load associated Keywords.");
-      elements.keywordResults.appendChild(message);
-    }
-  }
+        if (state.drawer && !state.drawer.hidden) {
+          closeDrawer();
+          return;
+        }
 
-  async function fetchScripturePreview(item) {
-    const bible = getCurrentBibleState();
-    const reference = normalizeSearchText(item.reference || item.normalizedReference || "");
-    const passageId = await buildPassageId(reference, item);
-
-    if (!bible.bibleId || !passageId) return "";
-    if (typeof API_KEY === "undefined" || !API_KEY) return "";
-
-    const cacheKey = `${bible.bibleId}::${passageId}`;
-    if (state.passageCache.has(cacheKey)) return state.passageCache.get(cacheKey);
-
-    const url =
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bible.bibleId)}` +
-      `/passages/${encodeURIComponent(passageId)}` +
-      "?content-type=html" +
-      "&include-notes=false" +
-      "&include-titles=false" +
-      "&include-chapter-numbers=false" +
-      "&include-verse-numbers=false" +
-      "&include-verse-spans=false";
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { "api-key": API_KEY }
+        openFromCurrentContext();
+      });
     });
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Could not load verse preview.");
-    }
-
-    if (
-      result.meta?.fumsId &&
-      window._BAPI &&
-      typeof window._BAPI.t === "function"
-    ) {
-      try {
-        window._BAPI.t(result.meta.fumsId);
-      } catch (error) {
-        console.warn("FUMS tracking failed:", error);
-      }
-    }
-
-    const plainText = htmlToPlainText(result.data?.content || "");
-    const preview = truncatePreview(plainText, SCRIPTURE_PREVIEW_LIMIT);
-    state.passageCache.set(cacheKey, preview);
-    return preview;
   }
 
-  async function buildPassageId(reference, item = {}) {
-    const parsed = parseReferenceQuery(reference);
-    if (!parsed) return "";
+  function decorateVerseMarkers() {
+    const bibleText = document.getElementById("bible-text");
+    if (!bibleText) return;
 
-    const bookId =
-      String(item.bookId || "").toUpperCase() ||
-      await getStableBookIdForReferenceBook(parsed.bookText);
+    bibleText.querySelectorAll(".v").forEach((marker) => {
+      if (marker.dataset.keywordVerseReady === "true") return;
 
-    if (!bookId) return "";
+      const target = buildReferenceFromVerseMarker(marker);
+      const labelReference = target?.displayReference || target?.reference || "";
+      marker.dataset.keywordVerseReady = "true";
+      marker.setAttribute("role", "button");
+      marker.setAttribute("tabindex", "0");
+      marker.setAttribute(
+        "aria-label",
+        labelReference ? `Open Keywords for ${labelReference}` : "Open Scripture Keywords"
+      );
+      marker.title = labelReference ? `Keywords for ${labelReference}` : "Scripture Keywords";
+    });
+  }
 
-    const locator = parsed.locator;
-    let match = locator.match(/^(\d+)$/);
-    if (match) return `${bookId}.${match[1]}`;
+  function bindVerseMarkerAccess() {
+    const bibleText = document.getElementById("bible-text");
+    if (!bibleText) return;
 
-    match = locator.match(/^(\d+)-(\d+)$/);
-    if (match) return `${bookId}.${match[1]}-${bookId}.${match[2]}`;
+    const observer = new MutationObserver(decorateVerseMarkers);
+    observer.observe(bibleText, { childList: true, subtree: true });
+    decorateVerseMarkers();
 
-    match = locator.match(/^(\d+):(\d+)$/);
-    if (match) return `${bookId}.${match[1]}.${match[2]}`;
+    bibleText.addEventListener("click", (event) => {
+      const marker = event.target.closest?.(".v[data-keyword-verse-ready='true']");
+      if (!marker || !bibleText.contains(marker)) return;
 
-    match = locator.match(/^(\d+):(\d+)-(\d+)$/);
-    if (match) {
-      return `${bookId}.${match[1]}.${match[2]}-${bookId}.${match[1]}.${match[3]}`;
+      const target = buildReferenceFromVerseMarker(marker);
+      if (!target?.reference) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      state.lastVerseReference = target.reference;
+      state.lastVerseDisplayReference = target.displayReference || target.reference;
+      clearRememberedBibleSelection();
+      loadReferenceKeywords(target.reference, target.displayReference);
+    });
+
+    bibleText.addEventListener("keydown", (event) => {
+      const marker = event.target.closest?.(".v[data-keyword-verse-ready='true']");
+      if (!marker || !bibleText.contains(marker)) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+
+      const target = buildReferenceFromVerseMarker(marker);
+      if (!target?.reference) return;
+
+      event.preventDefault();
+      state.lastVerseReference = target.reference;
+      state.lastVerseDisplayReference = target.displayReference || target.reference;
+      clearRememberedBibleSelection();
+      loadReferenceKeywords(target.reference, target.displayReference);
+    });
+  }
+
+  document.addEventListener("selectionchange", rememberBibleSelection);
+
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return;
+
+    // Keep the range only while the user is moving from selected Bible text to
+    // a Keywords control. Any other click means the visible selection is over.
+    if (target.closest("#scripture-keywords-drawer, #bible-mini-toolbar, [data-scripture-keywords-trigger]")) {
+      return;
     }
 
-    match = locator.match(/^(\d+):(\d+)-(\d+):(\d+)$/);
-    if (match) {
-      return `${bookId}.${match[1]}.${match[2]}-${bookId}.${match[3]}.${match[4]}`;
+    clearRememberedBibleSelection();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.drawer && !state.drawer.hidden) {
+      closeDrawer();
     }
+  });
 
-    return "";
-  }
-
-  function htmlToPlainText(html) {
-    const holder = document.createElement("div");
-    holder.innerHTML = html || "";
-    return normalizeSearchText(holder.textContent || holder.innerText || "");
-  }
-
-  function truncatePreview(text, limit) {
-    const normalized = normalizeSearchText(text);
-    if (normalized.length <= limit) return normalized;
-
-    const sliced = normalized.slice(0, limit + 1);
-    const lastSpace = sliced.lastIndexOf(" ");
-    const end = lastSpace > Math.floor(limit * 0.72) ? lastSpace : limit;
-    return `${normalized.slice(0, end).trim()}...`;
-  }
-
-  function buildKeywordScriptureUrl(item) {
-    const url = new URL("verse.html", window.location.href);
-    const bible = getCurrentBibleState();
-    const reference = normalizeSearchText(item.reference || item.normalizedReference || "");
-    const parsed = parseReferenceQuery(reference);
-    const bookId =
-      String(item.bookId || "").toUpperCase() ||
-      getBookIdSync(item.book || parsed?.bookText || "");
-    const chapterNumber =
-      Number(item.startChapter) ||
-      Number(parsed?.locator?.match(/^\d+/)?.[0]) ||
-      0;
-
-    url.searchParams.set("bible", bible.bibleId);
-    if (bible.bibleAbbr) url.searchParams.set("bibleAbbr", bible.bibleAbbr);
-    if (bible.bibleName) url.searchParams.set("bibleName", bible.bibleName);
-    if (bookId) url.searchParams.set("book", bookId);
-    if (bookId && chapterNumber > 0) {
-      url.searchParams.set("chapter", `${bookId}.${chapterNumber}`);
-    }
-
-    return url.toString();
-  }
+  bindTriggers();
+  bindVerseMarkerAccess();
 })();
