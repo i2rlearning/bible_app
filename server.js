@@ -114,7 +114,7 @@ app.get("/api/me", requireAuth(), (req, res) => {
 // ----------------------------------------------------
 app.get("/api/quill-notes", requireAuth(), async (req, res) => {
   try {
-    const { pageKey } = req.query;
+    const { pageKey, bibleVersionID = "", bibleChapterID = "" } = req.query;
     const userId = req.auth.userId;
 
     if (!pageKey) {
@@ -136,10 +136,21 @@ app.get("/api/quill-notes", requireAuth(), async (req, res) => {
         updated_at
       FROM saved_quill_notes
       WHERE user_id = $1
-        AND page_key = $2
+        AND (
+          page_key = $2
+          OR (
+            NULLIF($3, '') IS NOT NULL
+            AND NULLIF($4, '') IS NOT NULL
+            AND bible_version_id = $3
+            AND bible_chapter_id = $4
+          )
+        )
+      ORDER BY
+        CASE WHEN page_key = $2 THEN 0 ELSE 1 END,
+        updated_at DESC
       LIMIT 1
       `,
-      [userId, pageKey]
+      [userId, pageKey, String(bibleVersionID || ""), String(bibleChapterID || "")]
     );
 
     if (result.rows.length === 0) {
@@ -178,6 +189,13 @@ app.post("/api/quill-notes", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "QUILL_NOTE_VERSION_REQUIRED",
+      "Reload My Notes before saving so the current version can be verified."
+    )) return;
     const result = await pool.query(
       `
       INSERT INTO saved_quill_notes (
@@ -201,8 +219,7 @@ app.post("/api/quill-notes", requireAuth(), async (req, res) => {
         quill_plain_text = EXCLUDED.quill_plain_text,
         version = saved_quill_notes.version + 1,
         updated_at = NOW()
-      WHERE $8::integer IS NULL
-         OR saved_quill_notes.version = $8
+      WHERE saved_quill_notes.version = $8
       RETURNING *
       `,
       [
@@ -261,12 +278,19 @@ app.delete("/api/quill-notes", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "QUILL_NOTE_VERSION_REQUIRED",
+      "Reload My Notes before deleting so the current version can be verified."
+    )) return;
     const result = await pool.query(
       `
       DELETE FROM saved_quill_notes
       WHERE user_id = $1
         AND page_key = $2
-        AND ($3::integer IS NULL OR version = $3)
+        AND version = $3
       RETURNING id
       `,
       [userId, pageKey, expectedVersion]
@@ -300,7 +324,7 @@ app.delete("/api/quill-notes", requireAuth(), async (req, res) => {
 // ----------------------------------------------------
 app.get("/api/mini-editor-page", requireAuth(), async (req, res) => {
   try {
-    const { pageKey } = req.query;
+    const { pageKey, bibleVersionID = "", bibleChapterID = "" } = req.query;
     const userId = req.auth.userId;
 
     if (!pageKey) {
@@ -326,10 +350,22 @@ app.get("/api/mini-editor-page", requireAuth(), async (req, res) => {
         created_at,
         updated_at
       FROM saved_mini_editor_pages
-      WHERE user_id = $1 AND page_key = $2
+      WHERE user_id = $1
+        AND (
+          page_key = $2
+          OR (
+            NULLIF($3, '') IS NOT NULL
+            AND NULLIF($4, '') IS NOT NULL
+            AND bible_version_id = $3
+            AND bible_chapter_id = $4
+          )
+        )
+      ORDER BY
+        CASE WHEN page_key = $2 THEN 0 ELSE 1 END,
+        updated_at DESC
       LIMIT 1
       `,
-      [userId, pageKey]
+      [userId, pageKey, String(bibleVersionID || ""), String(bibleChapterID || "")]
     );
 
     if (result.rows.length === 0) {
@@ -372,6 +408,13 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "MINI_EDITOR_VERSION_REQUIRED",
+      "Reload this Bible page before saving annotations so the current version can be verified."
+    )) return;
     const result = await pool.query(
       `
       INSERT INTO saved_mini_editor_pages (
@@ -403,8 +446,7 @@ app.post("/api/mini-editor-page", requireAuth(), async (req, res) => {
         has_text_formats = EXCLUDED.has_text_formats,
         version = saved_mini_editor_pages.version + 1,
         updated_at = NOW()
-      WHERE $12::integer IS NULL
-         OR saved_mini_editor_pages.version = $12
+      WHERE saved_mini_editor_pages.version = $12
       RETURNING *
       `,
       [
@@ -469,12 +511,19 @@ app.delete("/api/mini-editor-page", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "MINI_EDITOR_VERSION_REQUIRED",
+      "Reload this Bible page before deleting annotations so the current version can be verified."
+    )) return;
     const result = await pool.query(
       `
       DELETE FROM saved_mini_editor_pages
       WHERE user_id = $1
         AND page_key = $2
-        AND ($3::integer IS NULL OR version = $3)
+        AND version = $3
       RETURNING id
       `,
       [userId, pageKey, expectedVersion]
@@ -724,6 +773,18 @@ function normalizeOptionalExpectedVersionAllowZero(value) {
 
   const version = Number(value);
   return Number.isInteger(version) && version >= 0 ? version : NaN;
+}
+
+function requireExpectedVersion(res, expectedVersion, code, message) {
+  if (expectedVersion !== null) return false;
+
+  res.status(428).json({
+    ok: false,
+    code,
+    message
+  });
+
+  return true;
 }
 
 function normalizeJsonArray(value) {
@@ -1275,6 +1336,13 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "CATEGORY_VERSION_REQUIRED",
+      "Reload Categories before changing this category so the current version can be verified."
+    )) return;
     const result = await pool.query(
       `
       UPDATE user_study_categories
@@ -1285,7 +1353,7 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
         updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
-        AND ($5::integer IS NULL OR version = $5)
+        AND version = $5
       RETURNING *
       `,
       [
@@ -1345,6 +1413,13 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "CATEGORY_VERSION_REQUIRED",
+      "Reload Categories before deleting this category so the current version can be verified."
+    )) return;
     await client.query("BEGIN");
 
     await client.query(
@@ -1365,7 +1440,7 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
       DELETE FROM user_study_categories
       WHERE user_id = $1
         AND id = $2
-        AND ($3::integer IS NULL OR version = $3)
+        AND version = $3
       RETURNING id
       `,
       [userId, id, expectedVersion]
@@ -1529,6 +1604,13 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "TAG_VERSION_REQUIRED",
+      "Reload Keywords before changing this Keyword so the current version can be verified."
+    )) return;
     const result = await pool.query(
       `
       UPDATE user_tags
@@ -1540,7 +1622,7 @@ app.put("/api/study-tags/:id", requireAuth(), async (req, res) => {
         updated_at = NOW()
       WHERE user_id = $1
         AND id = $2
-        AND ($6::integer IS NULL OR version = $6)
+        AND version = $6
       RETURNING *
       `,
       [
@@ -1607,12 +1689,19 @@ app.delete("/api/study-tags/:id", requireAuth(), async (req, res) => {
       });
     }
 
+
+    if (requireExpectedVersion(
+      res,
+      expectedVersion,
+      "TAG_VERSION_REQUIRED",
+      "Reload Keywords before deleting this Keyword so the current version can be verified."
+    )) return;
     const result = await pool.query(
       `
       DELETE FROM user_tags
       WHERE user_id = $1
         AND id = $2
-        AND ($3::integer IS NULL OR version = $3)
+        AND version = $3
       RETURNING id
       `,
       [userId, id, expectedVersion]
