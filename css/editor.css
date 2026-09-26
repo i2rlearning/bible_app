@@ -610,6 +610,10 @@ body.editor-locked-state .ql-toolbar {
   color: #b00020;
 }
 
+.editor-save-status-conflict {
+  color: #b00020;
+}
+
 /************* My Notes modal *************/
 #myNotesModal {
   display: none;
@@ -1050,6 +1054,12 @@ body.editor-locked-state .ql-toolbar {
 .subheader .save-status-column .editor-save-status.editor-save-status-failed {
   color: #b00020;
   background: rgba(255, 245, 245, 0.96);
+}
+
+.subheader .save-status-column .editor-save-status.editor-save-status-conflict {
+  color: #b00020;
+  border-color: rgba(176, 0, 32, 0.28);
+  background: rgba(255, 238, 241, 0.98);
 }
 
 @media only screen and (max-width: 700px) {
