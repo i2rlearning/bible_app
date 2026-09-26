@@ -976,18 +976,19 @@
     state.chooserOpen = false;
     state.body.innerHTML = "";
 
+    if (!references.length) {
+      const empty = document.createElement("div");
+      empty.className = "scripture-keywords-small-empty";
+      empty.textContent =
+        "No Scriptures in this chapter have Keywords yet. Select a verse number or highlight one or more verses to add Keywords.";
+      state.body.appendChild(empty);
+      return;
+    }
+
     const intro = document.createElement("p");
     intro.className = "scripture-keywords-intro";
     intro.textContent = "Scriptures in this chapter that have Keywords.";
     state.body.appendChild(intro);
-
-    if (!references.length) {
-      const empty = document.createElement("div");
-      empty.className = "scripture-keywords-small-empty";
-      empty.textContent = "No Scriptures in this chapter have Keywords yet.";
-      state.body.appendChild(empty);
-      return;
-    }
 
     const list = document.createElement("div");
     list.className = "scripture-keyword-chapter-list";
