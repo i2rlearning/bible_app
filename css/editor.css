@@ -314,6 +314,14 @@
   color: #6c2eb1 !important;
 }
 
+.eb-container .bible-user-format.text-yellow {
+  color: #c79a00 !important;
+}
+
+.eb-container .bible-user-format.text-orange {
+  color: #d96700 !important;
+}
+
 /************* Font color dropdown buttons *************/
 .toolbar-dropdown-menu .font-color-option {
   width: 28px;
@@ -360,6 +368,14 @@
 
 .font-color-option.text-purple {
   color: #6c2eb1 !important;
+}
+
+.font-color-option.text-yellow {
+  color: #c79a00 !important;
+}
+
+.font-color-option.text-orange {
+  color: #d96700 !important;
 }
 
 /* Appends the arrow to the end of the button */
