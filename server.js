@@ -44,12 +44,63 @@ app.use(clerkMiddleware({
   secretKey: process.env.CLERK_SECRET_KEY
 }));
 
-// Helper used by My Notes to extract Bible abbreviation from saved page URLs
+// Helpers used by My Notes to keep Bible/book labels consistent across
+// records created by older and newer reader URLs.
 function getBibleAbbrFromPageUrl(pageUrl) {
   if (!pageUrl) return "";
   try {
     const url = new URL(pageUrl, "https://example.com");
-    return url.searchParams.get("abbr") || "";
+    return (
+      url.searchParams.get("bibleAbbr") ||
+      url.searchParams.get("abbr") ||
+      url.searchParams.get("bibleName") ||
+      ""
+    );
+  } catch (error) {
+    return "";
+  }
+}
+
+function normalizeBookChapterLabel(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  // API.Bible chapter IDs such as REV.3 or 1CO.13 are valid aliases once
+  // converted to the same space-separated form accepted by the parser.
+  const candidate = raw.replace(/^([1-3]?[A-Za-z]{2,4})\.(\d+)$/, "$1 $2");
+  const parsed = parseScriptureReference(candidate);
+
+  if (parsed && parsed.startVerse === null && parsed.startChapter === parsed.endChapter) {
+    return `${parsed.book} ${parsed.startChapter}`;
+  }
+
+  return raw;
+}
+
+function getBookChapterLabelFromPageUrl(pageUrl) {
+  if (!pageUrl) return "";
+
+  try {
+    const url = new URL(pageUrl, "https://example.com");
+    const bookName = String(url.searchParams.get("bookName") || "").trim();
+    const chapterId = String(
+      url.searchParams.get("chapter") || url.searchParams.get("chapterId") || ""
+    ).trim();
+    const chapterNumber = chapterId.includes(".")
+      ? chapterId.split(".").pop()
+      : chapterId;
+
+    if (bookName && chapterNumber) {
+      return `${bookName} ${chapterNumber}`;
+    }
+
+    const bookId = String(url.searchParams.get("book") || "").trim();
+
+    if (bookId && chapterNumber) {
+      return normalizeBookChapterLabel(`${bookId}.${chapterNumber}`);
+    }
+
+    return normalizeBookChapterLabel(chapterId);
   } catch (error) {
     return "";
   }
@@ -598,7 +649,11 @@ app.get("/api/my-notes", requireAuth(), async (req, res) => {
       bibleVersionID: row.bible_version_id,
       bibleChapterID: row.bible_chapter_id,
       bibleName: getBibleAbbrFromPageUrl(row.page_url) || row.bible_name || "",
-      bookChapterLabel: row.book_chapter_label || row.bible_chapter_id || "",
+      bookChapterLabel:
+        getBookChapterLabelFromPageUrl(row.page_url) ||
+        normalizeBookChapterLabel(row.book_chapter_label) ||
+        normalizeBookChapterLabel(row.bible_chapter_id) ||
+        "",
       pageUrl: row.page_url,
       hasQuillNotes: !!row.has_quill_notes,
       hasHighlights: !!row.has_highlights,
@@ -2270,6 +2325,106 @@ app.delete("/api/study-tags/:id/scriptures/:relationshipId", requireAuth(), asyn
     return res.status(500).json({
       ok: false,
       message: "Failed to remove Scripture from tag"
+    });
+  }
+});
+
+app.get("/api/scripture-references/tags/chapter", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const parsedChapter = parseScriptureReference(req.query.reference);
+
+    if (
+      !parsedChapter ||
+      parsedChapter.startVerse !== null ||
+      parsedChapter.startChapter !== parsedChapter.endChapter
+    ) {
+      return res.status(400).json({
+        ok: false,
+        code: "INVALID_SCRIPTURE_CHAPTER",
+        message: "Enter a valid Bible chapter"
+      });
+    }
+
+    const chapterNumber = parsedChapter.startChapter;
+
+    const result = await pool.query(
+      `
+      SELECT
+        sr.normalized_reference,
+        sr.book,
+        sr.start_chapter,
+        sr.start_verse,
+        sr.end_chapter,
+        sr.end_verse,
+        t.id,
+        t.user_id,
+        t.name,
+        t.color,
+        t.sort_order,
+        t.version,
+        t.created_at,
+        t.updated_at,
+        tsr.id AS relationship_id,
+        tsr.note AS relationship_note,
+        tsr.sort_order AS relationship_sort_order,
+        tsr.version AS relationship_version
+      FROM scripture_references sr
+      INNER JOIN tag_scripture_references tsr
+        ON tsr.scripture_reference_id = sr.id
+      INNER JOIN user_tags t
+        ON t.id = tsr.tag_id
+        AND t.user_id = tsr.user_id
+      WHERE sr.book = $1
+        AND sr.start_chapter <= $2
+        AND sr.end_chapter >= $2
+        AND tsr.user_id = $3
+      ORDER BY
+        COALESCE(sr.start_verse, 0),
+        COALESCE(sr.end_verse, 0),
+        t.sort_order,
+        t.name
+      `,
+      [parsedChapter.book, chapterNumber, userId]
+    );
+
+    const referenceMap = new Map();
+
+    result.rows.forEach((row) => {
+      const key = row.normalized_reference;
+      let entry = referenceMap.get(key);
+
+      if (!entry) {
+        entry = {
+          reference: row.normalized_reference,
+          startChapter: Number(row.start_chapter),
+          startVerse: row.start_verse === null ? null : Number(row.start_verse),
+          endChapter: Number(row.end_chapter),
+          endVerse: row.end_verse === null ? null : Number(row.end_verse),
+          tags: []
+        };
+        referenceMap.set(key, entry);
+      }
+
+      entry.tags.push({
+        ...mapTagRow(row),
+        relationshipId: row.relationship_id,
+        relationshipVersion: Number(row.relationship_version) || 1,
+        note: row.relationship_note || "",
+        relationshipSortOrder: Number(row.relationship_sort_order) || 0
+      });
+    });
+
+    return res.json({
+      ok: true,
+      chapterReference: parsedChapter.normalizedReference,
+      references: Array.from(referenceMap.values())
+    });
+  } catch (error) {
+    console.error("Get chapter Scripture tags error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to load chapter Scripture Keywords"
     });
   }
 });
