@@ -859,11 +859,79 @@
     }
   }
 
-  function createChapterKeywordChip(keyword) {
+  async function removeChapterKeywordConnection(item, keyword, button) {
+    if (!keyword?.relationshipId || button.disabled) return;
+
+    const reference = item?.reference || "this Scripture";
+    const confirmed = window.confirm(
+      `Remove "${keyword.name}" from ${reference}? This will not delete the Keyword itself.`
+    );
+
+    if (!confirmed) return;
+
+    button.disabled = true;
+
+    try {
+      await requestJson(
+        withExpectedVersion(
+          `/api/study-tags/${encodeURIComponent(keyword.id)}/scriptures/${encodeURIComponent(keyword.relationshipId)}`,
+          keyword.relationshipVersion
+        ),
+        { method: "DELETE" }
+      );
+
+      state.chapterReferences = state.chapterReferences
+        .map((entry) => {
+          if (entry.reference !== item.reference) return entry;
+
+          return {
+            ...entry,
+            tags: (Array.isArray(entry.tags) ? entry.tags : []).filter(
+              (tag) => String(tag.relationshipId) !== String(keyword.relationshipId)
+            )
+          };
+        })
+        .filter((entry) => Array.isArray(entry.tags) && entry.tags.length > 0);
+
+      notifyKeywordDataChanged();
+      renderChapterKeywordsView(state.chapterTarget, state.chapterReferences);
+    } catch (error) {
+      button.disabled = false;
+
+      if (error?.code === "TAG_SCRIPTURE_VERSION_CONFLICT") {
+        if (window.AppConflictDialog?.show) {
+          window.AppConflictDialog.show({
+            key: `chapter-keyword:${keyword.relationshipId}:${keyword.relationshipVersion || "newer"}`,
+            title: "Newer Keyword data available",
+            message: "This Keyword connection changed on another device before your change reached the server.",
+            detail: "Your change was not allowed to overwrite the newer saved version.",
+            secondaryLabel: "Keep this screen",
+            primaryLabel: "Reload Keywords",
+            onPrimary: () => {
+              loadChapterKeywords();
+            }
+          });
+        }
+        return;
+      }
+
+      renderMessage(
+        isAuthError(error)
+          ? "Log in to manage Scripture Keywords."
+          : (error.message || "Could not remove this Keyword."),
+        "error"
+      );
+    }
+  }
+
+  function createChapterKeywordChip(item, keyword) {
+    const wrap = document.createElement("span");
+    wrap.className = "scripture-keyword-chip-wrap scripture-keyword-chapter-chip-wrap";
+    applyKeywordColor(wrap, keyword.color);
+
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "scripture-keyword-chip scripture-keyword-chapter-chip";
-    applyKeywordColor(button, keyword.color);
+    button.className = "scripture-keyword-chip";
     button.title = `View all Scriptures connected to ${keyword.name}`;
     button.setAttribute("aria-label", `View all Scriptures connected to ${keyword.name}`);
 
@@ -879,7 +947,22 @@
       state.keywordBackMode = "chapter";
       openKeywordScriptures(keyword);
     });
-    return button;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "scripture-keyword-chip-remove";
+    remove.textContent = "×";
+    remove.title = `Remove ${keyword.name} from ${item.reference || "this Scripture"}`;
+    remove.setAttribute(
+      "aria-label",
+      `Remove ${keyword.name} from ${item.reference || "this Scripture"}. This does not delete the Keyword.`
+    );
+    remove.addEventListener("click", () => {
+      removeChapterKeywordConnection(item, keyword, remove);
+    });
+
+    wrap.append(button, remove);
+    return wrap;
   }
 
   function renderChapterKeywordsView(chapterTarget, references) {
@@ -926,7 +1009,7 @@
       chips.className = "scripture-keyword-chip-list scripture-keyword-chapter-chips";
 
       (Array.isArray(item.tags) ? item.tags : []).forEach((keyword) => {
-        chips.appendChild(createChapterKeywordChip(keyword));
+        chips.appendChild(createChapterKeywordChip(item, keyword));
       });
 
       row.append(referenceButton, chips);
