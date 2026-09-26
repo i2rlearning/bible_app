@@ -171,7 +171,8 @@ function setEditorSaveStatus(message) {
   status.classList.remove(
     "editor-save-status-saving",
     "editor-save-status-saved",
-    "editor-save-status-failed"
+    "editor-save-status-failed",
+    "editor-save-status-conflict"
   );
 
   if (message === "Saving...") {
@@ -184,6 +185,10 @@ function setEditorSaveStatus(message) {
 
   if (message === "Save failed") {
     status.classList.add("editor-save-status-failed");
+  }
+
+  if (String(message || "").startsWith("Conflict")) {
+    status.classList.add("editor-save-status-conflict");
   }
 
   syncEditorSaveStatusVisibility(status);
