@@ -1355,7 +1355,7 @@ async function saveMiniEditorPage() {
     console.error("Save mini-editor page error:", error);
     if (error?.code === "MINI_EDITOR_VERSION_CONFLICT") {
       miniEditorConflictActive = true;
-      setEditorSaveStatus("Conflict - newer annotations exist");
+      setEditorSaveStatus("Conflict - newer updates exist");
       showEditorVersionConflict({
         key: `mini:${pageIdentity.pageKey}:${error?.data?.latestPage?.version || "newer"}`,
         onLoadLatest: () => {
