@@ -533,21 +533,22 @@ async function loadQuillNotes() {
 }
 
 function showEditorVersionConflict(options = {}) {
-  const title = options.title || "Newer version saved on another device";
+  const title = options.title || "Update available from another device";
   const message =
     options.message ||
-    "Your changes were not allowed to overwrite the newer saved version.";
+    "Your current changes have not been saved. Choose to update to the latest version or discard your changes.";
+  const detail = Object.prototype.hasOwnProperty.call(options, "detail")
+    ? options.detail
+    : "";
 
   if (window.AppConflictDialog?.show) {
     window.AppConflictDialog.show({
       key: options.key || title,
       title,
       message,
-      detail:
-        options.detail ||
-        "Your current work is still visible on this device. Saving is paused until you load the latest saved version.",
+      detail,
       secondaryLabel: "Keep this screen",
-      primaryLabel: "Load latest",
+      primaryLabel: "Update to latest",
       onPrimary: () => {
         if (typeof options.onLoadLatest === "function") {
           options.onLoadLatest();
@@ -643,9 +644,6 @@ async function saveQuillNotes() {
       setEditorSaveStatus("Conflict - newer notes exist");
       showEditorVersionConflict({
         key: `quill:${pageIdentity.pageKey}:${error?.data?.latestNote?.version || "newer"}`,
-        title: "My Notes changed on another device",
-        message: "A newer copy was already saved. Your current edit was not saved.",
-        detail: "Your current notes are still visible here.",
         onLoadLatest: () => {
           loadQuillNotes();
         }
@@ -1355,9 +1353,6 @@ async function saveMiniEditorPage() {
       setEditorSaveStatus("Conflict - newer annotations exist");
       showEditorVersionConflict({
         key: `mini:${pageIdentity.pageKey}:${error?.data?.latestPage?.version || "newer"}`,
-        title: "This Bible page changed on another device",
-        message: "A newer set of annotations was already saved. Your current changes were not saved.",
-        detail: "Your current changes are still visible here.",
         onLoadLatest: () => {
           reloadMiniEditorPageAfterChapterRender();
         }
