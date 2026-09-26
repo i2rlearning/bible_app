@@ -2589,3 +2589,25 @@ main.container > .ql-container.ql-snow {
 #bible-mini-toolbar .desktop-mini-toolbar .toolbar-separator:has(+ .draw-toolbar-dropdown) {
   display: none !important;
 }
+
+/* Phase 1D.4 - keep all desktop font colors visible */
+#font-color-menu {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  flex-wrap: wrap !important;
+  width: max-content !important;
+  max-width: min(260px, calc(100vw - 24px)) !important;
+  box-sizing: border-box !important;
+}
+
+#font-color-menu.show {
+  display: flex !important;
+  justify-content: center !important;
+}
+
+@media only screen and (max-width: 639px) {
+  #font-color-menu {
+    transform: none !important;
+  }
+}
