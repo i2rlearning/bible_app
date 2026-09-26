@@ -523,3 +523,51 @@ body.scripture-keywords-open {
     width: 100%;
   }
 }
+
+/* Phase 1D.2 - chapter-level Keyword overview from the Bible mini-toolbar */
+.scripture-keyword-chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scripture-keyword-chapter-row {
+  padding: 11px 12px;
+  border: 1px solid var(--keyword-border);
+  border-radius: 11px;
+  background: #fbfdff;
+}
+
+.scripture-keyword-chapter-reference {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--keyword-navy);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.scripture-keyword-chapter-reference:hover,
+.scripture-keyword-chapter-reference:focus-visible {
+  color: #234ec8;
+  text-decoration: underline;
+  outline: none;
+}
+
+.scripture-keyword-chapter-chips {
+  margin-bottom: 0;
+}
+
+.scripture-keyword-chapter-chip {
+  --keyword-chip-color: #dbeafe;
+  border: 1px solid color-mix(in srgb, var(--keyword-chip-color) 72%, #9aa8ba);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--keyword-chip-color) 72%, #ffffff);
+}
