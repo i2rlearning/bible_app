@@ -36,7 +36,11 @@
     lastFocusedElement: null,
     requestId: 0,
     chooserOpen: false,
-    searchQuery: ""
+    searchQuery: "",
+    triggerHadLiveSelection: false,
+    chapterTarget: null,
+    chapterReferences: [],
+    keywordBackMode: "reference"
   };
 
   function normalizeText(value) {
@@ -148,6 +152,18 @@
     };
   }
 
+  function getCurrentChapterReference() {
+    const context = getBibleContext();
+    const books = getReferenceBooks(context);
+
+    if (!books.lookupBook || !context.chapterNumber) return null;
+
+    return {
+      reference: `${books.lookupBook} ${context.chapterNumber}`,
+      displayReference: `${books.displayBook || books.lookupBook} ${context.chapterNumber}`
+    };
+  }
+
   function getTextOffset(root, targetNode, targetOffset) {
     let offset = 0;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -196,27 +212,33 @@
     state.savedAt = 0;
   }
 
-  function rememberBibleSelection() {
+  function rememberBibleSelection(options = {}) {
     const selection = window.getSelection();
     const bibleText = document.getElementById("bible-text");
 
     if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
-      return;
+      if (options.clearIfNone) clearRememberedBibleSelection();
+      return false;
     }
 
     const range = selection.getRangeAt(0);
 
     if (!bibleText.contains(range.commonAncestorContainer)) {
-      return;
+      if (options.clearIfNone) clearRememberedBibleSelection();
+      return false;
     }
 
     const start = getTextOffset(bibleText, range.startContainer, range.startOffset);
     const end = getTextOffset(bibleText, range.endContainer, range.endOffset);
 
-    if (start === end) return;
+    if (start === end) {
+      if (options.clearIfNone) clearRememberedBibleSelection();
+      return false;
+    }
 
     state.savedOffsets = { start, end };
     state.savedAt = Date.now();
+    return true;
   }
 
   function getSelectionRange() {
@@ -233,15 +255,23 @@
       }
     }
 
-    if (!state.savedOffsets || Date.now() - state.savedAt > 120000) {
-      return null;
+    if (state.savedOffsets && Date.now() - state.savedAt <= 120000) {
+      return getRangeFromOffsets(
+        bibleText,
+        state.savedOffsets.start,
+        state.savedOffsets.end
+      );
     }
 
-    return getRangeFromOffsets(
-      bibleText,
-      state.savedOffsets.start,
-      state.savedOffsets.end
-    );
+    if (typeof window.getRememberedBibleSelectionRange === "function") {
+      const editorRange = window.getRememberedBibleSelectionRange();
+
+      if (editorRange && bibleText.contains(editorRange.commonAncestorContainer)) {
+        return editorRange.cloneRange();
+      }
+    }
+
+    return null;
   }
 
   function getVerseNumber(marker) {
@@ -530,7 +560,10 @@
     label.textContent = keyword.name;
 
     button.append(dot, label);
-    button.addEventListener("click", () => openKeywordScriptures(keyword));
+    button.addEventListener("click", () => {
+      state.keywordBackMode = "reference";
+      openKeywordScriptures(keyword);
+    });
 
     const remove = document.createElement("button");
     remove.type = "button";
@@ -826,10 +859,127 @@
     }
   }
 
+  function createChapterKeywordChip(keyword) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "scripture-keyword-chip scripture-keyword-chapter-chip";
+    applyKeywordColor(button, keyword.color);
+    button.title = `View all Scriptures connected to ${keyword.name}`;
+    button.setAttribute("aria-label", `View all Scriptures connected to ${keyword.name}`);
+
+    const dot = document.createElement("span");
+    dot.className = "scripture-keyword-chip-dot";
+    dot.setAttribute("aria-hidden", "true");
+
+    const label = document.createElement("span");
+    label.textContent = keyword.name;
+
+    button.append(dot, label);
+    button.addEventListener("click", () => {
+      state.keywordBackMode = "chapter";
+      openKeywordScriptures(keyword);
+    });
+    return button;
+  }
+
+  function renderChapterKeywordsView(chapterTarget, references) {
+    openShell();
+    setHeader("Keywords", chapterTarget.displayReference || chapterTarget.reference);
+    state.activeReference = "";
+    state.activeDisplayReference = "";
+    state.chapterTarget = chapterTarget;
+    state.chapterReferences = references;
+    state.activeKeyword = null;
+    state.chooserOpen = false;
+    state.body.innerHTML = "";
+
+    const intro = document.createElement("p");
+    intro.className = "scripture-keywords-intro";
+    intro.textContent = "Scriptures in this chapter that have Keywords.";
+    state.body.appendChild(intro);
+
+    if (!references.length) {
+      const empty = document.createElement("div");
+      empty.className = "scripture-keywords-small-empty";
+      empty.textContent = "No Scriptures in this chapter have Keywords yet.";
+      state.body.appendChild(empty);
+      return;
+    }
+
+    const list = document.createElement("div");
+    list.className = "scripture-keyword-chapter-list";
+
+    references.forEach((item) => {
+      const row = document.createElement("section");
+      row.className = "scripture-keyword-chapter-row";
+
+      const referenceButton = document.createElement("button");
+      referenceButton.type = "button";
+      referenceButton.className = "scripture-keyword-chapter-reference";
+      referenceButton.textContent = item.reference || "Scripture";
+      referenceButton.title = `Manage Keywords for ${item.reference || "this Scripture"}`;
+      referenceButton.addEventListener("click", () => {
+        loadReferenceKeywords(item.reference, item.reference);
+      });
+
+      const chips = document.createElement("div");
+      chips.className = "scripture-keyword-chip-list scripture-keyword-chapter-chips";
+
+      (Array.isArray(item.tags) ? item.tags : []).forEach((keyword) => {
+        chips.appendChild(createChapterKeywordChip(keyword));
+      });
+
+      row.append(referenceButton, chips);
+      list.appendChild(row);
+    });
+
+    state.body.appendChild(list);
+  }
+
+  async function loadChapterKeywords() {
+    const chapterTarget = getCurrentChapterReference();
+
+    if (!chapterTarget?.reference) {
+      renderNeedSelection();
+      return;
+    }
+
+    const requestId = ++state.requestId;
+    state.activeReference = "";
+    state.activeDisplayReference = "";
+    openShell();
+    setHeader("Keywords", chapterTarget.displayReference || chapterTarget.reference);
+    renderMessage("Loading chapter Keywords...");
+
+    try {
+      const result = await requestJson(
+        `/api/scripture-references/tags/chapter?reference=${encodeURIComponent(chapterTarget.reference)}`
+      );
+
+      if (requestId !== state.requestId) return;
+
+      renderChapterKeywordsView(
+        chapterTarget,
+        Array.isArray(result.references) ? result.references : []
+      );
+    } catch (error) {
+      if (requestId !== state.requestId) return;
+
+      setHeader("Keywords", chapterTarget.displayReference || chapterTarget.reference);
+      renderMessage(
+        isAuthError(error)
+          ? "Log in to view your Scripture Keywords."
+          : (error.message || "Could not load chapter Keywords."),
+        "error"
+      );
+    }
+  }
+
   async function loadReferenceKeywords(reference, displayReference = reference) {
     const requestId = ++state.requestId;
     state.activeReference = reference;
     state.activeDisplayReference = displayReference || reference;
+    state.keywordBackMode = "reference";
     state.activeKeyword = null;
     state.chooserOpen = false;
     state.searchQuery = "";
@@ -894,6 +1044,12 @@
     backButton.textContent = "‹ Back to Scripture Keywords";
     backButton.addEventListener("click", () => {
       state.requestId += 1;
+
+      if (state.keywordBackMode === "chapter" && state.chapterTarget) {
+        renderChapterKeywordsView(state.chapterTarget, state.chapterReferences);
+        return;
+      }
+
       renderKeywordsView();
     });
 
@@ -945,15 +1101,22 @@
   }
 
   function openFromCurrentContext() {
-    rememberBibleSelection();
-    const target = getCurrentTargetReference();
+    const hadLiveSelection =
+      state.triggerHadLiveSelection || rememberBibleSelection({ clearIfNone: true });
 
-    if (!target?.reference) {
-      renderNeedSelection();
-      return;
+    state.triggerHadLiveSelection = false;
+
+    if (hadLiveSelection) {
+      const target = getCurrentTargetReference();
+
+      if (target?.reference) {
+        loadReferenceKeywords(target.reference, target.displayReference);
+        return;
+      }
     }
 
-    loadReferenceKeywords(target.reference, target.displayReference);
+    clearRememberedBibleSelection();
+    loadChapterKeywords();
   }
 
   function bindTriggers() {
@@ -962,7 +1125,7 @@
       trigger.dataset.keywordTriggerReady = "true";
 
       trigger.addEventListener("pointerdown", (event) => {
-        rememberBibleSelection();
+        state.triggerHadLiveSelection = rememberBibleSelection({ clearIfNone: true });
         event.preventDefault();
       });
 
