@@ -643,8 +643,9 @@ async function saveQuillNotes() {
       setEditorSaveStatus("Conflict - newer notes exist");
       showEditorVersionConflict({
         key: `quill:${pageIdentity.pageKey}:${error?.data?.latestNote?.version || "newer"}`,
-        title: "Newer My Notes version available",
-        message: "My Notes was changed on another device before this save reached the server.",
+        title: "My Notes changed on another device",
+        message: "A newer copy was already saved. Your current edit was not saved.",
+        detail: "Your current notes are still visible here.",
         onLoadLatest: () => {
           loadQuillNotes();
         }
@@ -887,6 +888,8 @@ function getMiniEditorFlags(miniEditorJson) {
       bibleTextHtml.includes("text-blue") ||
       bibleTextHtml.includes("text-green") ||
       bibleTextHtml.includes("text-purple") ||
+      bibleTextHtml.includes("text-yellow") ||
+      bibleTextHtml.includes("text-orange") ||
       bibleTextHtml.includes("text-black")
   };
 }
@@ -1352,8 +1355,9 @@ async function saveMiniEditorPage() {
       setEditorSaveStatus("Conflict - newer annotations exist");
       showEditorVersionConflict({
         key: `mini:${pageIdentity.pageKey}:${error?.data?.latestPage?.version || "newer"}`,
-        title: "Newer annotation version available",
-        message: "Highlights, formatting, drawings, or annotations changed on another device before this save reached the server.",
+        title: "This Bible page changed on another device",
+        message: "A newer set of annotations was already saved. Your current changes were not saved.",
+        detail: "Your current changes are still visible here.",
         onLoadLatest: () => {
           reloadMiniEditorPageAfterChapterRender();
         }
