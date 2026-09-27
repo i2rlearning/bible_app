@@ -62,6 +62,10 @@ window.BibleSelector = (() => {
   }
 
   async function requestJson(url) {
+    if (window.BibleData?.requestJson) {
+      return window.BibleData.requestJson(url);
+    }
+
     const response = await fetch(
       url,
       {
@@ -286,17 +290,18 @@ window.BibleSelector = (() => {
       );
     }
 
-    const result =
-      await requestJson(
-        `${API_BASE_URL}/bibles/${encodeURIComponent(
-          bibleId
-        )}/books`
-      );
-
     const books =
-      Array.isArray(result.data)
-        ? result.data
-        : [];
+      window.BibleData?.getBooks
+        ? await window.BibleData.getBooks(
+            bibleId
+          )
+        : (
+            await requestJson(
+              `${API_BASE_URL}/bibles/${encodeURIComponent(
+                bibleId
+              )}/books`
+            )
+          ).data || [];
 
     cache.booksByBibleId.set(
       bibleId,
@@ -332,18 +337,25 @@ window.BibleSelector = (() => {
       );
     }
 
-    const result =
-      await requestJson(
-        `${API_BASE_URL}/bibles/${encodeURIComponent(
-          bibleId
-        )}/books/${encodeURIComponent(
-          bookId
-        )}/chapters`
-      );
+    const chapterData =
+      window.BibleData?.getChapters
+        ? await window.BibleData.getChapters(
+            bibleId,
+            bookId
+          )
+        : (
+            await requestJson(
+              `${API_BASE_URL}/bibles/${encodeURIComponent(
+                bibleId
+              )}/books/${encodeURIComponent(
+                bookId
+              )}/chapters`
+            )
+          ).data || [];
 
   const chapters =
-    Array.isArray(result.data)
-      ? result.data.filter(
+    Array.isArray(chapterData)
+      ? chapterData.filter(
           (chapter) => {
             const chapterId =
               String(chapter.id || "")
