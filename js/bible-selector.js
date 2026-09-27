@@ -48,6 +48,20 @@ window.BibleSelector = (() => {
     chaptersByBibleAndBook: new Map()
   };
 
+  function clearBibleCatalogCache() {
+    cache.biblesByApiUrl.clear();
+  }
+
+  window.addEventListener(
+    "offline",
+    clearBibleCatalogCache
+  );
+
+  window.addEventListener(
+    "online",
+    clearBibleCatalogCache
+  );
+
   function getApiKey() {
     if (
       typeof API_KEY === "undefined" ||
@@ -226,8 +240,19 @@ window.BibleSelector = (() => {
     const useCache =
       options.useCache !== false;
 
+    const offlineHint =
+      typeof navigator !== "undefined" &&
+      navigator.onLine === false;
+
+    const useSharedCatalog =
+      Boolean(
+        window.BibleData?.getBibleCatalog
+      );
+
     if (
       useCache &&
+      !offlineHint &&
+      !useSharedCatalog &&
       cache.biblesByApiUrl.has(apiUrl)
     ) {
       return cache.biblesByApiUrl.get(
@@ -235,25 +260,46 @@ window.BibleSelector = (() => {
       );
     }
 
-    const result =
-      await requestJson(apiUrl);
+    let catalogSource = "api";
+    let apiBibles = [];
 
-    const apiBibles =
-      Array.isArray(result.data)
-        ? [...result.data]
-        : [];
-    
+    if (useSharedCatalog) {
+      const catalog =
+        await window.BibleData.getBibleCatalog(
+          apiUrl,
+          {
+            localOnly: offlineHint
+          }
+        );
+
+      catalogSource =
+        catalog?._source || "api";
+
+      apiBibles =
+        Array.isArray(catalog)
+          ? [...catalog]
+          : [];
+    } else {
+      const result =
+        await requestJson(apiUrl);
+
+      apiBibles =
+        Array.isArray(result.data)
+          ? [...result.data]
+          : [];
+    }
+
     const hiddenBibleIds =
       new Set(
         (window.HiddenBibleVersions || []).map((id) =>
           String(id).trim()
         )
       );
-    
+
     const bibles =
       apiBibles.filter((bible) => {
         return !hiddenBibleIds.has(String(bible.id || "").trim());
-    });
+      });
 
     bibles.sort(
       (a, b) =>
@@ -262,10 +308,17 @@ window.BibleSelector = (() => {
         )
     );
 
-    cache.biblesByApiUrl.set(
-      apiUrl,
-      bibles
-    );
+    if (
+      useCache &&
+      !offlineHint &&
+      !useSharedCatalog &&
+      catalogSource === "api"
+    ) {
+      cache.biblesByApiUrl.set(
+        apiUrl,
+        bibles
+      );
+    }
 
     return bibles;
   }
