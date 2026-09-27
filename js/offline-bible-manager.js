@@ -808,18 +808,21 @@ window.OfflineBibleManagerUI = (() => {
           "info"
         );
       } else {
-        elements.progress.value = 100;
-        elements.progressPercent.textContent =
-          "100%";
-        elements.progressTitle.textContent =
-          `${selectedBibleLabel} is ready`;
-        elements.progressDetail.textContent =
-          `${result.counts.chapters} chapters • ${result.counts.verses} verses stored`;
+        hideProgress();
+        setStatus("");
 
-        setStatus(
-          `${selectedBibleLabel} is ready on this device.`,
-          "success"
-        );
+        if (elements.bible) {
+          elements.bible.value = "";
+        }
+
+        if (elements.download) {
+          elements.download.disabled = true;
+          elements.download
+            .querySelector("span")
+            .textContent = "Download Bible";
+        }
+
+        selectedBibleLabel = "";
       }
     } catch (error) {
       console.error(
