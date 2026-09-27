@@ -200,6 +200,33 @@ window.BibleOfflineDB = (() => {
     return requestToPromise(index.getAll(query));
   }
 
+  async function getAllRecords(storeName) {
+    const database = await open();
+    const transaction = database.transaction(storeName, "readonly");
+    return requestToPromise(transaction.objectStore(storeName).getAll());
+  }
+
+  async function countFromIndex(storeName, indexName, query) {
+    const database = await open();
+    const transaction = database.transaction(storeName, "readonly");
+    const index = transaction.objectStore(storeName).index(indexName);
+    return requestToPromise(index.count(query));
+  }
+
+  function isReadyAndFreshBible(record) {
+    if (!record || record.status !== "ready") {
+      return false;
+    }
+
+    if (!record.refreshDueAt) {
+      return true;
+    }
+
+    const refreshDueAt = Date.parse(record.refreshDueAt);
+
+    return !Number.isFinite(refreshDueAt) || refreshDueAt > Date.now();
+  }
+
   function sortByOrder(items) {
     return [...items].sort((a, b) => {
       const orderA = Number.isFinite(Number(a?.order))
@@ -224,7 +251,7 @@ window.BibleOfflineDB = (() => {
 
   async function getReadyBible(bibleId) {
     const bible = await getBible(bibleId);
-    return bible?.status === "ready" ? bible : null;
+    return isReadyAndFreshBible(bible) ? bible : null;
   }
 
   async function isBibleReady(bibleId) {
@@ -238,11 +265,13 @@ window.BibleOfflineDB = (() => {
       IDBKeyRange.only("ready")
     );
 
-    return [...records].sort((a, b) =>
-      String(a?.abbreviation || a?.name || a?.id || "").localeCompare(
-        String(b?.abbreviation || b?.name || b?.id || "")
-      )
-    );
+    return records
+      .filter(isReadyAndFreshBible)
+      .sort((a, b) =>
+        String(a?.abbreviation || a?.name || a?.id || "").localeCompare(
+          String(b?.abbreviation || b?.name || b?.id || "")
+        )
+      );
   }
 
   async function getBooks(bibleId) {
@@ -291,6 +320,34 @@ window.BibleOfflineDB = (() => {
   async function getDownloadJob(bibleId) {
     if (!bibleId) return null;
     return (await getRecord(STORES.downloadJobs, bibleId)) || null;
+  }
+
+  async function getDownloadJobs(status = "") {
+    if (status) {
+      return getAllFromIndex(
+        STORES.downloadJobs,
+        "byStatus",
+        IDBKeyRange.only(status)
+      );
+    }
+
+    return getAllRecords(STORES.downloadJobs);
+  }
+
+  async function getBibleRecordCounts(bibleId) {
+    if (!bibleId) {
+      return { books: 0, chapters: 0, verses: 0 };
+    }
+
+    const query = IDBKeyRange.only(bibleId);
+
+    const [books, chapters, verses] = await Promise.all([
+      countFromIndex(STORES.books, "byBibleId", query),
+      countFromIndex(STORES.chapters, "byBibleId", query),
+      countFromIndex(STORES.verses, "byBibleId", query)
+    ]);
+
+    return { books, chapters, verses };
   }
 
   async function putBible(record) {
@@ -360,6 +417,15 @@ window.BibleOfflineDB = (() => {
     });
   }
 
+  async function deleteDownloadJob(bibleId) {
+    if (!bibleId) return;
+
+    const database = await open();
+    const transaction = database.transaction(STORES.downloadJobs, "readwrite");
+    transaction.objectStore(STORES.downloadJobs).delete(bibleId);
+    await transactionToPromise(transaction);
+  }
+
   async function deleteRecordsForBible(storeName, indexName, bibleId) {
     const database = await open();
     const transaction = database.transaction(storeName, "readwrite");
@@ -423,11 +489,14 @@ window.BibleOfflineDB = (() => {
     getChapter,
     getVersesForChapter,
     getDownloadJob,
+    getDownloadJobs,
+    getBibleRecordCounts,
     putBible,
     putBooks,
     putChapters,
     putVerses,
     putDownloadJob,
+    deleteDownloadJob,
     deleteBibleData,
     clearAll
   });
