@@ -9,6 +9,7 @@
     <link href="css/bible-selector.css" rel="stylesheet">
     <link href="css/index.css" rel="stylesheet">
     <link href="css/verse-of-day.css" rel="stylesheet">
+    <link href="css/offline-bible-manager.css?v=20260927-phase2b" rel="stylesheet">
   
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
@@ -415,6 +416,27 @@
             </span>
           </button>
 
+          <button
+            type="button"
+            id="offline-bibles-action"
+            class="landing-action-card"
+            aria-haspopup="dialog"
+            aria-controls="offline-bible-modal"
+          >
+            <span class="landing-action-icon" aria-hidden="true">
+              <i class="fa fa-download"></i>
+            </span>
+
+            <span class="landing-action-content">
+              <strong>Offline Bibles</strong>
+              <span>Download Bible text to this device</span>
+            </span>
+
+            <span class="landing-action-arrow" aria-hidden="true">
+              &rsaquo;
+            </span>
+          </button>
+
         </div>
       </section>
 
@@ -450,8 +472,8 @@
 
 
     <script src="js/my_key.js"></script>
-    <script src="js/bible-offline-db.js?v=20260927-phase2a"></script>
-    <script src="js/bible-data.js?v=20260927-phase2a"></script>
+    <script src="js/bible-offline-db.js?v=20260927-phase2b"></script>
+    <script src="js/bible-data.js?v=20260927-phase2b"></script>
     <script src="js/bible-version-visibility.js"></script>
     <script src="js/ui-fit-controller.js"></script>
     <script src="js/menu.js"></script>
@@ -459,6 +481,8 @@
     <script src="js/bible-language.js"></script>
     <script src="js/bible-selector.js?v=20260927-phase2a"></script>
     <script src="js/user-preferences.js"></script>
+    <script src="js/bible-download-manager.js?v=20260927-phase2b"></script>
+    <script src="js/offline-bible-manager.js?v=20260927-phase2b"></script>
     <script src="js/passage-picker.js"></script>
     <script src="js/verse-of-day.js"></script>
   </body>
