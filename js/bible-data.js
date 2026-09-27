@@ -9,7 +9,7 @@
  * chapter content instead of deciding for itself whether to use API.Bible or
  * IndexedDB.
  *
- * Phase 2A creates the gateway and connects the existing online reader to it.
+ * Creates the gateway and connects the existing online reader to it.
  * Download creation is added in a later Step 2 checkpoint.
  */
 
@@ -199,6 +199,8 @@ window.BibleData = (() => {
           `chapter ${chapterId}`
         );
       }
+
+      trackFums(chapter.meta || {});
 
       return {
         content: chapter.content,
