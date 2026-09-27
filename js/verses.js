@@ -219,7 +219,11 @@ async function initializeBibleIdentity() {
   }
 }
 
-function getBibleDetails(bibleId) {
+async function getBibleDetails(bibleId) {
+  if (window.BibleData?.getBibleDetails) {
+    return window.BibleData.getBibleDetails(bibleId);
+  }
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
@@ -1361,50 +1365,63 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
       /**
        * Gets chapter text from API.Bible
        */
-      function getChapterText(bibleChapterID) {
-          return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.withCredentials = false;
-        
-            xhr.addEventListener("readystatechange", function () {
-              if (this.readyState === this.DONE) {
-                try {
-                  if (this.status < 200 || this.status >= 300) {
-                    console.error("API.Bible chapter request failed:", this.status, this.responseText);
-                    reject(new Error(`API.Bible request failed with status ${this.status}`));
-                    return;
-                  }
-        
-                  const { data, meta } = JSON.parse(this.responseText);
-        
-                  if (meta && meta.fumsId && window._BAPI && typeof window._BAPI.t === "function") {
-                    try {
-                      window._BAPI.t(meta.fumsId);
-                    } catch (error) {
-                      console.warn("FUMS tracking failed:", error);
-                    }
-                  }
-        
-                  resolve(data.content);
-                } catch (error) {
-                  console.error("Could not parse/load chapter text:", error);
-                  reject(error);
-                }
-              }
-            });
-        
-            xhr.open(
-              "GET",
-              `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}?content-type=html&include-notes=true`
-            );
-        
-            xhr.setRequestHeader("api-key", API_KEY);
-        
-            xhr.onerror = () => reject(new Error(xhr.statusText || "Network error"));
-        
-            xhr.send();
-          });
+      async function getChapterText(bibleChapterID) {
+        if (window.BibleData?.getChapter) {
+          const chapter = await window.BibleData.getChapter(
+            bibleVersionID,
+            bibleChapterID,
+            {
+              contentType: "html",
+              includeNotes: true
+            }
+          );
+
+          return chapter.content;
         }
+
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.withCredentials = false;
+
+          xhr.addEventListener("readystatechange", function () {
+            if (this.readyState === this.DONE) {
+              try {
+                if (this.status < 200 || this.status >= 300) {
+                  console.error("API.Bible chapter request failed:", this.status, this.responseText);
+                  reject(new Error(`API.Bible request failed with status ${this.status}`));
+                  return;
+                }
+
+                const { data, meta } = JSON.parse(this.responseText);
+
+                if (meta && meta.fumsId && window._BAPI && typeof window._BAPI.t === "function") {
+                  try {
+                    window._BAPI.t(meta.fumsId);
+                  } catch (error) {
+                    console.warn("FUMS tracking failed:", error);
+                  }
+                }
+
+                resolve(data.content);
+              } catch (error) {
+                console.error("Could not parse/load chapter text:", error);
+                reject(error);
+              }
+            }
+          });
+
+          xhr.open(
+            "GET",
+            `https://api.scripture.api.bible/v1/bibles/${bibleVersionID}/chapters/${bibleChapterID}?content-type=html&include-notes=true`
+          );
+
+          xhr.setRequestHeader("api-key", API_KEY);
+
+          xhr.onerror = () => reject(new Error(xhr.statusText || "Network error"));
+
+          xhr.send();
+        });
+      }
     
       function getSections(bibleVersionID, bibleBookID) {
         return new Promise((resolve, reject) => {
