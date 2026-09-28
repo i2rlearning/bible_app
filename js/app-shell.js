@@ -5,6 +5,7 @@ window.AppShell = (() => {
   const RECONNECT_RELOAD_KEY = "appShellReconnectReloadAttempted";
   const CONTROL_RECOVERY_KEY = "appShellControlRecoveryAttempted";
   const CONTROL_WAIT_MS = 1400;
+  const STARTUP_PROBE_DELAY_MS = 300;
 
   let registrationPromise = null;
   let probePromise = null;
@@ -580,7 +581,7 @@ window.AppShell = (() => {
     () => {
       probe({ reason: "startup" });
     },
-    0
+    STARTUP_PROBE_DELAY_MS
   );
 
   return Object.freeze({
