@@ -391,6 +391,357 @@ window.BibleData = (() => {
     return Array.isArray(result?.data) ? result.data : [];
   }
 
+  function parseVersePointer(value, fallback = null) {
+    const parts = String(value || "")
+      .trim()
+      .split(".")
+      .filter(Boolean);
+
+    if (parts.length >= 3) {
+      const bookId = parts[0];
+      const chapterNumber = parts[1];
+      const verseNumber = parts.slice(2).join(".");
+
+      return {
+        bookId,
+        chapterId: `${bookId}.${chapterNumber}`,
+        verseId: `${bookId}.${chapterNumber}.${verseNumber}`,
+        verseNumber
+      };
+    }
+
+    if (!fallback) {
+      return null;
+    }
+
+    if (parts.length === 2) {
+      const chapterNumber = parts[0];
+      const verseNumber = parts[1];
+
+      return {
+        bookId: fallback.bookId,
+        chapterId: `${fallback.bookId}.${chapterNumber}`,
+        verseId: `${fallback.bookId}.${chapterNumber}.${verseNumber}`,
+        verseNumber
+      };
+    }
+
+    if (parts.length === 1) {
+      const verseNumber = parts[0];
+
+      return {
+        bookId: fallback.bookId,
+        chapterId: fallback.chapterId,
+        verseId: `${fallback.chapterId}.${verseNumber}`,
+        verseNumber
+      };
+    }
+
+    return null;
+  }
+
+  function parsePassageId(passageId) {
+    const [startRaw, ...endParts] = String(passageId || "")
+      .trim()
+      .split("-");
+
+    const start = parseVersePointer(startRaw);
+
+    if (!start) {
+      return null;
+    }
+
+    const endRaw = endParts.join("-");
+    const end = endRaw
+      ? parseVersePointer(endRaw, start)
+      : start;
+
+    if (!end) {
+      return null;
+    }
+
+    return { start, end };
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getVerseSortValue(verse) {
+    const match = String(verse?.number || "").match(/\d+/);
+
+    return match
+      ? Number(match[0])
+      : Number.MAX_SAFE_INTEGER;
+  }
+
+  function sortVerses(verses) {
+    return [...verses].sort((a, b) => {
+      const numberDifference =
+        getVerseSortValue(a) - getVerseSortValue(b);
+
+      if (numberDifference !== 0) {
+        return numberDifference;
+      }
+
+      return String(a?.id || "").localeCompare(
+        String(b?.id || "")
+      );
+    });
+  }
+
+  function verseMatchesPointer(verse, pointer) {
+    if (!verse || !pointer) {
+      return false;
+    }
+
+    const ids = [verse.id, verse.orgId]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+
+    if (ids.includes(pointer.verseId)) {
+      return true;
+    }
+
+    return (
+      String(verse.chapterId || "") === pointer.chapterId &&
+      String(verse.number || "") === pointer.verseNumber
+    );
+  }
+
+  function getPassageReference(verses) {
+    if (!verses.length) {
+      return "";
+    }
+
+    const first = verses[0];
+    const last = verses[verses.length - 1];
+    const firstReference = String(first.reference || "").trim();
+
+    if (verses.length === 1) {
+      return firstReference;
+    }
+
+    if (
+      firstReference &&
+      first.chapterId &&
+      first.chapterId === last.chapterId &&
+      last.number
+    ) {
+      return `${firstReference}-${last.number}`;
+    }
+
+    const lastReference = String(last.reference || "").trim();
+
+    if (firstReference && lastReference) {
+      return `${firstReference}-${lastReference}`;
+    }
+
+    return firstReference || lastReference;
+  }
+
+  function renderLocalPassage(verses) {
+    return verses
+      .map((verse) => {
+        const number = escapeHtml(verse.number || "");
+        const text = escapeHtml(verse.text || "");
+
+        return number
+          ? `<span class="v">${number}</span> ${text}`
+          : text;
+      })
+      .join(" ")
+      .trim();
+  }
+
+  async function getLocalPassage(bibleId, passageId) {
+    if (
+      !window.BibleOfflineDB ||
+      typeof window.BibleOfflineDB.getBooks !== "function" ||
+      typeof window.BibleOfflineDB.getChapters !== "function" ||
+      typeof window.BibleOfflineDB.getVersesForChapter !== "function"
+    ) {
+      throw new Error("Offline Bible data is unavailable.");
+    }
+
+    const parsed = parsePassageId(passageId);
+
+    if (!parsed) {
+      throw new Error("The referenced passage could not be understood.");
+    }
+
+    const books = await window.BibleOfflineDB.getBooks(bibleId);
+    const startBookIndex = books.findIndex(
+      (book) => book.id === parsed.start.bookId
+    );
+    const endBookIndex = books.findIndex(
+      (book) => book.id === parsed.end.bookId
+    );
+
+    if (
+      startBookIndex < 0 ||
+      endBookIndex < 0 ||
+      endBookIndex < startBookIndex
+    ) {
+      throw createLocalIntegrityError(
+        bibleId,
+        `the referenced passage ${passageId}`
+      );
+    }
+
+    const passageVerses = [];
+
+    for (
+      let bookIndex = startBookIndex;
+      bookIndex <= endBookIndex;
+      bookIndex += 1
+    ) {
+      const book = books[bookIndex];
+      const chapters = await window.BibleOfflineDB.getChapters(
+        bibleId,
+        book.id
+      );
+
+      let firstChapterIndex = 0;
+      let lastChapterIndex = chapters.length - 1;
+
+      if (book.id === parsed.start.bookId) {
+        firstChapterIndex = chapters.findIndex(
+          (chapter) => chapter.id === parsed.start.chapterId
+        );
+      }
+
+      if (book.id === parsed.end.bookId) {
+        lastChapterIndex = chapters.findIndex(
+          (chapter) => chapter.id === parsed.end.chapterId
+        );
+      }
+
+      if (
+        firstChapterIndex < 0 ||
+        lastChapterIndex < 0 ||
+        lastChapterIndex < firstChapterIndex
+      ) {
+        throw createLocalIntegrityError(
+          bibleId,
+          `the referenced passage ${passageId}`
+        );
+      }
+
+      for (
+        let chapterIndex = firstChapterIndex;
+        chapterIndex <= lastChapterIndex;
+        chapterIndex += 1
+      ) {
+        const chapter = chapters[chapterIndex];
+        const verses = sortVerses(
+          await window.BibleOfflineDB.getVersesForChapter(
+            bibleId,
+            chapter.id
+          )
+        );
+
+        let startIndex = 0;
+        let endIndex = verses.length - 1;
+
+        if (chapter.id === parsed.start.chapterId) {
+          startIndex = verses.findIndex((verse) =>
+            verseMatchesPointer(verse, parsed.start)
+          );
+        }
+
+        if (chapter.id === parsed.end.chapterId) {
+          endIndex = verses.findIndex((verse) =>
+            verseMatchesPointer(verse, parsed.end)
+          );
+        }
+
+        if (
+          startIndex < 0 ||
+          endIndex < 0 ||
+          endIndex < startIndex
+        ) {
+          throw createLocalIntegrityError(
+            bibleId,
+            `the referenced passage ${passageId}`
+          );
+        }
+
+        passageVerses.push(
+          ...verses.slice(startIndex, endIndex + 1)
+        );
+      }
+    }
+
+    if (!passageVerses.length) {
+      throw createLocalIntegrityError(
+        bibleId,
+        `the referenced passage ${passageId}`
+      );
+    }
+
+    return {
+      reference: getPassageReference(passageVerses),
+      content: renderLocalPassage(passageVerses),
+      data: {
+        id: passageId,
+        reference: getPassageReference(passageVerses),
+        content: renderLocalPassage(passageVerses)
+      },
+      meta: {},
+      source: "local"
+    };
+  }
+
+  async function getPassage(bibleId, passageId, options = {}) {
+    if (!bibleId || !passageId) {
+      throw new Error("Bible id and passage id are required.");
+    }
+
+    const localBible = await getReadyLocalBible(bibleId);
+
+    if (localBible) {
+      return getLocalPassage(bibleId, passageId);
+    }
+
+    const query = new URLSearchParams({
+      "content-type": options.contentType || "html",
+      "include-notes":
+        options.includeNotes === true ? "true" : "false",
+      "include-titles":
+        options.includeTitles === true ? "true" : "false",
+      "include-chapter-numbers":
+        options.includeChapterNumbers === true ? "true" : "false",
+      "include-verse-numbers":
+        options.includeVerseNumbers === false ? "false" : "true",
+      "include-verse-spans":
+        options.includeVerseSpans === true ? "true" : "false"
+    });
+
+    const result = await requestJson(
+      `${API_BASE_URL}/bibles/${encodeURIComponent(
+        bibleId
+      )}/passages/${encodeURIComponent(
+        passageId
+      )}?${query.toString()}`
+    );
+
+    trackFums(result?.meta);
+
+    return {
+      reference: result?.data?.reference || "",
+      content: result?.data?.content || "",
+      data: result?.data || {},
+      meta: result?.meta || {},
+      source: "api"
+    };
+  }
+
   async function getChapter(bibleId, chapterId, options = {}) {
     if (!bibleId || !chapterId) {
       throw new Error("Bible id and chapter id are required.");
@@ -454,6 +805,7 @@ window.BibleData = (() => {
     getBooks,
     getChapters,
     getChapter,
+    getPassage,
     isBibleReadyOffline
   });
 })();
