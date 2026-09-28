@@ -11,8 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const logoutButton = document.getElementById("logout");
   const myNotesModal = document.getElementById("myNotesModal");
 
-  // Default to a safe visual state immediately so the page looks right
-  setLoggedOutUI();
+  setAuthCheckingUI();
 
   if (typeof lockEditorTools === "function") {
     lockEditorTools();
@@ -33,7 +32,48 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function setAuthCheckingUI() {
+    document.documentElement.dataset.authState = "checking";
+
+    if (loginButton) {
+      loginButton.style.display = "none";
+      loginButton.disabled = true;
+      loginButton.title = "";
+    }
+
+    if (signupButton) {
+      signupButton.style.display = "none";
+    }
+
+    if (logoutButton) {
+      logoutButton.style.display = "none";
+    }
+
+    const myNotesLink = document.getElementById("openMyNotes");
+
+    if (myNotesLink) {
+      myNotesLink.classList.add("disabled");
+      myNotesLink.setAttribute("aria-disabled", "true");
+    }
+
+    const studyDeskBtn = document.getElementById("landing-study-desk-action");
+
+    if (studyDeskBtn) {
+      studyDeskBtn.disabled = true;
+      studyDeskBtn.removeAttribute("title");
+    }
+
+    const studyDeskLink = document.getElementById("openStudyDesk");
+
+    if (studyDeskLink) {
+      studyDeskLink.classList.add("disabled");
+      studyDeskLink.setAttribute("aria-disabled", "true");
+    }
+  }
+
   function setLoggedInUI(user) {
+    document.documentElement.dataset.authState = "signed-in";
+
     if (loginButton) {
       loginButton.style.display = "none";
       loginButton.disabled = true;
@@ -71,6 +111,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function setLoggedOutUI() {
+    document.documentElement.dataset.authState = "signed-out";
+
     if (loginButton) {
       loginButton.style.display = "";
       loginButton.disabled = false;
