@@ -3,9 +3,13 @@
 window.AppShell = (() => {
   const HEALTH_URL = "/api/health";
   const RECONNECT_RELOAD_KEY = "appShellReconnectReloadAttempted";
+  const CONTROL_RECOVERY_KEY = "appShellControlRecoveryAttempted";
+  const CONTROL_WAIT_MS = 1400;
 
   let registrationPromise = null;
   let probePromise = null;
+  let controlRecoveryPromise = null;
+  let controlRecoveryTimer = null;
 
   const degradedReasons = new Set();
   const serviceFailures = new Set();
@@ -22,6 +26,20 @@ window.AppShell = (() => {
 
   if (state.browserOnline === false) {
     degradedReasons.add("offline-start");
+  }
+
+  if (
+    canRegister() &&
+    "serviceWorker" in navigator &&
+    navigator.serviceWorker.controller
+  ) {
+    try {
+      sessionStorage.removeItem(
+        CONTROL_RECOVERY_KEY
+      );
+    } catch (_error) {
+      // Recovery bookkeeping is optional.
+    }
   }
 
   function canRegister() {
@@ -102,6 +120,153 @@ window.AppShell = (() => {
 
     return navigator.serviceWorker.ready
       .catch(() => null);
+  }
+
+  function readSessionFlag(key) {
+    try {
+      return sessionStorage.getItem(key);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function writeSessionFlag(key, value) {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch (_error) {
+      // Control recovery must still work when session storage is unavailable.
+    }
+  }
+
+  function clearSessionFlag(key) {
+    try {
+      sessionStorage.removeItem(key);
+    } catch (_error) {
+      // Recovery bookkeeping is optional.
+    }
+  }
+
+  function waitForController(timeoutMs = CONTROL_WAIT_MS) {
+    if (navigator.serviceWorker.controller) {
+      return Promise.resolve(
+        navigator.serviceWorker.controller
+      );
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+
+      const finish = (controller = null) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        navigator.serviceWorker.removeEventListener(
+          "controllerchange",
+          handleControllerChange
+        );
+        window.clearTimeout(timeoutId);
+        resolve(controller);
+      };
+
+      const handleControllerChange = () => {
+        if (navigator.serviceWorker.controller) {
+          finish(
+            navigator.serviceWorker.controller
+          );
+        }
+      };
+
+      navigator.serviceWorker.addEventListener(
+        "controllerchange",
+        handleControllerChange
+      );
+
+      const timeoutId = window.setTimeout(
+        () => finish(null),
+        timeoutMs
+      );
+    });
+  }
+
+  function scheduleControlRecoveryNavigation() {
+    if (navigator.serviceWorker.controller) {
+      clearSessionFlag(CONTROL_RECOVERY_KEY);
+      return false;
+    }
+
+    if (
+      readSessionFlag(CONTROL_RECOVERY_KEY) === "1" ||
+      controlRecoveryTimer
+    ) {
+      return false;
+    }
+
+    writeSessionFlag(
+      CONTROL_RECOVERY_KEY,
+      "1"
+    );
+
+    controlRecoveryTimer = window.setTimeout(
+      () => {
+        controlRecoveryTimer = null;
+
+        if (navigator.serviceWorker.controller) {
+          clearSessionFlag(
+            CONTROL_RECOVERY_KEY
+          );
+          return;
+        }
+
+        window.location.replace(
+          window.location.href
+        );
+      },
+      80
+    );
+
+    return true;
+  }
+
+  async function ensureControlled() {
+    if (!canRegister()) {
+      return null;
+    }
+
+    if (navigator.serviceWorker.controller) {
+      clearSessionFlag(CONTROL_RECOVERY_KEY);
+      return navigator.serviceWorker.controller;
+    }
+
+    if (controlRecoveryPromise) {
+      return controlRecoveryPromise;
+    }
+
+    controlRecoveryPromise = (async () => {
+      const registration = await ready();
+
+      if (!registration || !registration.active) {
+        return null;
+      }
+
+      const controller =
+        await waitForController();
+
+      if (controller) {
+        clearSessionFlag(
+          CONTROL_RECOVERY_KEY
+        );
+        return controller;
+      }
+
+      scheduleControlRecoveryNavigation();
+      return null;
+    })().finally(() => {
+      controlRecoveryPromise = null;
+    });
+
+    return controlRecoveryPromise;
   }
 
   function shouldReloadAfterReconnect() {
@@ -298,6 +463,40 @@ window.AppShell = (() => {
     );
   }
 
+  if (canRegister()) {
+    navigator.serviceWorker.addEventListener(
+      "controllerchange",
+      () => {
+        if (navigator.serviceWorker.controller) {
+          if (controlRecoveryTimer) {
+            window.clearTimeout(
+              controlRecoveryTimer
+            );
+            controlRecoveryTimer = null;
+          }
+
+          clearSessionFlag(
+            CONTROL_RECOVERY_KEY
+          );
+        }
+      }
+    );
+
+    navigator.serviceWorker.addEventListener(
+      "message",
+      (event) => {
+        if (
+          event.data &&
+          event.data.type ===
+            "app-shell-active" &&
+          !navigator.serviceWorker.controller
+        ) {
+          ensureControlled();
+        }
+      }
+    );
+  }
+
   window.addEventListener(
     "offline",
     () => {
@@ -373,7 +572,9 @@ window.AppShell = (() => {
     }
   );
 
-  register();
+  register().then(() => {
+    ensureControlled();
+  });
 
   window.setTimeout(
     () => {
@@ -385,6 +586,7 @@ window.AppShell = (() => {
   return Object.freeze({
     register,
     ready,
+    ensureControlled,
     probe,
     getState,
     markDegraded,
