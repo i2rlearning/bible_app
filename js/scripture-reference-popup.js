@@ -215,8 +215,11 @@
       throw new Error("No Bible version is selected.");
     }
 
-    if (typeof API_KEY === "undefined" || !API_KEY) {
-      throw new Error("The Bible API key is not available.");
+    if (
+      !window.BibleData ||
+      typeof window.BibleData.getPassage !== "function"
+    ) {
+      throw new Error("Bible passage data is unavailable.");
     }
 
     const cacheKey = `${bibleId}::${passageId}`;
@@ -225,45 +228,23 @@
       return passageCache.get(cacheKey);
     }
 
-    const url =
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}` +
-      `/passages/${encodeURIComponent(passageId)}` +
-      "?content-type=html" +
-      "&include-notes=false" +
-      "&include-titles=false" +
-      "&include-chapter-numbers=false" +
-      "&include-verse-numbers=true" +
-      "&include-verse-spans=false";
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "api-key": API_KEY
+    const result = await window.BibleData.getPassage(
+      bibleId,
+      passageId,
+      {
+        contentType: "html",
+        includeNotes: false,
+        includeTitles: false,
+        includeChapterNumbers: false,
+        includeVerseNumbers: true,
+        includeVerseSpans: false
       }
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Could not load the referenced passage.");
-    }
-
-    if (
-      result.meta &&
-      result.meta.fumsId &&
-      window._BAPI &&
-      typeof window._BAPI.t === "function"
-    ) {
-      try {
-        window._BAPI.t(result.meta.fumsId);
-      } catch (error) {
-        console.warn("FUMS tracking failed:", error);
-      }
-    }
+    );
 
     const passage = {
-      reference: result.data?.reference || "",
-      content: result.data?.content || ""
+      reference: result?.reference || "",
+      content: result?.content || "",
+      source: result?.source || ""
     };
 
     passageCache.set(cacheKey, passage);
