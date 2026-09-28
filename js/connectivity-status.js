@@ -2,6 +2,9 @@
 
 window.ConnectivityStatus = (() => {
   const ELEMENT_ID = "app-connectivity-status";
+  const STARTUP_GRACE_MS = 1100;
+  const startedAt = Date.now();
+  let startupRefreshTimer = null;
   let element = null;
   let refreshPromise = null;
 
@@ -122,7 +125,33 @@ window.ConnectivityStatus = (() => {
     target.hidden = false;
   }
 
+  function isWithinStartupGrace() {
+    return (Date.now() - startedAt) < STARTUP_GRACE_MS;
+  }
+
+  function scheduleStartupRefresh() {
+    if (startupRefreshTimer) {
+      return;
+    }
+
+    const remaining = Math.max(
+      0,
+      STARTUP_GRACE_MS - (Date.now() - startedAt)
+    );
+
+    startupRefreshTimer = window.setTimeout(() => {
+      startupRefreshTimer = null;
+      refresh();
+    }, remaining + 25);
+  }
+
   async function refresh() {
+    if (isWithinStartupGrace()) {
+      setMessage("");
+      scheduleStartupRefresh();
+      return;
+    }
+
     if (refreshPromise) {
       return refreshPromise;
     }
