@@ -1,7 +1,7 @@
 "use strict";
 
 const CACHE_PREFIX = "bible-app-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v2`;
+const CACHE_NAME = `${CACHE_PREFIX}v3`;
 const NETWORK_TIMEOUT_MS = 4500;
 
 const APP_PAGES = [
@@ -141,6 +141,19 @@ self.addEventListener(
         );
 
         await self.clients.claim();
+
+        const windowClients =
+          await self.clients.matchAll({
+            type: "window",
+            includeUncontrolled: true
+          });
+
+        windowClients.forEach((client) => {
+          client.postMessage({
+            type: "app-shell-active",
+            cacheName: CACHE_NAME
+          });
+        });
       })()
     );
   }
