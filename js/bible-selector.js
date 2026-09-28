@@ -240,10 +240,6 @@ window.BibleSelector = (() => {
     const useCache =
       options.useCache !== false;
 
-    const offlineHint =
-      typeof navigator !== "undefined" &&
-      navigator.onLine === false;
-
     const useSharedCatalog =
       Boolean(
         window.BibleData?.getBibleCatalog
@@ -251,7 +247,6 @@ window.BibleSelector = (() => {
 
     if (
       useCache &&
-      !offlineHint &&
       !useSharedCatalog &&
       cache.biblesByApiUrl.has(apiUrl)
     ) {
@@ -266,10 +261,7 @@ window.BibleSelector = (() => {
     if (useSharedCatalog) {
       const catalog =
         await window.BibleData.getBibleCatalog(
-          apiUrl,
-          {
-            localOnly: offlineHint
-          }
+          apiUrl
         );
 
       catalogSource =
@@ -310,7 +302,6 @@ window.BibleSelector = (() => {
 
     if (
       useCache &&
-      !offlineHint &&
       !useSharedCatalog &&
       catalogSource === "api"
     ) {
