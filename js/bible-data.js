@@ -27,23 +27,91 @@ window.BibleData = (() => {
   }
 
   async function requestJson(url, options = {}) {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "api-key": getApiKey(),
-        ...(options.headers || {})
-      }
-    });
+    const {
+      timeoutMs = 12000,
+      signal: externalSignal,
+      ...fetchOptions
+    } = options;
 
-    if (!response.ok) {
-      const error = new Error(
-        `API.Bible request failed with status ${response.status}.`
-      );
-      error.status = response.status;
-      throw error;
+    const controller = new AbortController();
+    let timedOut = false;
+
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, Math.max(1000, Number(timeoutMs) || 12000));
+
+    const abortFromExternalSignal = () => {
+      controller.abort();
+    };
+
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        externalSignal.addEventListener(
+          "abort",
+          abortFromExternalSignal,
+          { once: true }
+        );
+      }
     }
 
-    return response.json();
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+        headers: {
+          "api-key": getApiKey(),
+          ...(fetchOptions.headers || {})
+        }
+      });
+
+      window.AppShell?.reportNetworkSuccess?.(
+        "api-bible"
+      );
+
+      if (!response.ok) {
+        const error = new Error(
+          `API.Bible request failed with status ${response.status}.`
+        );
+        error.status = response.status;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error) {
+      const cancelledByCaller =
+        externalSignal?.aborted && !timedOut;
+
+      if (
+        !cancelledByCaller &&
+        !error?.status
+      ) {
+        window.AppShell?.reportNetworkFailure?.(
+          "api-bible"
+        );
+      }
+
+      if (timedOut) {
+        const timeoutError = new Error(
+          "API.Bible request timed out."
+        );
+        timeoutError.code = "NETWORK_TIMEOUT";
+        throw timeoutError;
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+
+      if (externalSignal) {
+        externalSignal.removeEventListener(
+          "abort",
+          abortFromExternalSignal
+        );
+      }
+    }
   }
 
   function trackFums(meta) {
@@ -266,11 +334,18 @@ window.BibleData = (() => {
     const localBibles =
       await getLocalBibleCatalog(apiUrl);
 
-    const offlineHint =
+    if (options.localOnly === true) {
+      return markCatalogSource(
+        localBibles,
+        "local"
+      );
+    }
+
+    const browserOffline =
       typeof navigator !== "undefined" &&
       navigator.onLine === false;
 
-    if (options.localOnly === true || offlineHint) {
+    if (browserOffline && localBibles.length) {
       return markCatalogSource(
         localBibles,
         "local"
