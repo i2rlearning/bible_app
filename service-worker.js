@@ -1,47 +1,78 @@
 "use strict";
 
 const CACHE_PREFIX = "bible-app-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v1`;
+const CACHE_NAME = `${CACHE_PREFIX}v2`;
+const NETWORK_TIMEOUT_MS = 4500;
 
-const READER_SHELL = [
+const APP_PAGES = [
+  "/index.html",
   "/verse.html",
-  "/css/menu.css",
-  "/css/menu-scroll.css",
-  "/css/menu-popover.css",
+  "/search.html",
+  "/study-desk.html",
+  "/copyright.html"
+];
+
+const SHELL_ASSETS = [
+  ...APP_PAGES,
+  "/css/anchored-annotations.css",
+  "/css/app-conflict-dialog.css",
   "/css/bible-main.css",
   "/css/bible-selector.css",
-  "/css/scripture.css",
-  "/css/scripture-reference-popup.css",
-  "/css/editor.css",
-  "/css/app-conflict-dialog.css",
-  "/css/study-actions.css",
-  "/css/scripture-keywords.css",
-  "/css/anchored-annotations.css",
+  "/css/connectivity-status.css",
   "/css/copyright.css",
-  "/js/app-shell.js",
-  "/js/my_key.js",
-  "/js/bible-offline-db.js",
-  "/js/bible-data.js",
-  "/js/bible-version-visibility.js",
-  "/js/menu.js",
-  "/js/app-conflict-dialog.js",
-  "/js/auth.js",
-  "/js/bible-language.js",
-  "/js/bible-selector.js",
-  "/js/user-preferences.js",
-  "/js/passage-picker.js",
-  "/js/copyright-footer.js",
-  "/js/verses.js",
-  "/js/scripture-reference-popup.js",
+  "/css/editor.css",
+  "/css/index.css",
+  "/css/menu-popover.css",
+  "/css/menu-scroll.css",
+  "/css/menu.css",
+  "/css/offline-bible-manager.css",
+  "/css/scripture-keywords.css",
+  "/css/scripture-reference-popup.css",
+  "/css/scripture-styles.css",
+  "/css/scripture.css",
+  "/css/search.css",
+  "/css/study-actions.css",
+  "/css/study-desk.css",
+  "/css/verse-of-day.css",
   "/js/anchored-annotations.js",
+  "/js/app-conflict-dialog.js",
+  "/js/app-shell.js",
+  "/js/auth.js",
+  "/js/bible-data.js",
+  "/js/bible-download-manager.js",
+  "/js/bible-language.js",
+  "/js/bible-offline-db.js",
+  "/js/bible-selector.js",
+  "/js/bible-version-visibility.js",
+  "/js/connectivity-status.js",
+  "/js/copyright-footer.js",
+  "/js/copyright-info.js",
   "/js/editor.js",
-  "/js/study-actions.js",
+  "/js/menu.js",
+  "/js/misc.js",
+  "/js/my_key.js",
+  "/js/offline-bible-manager.js",
+  "/js/passage-picker.js",
   "/js/scripture-keywords.js",
+  "/js/scripture-reference-popup.js",
+  "/js/search-keywords.js",
+  "/js/search.js",
+  "/js/study-actions.js",
+  "/js/study-desk.js",
+  "/js/ui-fit-controller.js",
+  "/js/user-preferences.js",
+  "/js/verse-of-day.js",
+  "/js/verses.js",
+  "/img/favicon.ico",
   "/img/left_stamp_on.png",
-  "/img/right_stamp_on.png",
+  "/img/logo.png",
   "/img/orig_left_stamp.png",
   "/img/orig_right_stamp.png",
-  "/img/favicon.ico"
+  "/img/right_stamp_on.png",
+  "/img/scrollbar.png",
+  "/img/scrollbarleft.png",
+  "/img/scrollpaper.png",
+  "/img/wedding-paper.jpg"
 ];
 
 async function cacheShellAsset(cache, assetUrl) {
@@ -71,7 +102,7 @@ self.addEventListener(
           await caches.open(CACHE_NAME);
 
         await Promise.all(
-          READER_SHELL.map(
+          SHELL_ASSETS.map(
             (assetUrl) =>
               cacheShellAsset(
                 cache,
@@ -115,15 +146,31 @@ self.addEventListener(
   }
 );
 
-function isVerseNavigation(request, url) {
+function isSameOriginNavigation(request, url) {
   return (
     request.mode === "navigate" &&
-    url.origin === self.location.origin &&
-    (
-      url.pathname === "/verse.html" ||
-      url.pathname.endsWith("/verse.html")
-    )
+    url.origin === self.location.origin
   );
+}
+
+function getNavigationFallback(pathname) {
+  if (pathname === "/" || pathname === "") {
+    return "/index.html";
+  }
+
+  const normalizedPath =
+    pathname.endsWith("/")
+      ? pathname.slice(0, -1)
+      : pathname;
+
+  const matchedPage =
+    APP_PAGES.find(
+      (pagePath) =>
+        normalizedPath === pagePath ||
+        normalizedPath.endsWith(pagePath)
+    );
+
+  return matchedPage || null;
 }
 
 function isShellAsset(url) {
@@ -138,35 +185,75 @@ function isShellAsset(url) {
   );
 }
 
-async function networkFirstVerse(request) {
+async function fetchWithTimeout(request) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    NETWORK_TIMEOUT_MS
+  );
+
+  try {
+    return await fetch(request, {
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function networkFirstNavigation(
+  request,
+  fallbackPath
+) {
   const cache =
     await caches.open(CACHE_NAME);
 
   try {
-    const response = await fetch(request);
+    const response =
+      await fetchWithTimeout(request);
 
-    if (response.ok) {
+    if (!response.ok) {
+      throw new Error(
+        `Navigation request failed with status ${response.status}.`
+      );
+    }
+
+    if (fallbackPath) {
       await cache.put(
-        "/verse.html",
+        fallbackPath,
         response.clone()
       );
     }
 
     return response;
-  } catch (_error) {
-    const cached =
+  } catch (error) {
+    if (fallbackPath) {
+      const cached =
+        await cache.match(
+          fallbackPath,
+          {
+            ignoreSearch: true
+          }
+        );
+
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const home =
       await cache.match(
-        "/verse.html",
+        "/index.html",
         {
           ignoreSearch: true
         }
       );
 
-    if (cached) {
-      return cached;
+    if (home) {
+      return home;
     }
 
-    throw _error;
+    throw error;
   }
 }
 
@@ -176,19 +263,21 @@ async function networkFirstShellAsset(request) {
 
   try {
     const response =
-      await fetch(request);
+      await fetchWithTimeout(request);
 
-    if (response.ok) {
-      await cache.put(
-        new URL(
-          request.url
-        ).pathname,
-        response.clone()
+    if (!response.ok) {
+      throw new Error(
+        `Shell asset request failed with status ${response.status}.`
       );
     }
 
+    await cache.put(
+      new URL(request.url).pathname,
+      response.clone()
+    );
+
     return response;
-  } catch (_error) {
+  } catch (error) {
     const cached =
       await cache.match(
         request,
@@ -201,7 +290,7 @@ async function networkFirstShellAsset(request) {
       return cached;
     }
 
-    throw _error;
+    throw error;
   }
 }
 
@@ -209,19 +298,32 @@ self.addEventListener(
   "fetch",
   (event) => {
     const request = event.request;
-    const url = new URL(request.url);
 
-    if (isVerseNavigation(request, url)) {
-      event.respondWith(
-        networkFirstVerse(request)
-      );
+    if (request.method !== "GET") {
       return;
     }
 
-    if (
-      request.method === "GET" &&
-      isShellAsset(url)
-    ) {
+    const url = new URL(request.url);
+
+    if (isSameOriginNavigation(request, url)) {
+      const fallbackPath =
+        getNavigationFallback(
+          url.pathname
+        );
+
+      if (fallbackPath) {
+        event.respondWith(
+          networkFirstNavigation(
+            request,
+            fallbackPath
+          )
+        );
+      }
+
+      return;
+    }
+
+    if (isShellAsset(url)) {
       event.respondWith(
         networkFirstShellAsset(request)
       );
