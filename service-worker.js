@@ -1,7 +1,7 @@
 "use strict";
 
 const CACHE_PREFIX = "bible-app-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v3`;
+const CACHE_NAME = `${CACHE_PREFIX}v4`;
 const NETWORK_TIMEOUT_MS = 4500;
 
 const APP_PAGES = [
