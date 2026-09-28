@@ -704,6 +704,7 @@ window.addEventListener("load", async () => {
 
     if (!clerkObj) {
       console.error("Clerk object was not found on the window.");
+      window.AppShell?.markDegraded?.("auth");
       return;
     }
 
@@ -712,6 +713,8 @@ window.addEventListener("load", async () => {
         ClerkUI: window.__internal_ClerkUICtor
       }
     });
+
+    window.AppShell?.clearDegraded?.("auth");
 
     console.log("Clerk loaded with UI components.");
     console.log("Clerk user:", clerkObj.user);
@@ -729,6 +732,7 @@ window.addEventListener("load", async () => {
       window.updateAuthUI(clerkObj.user || null);
     }
   } catch (error) {
+    window.AppShell?.markDegraded?.("auth");
     console.error("Failed to initialize Clerk:", error);
   }
 });
