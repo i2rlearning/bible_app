@@ -38,7 +38,8 @@
     backgroundLoadToken: 0,
     backgroundLoadInProgress: false,
     bibleOptions: [],
-    bibleDropdownLoading: false
+    bibleDropdownLoading: false,
+    searchSource: "api"
   };
 
   document.addEventListener("DOMContentLoaded", initializeSearchPage);
@@ -647,9 +648,23 @@
     setSearchBibleDropdownBusy(true);
 
     try {
-      await loadMoreResultsForCurrentSearch((page + 1) * state.pageSize);
+      const canUseLocal =
+        Boolean(window.BibleSearch) &&
+        await window.BibleSearch.canSearchLocal(state.bible.bibleId);
+
+      state.searchSource = canUseLocal ? "local" : "api";
+
+      if (state.searchSource === "local") {
+        await loadLocalResultsForCurrentSearch();
+      } else {
+        await loadMoreResultsForCurrentSearch((page + 1) * state.pageSize);
+      }
+
       renderResults();
-      startBackgroundResultCount();
+
+      if (state.searchSource === "api") {
+        startBackgroundResultCount();
+      }
     } catch (error) {
       console.error("Search failed:", error);
 
@@ -662,8 +677,14 @@
       renderSearchHeader();
       clearResults();
 
+      const connectionIssue =
+        navigator.onLine === false ||
+        window.AppShell?.getState?.().connectionIssue === true;
+
       setStatus(
-        "Search did not return results. Try removing quotes, using fewer words, or checking the spelling.",
+        connectionIssue
+          ? "This Bible is not available for offline search. Choose a downloaded Bible or reconnect to the internet."
+          : "Search did not return results. Try removing quotes, using fewer words, or checking the spelling.",
         true
       );
     } finally {
@@ -703,26 +724,19 @@
   async function loadBibleBookOrder() {
     if (!state.bible.bibleId) return [];
 
-    const response = await fetch(
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(state.bible.bibleId)}/books`,
-      {
-        headers: {
-          "api-key": API_KEY
-        }
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Could not load Bible books.");
+    if (!window.BibleData?.getBooks) {
+      throw new Error("BibleData is unavailable.");
     }
 
-    state.bookOrder = (result.data || []).map((book, index) => ({
+    const books = await window.BibleData.getBooks(state.bible.bibleId);
+
+    state.bookOrder = (books || []).map((book, index) => ({
       id: book.id,
-      name: book.name || "",
+      name: book.name || book.nameLong || "",
       abbreviation: book.abbreviation || "",
-      order: index
+      order: Number.isFinite(Number(book.order))
+        ? Number(book.order)
+        : index
     }));
 
     return state.bookOrder;
@@ -737,6 +751,27 @@
     state.apiTotal = null;
     state.loadedAllRawResults = false;
     state.backgroundLoadToken += 1;
+    state.backgroundLoadInProgress = false;
+  }
+
+  async function loadLocalResultsForCurrentSearch() {
+    if (!window.BibleSearch?.getLocalVerseResults) {
+      throw new Error("Local Bible Search is unavailable.");
+    }
+
+    const localResults =
+      await window.BibleSearch.getLocalVerseResults(state.bible.bibleId);
+
+    state.rawResults = localResults.map((result) => ({
+      ...result,
+      matchedQuery: state.activeApiQuery || state.query
+    }));
+
+    const prepared = prepareResults(state.rawResults, state.query);
+    state.allResults = prepared.results;
+    state.activeHighlightPatterns = prepared.highlightPatterns;
+    state.apiTotal = state.rawResults.length;
+    state.loadedAllRawResults = true;
     state.backgroundLoadInProgress = false;
   }
 
@@ -904,40 +939,15 @@
       throw new Error("No Bible version is selected.");
     }
 
-    if (typeof API_KEY === "undefined" || !API_KEY) {
-      throw new Error("The Bible API key is not available.");
+    if (!window.BibleSearch?.getApiSearchPage) {
+      throw new Error("Bible Search is unavailable.");
     }
 
-    const url =
-      `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(state.bible.bibleId)}` +
-      `/search?query=${encodeURIComponent(query)}&offset=${offset}`;
-
-    const response = await fetch(url, {
-      headers: {
-        "api-key": API_KEY
-      }
-    });
-
-    const result = await response.json();
-
-    if (
-      result.meta &&
-      result.meta.fumsId &&
-      window._BAPI &&
-      typeof window._BAPI.t === "function"
-    ) {
-      try {
-        window._BAPI.t(result.meta.fumsId);
-      } catch (error) {
-        console.warn("FUMS tracking failed:", error);
-      }
-    }
-
-    if (!response.ok) {
-      throw new Error(result.message || "Search request failed.");
-    }
-
-    return result;
+    return window.BibleSearch.getApiSearchPage(
+      state.bible.bibleId,
+      query,
+      offset
+    );
   }
 
   function normalizeApiData(data = {}) {
@@ -1027,6 +1037,10 @@
   }
 
   function resultMatchesQueryMode(result, query) {
+    if (isScriptureReferenceQuery(query)) {
+      return resultMatchesScriptureReference(result, query);
+    }
+
     const exactPhrase = getExactPhrase(query);
     const text = `${result.reference} ${result.text}`;
 
@@ -1057,6 +1071,56 @@
 
       return wordFamilyRegex(term).test(text);
     });
+  }
+
+  function parseScriptureReferenceForSearch(value) {
+    const normalized = normalizeSearchText(value)
+      .replace(/^"|"$/g, "")
+      .replace(/[.;,]+$/g, "")
+      .trim();
+
+    const match = normalized.match(
+      /^((?:[1-3]\s*)?[A-Za-z][A-Za-z .'-]*?)\s+(\d+)(?::(\d+)(?:\s*-\s*(\d+))?)?$/
+    );
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      book: normalizeComparableText(match[1]),
+      chapter: Number(match[2]),
+      startVerse: match[3] ? Number(match[3]) : null,
+      endVerse: match[4] ? Number(match[4]) : match[3] ? Number(match[3]) : null
+    };
+  }
+
+  function resultMatchesScriptureReference(result, query) {
+    const wanted = parseScriptureReferenceForSearch(query);
+    const found = parseScriptureReferenceForSearch(result.reference || "");
+
+    if (!wanted || !found) {
+      return normalizeComparableText(result.reference || "").includes(
+        normalizeComparableText(query)
+      );
+    }
+
+    if (wanted.book !== found.book || wanted.chapter !== found.chapter) {
+      return false;
+    }
+
+    if (wanted.startVerse === null) {
+      return true;
+    }
+
+    if (found.startVerse === null) {
+      return false;
+    }
+
+    return (
+      found.startVerse >= wanted.startVerse &&
+      found.startVerse <= wanted.endVerse
+    );
   }
 
   function scoreResult(result, query) {
