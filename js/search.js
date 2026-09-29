@@ -991,7 +991,11 @@
       score: scoreResult(result, query)
     }));
 
-    scored.sort(compareResults);
+    scored.sort(
+      isScriptureReferenceQuery(query)
+        ? compareCanonicalReferenceOrder
+        : compareResults
+    );
 
     return {
       results: scored,
@@ -1173,11 +1177,7 @@
     return score;
   }
 
-  function compareResults(a, b) {
-    if (b.score !== a.score) {
-      return b.score - a.score;
-    }
-
+  function compareCanonicalReferenceOrder(a, b) {
     const bookA = getBookOrderFromReference(a.reference);
     const bookB = getBookOrderFromReference(b.reference);
 
@@ -1193,6 +1193,14 @@
     }
 
     return getVerseNumber(a.reference) - getVerseNumber(b.reference);
+  }
+
+  function compareResults(a, b) {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+
+    return compareCanonicalReferenceOrder(a, b);
   }
 
   function buildHighlightPatterns(query) {
