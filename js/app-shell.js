@@ -515,6 +515,8 @@ window.AppShell = (() => {
   window.addEventListener(
     "online",
     () => {
+      serviceFailures.clear();
+
       updateState(
         {
           browserOnline: true
