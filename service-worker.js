@@ -1,7 +1,7 @@
 "use strict";
 
 const CACHE_PREFIX = "bible-app-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v4`;
+const CACHE_NAME = `${CACHE_PREFIX}v5`;
 const NETWORK_TIMEOUT_MS = 4500;
 
 const APP_PAGES = [
@@ -42,6 +42,7 @@ const SHELL_ASSETS = [
   "/js/bible-download-manager.js",
   "/js/bible-language.js",
   "/js/bible-offline-db.js",
+  "/js/bible-search.js",
   "/js/bible-selector.js",
   "/js/bible-version-visibility.js",
   "/js/connectivity-status.js",
