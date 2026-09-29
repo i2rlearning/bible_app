@@ -33,6 +33,13 @@ window.BibleData = (() => {
       ...fetchOptions
     } = options;
 
+    const requestStartedAt = Date.now();
+    const startingConnectivityState =
+      window.AppShell?.getState?.() || null;
+    const startedWithConnectionIssue =
+      navigator.onLine === false ||
+      startingConnectivityState?.connectionIssue === true;
+
     const controller = new AbortController();
     let timedOut = false;
 
@@ -88,9 +95,23 @@ window.BibleData = (() => {
         !cancelledByCaller &&
         !error?.status
       ) {
-        window.AppShell?.reportNetworkFailure?.(
-          "api-bible"
-        );
+        const currentConnectivityState =
+          window.AppShell?.getState?.() || null;
+
+        const recoveredAfterRequestStarted =
+          currentConnectivityState?.appReachable === true &&
+          Number(
+            currentConnectivityState?.lastVerifiedAt || 0
+          ) > requestStartedAt;
+
+        if (
+          !startedWithConnectionIssue &&
+          !recoveredAfterRequestStarted
+        ) {
+          window.AppShell?.reportNetworkFailure?.(
+            "api-bible"
+          );
+        }
       }
 
       if (timedOut) {
