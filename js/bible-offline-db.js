@@ -317,6 +317,16 @@ window.BibleOfflineDB = (() => {
     );
   }
 
+  async function getVersesForBible(bibleId) {
+    if (!bibleId) return [];
+
+    return getAllFromIndex(
+      STORES.verses,
+      "byBibleId",
+      IDBKeyRange.only(bibleId)
+    );
+  }
+
   async function getDownloadJob(bibleId) {
     if (!bibleId) return null;
     return (await getRecord(STORES.downloadJobs, bibleId)) || null;
@@ -488,6 +498,7 @@ window.BibleOfflineDB = (() => {
     getChapters,
     getChapter,
     getVersesForChapter,
+    getVersesForBible,
     getDownloadJob,
     getDownloadJobs,
     getBibleRecordCounts,
