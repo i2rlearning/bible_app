@@ -1,3 +1,10 @@
+/*
+ * Connectivity Status Styles
+ *
+ * Styles the shared connection-status message used across the application.
+ * The final placement will be owned by the unified application shell.
+ */
+
 .app-connectivity-status {
   width: min(1060px, calc(100% - 24px));
   margin: 10px auto;
