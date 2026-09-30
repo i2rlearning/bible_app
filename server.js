@@ -370,6 +370,404 @@ app.delete("/api/quill-notes", requireAuth(), async (req, res) => {
   }
 });
 
+
+// ----------------------------------------------------
+// Local-first synchronization
+// ----------------------------------------------------
+async function processQuillSyncMutation(userId, deviceId, mutation) {
+  const mutationId = String(mutation?.mutationId || "").trim();
+  const entityType = String(mutation?.entityType || "").trim();
+  const entityKey = String(mutation?.entityKey || "").trim();
+  const operation = String(mutation?.operation || "").trim();
+  const baseVersion = Number(mutation?.baseVersion);
+  const payload = mutation?.payload || null;
+
+  if (!isUuid(mutationId)) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_MUTATION_ID_INVALID",
+      message: "A valid mutationId is required."
+    };
+  }
+
+  if (entityType !== "quill_note") {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_ENTITY_UNSUPPORTED",
+      message: "This entity type is not supported by the sync endpoint yet."
+    };
+  }
+
+  if (!entityKey) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_ENTITY_KEY_REQUIRED",
+      message: "An entity key is required."
+    };
+  }
+
+  if (!["create", "update", "delete"].includes(operation)) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_OPERATION_INVALID",
+      message: "The sync operation is invalid."
+    };
+  }
+
+  if (!Number.isInteger(baseVersion) || baseVersion < 0) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_BASE_VERSION_INVALID",
+      message: "A valid baseVersion is required."
+    };
+  }
+
+  if (operation === "create" && baseVersion !== 0) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_CREATE_VERSION_INVALID",
+      message: "A create mutation must begin at version zero."
+    };
+  }
+
+  if (["update", "delete"].includes(operation) && baseVersion < 1) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_EXISTING_VERSION_REQUIRED",
+      message: "An update or delete mutation requires an existing server version."
+    };
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const claim = await client.query(
+      `
+      INSERT INTO sync_mutations (
+        user_id,
+        mutation_id,
+        device_id,
+        entity_type,
+        entity_key,
+        operation,
+        processed_at,
+        result_version,
+        result_json
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NULL, NULL)
+      ON CONFLICT (user_id, mutation_id)
+      DO NOTHING
+      RETURNING mutation_id
+      `,
+      [userId, mutationId, deviceId, entityType, entityKey, operation]
+    );
+
+    if (claim.rows.length === 0) {
+      const previous = await client.query(
+        `
+        SELECT result_version, result_json
+        FROM sync_mutations
+        WHERE user_id = $1 AND mutation_id = $2
+        LIMIT 1
+        `,
+        [userId, mutationId]
+      );
+
+      await client.query("COMMIT");
+
+      return {
+        mutationId,
+        status: "ok",
+        duplicate: true,
+        resultVersion: previous.rows[0]?.result_version ?? null,
+        result: previous.rows[0]?.result_json || null
+      };
+    }
+
+    let resultRow = null;
+    let resultVersion = null;
+    let resultJson = null;
+
+    if (operation === "create") {
+      if (
+        !payload ||
+        !payload.bibleVersionID ||
+        !payload.bibleChapterID ||
+        !payload.pageKey ||
+        payload.pageKey !== entityKey
+      ) {
+        await client.query("ROLLBACK");
+        return {
+          mutationId,
+          status: "error",
+          code: "SYNC_QUILL_PAYLOAD_INVALID",
+          message: "The My Notes payload is incomplete."
+        };
+      }
+
+      const created = await client.query(
+        `
+        INSERT INTO saved_quill_notes (
+          user_id,
+          bible_version_id,
+          bible_chapter_id,
+          page_key,
+          page_url,
+          bible_name,
+          book_chapter_label,
+          quill_delta_json,
+          quill_plain_text,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+        ON CONFLICT (user_id, page_key)
+        DO NOTHING
+        RETURNING *
+        `,
+        [
+          userId,
+          payload.bibleVersionID,
+          payload.bibleChapterID,
+          entityKey,
+          payload.pageUrl || "",
+          payload.bibleName || null,
+          payload.bookChapterLabel || null,
+          payload.quillDelta || null,
+          payload.plainText || ""
+        ]
+      );
+
+      if (created.rows.length === 0) {
+        const latest = await client.query(
+          `SELECT * FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+          [userId, entityKey]
+        );
+
+        await client.query("ROLLBACK");
+        return {
+          mutationId,
+          status: "conflict",
+          code: "QUILL_NOTE_VERSION_CONFLICT",
+          message: "These notes changed since this device last synchronized.",
+          latestNote: latest.rows[0] || null
+        };
+      }
+
+      resultRow = created.rows[0];
+      resultVersion = Number(resultRow.version) || 1;
+      resultJson = { note: resultRow };
+    }
+
+    if (operation === "update") {
+      if (
+        !payload ||
+        !payload.bibleVersionID ||
+        !payload.bibleChapterID ||
+        !payload.pageKey ||
+        payload.pageKey !== entityKey
+      ) {
+        await client.query("ROLLBACK");
+        return {
+          mutationId,
+          status: "error",
+          code: "SYNC_QUILL_PAYLOAD_INVALID",
+          message: "The My Notes payload is incomplete."
+        };
+      }
+
+      const updated = await client.query(
+        `
+        UPDATE saved_quill_notes
+        SET
+          bible_version_id = $3,
+          bible_chapter_id = $4,
+          page_url = $5,
+          bible_name = $6,
+          book_chapter_label = $7,
+          quill_delta_json = $8,
+          quill_plain_text = $9,
+          version = version + 1,
+          updated_at = NOW()
+        WHERE user_id = $1
+          AND page_key = $2
+          AND version = $10
+        RETURNING *
+        `,
+        [
+          userId,
+          entityKey,
+          payload.bibleVersionID,
+          payload.bibleChapterID,
+          payload.pageUrl || "",
+          payload.bibleName || null,
+          payload.bookChapterLabel || null,
+          payload.quillDelta || null,
+          payload.plainText || "",
+          baseVersion
+        ]
+      );
+
+      if (updated.rows.length === 0) {
+        const latest = await client.query(
+          `SELECT * FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+          [userId, entityKey]
+        );
+
+        await client.query("ROLLBACK");
+        return {
+          mutationId,
+          status: "conflict",
+          code: "QUILL_NOTE_VERSION_CONFLICT",
+          message: "These notes changed since this device last synchronized.",
+          latestNote: latest.rows[0] || null
+        };
+      }
+
+      resultRow = updated.rows[0];
+      resultVersion = Number(resultRow.version) || baseVersion + 1;
+      resultJson = { note: resultRow };
+    }
+
+    if (operation === "delete") {
+      const deleted = await client.query(
+        `
+        DELETE FROM saved_quill_notes
+        WHERE user_id = $1
+          AND page_key = $2
+          AND version = $3
+        RETURNING page_key, version
+        `,
+        [userId, entityKey, baseVersion]
+      );
+
+      if (deleted.rows.length === 0) {
+        const latest = await client.query(
+          `SELECT * FROM saved_quill_notes WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+          [userId, entityKey]
+        );
+
+        if (latest.rows.length > 0) {
+          await client.query("ROLLBACK");
+          return {
+            mutationId,
+            status: "conflict",
+            code: "QUILL_NOTE_VERSION_CONFLICT",
+            message: "These notes changed since this device last synchronized.",
+            latestNote: latest.rows[0]
+          };
+        }
+      }
+
+      resultJson = { deleted: true, pageKey: entityKey };
+      resultVersion = null;
+    }
+
+    await client.query(
+      `
+      UPDATE sync_mutations
+      SET result_version = $3, result_json = $4
+      WHERE user_id = $1 AND mutation_id = $2
+      `,
+      [userId, mutationId, resultVersion, resultJson]
+    );
+
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id,
+        entity_type,
+        entity_key,
+        operation,
+        resulting_version,
+        source_device_id,
+        source_mutation_id,
+        changed_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      `,
+      [
+        userId,
+        entityType,
+        entityKey,
+        operation,
+        resultVersion,
+        deviceId,
+        mutationId
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      mutationId,
+      status: "ok",
+      duplicate: false,
+      resultVersion,
+      result: resultJson
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_rollbackError) {
+      // The original database error is more useful to log.
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const deviceId = String(req.body?.deviceId || "").trim();
+    const mutations = Array.isArray(req.body?.mutations) ? req.body.mutations : [];
+
+    if (!isUuid(deviceId)) {
+      return res.status(400).json({
+        ok: false,
+        code: "SYNC_DEVICE_ID_INVALID",
+        message: "A valid deviceId is required."
+      });
+    }
+
+    if (mutations.length === 0 || mutations.length > 100) {
+      return res.status(400).json({
+        ok: false,
+        code: "SYNC_MUTATIONS_INVALID",
+        message: "Provide between 1 and 100 mutations."
+      });
+    }
+
+    const results = [];
+
+    for (const mutation of mutations) {
+      results.push(
+        await processQuillSyncMutation(userId, deviceId, mutation)
+      );
+    }
+
+    return res.json({ ok: true, results });
+  } catch (error) {
+    console.error("Sync mutations error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to synchronize local changes"
+    });
+  }
+});
+
 // ----------------------------------------------------
 // Mini-editor page routes
 // ----------------------------------------------------
