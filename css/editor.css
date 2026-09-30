@@ -371,7 +371,7 @@
 }
 
 .font-color-option.text-yellow {
-  color: #c79a00 !important;
+  color: #ffed51 !important;  /* originally was c79a00 */
 }
 
 .font-color-option.text-orange {
