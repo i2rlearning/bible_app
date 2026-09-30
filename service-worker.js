@@ -1,7 +1,15 @@
 "use strict";
 
+/*
+ * Application Service Worker
+ *
+ * Keeps the application shell available when the network is unavailable.
+ * Handles same-origin navigation fallbacks and local app assets without using
+ * the service-worker cache as the storage source for Bible or personal user data.
+ */
+
 const CACHE_PREFIX = "bible-app-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v5`;
+const CACHE_NAME = `${CACHE_PREFIX}v6`;
 const NETWORK_TIMEOUT_MS = 4500;
 
 const APP_PAGES = [
@@ -61,6 +69,8 @@ const SHELL_ASSETS = [
   "/js/study-actions.js",
   "/js/study-desk.js",
   "/js/ui-fit-controller.js",
+  "/js/user-offline-db.js",
+  "/js/user-data.js",
   "/js/user-preferences.js",
   "/js/verse-of-day.js",
   "/js/verses.js",
