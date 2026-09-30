@@ -179,7 +179,7 @@ function setEditorSaveStatus(message) {
     status.classList.add("editor-save-status-saving");
   }
 
-  if (message === "Saved") {
+  if (message === "Saved" || message === "Saved on this device") {
     status.classList.add("editor-save-status-saved");
   }
 
@@ -231,6 +231,7 @@ window.addEventListener("beforeunload", () => {
 
 window.addEventListener("pagehide", () => {
   editorPageIsLeaving = true;
+  flushQuillNotesToLocal().catch(() => {});
 });
 
 document.addEventListener(
@@ -296,12 +297,14 @@ async function checkEditorAuth() {
   try {
     const response = await fetch("/api/me", {
       method: "GET",
-      credentials: "include"
+      credentials: "include",
+      cache: "no-store"
     });
 
     const result = await response.json();
 
     if (response.ok && result.ok && result.user) {
+      await window.UserData?.rememberAuthenticatedUser?.(result.user.id);
       unlockEditorTools();
 
       if (typeof loadQuillNotes === "function") {
@@ -315,10 +318,22 @@ async function checkEditorAuth() {
           }
         });
       }
-    } else {
-      lockEditorTools();
+      return;
     }
+
+    lockEditorTools();
   } catch (error) {
+    const trustedUser = await window.UserData?.getTrustedOfflineUser?.();
+
+    if (trustedUser) {
+      unlockQuillNotesOffline();
+
+      if (typeof loadQuillNotes === "function") {
+        loadQuillNotes();
+      }
+      return;
+    }
+
     lockEditorTools();
   }
 }
@@ -361,6 +376,39 @@ function lockEditorTools() {
 
   if (message) {
     message.remove();
+  }
+
+  setEditorSaveStatus("");
+}
+
+
+function unlockQuillNotesOffline() {
+  editorToolsUnlocked = true;
+  document.body.classList.remove("editor-locked-state");
+
+  if (typeof quill !== "undefined") {
+    quill.enable();
+    quill.root.setAttribute("data-placeholder", "Notes...");
+  }
+
+  const quillToolbar = document.querySelector(".ql-toolbar");
+  if (quillToolbar) {
+    quillToolbar.classList.remove("editor-tools-locked");
+    quillToolbar.querySelectorAll("button, select").forEach((control) => {
+      control.disabled = false;
+    });
+  }
+
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+  if (miniToolbar) {
+    miniToolbar.classList.add("editor-tools-locked");
+    miniToolbar.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
+    });
+  }
+
+  if (typeof setDrawingTool === "function") {
+    setDrawingTool(null);
   }
 
   setEditorSaveStatus("");
@@ -409,6 +457,8 @@ let quillNotesLoaded = false;
 let quillNotesVersion = 0;
 let quillNotesStoragePageKey = "";
 let quillConflictActive = false;
+let quillChangeSequence = 0;
+let quillSavedSequence = 0;
 
 function getCurrentBiblePageIdentity() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -493,11 +543,21 @@ function getCurrentBookChapterLabel() {
 }
 
 
+function getCurrentBibleName() {
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get("bibleName") ||
+    params.get("bibleAbbr") ||
+    document.getElementById("biblefullname")?.textContent?.trim() ||
+    document.getElementById("bible")?.textContent?.trim() ||
+    ""
+  );
+}
+
 async function loadQuillNotes() {
   if (typeof quill === "undefined") return;
 
   const pageIdentity = getCurrentBiblePageIdentity();
-
   if (!pageIdentity) return;
 
   quillNotesLoaded = false;
@@ -505,32 +565,41 @@ async function loadQuillNotes() {
   quillNotesStoragePageKey = pageIdentity.pageKey;
 
   try {
-    const loadParams = new URLSearchParams({
-      pageKey: pageIdentity.pageKey,
-      bibleVersionID: pageIdentity.bibleVersionID,
-      bibleChapterID: pageIdentity.bibleChapterID
+    const result = await window.UserData.loadQuillNote({
+      ...pageIdentity,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel()
     });
 
-    const response = await fetch(`/api/quill-notes?${loadParams.toString()}`, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store"
-    });
+    const note = result?.note || null;
 
-    const result = await parseResponseSafely(response);
+    quillNotesVersion = Number(note?.serverVersion) || 0;
+    quillNotesStoragePageKey = note?.pageKey || pageIdentity.pageKey;
 
-    if (!response.ok) {
-      throw new Error(result.message || `Failed to load Quill notes. Status: ${response.status}`);
-    }
-
-    quillNotesVersion = result.note?.version ? Number(result.note.version) : 0;
-    quillNotesStoragePageKey = result.note?.page_key || pageIdentity.pageKey;
-
-    if (result.note && result.note.quill_delta_json) {
-      quill.setContents(result.note.quill_delta_json);
+    if (note?.quillDelta) {
+      quill.setContents(note.quillDelta);
+    } else {
+      quill.setContents([]);
     }
 
     quillNotesLoaded = true;
+
+    if (note?.syncStatus === "pending") {
+      setEditorSaveStatus("Saved on this device");
+    }
+
+    if (note?.syncStatus === "conflict") {
+      quillConflictActive = true;
+      setEditorSaveStatus("Conflict - newer notes exist");
+      showEditorVersionConflict({
+        key: `quill:${note.pageKey}:${note?.conflictRemote?.version || "newer"}`,
+        onLoadLatest: async () => {
+          await window.UserData.useRemoteQuillConflict(note.pageKey);
+          await loadQuillNotes();
+        }
+      });
+    }
   } catch (error) {
     console.error("Load Quill notes error:", error);
     quillNotesLoaded = true;
@@ -572,89 +641,49 @@ async function saveQuillNotes() {
   if (!quillNotesLoaded) return;
 
   const pageIdentity = getCurrentBiblePageIdentity();
-
   if (!pageIdentity) return;
+
+  const saveSequence = quillChangeSequence;
 
   try {
     const quillDelta = quill.getContents();
     const plainText = quill.getText().trim();
+    const common = {
+      bibleVersionID: pageIdentity.bibleVersionID,
+      bibleChapterID: pageIdentity.bibleChapterID,
+      pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      serverVersion: Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0
+    };
 
     if (!plainText) {
-      const deleteParams = new URLSearchParams({ pageKey: quillNotesStoragePageKey || pageIdentity.pageKey });
-      deleteParams.set("expectedVersion", String(Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0));
-
-      const deleteResponse = await fetch(
-        `/api/quill-notes?${deleteParams.toString()}`,
-        {
-          method: "DELETE",
-          credentials: "include"
-        }
+      const result = await window.UserData.deleteQuillNote(common);
+      quillNotesVersion = Number(result?.note?.serverVersion) || 0;
+      quillSavedSequence = Math.max(quillSavedSequence, saveSequence);
+      setEditorSaveStatus(
+        result?.syncStatus === "clean" ? "Saved" : "Saved on this device"
       );
-      const deleteResult = await parseResponseSafely(deleteResponse);
-
-      if (!deleteResponse.ok) {
-        if (deleteResponse.status === 409) {
-          const conflictError = new Error(deleteResult.message || "These notes changed on another device.");
-          conflictError.code = deleteResult.code || "QUILL_NOTE_VERSION_CONFLICT";
-          conflictError.data = deleteResult;
-          throw conflictError;
-        }
-        throw new Error(deleteResult.message || "Failed to delete empty notes");
-      }
-
-      quillNotesVersion = 0;
-      console.log("Empty Quill notes deleted");
-      setEditorSaveStatus("Saved");
       return;
     }
 
-    const response = await fetch("/api/quill-notes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        bibleVersionID: pageIdentity.bibleVersionID,
-        bibleChapterID: pageIdentity.bibleChapterID,
-        pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
-        pageUrl: window.location.pathname + window.location.search,
-        bookChapterLabel: getCurrentBookChapterLabel(),
-        quillDelta,
-        plainText,
-        expectedVersion: Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0
-      })
+    const result = await window.UserData.saveQuillNote({
+      ...common,
+      quillDelta,
+      plainText
     });
 
-    const result = await parseResponseSafely(response);
-
-    if (!response.ok) {
-      const saveError = new Error(result.message || `Failed to save Quill editor notes. Status: ${response.status}`);
-      saveError.code = result.code || "";
-      saveError.data = result;
-      throw saveError;
-    }
-
-    quillNotesVersion = result.note?.version ? Number(result.note.version) : quillNotesVersion;
-    console.log("Quill notes saved");
-    setEditorSaveStatus("Saved");
+    quillNotesVersion = Number(result?.note?.serverVersion) || quillNotesVersion;
+    quillNotesStoragePageKey = result?.note?.pageKey || quillNotesStoragePageKey;
+    quillSavedSequence = Math.max(quillSavedSequence, saveSequence);
+    setEditorSaveStatus("Saved on this device");
   } catch (error) {
     if (editorPageIsLeaving || document.visibilityState === "hidden") {
       return;
     }
 
     console.error("Save Quill notes error:", error);
-    if (error?.code === "QUILL_NOTE_VERSION_CONFLICT") {
-      quillConflictActive = true;
-      setEditorSaveStatus("Conflict - newer notes exist");
-      showEditorVersionConflict({
-        key: `quill:${pageIdentity.pageKey}:${error?.data?.latestNote?.version || "newer"}`,
-        onLoadLatest: () => {
-          loadQuillNotes();
-        }
-      });
-      return;
-    }
     setEditorSaveStatus("Save failed");
   }
 }
@@ -674,10 +703,25 @@ function scheduleQuillNotesSave() {
 }
 
 if (typeof quill !== "undefined") {
-  quill.on("text-change", function () {
+  quill.on("text-change", function (_delta, _oldDelta, source) {
+    if (source !== "user") return;
+    quillChangeSequence += 1;
     scheduleQuillNotesSave();
   });
 }
+
+async function flushQuillNotesToLocal() {
+  if (!quillNotesLoaded || quillConflictActive) return;
+  if (quillSavedSequence >= quillChangeSequence) return;
+
+  clearTimeout(quillSaveTimer);
+  quillSaveQueue = quillSaveQueue.then(() => saveQuillNotes());
+  await quillSaveQueue;
+}
+
+window.EditorPersistence = Object.freeze({
+  flushQuillNotes: flushQuillNotesToLocal
+});
 
 function waitForBibleTextContent(maxWaitMs = 5000) {
   return new Promise((resolve) => {
@@ -3103,6 +3147,53 @@ window.toggleMobileToolbarMenu = toggleMobileToolbarMenu;
 window.closeMobileToolbarMenus = closeMobileToolbarMenus;
 
 // ----------------------------------------------------
+window.addEventListener("user-data-synced", (event) => {
+  const detail = event.detail || {};
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (
+    detail.entityType !== "quill_note" ||
+    !pageIdentity ||
+    detail.entityKey !== (quillNotesStoragePageKey || pageIdentity.pageKey)
+  ) {
+    return;
+  }
+
+  if (detail.deleted) {
+    quillNotesVersion = 0;
+  } else if (Number(detail.version) > 0) {
+    quillNotesVersion = Number(detail.version);
+  }
+
+  if (!quillConflictActive) {
+    setEditorSaveStatus("Saved");
+  }
+});
+
+window.addEventListener("user-data-conflict", (event) => {
+  const detail = event.detail || {};
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (
+    detail.entityType !== "quill_note" ||
+    !pageIdentity ||
+    detail.entityKey !== (quillNotesStoragePageKey || pageIdentity.pageKey)
+  ) {
+    return;
+  }
+
+  quillConflictActive = true;
+  setEditorSaveStatus("Conflict - newer notes exist");
+  showEditorVersionConflict({
+    key: `quill:${detail.entityKey}:${detail?.latestNote?.version || "newer"}`,
+    onLoadLatest: async () => {
+      await window.UserData.useRemoteQuillConflict(detail.entityKey);
+      quillConflictActive = false;
+      await loadQuillNotes();
+    }
+  });
+});
+
 // Start editor auth check after all functions are loaded
 // ----------------------------------------------------
 checkEditorAuth();
