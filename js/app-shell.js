@@ -1,5 +1,13 @@
 "use strict";
 
+/*
+ * AppShell
+ *
+ * Shared application-shell and connectivity coordinator.
+ * Registers the service worker, verifies real backend reachability, handles
+ * offline/reconnect transitions, and exposes connection state to other modules.
+ */
+
 window.AppShell = (() => {
   const HEALTH_URL = "/api/health";
   const RECONNECT_RELOAD_KEY = "appShellReconnectReloadAttempted";
