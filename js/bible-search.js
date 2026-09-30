@@ -1,5 +1,13 @@
 "use strict";
 
+/*
+ * BibleSearch
+ *
+ * Shared Scripture Search service.
+ * Searches downloaded Bible verses from BibleOfflineDB when available and
+ * falls back to API.Bible for non-downloaded Bibles while online.
+ */
+
 window.BibleSearch = (() => {
   const API_BASE_URL = "https://api.scripture.api.bible/v1";
   const localVerseCache = new Map();
