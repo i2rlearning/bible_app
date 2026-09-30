@@ -1232,7 +1232,7 @@ window.BibleSelector = (() => {
       }
     }
 
-    function openSelectedPassage() {
+    async function openSelectedPassage() {
       const selectedBible =
         availableBibles.find(
           (bible) =>
@@ -1284,6 +1284,8 @@ window.BibleSelector = (() => {
 
         return;
       }
+
+      await window.EditorPersistence?.flushQuillNotes?.();
 
       window.location.assign(
         destinationUrl
