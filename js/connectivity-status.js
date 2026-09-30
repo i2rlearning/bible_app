@@ -1,5 +1,13 @@
 "use strict";
 
+/*
+ * ConnectivityStatus
+ *
+ * Reusable UI layer for connection-state messaging.
+ * Shows calm inline status messages when local/offline behavior needs to be
+ * explained, while staying hidden during normal online operation.
+ */
+
 window.ConnectivityStatus = (() => {
   const ELEMENT_ID = "app-connectivity-status";
   const STARTUP_GRACE_MS = 1100;
