@@ -1554,7 +1554,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
         );
       }
 
-      function goToPreviousChapter() {
+      async function goToPreviousChapter() {
         const previousChapter =
           chapterNavigationState.previousChapter;
 
@@ -1562,19 +1562,23 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
           return;
         }
 
+        await window.EditorPersistence?.flushQuillNotes?.();
+
         window.location.href =
           buildChapterUrl(
             previousChapter.id
           );
       }
 
-      function goToNextChapter() {
+      async function goToNextChapter() {
         const nextChapter =
           chapterNavigationState.nextChapter;
 
         if (!nextChapter) {
           return;
         }
+
+        await window.EditorPersistence?.flushQuillNotes?.();
 
         window.location.href =
           buildChapterUrl(
