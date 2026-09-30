@@ -149,32 +149,87 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function setOfflineTrustedUI(profile) {
+    document.documentElement.dataset.authState = "offline-trusted";
+
+    if (loginButton) {
+      loginButton.style.display = "none";
+      loginButton.disabled = true;
+      loginButton.title = "";
+    }
+
+    if (signupButton) {
+      signupButton.style.display = "none";
+    }
+
+    if (logoutButton) {
+      logoutButton.style.display = "";
+    }
+
+    const myNotesLink = document.getElementById("openMyNotes");
+    if (myNotesLink) {
+      myNotesLink.classList.add("disabled");
+      myNotesLink.setAttribute("aria-disabled", "true");
+      myNotesLink.setAttribute(
+        "title",
+        "The My Notes list will be available offline in a later update."
+      );
+    }
+
+    const studyDeskBtn = document.getElementById("landing-study-desk-action");
+    if (studyDeskBtn) {
+      studyDeskBtn.disabled = true;
+      studyDeskBtn.setAttribute(
+        "title",
+        "Study Desk offline editing is not enabled yet."
+      );
+    }
+
+    const studyDeskLink = document.getElementById("openStudyDesk");
+    if (studyDeskLink) {
+      studyDeskLink.classList.add("disabled");
+      studyDeskLink.setAttribute("aria-disabled", "true");
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("auth-state-changed", {
+        detail: {
+          signedIn: true,
+          offlineTrusted: true,
+          userId: profile?.userId || ""
+        }
+      })
+    );
+  }
+
+  window.setOfflineTrustedAuthUI = setOfflineTrustedUI;
+
   // Expose this globally so the lazy-loaded Clerk script can call it later
   window.updateAuthUI = function (clerkUser) {
     if (clerkUser) {
       setLoggedInUI(clerkUser);
 
+      window.UserData?.rememberAuthenticatedUser?.(clerkUser.id).catch((error) => {
+        console.warn("Could not remember the authenticated user locally:", error);
+      });
+
       if (typeof unlockEditorTools === "function") {
         unlockEditorTools();
       }
-
-      // Inactivity timer is disabled. Clerk handles the active session.
     } else {
       setLoggedOutUI();
 
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
       }
-
-      // Inactivity timer is disabled. Clerk handles the active session.
     }
 
-    // Shared notification for pages that need to react immediately when
-    // Clerk signs a user in or out without navigating away from the page.
     window.dispatchEvent(
       new CustomEvent("auth-state-changed", {
         detail: {
-          signedIn: Boolean(clerkUser)
+          signedIn: Boolean(clerkUser),
+          offlineTrusted: false,
+          userId: clerkUser?.id || ""
         }
       })
     );
@@ -663,25 +718,36 @@ async function openSignup() {
       event.preventDefault();
       event.stopPropagation();
 
+      const clerkObj = getClerkObject();
+      let remoteSignOutCompleted = false;
+
       try {
-        // Inactivity timer is disabled. Manual logout continues normally.
-
-        const clerkObj = getClerkObject();
-
         if (clerkObj && typeof clerkObj.signOut === "function") {
           await clerkObj.signOut();
+          remoteSignOutCompleted = true;
         }
-
-        setLoggedOutUI();
-
-        if (typeof lockEditorTools === "function") {
-          lockEditorTools();
-        }
-
-        window.location.reload();
       } catch (error) {
-        alert(error.message);
+        console.warn(
+          "Remote sign out will be completed when connectivity returns:",
+          error
+        );
       }
+
+      try {
+        await window.UserData?.disableOfflineAccess?.({
+          pendingRemoteLogout: !remoteSignOutCompleted
+        });
+      } catch (error) {
+        console.error("Could not lock local user data:", error);
+      }
+
+      setLoggedOutUI();
+
+      if (typeof lockEditorTools === "function") {
+        lockEditorTools();
+      }
+
+      window.location.reload();
     });
   }
 });
@@ -756,6 +822,15 @@ window.addEventListener("load", async () => {
       }
     });
 
+    if (
+      clerkObj.user?.id &&
+      await window.UserData?.hasPendingRemoteLogout?.(clerkObj.user.id)
+    ) {
+      const signedOutUserId = clerkObj.user.id;
+      await clerkObj.signOut();
+      await window.UserData?.clearPendingRemoteLogout?.(signedOutUserId);
+    }
+
     window.AppShell?.clearDegraded?.("auth");
 
     console.log("Clerk loaded with UI components.");
@@ -776,5 +851,18 @@ window.addEventListener("load", async () => {
   } catch (error) {
     window.AppShell?.markDegraded?.("auth");
     console.error("Failed to initialize Clerk:", error);
+
+    const connectivity = window.AppShell?.getState?.() || {};
+
+    if (
+      navigator.onLine === false ||
+      connectivity.connectionIssue === true ||
+      connectivity.appReachable === false
+    ) {
+      const trustedUser = await window.UserData?.getTrustedOfflineUser?.();
+      if (trustedUser && typeof window.setOfflineTrustedAuthUI === "function") {
+        window.setOfflineTrustedAuthUI(trustedUser);
+      }
+    }
   }
 });
