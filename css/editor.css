@@ -274,7 +274,7 @@
 
 /************* Bible highlight colors *************/
 .eb-container .bible-user-format.highlight-yellow {
-  background-color: #fff59d !important;  /* FFFF00 - pure yellow*/
+  background-color: #fff59d !important;  
 }
 
 .eb-container .bible-user-format.highlight-green {
@@ -315,7 +315,7 @@
 }
 
 .eb-container .bible-user-format.text-yellow {
-  color: #ffff00 !important;  /* c79a00 - previously used*/
+  color: #c79a00 !important;  
 }
 
 .eb-container .bible-user-format.text-orange {
