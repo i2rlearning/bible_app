@@ -4,18 +4,19 @@
  * UserOfflineDB
  *
  * Stores user-specific offline data in IndexedDB, separated by Clerk user ID.
- * Provides durable local storage for My Notes and the sync outbox so edits
- * can survive navigation, browser refreshes, and temporary loss of connectivity.
+ * Provides durable local storage for My Notes, Bible-page annotations, and the
+ * sync outbox so edits survive navigation, refreshes, and temporary outages.
  */
 
 window.UserOfflineDB = (() => {
   const DB_NAME = "UserOfflineDB";
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
 
   const STORES = Object.freeze({
     meta: "meta",
     profiles: "profiles",
     quillNotes: "quillNotes",
+    miniEditorPages: "miniEditorPages",
     outbox: "outbox"
   });
 
@@ -66,6 +67,18 @@ window.UserOfflineDB = (() => {
             { unique: false }
           );
           notes.createIndex("by_user_sync", ["userId", "syncStatus"], { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains(STORES.miniEditorPages)) {
+          const pages = db.createObjectStore(STORES.miniEditorPages, { keyPath: "localKey" });
+          pages.createIndex("by_user", "userId", { unique: false });
+          pages.createIndex("by_user_page", ["userId", "pageKey"], { unique: true });
+          pages.createIndex(
+            "by_user_bible_chapter",
+            ["userId", "bibleVersionID", "bibleChapterID"],
+            { unique: false }
+          );
+          pages.createIndex("by_user_sync", ["userId", "syncStatus"], { unique: false });
         }
 
         if (!db.objectStoreNames.contains(STORES.outbox)) {
@@ -193,6 +206,58 @@ window.UserOfflineDB = (() => {
     return remove(STORES.quillNotes, buildQuillLocalKey(userId, pageKey));
   }
 
+  function buildMiniEditorLocalKey(userId, pageKey) {
+    return `${userId}::mini_editor_page::${pageKey}`;
+  }
+
+  async function getMiniEditorPage(userId, pageKey) {
+    if (!userId || !pageKey) return null;
+
+    const db = await open();
+    const transaction = db.transaction(STORES.miniEditorPages, "readonly");
+    const index = transaction.objectStore(STORES.miniEditorPages).index("by_user_page");
+    const result = await requestToPromise(index.get([userId, pageKey]));
+    await transactionToPromise(transaction);
+    return result || null;
+  }
+
+  async function getMiniEditorPageByBibleChapter(userId, bibleVersionID, bibleChapterID) {
+    if (!userId || !bibleVersionID || !bibleChapterID) return null;
+
+    const db = await open();
+    const transaction = db.transaction(STORES.miniEditorPages, "readonly");
+    const index = transaction.objectStore(STORES.miniEditorPages).index("by_user_bible_chapter");
+    const results = await requestToPromise(
+      index.getAll([userId, bibleVersionID, bibleChapterID])
+    );
+    await transactionToPromise(transaction);
+
+    if (!Array.isArray(results) || results.length === 0) {
+      return null;
+    }
+
+    results.sort((a, b) => Number(b.localUpdatedAt || 0) - Number(a.localUpdatedAt || 0));
+    return results[0] || null;
+  }
+
+  async function putMiniEditorPage(page) {
+    if (!page?.userId || !page?.pageKey) {
+      throw new Error("Cannot store mini-editor state without userId and pageKey.");
+    }
+
+    const record = {
+      ...page,
+      localKey: page.localKey || buildMiniEditorLocalKey(page.userId, page.pageKey)
+    };
+
+    return put(STORES.miniEditorPages, record);
+  }
+
+  async function deleteMiniEditorPage(userId, pageKey) {
+    if (!userId || !pageKey) return;
+    return remove(STORES.miniEditorPages, buildMiniEditorLocalKey(userId, pageKey));
+  }
+
   async function getOutboxMutation(mutationId) {
     if (!mutationId) return null;
     return get(STORES.outbox, mutationId);
@@ -263,12 +328,17 @@ window.UserOfflineDB = (() => {
     getQuillNoteByBibleChapter,
     putQuillNote,
     deleteQuillNote,
+    getMiniEditorPage,
+    getMiniEditorPageByBibleChapter,
+    putMiniEditorPage,
+    deleteMiniEditorPage,
     getOutboxMutation,
     putOutboxMutation,
     deleteOutboxMutation,
     listOutboxForEntity,
     listOutbox,
     resetSendingMutations,
-    buildQuillLocalKey
+    buildQuillLocalKey,
+    buildMiniEditorLocalKey
   });
 })();
