@@ -728,6 +728,301 @@ async function processQuillSyncMutation(userId, deviceId, mutation) {
   }
 }
 
+
+async function processMiniEditorSyncMutation(userId, deviceId, mutation) {
+  const mutationId = String(mutation?.mutationId || "").trim();
+  const entityType = String(mutation?.entityType || "").trim();
+  const entityKey = String(mutation?.entityKey || "").trim();
+  const operation = String(mutation?.operation || "").trim();
+  const baseVersion = Number(mutation?.baseVersion);
+  const payload = mutation?.payload || null;
+
+  if (!isUuid(mutationId)) {
+    return { mutationId, status: "error", code: "SYNC_MUTATION_ID_INVALID", message: "A valid mutationId is required." };
+  }
+
+  if (entityType !== "mini_editor_page") {
+    return { mutationId, status: "error", code: "SYNC_ENTITY_UNSUPPORTED", message: "This entity type is not supported by the sync endpoint yet." };
+  }
+
+  if (!entityKey) {
+    return { mutationId, status: "error", code: "SYNC_ENTITY_KEY_REQUIRED", message: "An entity key is required." };
+  }
+
+  if (!["create", "update", "delete"].includes(operation)) {
+    return { mutationId, status: "error", code: "SYNC_OPERATION_INVALID", message: "The sync operation is invalid." };
+  }
+
+  if (!Number.isInteger(baseVersion) || baseVersion < 0) {
+    return { mutationId, status: "error", code: "SYNC_BASE_VERSION_INVALID", message: "A valid baseVersion is required." };
+  }
+
+  if (operation === "create" && baseVersion !== 0) {
+    return { mutationId, status: "error", code: "SYNC_CREATE_VERSION_INVALID", message: "A create mutation must begin at version zero." };
+  }
+
+  if (["update", "delete"].includes(operation) && baseVersion < 1) {
+    return { mutationId, status: "error", code: "SYNC_EXISTING_VERSION_REQUIRED", message: "An update or delete mutation requires an existing server version." };
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const claim = await client.query(
+      `
+      INSERT INTO sync_mutations (
+        user_id, mutation_id, device_id, entity_type, entity_key, operation,
+        processed_at, result_version, result_json
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NULL, NULL)
+      ON CONFLICT (user_id, mutation_id)
+      DO NOTHING
+      RETURNING mutation_id
+      `,
+      [userId, mutationId, deviceId, entityType, entityKey, operation]
+    );
+
+    if (claim.rows.length === 0) {
+      const previous = await client.query(
+        `
+        SELECT result_version, result_json
+        FROM sync_mutations
+        WHERE user_id = $1 AND mutation_id = $2
+        LIMIT 1
+        `,
+        [userId, mutationId]
+      );
+
+      await client.query("COMMIT");
+      return {
+        mutationId,
+        status: "ok",
+        duplicate: true,
+        resultVersion: previous.rows[0]?.result_version ?? null,
+        result: previous.rows[0]?.result_json || null
+      };
+    }
+
+    let resultRow = null;
+    let resultVersion = null;
+    let resultJson = null;
+
+    if (operation === "create" || operation === "update") {
+      if (
+        !payload ||
+        !payload.bibleVersionID ||
+        !payload.bibleChapterID ||
+        !payload.pageKey ||
+        payload.pageKey !== entityKey ||
+        !payload.miniEditorJson
+      ) {
+        await client.query("ROLLBACK");
+        return {
+          mutationId,
+          status: "error",
+          code: "SYNC_MINI_EDITOR_PAYLOAD_INVALID",
+          message: "The annotation payload is incomplete."
+        };
+      }
+    }
+
+    if (operation === "create") {
+      const created = await client.query(
+        `
+        INSERT INTO saved_mini_editor_pages (
+          user_id,
+          bible_version_id,
+          bible_chapter_id,
+          page_key,
+          page_url,
+          bible_name,
+          book_chapter_label,
+          mini_editor_json,
+          has_highlights,
+          has_drawings,
+          has_text_formats,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+        ON CONFLICT (user_id, page_key)
+        DO NOTHING
+        RETURNING *
+        `,
+        [
+          userId,
+          payload.bibleVersionID,
+          payload.bibleChapterID,
+          entityKey,
+          payload.pageUrl || "",
+          payload.bibleName || "",
+          payload.bookChapterLabel || "",
+          payload.miniEditorJson,
+          !!payload.hasHighlights,
+          !!payload.hasDrawings,
+          !!payload.hasTextFormats
+        ]
+      );
+
+      if (created.rows.length === 0) {
+        const latest = await client.query(
+          `SELECT * FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+          [userId, entityKey]
+        );
+        await client.query("ROLLBACK");
+        return {
+          mutationId,
+          status: "conflict",
+          code: "MINI_EDITOR_VERSION_CONFLICT",
+          message: "This Bible page changed since this device last synchronized.",
+          latestPage: latest.rows[0] || null
+        };
+      }
+
+      resultRow = created.rows[0];
+      resultVersion = Number(resultRow.version) || 1;
+      resultJson = { page: resultRow };
+    }
+
+    if (operation === "update") {
+      const updated = await client.query(
+        `
+        UPDATE saved_mini_editor_pages
+        SET
+          bible_version_id = $3,
+          bible_chapter_id = $4,
+          page_url = $5,
+          bible_name = $6,
+          book_chapter_label = $7,
+          mini_editor_json = $8,
+          has_highlights = $9,
+          has_drawings = $10,
+          has_text_formats = $11,
+          version = version + 1,
+          updated_at = NOW()
+        WHERE user_id = $1
+          AND page_key = $2
+          AND version = $12
+        RETURNING *
+        `,
+        [
+          userId,
+          entityKey,
+          payload.bibleVersionID,
+          payload.bibleChapterID,
+          payload.pageUrl || "",
+          payload.bibleName || "",
+          payload.bookChapterLabel || "",
+          payload.miniEditorJson,
+          !!payload.hasHighlights,
+          !!payload.hasDrawings,
+          !!payload.hasTextFormats,
+          baseVersion
+        ]
+      );
+
+      if (updated.rows.length === 0) {
+        const latest = await client.query(
+          `SELECT * FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+          [userId, entityKey]
+        );
+        await client.query("ROLLBACK");
+        return {
+          mutationId,
+          status: "conflict",
+          code: "MINI_EDITOR_VERSION_CONFLICT",
+          message: "This Bible page changed since this device last synchronized.",
+          latestPage: latest.rows[0] || null
+        };
+      }
+
+      resultRow = updated.rows[0];
+      resultVersion = Number(resultRow.version) || baseVersion + 1;
+      resultJson = { page: resultRow };
+    }
+
+    if (operation === "delete") {
+      const deleted = await client.query(
+        `
+        DELETE FROM saved_mini_editor_pages
+        WHERE user_id = $1
+          AND page_key = $2
+          AND version = $3
+        RETURNING page_key, version
+        `,
+        [userId, entityKey, baseVersion]
+      );
+
+      if (deleted.rows.length === 0) {
+        const latest = await client.query(
+          `SELECT * FROM saved_mini_editor_pages WHERE user_id = $1 AND page_key = $2 LIMIT 1`,
+          [userId, entityKey]
+        );
+
+        if (latest.rows.length > 0) {
+          await client.query("ROLLBACK");
+          return {
+            mutationId,
+            status: "conflict",
+            code: "MINI_EDITOR_VERSION_CONFLICT",
+            message: "This Bible page changed before it could be deleted.",
+            latestPage: latest.rows[0]
+          };
+        }
+      }
+
+      resultJson = { deleted: true, pageKey: entityKey };
+      resultVersion = null;
+    }
+
+    await client.query(
+      `
+      UPDATE sync_mutations
+      SET result_version = $3, result_json = $4
+      WHERE user_id = $1 AND mutation_id = $2
+      `,
+      [userId, mutationId, resultVersion, resultJson]
+    );
+
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id,
+        entity_type,
+        entity_key,
+        operation,
+        resulting_version,
+        source_device_id,
+        source_mutation_id,
+        changed_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      `,
+      [userId, entityType, entityKey, operation, resultVersion, deviceId, mutationId]
+    );
+
+    await client.query("COMMIT");
+    return {
+      mutationId,
+      status: "ok",
+      duplicate: false,
+      resultVersion,
+      result: resultJson
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_rollbackError) {
+      // The original database error is more useful to log.
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
@@ -753,9 +1048,22 @@ app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
     const results = [];
 
     for (const mutation of mutations) {
-      results.push(
-        await processQuillSyncMutation(userId, deviceId, mutation)
-      );
+      if (mutation?.entityType === "quill_note") {
+        results.push(await processQuillSyncMutation(userId, deviceId, mutation));
+        continue;
+      }
+
+      if (mutation?.entityType === "mini_editor_page") {
+        results.push(await processMiniEditorSyncMutation(userId, deviceId, mutation));
+        continue;
+      }
+
+      results.push({
+        mutationId: String(mutation?.mutationId || ""),
+        status: "error",
+        code: "SYNC_ENTITY_UNSUPPORTED",
+        message: "This entity type is not supported by the sync endpoint yet."
+      });
     }
 
     return res.json({ ok: true, results });
