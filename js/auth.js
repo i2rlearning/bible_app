@@ -11,10 +11,59 @@ document.addEventListener("DOMContentLoaded", () => {
   const logoutButton = document.getElementById("logout");
   const myNotesModal = document.getElementById("myNotesModal");
 
-  setAuthCheckingUI();
+  const EXPLICIT_LOGGED_OUT_KEY = "BibleAppExplicitLoggedOut";
+  const PENDING_REMOTE_LOGOUT_KEY = "BibleAppPendingRemoteLogoutUserId";
+  const PENDING_LOGOUT_RELOAD_KEY = "BibleAppPendingLogoutReconnectReload";
 
-  if (typeof lockEditorTools === "function") {
-    lockEditorTools();
+  function readLocalMarker(key) {
+    try {
+      return window.localStorage.getItem(key) || "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function writeLocalMarker(key, value) {
+    try {
+      if (value) {
+        window.localStorage.setItem(key, String(value));
+      } else {
+        window.localStorage.removeItem(key);
+      }
+    } catch (_error) {
+      // IndexedDB remains the authoritative fallback for private data state.
+    }
+  }
+
+  function readSessionMarker(key) {
+    try {
+      return window.sessionStorage.getItem(key) || "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function writeSessionMarker(key, value) {
+    try {
+      if (value) {
+        window.sessionStorage.setItem(key, String(value));
+      } else {
+        window.sessionStorage.removeItem(key);
+      }
+    } catch (_error) {
+      // Session marker only prevents an unnecessary reconnect reload loop.
+    }
+  }
+
+  function getPendingRemoteLogoutUserId() {
+    return readLocalMarker(PENDING_REMOTE_LOGOUT_KEY);
+  }
+
+  function hasExplicitLoggedOutState() {
+    return (
+      readLocalMarker(EXPLICIT_LOGGED_OUT_KEY) === "1" ||
+      Boolean(getPendingRemoteLogoutUserId())
+    );
   }
 
   // ==========================================
@@ -91,6 +140,69 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const icon = logoutButton.querySelector("i");
     icon?.style.removeProperty("color");
+  }
+
+  function updateLoginConnectionAppearance(connectionState = null) {
+    if (!loginButton || loginButton.style.display === "none") return;
+
+    const state =
+      connectionState ||
+      window.AppShell?.getState?.() ||
+      {};
+
+    const isOffline =
+      navigator.onLine === false ||
+      state.connectionIssue === true ||
+      state.appReachable === false;
+
+    loginButton.dataset.connectionState = isOffline ? "offline" : "online";
+    loginButton.disabled = isOffline;
+
+    if (isOffline) {
+      loginButton.title =
+        "Login requires an internet connection.";
+
+      loginButton.style.setProperty(
+        "background-color",
+        "#f3f4f6",
+        "important"
+      );
+      loginButton.style.setProperty(
+        "background-image",
+        "none",
+        "important"
+      );
+      loginButton.style.setProperty(
+        "border-color",
+        "#aeb7c4",
+        "important"
+      );
+      loginButton.style.setProperty(
+        "color",
+        "#667085",
+        "important"
+      );
+      loginButton.style.setProperty(
+        "box-shadow",
+        "none",
+        "important"
+      );
+      loginButton.style.setProperty(
+        "cursor",
+        "default",
+        "important"
+      );
+      return;
+    }
+
+    loginButton.title = "";
+    loginButton.disabled = false;
+    loginButton.style.removeProperty("background-color");
+    loginButton.style.removeProperty("background-image");
+    loginButton.style.removeProperty("border-color");
+    loginButton.style.removeProperty("color");
+    loginButton.style.removeProperty("box-shadow");
+    loginButton.style.removeProperty("cursor");
   }
 
   function setAuthCheckingUI() {
@@ -177,8 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (loginButton) {
       loginButton.style.display = "";
-      loginButton.disabled = false;
-      loginButton.title = "";
+      updateLoginConnectionAppearance();
     }
 
     if (signupButton) {
@@ -269,30 +380,168 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  if (hasExplicitLoggedOutState()) {
+    setLoggedOutUI();
+  } else {
+    setAuthCheckingUI();
+  }
+
+  if (typeof lockEditorTools === "function") {
+    lockEditorTools();
+  }
+
   window.setOfflineTrustedAuthUI = setOfflineTrustedUI;
   window.setLoggedOutAuthUI = setLoggedOutUI;
 
+  let pendingRemoteLogoutPromise = null;
+
+  async function completePendingRemoteLogout(options = {}) {
+    const pendingUserId = getPendingRemoteLogoutUserId();
+
+    if (!pendingUserId) {
+      return true;
+    }
+
+    setLoggedOutUI();
+
+    if (typeof lockEditorTools === "function") {
+      lockEditorTools();
+    }
+
+    if (pendingRemoteLogoutPromise) {
+      return pendingRemoteLogoutPromise;
+    }
+
+    pendingRemoteLogoutPromise = (async () => {
+      const clerkObj = getClerkObject();
+
+      if (!clerkObj) {
+        if (options.allowReload === true) {
+          const alreadyReloaded =
+            readSessionMarker(PENDING_LOGOUT_RELOAD_KEY) === pendingUserId;
+
+          if (!alreadyReloaded) {
+            writeSessionMarker(
+              PENDING_LOGOUT_RELOAD_KEY,
+              pendingUserId
+            );
+
+            window.location.replace(
+              window.location.href
+            );
+          }
+        }
+
+        return false;
+      }
+
+      try {
+        if (clerkObj.user || clerkObj.session) {
+          if (typeof clerkObj.signOut !== "function") {
+            return false;
+          }
+
+          const timeoutPromise = new Promise((_, reject) => {
+            window.setTimeout(
+              () => reject(
+                new Error("Remote logout timed out.")
+              ),
+              5000
+            );
+          });
+
+          await Promise.race([
+            clerkObj.signOut(),
+            timeoutPromise
+          ]);
+        }
+
+        const startedAt = Date.now();
+
+        while (
+          (clerkObj.user || clerkObj.session) &&
+          Date.now() - startedAt < 2500
+        ) {
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, 50);
+          });
+        }
+
+        if (clerkObj.user || clerkObj.session) {
+          return false;
+        }
+
+        await window.UserData?.clearPendingRemoteLogout?.(
+          pendingUserId
+        );
+
+        writeLocalMarker(PENDING_REMOTE_LOGOUT_KEY, "");
+        writeSessionMarker(PENDING_LOGOUT_RELOAD_KEY, "");
+        window.__pendingRemoteLogoutUserId = "";
+
+        return true;
+      } catch (error) {
+        console.warn(
+          "Remote logout is still pending:",
+          error
+        );
+        return false;
+      } finally {
+        pendingRemoteLogoutPromise = null;
+      }
+    })();
+
+    return pendingRemoteLogoutPromise;
+  }
+
   window.addEventListener("app-connectivity-changed", (event) => {
-    updateLogoutConnectionAppearance(event.detail || null);
+    const state = event.detail || null;
+    updateLogoutConnectionAppearance(state);
+    updateLoginConnectionAppearance(state);
+
+    if (
+      getPendingRemoteLogoutUserId() &&
+      state?.appReachable === true &&
+      state?.connectionIssue !== true
+    ) {
+      completePendingRemoteLogout({
+        allowReload: true
+      });
+    }
   });
 
   window.addEventListener("offline", () => {
-    updateLogoutConnectionAppearance({
+    const offlineState = {
       connectionIssue: true,
       appReachable: false
-    });
+    };
+
+    updateLogoutConnectionAppearance(offlineState);
+    updateLoginConnectionAppearance(offlineState);
   });
 
   window.addEventListener("online", () => {
     updateLogoutConnectionAppearance();
+    updateLoginConnectionAppearance();
+
+    if (getPendingRemoteLogoutUserId()) {
+      setLoggedOutUI();
+
+      if (typeof lockEditorTools === "function") {
+        lockEditorTools();
+      }
+    }
   });
 
   // Expose this globally so the lazy-loaded Clerk script can call it later
   window.updateAuthUI = function (clerkUser) {
-    if (
-      clerkUser?.id &&
-      window.__pendingRemoteLogoutUserId === clerkUser.id
-    ) {
+    const pendingLogoutUserId =
+      getPendingRemoteLogoutUserId();
+
+    if (pendingLogoutUserId) {
+      window.__pendingRemoteLogoutUserId =
+        pendingLogoutUserId;
+
       setLoggedOutUI();
 
       if (typeof lockEditorTools === "function") {
@@ -313,6 +562,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (clerkUser) {
+      writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
+
       setLoggedInUI(clerkUser);
 
       window.UserData?.rememberAuthenticatedUser?.(clerkUser.id).catch((error) => {
@@ -836,12 +1087,25 @@ async function openSignup() {
         userId = clerkObj?.user?.id || "";
       }
 
+      writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "1");
+      writeLocalMarker(
+        PENDING_REMOTE_LOGOUT_KEY,
+        userId
+      );
+
+      window.__pendingRemoteLogoutUserId =
+        userId;
+
       try {
         await window.UserData?.disableOfflineAccess?.({
           userId,
           pendingRemoteLogout: true
         });
       } catch (error) {
+        writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
+        writeLocalMarker(PENDING_REMOTE_LOGOUT_KEY, "");
+        window.__pendingRemoteLogoutUserId = "";
+
         console.error("Could not lock local user data:", error);
         alert(
           "Logout could not safely lock your local data. Please try again."
@@ -855,56 +1119,24 @@ async function openSignup() {
         lockEditorTools();
       }
 
-      let remoteSignOutCompleted = false;
-
       const logoutConnectivity =
         window.AppShell?.getState?.() || {};
 
-      const canCompleteRemoteLogoutNow =
+      if (
         navigator.onLine !== false &&
         logoutConnectivity.appReachable === true &&
-        logoutConnectivity.connectionIssue !== true;
-
-      if (
-        canCompleteRemoteLogoutNow &&
-        clerkObj &&
-        typeof clerkObj.signOut === "function"
+        logoutConnectivity.connectionIssue !== true
       ) {
-        try {
-          const timeoutPromise = new Promise((_, reject) => {
-            window.setTimeout(
-              () => reject(new Error("Remote logout timed out.")),
-              3000
-            );
-          });
-
-          await Promise.race([
-            clerkObj.signOut(),
-            timeoutPromise
-          ]);
-
-          remoteSignOutCompleted =
-            !clerkObj.user &&
-            !clerkObj.session;
-        } catch (error) {
-          console.warn(
-            "Remote sign out remains pending and will be completed later:",
-            error
-          );
-        }
+        await completePendingRemoteLogout({
+          allowReload: false
+        });
       }
 
-      if (remoteSignOutCompleted && userId) {
-        try {
-          await window.UserData?.clearPendingRemoteLogout?.(userId);
-        } catch (error) {
-          console.warn(
-            "Remote logout completed but the local pending flag could not be cleared:",
-            error
-          );
-        }
-      }
-
+      /*
+       * Reload once so private page content is rebuilt in the public/locked
+       * state. Because the explicit logged-out marker is already durable,
+       * Login remains visible continuously during this reload.
+       */
       window.location.reload();
     });
   }
@@ -980,21 +1212,28 @@ window.addEventListener("load", async () => {
       }
     });
 
+    let pendingLogoutUserId =
+      getPendingRemoteLogoutUserId();
+
     if (
+      !pendingLogoutUserId &&
       clerkObj.user?.id &&
       await window.UserData?.hasPendingRemoteLogout?.(
         clerkObj.user.id
       )
     ) {
-      const signedOutUserId = clerkObj.user.id;
+      pendingLogoutUserId =
+        clerkObj.user.id;
 
-      /*
-       * An offline logout is final from the user's point of view.
-       * Block the old session from restoring private UI until Clerk confirms
-       * that the remote session has actually been signed out.
-       */
+      writeLocalMarker(
+        PENDING_REMOTE_LOGOUT_KEY,
+        pendingLogoutUserId
+      );
+    }
+
+    if (pendingLogoutUserId) {
       window.__pendingRemoteLogoutUserId =
-        signedOutUserId;
+        pendingLogoutUserId;
 
       if (typeof window.setLoggedOutAuthUI === "function") {
         window.setLoggedOutAuthUI();
@@ -1004,32 +1243,13 @@ window.addEventListener("load", async () => {
         lockEditorTools();
       }
 
-      try {
-        await clerkObj.signOut();
+      const completed =
+        await completePendingRemoteLogout({
+          allowReload: false
+        });
 
-        if (clerkObj.user || clerkObj.session) {
-          throw new Error(
-            "The previous session is still active."
-          );
-        }
-
-        await window.UserData?.clearPendingRemoteLogout?.(
-          signedOutUserId
-        );
-
-        window.__pendingRemoteLogoutUserId = "";
-      } catch (error) {
-        console.warn(
-          "Remote logout is still pending:",
-          error
-        );
-
+      if (!completed) {
         window.AppShell?.markDegraded?.("auth");
-
-        /*
-         * Do not continue into signed-in initialization. A later page load
-         * or auth retry will attempt the pending remote logout again.
-         */
         return;
       }
     }
