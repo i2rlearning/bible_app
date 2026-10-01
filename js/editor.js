@@ -162,6 +162,24 @@ function syncEditorSaveStatusVisibility(status) {
   );
 }
 
+function editorIsInOfflineSaveMode() {
+  const state = window.AppShell?.getState?.() || {};
+
+  return (
+    navigator.onLine === false ||
+    state.connectionIssue === true ||
+    state.appReachable === false
+  );
+}
+
+function setPendingEditorSaveStatus() {
+  setEditorSaveStatus(
+    editorIsInOfflineSaveMode()
+      ? "Saved on this device"
+      : "Saving..."
+  );
+}
+
 function setEditorSaveStatus(message) {
   const status = getEditorSaveStatusElement();
 
@@ -584,7 +602,7 @@ async function loadQuillNotes() {
     quillNotesLoaded = true;
 
     if (note?.syncStatus === "pending") {
-      setEditorSaveStatus("Saved on this device");
+      setPendingEditorSaveStatus();
     }
 
     if (note?.syncStatus === "conflict") {
@@ -660,9 +678,11 @@ async function saveQuillNotes() {
       const result = await window.UserData.deleteQuillNote(common);
       quillNotesVersion = Number(result?.note?.serverVersion) || 0;
       quillSavedSequence = Math.max(quillSavedSequence, saveSequence);
-      setEditorSaveStatus(
-        result?.syncStatus === "clean" ? "Saved" : "Saved on this device"
-      );
+      if (result?.syncStatus === "clean") {
+        setEditorSaveStatus("Saved");
+      } else {
+        setPendingEditorSaveStatus();
+      }
       return;
     }
 
@@ -675,7 +695,7 @@ async function saveQuillNotes() {
     quillNotesVersion = Number(result?.note?.serverVersion) || quillNotesVersion;
     quillNotesStoragePageKey = result?.note?.pageKey || quillNotesStoragePageKey;
     quillSavedSequence = Math.max(quillSavedSequence, saveSequence);
-    setEditorSaveStatus("Saved on this device");
+    setPendingEditorSaveStatus();
   } catch (error) {
     if (editorPageIsLeaving || document.visibilityState === "hidden") {
       return;
@@ -1272,7 +1292,7 @@ async function loadMiniEditorPage() {
     }
 
     if (page?.syncStatus === "pending") {
-      setEditorSaveStatus("Saved on this device");
+      setPendingEditorSaveStatus();
     }
 
     if (page?.syncStatus === "conflict") {
@@ -1351,9 +1371,11 @@ async function saveMiniEditorPage() {
       miniEditorDirty = false;
 
       if (result?.changed !== false) {
-        setEditorSaveStatus(
-          result?.syncStatus === "clean" ? "Saved" : "Saved on this device"
-        );
+        if (result?.syncStatus === "clean") {
+          setEditorSaveStatus("Saved");
+        } else {
+          setPendingEditorSaveStatus();
+        }
       }
       return;
     }
@@ -1369,9 +1391,11 @@ async function saveMiniEditorPage() {
     miniEditorVersion = Number(result?.page?.serverVersion) || miniEditorVersion;
     miniEditorStoragePageKey = result?.page?.pageKey || miniEditorStoragePageKey;
     miniEditorDirty = false;
-    setEditorSaveStatus(
-      result?.syncStatus === "clean" ? "Saved" : "Saved on this device"
-    );
+    if (result?.syncStatus === "clean") {
+      setEditorSaveStatus("Saved");
+    } else {
+      setPendingEditorSaveStatus();
+    }
   } catch (error) {
     if (editorPageIsLeaving || document.visibilityState === "hidden") {
       return;
