@@ -1285,7 +1285,7 @@ window.BibleSelector = (() => {
         return;
       }
 
-      await window.EditorPersistence?.flushQuillNotes?.();
+      await window.EditorPersistence?.flushAll?.();
 
       window.location.assign(
         destinationUrl
