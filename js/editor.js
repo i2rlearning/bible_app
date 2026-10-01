@@ -719,8 +719,25 @@ async function flushQuillNotesToLocal() {
   await quillSaveQueue;
 }
 
+async function flushMiniEditorToLocal() {
+  if (!miniEditorLoaded || miniEditorConflictActive || !miniEditorDirty) return;
+
+  clearTimeout(miniEditorSaveTimer);
+  miniEditorSaveQueue = miniEditorSaveQueue.then(() => saveMiniEditorPage());
+  await miniEditorSaveQueue;
+}
+
+async function flushAllEditorChangesToLocal() {
+  await Promise.all([
+    flushQuillNotesToLocal(),
+    flushMiniEditorToLocal()
+  ]);
+}
+
 window.EditorPersistence = Object.freeze({
-  flushQuillNotes: flushQuillNotesToLocal
+  flushQuillNotes: flushQuillNotesToLocal,
+  flushMiniEditor: flushMiniEditorToLocal,
+  flushAll: flushAllEditorChangesToLocal
 });
 
 function waitForBibleTextContent(maxWaitMs = 5000) {
@@ -823,6 +840,7 @@ let miniEditorStoragePageKey = "";
 let miniEditorConflictActive = false;
 let miniEditorApplyingState = false;
 let miniEditorObserver = null;
+let miniEditorDirty = false;
 
 function getMiniEditorState() {
   const bibleText = document.getElementById("bible-text");
@@ -1231,43 +1249,45 @@ async function loadMiniEditorPage() {
   if (!editorToolsUnlocked) return;
 
   const pageIdentity = getCurrentBiblePageIdentity();
-
   if (!pageIdentity) return;
 
   miniEditorConflictActive = false;
   miniEditorStoragePageKey = pageIdentity.pageKey;
+  miniEditorDirty = false;
 
   try {
-    const loadParams = new URLSearchParams({
-      pageKey: pageIdentity.pageKey,
-      bibleVersionID: pageIdentity.bibleVersionID,
-      bibleChapterID: pageIdentity.bibleChapterID
+    const result = await window.UserData.loadMiniEditorPage({
+      ...pageIdentity,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel()
     });
 
-    const response = await fetch(`/api/mini-editor-page?${loadParams.toString()}`, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store"
-    });
+    const page = result?.page || null;
+    miniEditorVersion = Number(page?.serverVersion) || 0;
+    miniEditorStoragePageKey = page?.pageKey || pageIdentity.pageKey;
 
-    const result = await parseResponseSafely(response);
-
-    if (!response.ok) {
-      throw new Error(result.message || `Failed to load mini-editor page. Status: ${response.status}`);
-    }
-
-    miniEditorVersion = result.page?.version ? Number(result.page.version) : 0;
-    miniEditorStoragePageKey = result.page?.page_key || pageIdentity.pageKey;
-
-    if (result.page && result.page.mini_editor_json) {
-      const savedState =
-        typeof result.page.mini_editor_json === "string"
-          ? JSON.parse(result.page.mini_editor_json)
-          : result.page.mini_editor_json;
-
-      applyMiniEditorState(savedState);
+    if (page?.miniEditorJson) {
+      applyMiniEditorState(page.miniEditorJson);
     } else {
       clearSavedMiniEditorStateForRenderedChapter();
+    }
+
+    if (page?.syncStatus === "pending") {
+      setEditorSaveStatus("Saved on this device");
+    }
+
+    if (page?.syncStatus === "conflict") {
+      miniEditorConflictActive = true;
+      setEditorSaveStatus("Conflict - newer updates exist");
+      showEditorVersionConflict({
+        key: `mini:${page.pageKey}:${page?.conflictRemote?.version || "newer"}`,
+        onLoadLatest: async () => {
+          await window.UserData.useRemoteMiniEditorConflict(page.pageKey);
+          miniEditorConflictActive = false;
+          await reloadMiniEditorPageAfterChapterRender();
+        }
+      });
     }
 
     miniEditorLoaded = true;
@@ -1296,6 +1316,7 @@ async function reloadMiniEditorPageAfterChapterRender() {
   miniEditorLoaded = false;
   miniEditorVersion = 0;
   miniEditorStoragePageKey = "";
+  miniEditorDirty = false;
   miniEditorHistoryReady = false;
   miniEditorUndoStack = [];
   miniEditorRedoStack = [];
@@ -1309,105 +1330,56 @@ async function saveMiniEditorPage() {
   if (!miniEditorLoaded) return;
 
   const pageIdentity = getCurrentBiblePageIdentity();
-
   if (!pageIdentity) return;
 
   const miniEditorJson = getMiniEditorState();
-
   if (!miniEditorJson) return;
 
   const flags = getMiniEditorFlags(miniEditorJson);
+  const common = {
+    bibleVersionID: pageIdentity.bibleVersionID,
+    bibleChapterID: pageIdentity.bibleChapterID,
+    pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
+    pageUrl: window.location.pathname + window.location.search,
+    bibleName: getCurrentBibleName(),
+    bookChapterLabel: getCurrentBookChapterLabel(),
+    serverVersion: Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0
+  };
 
   try {
     if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
-      const deleteParams = new URLSearchParams({ pageKey: miniEditorStoragePageKey || pageIdentity.pageKey });
-      deleteParams.set("expectedVersion", String(Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0));
+      const result = await window.UserData.deleteMiniEditorPage(common);
+      miniEditorVersion = Number(result?.page?.serverVersion) || 0;
+      miniEditorDirty = false;
 
-      const deleteResponse = await fetch(
-        `/api/mini-editor-page?${deleteParams.toString()}`,
-        {
-          method: "DELETE",
-          credentials: "include"
-        }
-      );
-      const deleteResult = await parseResponseSafely(deleteResponse);
-
-      if (!deleteResponse.ok) {
-        if (deleteResponse.status === 409) {
-          const conflictError = new Error(deleteResult.message || "This Bible page changed on another device.");
-          conflictError.code = deleteResult.code || "MINI_EDITOR_VERSION_CONFLICT";
-          conflictError.data = deleteResult;
-          throw conflictError;
-        }
-        throw new Error(deleteResult.message || "Failed to delete empty mini-editor page");
+      if (result?.changed !== false) {
+        setEditorSaveStatus(
+          result?.syncStatus === "clean" ? "Saved" : "Saved on this device"
+        );
       }
-
-      miniEditorVersion = 0;
-      console.log("Empty mini-editor page deleted");
-      setEditorSaveStatus("Saved");
       return;
     }
 
-    const response = await fetch("/api/mini-editor-page", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        bibleVersionID: pageIdentity.bibleVersionID,
-        bibleChapterID: pageIdentity.bibleChapterID,
-        pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
-        pageUrl: window.location.pathname + window.location.search,
-        bibleName: new URLSearchParams(window.location.search).get("bibleAbbr") ||
-          new URLSearchParams(window.location.search).get("abbr") || "",
-        bookChapterLabel: getCurrentBookChapterLabel(),
-        miniEditorJson,
-        hasHighlights: flags.hasHighlights,
-        hasDrawings: flags.hasDrawings,
-        hasTextFormats: flags.hasTextFormats,
-        expectedVersion: Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0
-      })
+    const result = await window.UserData.saveMiniEditorPage({
+      ...common,
+      miniEditorJson,
+      hasHighlights: flags.hasHighlights,
+      hasDrawings: flags.hasDrawings,
+      hasTextFormats: flags.hasTextFormats
     });
 
-    const result = await parseResponseSafely(response);
-
-    if (!response.ok) {
-      const detailedError = [
-        result.message,
-        result.error,
-        result.code ? `Code: ${result.code}` : "",
-        result.detail ? `Detail: ${result.detail}` : ""
-      ]
-        .filter(Boolean)
-        .join(" | ");
-    
-      const saveError = new Error(detailedError || `Failed to save mini-editor page. Status: ${response.status}`);
-      saveError.code = result.code || "";
-      saveError.data = result;
-      throw saveError;
-    }
-
-    miniEditorVersion = result.page?.version ? Number(result.page.version) : miniEditorVersion;
-    console.log("Mini-editor page saved");
-    setEditorSaveStatus("Saved");
+    miniEditorVersion = Number(result?.page?.serverVersion) || miniEditorVersion;
+    miniEditorStoragePageKey = result?.page?.pageKey || miniEditorStoragePageKey;
+    miniEditorDirty = false;
+    setEditorSaveStatus(
+      result?.syncStatus === "clean" ? "Saved" : "Saved on this device"
+    );
   } catch (error) {
     if (editorPageIsLeaving || document.visibilityState === "hidden") {
       return;
     }
 
     console.error("Save mini-editor page error:", error);
-    if (error?.code === "MINI_EDITOR_VERSION_CONFLICT") {
-      miniEditorConflictActive = true;
-      setEditorSaveStatus("Conflict - newer updates exist");
-      showEditorVersionConflict({
-        key: `mini:${pageIdentity.pageKey}:${error?.data?.latestPage?.version || "newer"}`,
-        onLoadLatest: () => {
-          reloadMiniEditorPageAfterChapterRender();
-        }
-      });
-      return;
-    }
     setEditorSaveStatus("Save failed");
   }
 }
@@ -1418,6 +1390,7 @@ function scheduleMiniEditorSave() {
   if (miniEditorApplyingState) return;
   if (miniEditorConflictActive) return;
 
+  miniEditorDirty = true;
   setEditorSaveStatus("Saving...");
 
   clearTimeout(miniEditorSaveTimer);
@@ -3151,9 +3124,26 @@ window.addEventListener("user-data-synced", (event) => {
   const detail = event.detail || {};
   const pageIdentity = getCurrentBiblePageIdentity();
 
+  if (!pageIdentity) return;
+
+  if (
+    detail.entityType === "mini_editor_page" &&
+    detail.entityKey === (miniEditorStoragePageKey || pageIdentity.pageKey)
+  ) {
+    if (detail.deleted) {
+      miniEditorVersion = 0;
+    } else if (Number(detail.version) > 0) {
+      miniEditorVersion = Number(detail.version);
+    }
+
+    if (!miniEditorConflictActive) {
+      setEditorSaveStatus("Saved");
+    }
+    return;
+  }
+
   if (
     detail.entityType !== "quill_note" ||
-    !pageIdentity ||
     detail.entityKey !== (quillNotesStoragePageKey || pageIdentity.pageKey)
   ) {
     return;
@@ -3174,9 +3164,27 @@ window.addEventListener("user-data-conflict", (event) => {
   const detail = event.detail || {};
   const pageIdentity = getCurrentBiblePageIdentity();
 
+  if (!pageIdentity) return;
+
+  if (
+    detail.entityType === "mini_editor_page" &&
+    detail.entityKey === (miniEditorStoragePageKey || pageIdentity.pageKey)
+  ) {
+    miniEditorConflictActive = true;
+    setEditorSaveStatus("Conflict - newer updates exist");
+    showEditorVersionConflict({
+      key: `mini:${detail.entityKey}:${detail?.latestPage?.version || "newer"}`,
+      onLoadLatest: async () => {
+        await window.UserData.useRemoteMiniEditorConflict(detail.entityKey);
+        miniEditorConflictActive = false;
+        await reloadMiniEditorPageAfterChapterRender();
+      }
+    });
+    return;
+  }
+
   if (
     detail.entityType !== "quill_note" ||
-    !pageIdentity ||
     detail.entityKey !== (quillNotesStoragePageKey || pageIdentity.pageKey)
   ) {
     return;
