@@ -1,19 +1,29 @@
-// This file handles front-end login/session helper
+"use strict";
 
-// =========================================================================
-//  CORE DOM LOGIC & API SETUP (Runs Instantly)
-// =========================================================================
+/*
+ * Authentication Controller
+ *
+ * Owns Clerk session behavior, explicit login/logout actions, trusted offline
+ * access, pending remote logout completion, and authentication events.
+ *
+ * This file does NOT decide which Login/Logout button is visible, enabled, or
+ * styled. All authentication-control presentation belongs to js/auth-ui.js.
+ */
+
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM fully loaded. Core scripts and API.bible can execute now.");
-
-  const loginButton = document.getElementById("login");
   const signupButton = document.getElementById("signup");
   const logoutButton = document.getElementById("logout");
   const myNotesModal = document.getElementById("myNotesModal");
 
   const EXPLICIT_LOGGED_OUT_KEY = "BibleAppExplicitLoggedOut";
   const PENDING_REMOTE_LOGOUT_KEY = "BibleAppPendingRemoteLogoutUserId";
-  const PENDING_LOGOUT_RELOAD_KEY = "BibleAppPendingLogoutReconnectReload";
+
+  const CLERK_PUBLISHABLE_KEY =
+    "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
+
+  let clerkRuntimePromise = null;
+  let clerkListenerAttached = false;
+  let pendingRemoteLogoutPromise = null;
 
   function readLocalMarker(key) {
     try {
@@ -31,27 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.localStorage.removeItem(key);
       }
     } catch (_error) {
-      // IndexedDB remains the authoritative fallback for private data state.
-    }
-  }
-
-  function readSessionMarker(key) {
-    try {
-      return window.sessionStorage.getItem(key) || "";
-    } catch (_error) {
-      return "";
-    }
-  }
-
-  function writeSessionMarker(key, value) {
-    try {
-      if (value) {
-        window.sessionStorage.setItem(key, String(value));
-      } else {
-        window.sessionStorage.removeItem(key);
-      }
-    } catch (_error) {
-      // Session marker only prevents an unnecessary reconnect reload loop.
+      // UserOfflineDB remains the durable private-data authority.
     }
   }
 
@@ -66,9 +56,28 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
-  // ==========================================
-  // UI & MODAL FUNCTIONS
-  // ==========================================
+  function getConnectionState() {
+    const state = window.AppShell?.getState?.() || {};
+
+    return {
+      ...state,
+      connectionIssue:
+        navigator.onLine === false ||
+        state.connectionIssue === true ||
+        state.appReachable === false
+    };
+  }
+
+  function connectionCanReachAuth() {
+    const state = getConnectionState();
+
+    return (
+      navigator.onLine !== false &&
+      state.connectionIssue !== true &&
+      state.appReachable !== false
+    );
+  }
+
   function toggleModal(modal, show) {
     if (!modal) return;
 
@@ -81,405 +90,272 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function setAuthButtonVisible(button, visible) {
-    if (!button) return;
-
-    if (visible) {
-      button.style.setProperty(
-        "display",
-        "inline-flex",
-        "important"
-      );
-      return;
-    }
-
-    button.style.setProperty(
-      "display",
-      "none",
-      "important"
-    );
-  }
-
-  function updateLogoutConnectionAppearance(connectionState = null) {
-    if (!logoutButton) return;
-
-    const state =
-      connectionState ||
-      window.AppShell?.getState?.() ||
-      {};
-
-    const isOffline =
-      navigator.onLine === false ||
-      state.connectionIssue === true ||
-      state.appReachable === false;
-
-    logoutButton.dataset.connectionState = isOffline ? "offline" : "online";
-
-    if (isOffline) {
-      logoutButton.title =
-        "Log out - you will remain logged out when you reconnect.";
-
-      logoutButton.style.setProperty(
-        "background-color",
-        "#f3f4f6",
-        "important"
-      );
-      logoutButton.style.setProperty(
-        "background-image",
-        "none",
-        "important"
-      );
-      logoutButton.style.setProperty(
-        "border-color",
-        "#aeb7c4",
-        "important"
-      );
-      logoutButton.style.setProperty(
-        "color",
-        "#344054",
-        "important"
-      );
-      logoutButton.style.setProperty(
-        "box-shadow",
-        "none",
-        "important"
-      );
-
-      const icon = logoutButton.querySelector("i");
-      icon?.style.setProperty("color", "#344054", "important");
-      return;
-    }
-
-    logoutButton.title = "";
-    logoutButton.style.removeProperty("background-color");
-    logoutButton.style.removeProperty("background-image");
-    logoutButton.style.removeProperty("border-color");
-    logoutButton.style.removeProperty("color");
-    logoutButton.style.removeProperty("box-shadow");
-
-    const icon = logoutButton.querySelector("i");
-    icon?.style.removeProperty("color");
-  }
-
-  function updateLoginConnectionAppearance(connectionState = null) {
-    if (!loginButton) return;
-
-    const state =
-      connectionState ||
-      window.AppShell?.getState?.() ||
-      {};
-
-    const isOffline =
-      navigator.onLine === false ||
-      state.connectionIssue === true ||
-      state.appReachable === false;
-
-    loginButton.dataset.connectionState = isOffline ? "offline" : "online";
-    loginButton.disabled = isOffline;
-
-    if (isOffline) {
-      loginButton.title =
-        "Login requires an internet connection.";
-
-      loginButton.style.setProperty(
-        "background-color",
-        "#f3f4f6",
-        "important"
-      );
-      loginButton.style.setProperty(
-        "background-image",
-        "none",
-        "important"
-      );
-      loginButton.style.setProperty(
-        "border-color",
-        "#aeb7c4",
-        "important"
-      );
-      loginButton.style.setProperty(
-        "color",
-        "#667085",
-        "important"
-      );
-      loginButton.style.setProperty(
-        "box-shadow",
-        "none",
-        "important"
-      );
-      loginButton.style.setProperty(
-        "cursor",
-        "default",
-        "important"
-      );
-      return;
-    }
-
-    loginButton.title = "";
-    loginButton.disabled = false;
-    loginButton.style.removeProperty("background-color");
-    loginButton.style.removeProperty("background-image");
-    loginButton.style.removeProperty("border-color");
-    loginButton.style.removeProperty("color");
-    loginButton.style.removeProperty("box-shadow");
-    loginButton.style.removeProperty("cursor");
-  }
-
-  function setAuthCheckingUI() {
-    document.documentElement.dataset.authState = "checking";
-
-    if (loginButton) {
-      setAuthButtonVisible(loginButton, false);
-      loginButton.disabled = true;
-      loginButton.title = "";
-    }
-
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-
-    if (logoutButton) {
-      setAuthButtonVisible(logoutButton, false);
-    }
-
-    const myNotesLink = document.getElementById("openMyNotes");
-
-    if (myNotesLink) {
-      myNotesLink.classList.add("disabled");
-      myNotesLink.setAttribute("aria-disabled", "true");
-    }
-
-    const studyDeskBtn = document.getElementById("landing-study-desk-action");
-
-    if (studyDeskBtn) {
-      studyDeskBtn.disabled = true;
-      studyDeskBtn.removeAttribute("title");
-    }
-
-    const studyDeskLink = document.getElementById("openStudyDesk");
-
-    if (studyDeskLink) {
-      studyDeskLink.classList.add("disabled");
-      studyDeskLink.setAttribute("aria-disabled", "true");
-    }
-  }
-
-  function setLoggedInUI(user) {
-    document.documentElement.dataset.authState = "signed-in";
-
-    if (loginButton) {
-      setAuthButtonVisible(loginButton, false);
-      loginButton.disabled = true;
-      //loginButton.title = user?.primaryEmailAddress?.emailAddress || "Logged in";
-    }
-
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-
-    if (logoutButton) {
-      setAuthButtonVisible(logoutButton, true);
-      updateLogoutConnectionAppearance();
-    }
-
-    const myNotesLink = document.getElementById("openMyNotes");
-
-    if (myNotesLink) {
-      myNotesLink.classList.remove("disabled");
-      myNotesLink.setAttribute("aria-disabled", "false");
-    }
-
-    const studyDeskBtn = document.getElementById("landing-study-desk-action");
-
-    if (studyDeskBtn) {
-      studyDeskBtn.disabled = false;
-      studyDeskBtn.removeAttribute("title");
-    }
-
-    const studyDeskLink = document.getElementById("openStudyDesk");
-
-    if (studyDeskLink) {
-      studyDeskLink.classList.remove("disabled");
-      studyDeskLink.setAttribute("aria-disabled", "false");
-    }
-  }
-
-  function setLoggedOutUI() {
-    document.documentElement.dataset.authState = "signed-out";
-
-    if (loginButton) {
-      setAuthButtonVisible(loginButton, true);
-      updateLoginConnectionAppearance();
-    }
-
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-
-    if (logoutButton) {
-      setAuthButtonVisible(logoutButton, false);
-      updateLogoutConnectionAppearance({
-        connectionIssue: false,
-        appReachable: true
-      });
-    }
-
-    const myNotesLink = document.getElementById("openMyNotes");
-
-    if (myNotesLink) {
-      myNotesLink.classList.add("disabled");
-      myNotesLink.setAttribute("aria-disabled", "true");
-    }
-
-    const studyDeskBtn = document.getElementById("landing-study-desk-action");
-
-    if (studyDeskBtn) {
-      studyDeskBtn.disabled = true;
-      studyDeskBtn.setAttribute("title", "Log in to access your Study Desk");
-    }
-
-    const studyDeskLink = document.getElementById("openStudyDesk");
-
-    if (studyDeskLink) {
-      studyDeskLink.classList.add("disabled");
-      studyDeskLink.setAttribute("aria-disabled", "true");
-    }
-  }
-
-  function setOfflineTrustedUI(profile) {
-    document.documentElement.dataset.authState = "offline-trusted";
-
-    if (loginButton) {
-      setAuthButtonVisible(loginButton, false);
-      loginButton.disabled = true;
-      loginButton.title = "";
-    }
-
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-
-    if (logoutButton) {
-      setAuthButtonVisible(logoutButton, true);
-      updateLogoutConnectionAppearance();
-    }
+  function applyProtectedFeatureAccess(authState) {
+    const fullyAuthenticated = authState === "signed-in";
+    const offlineTrusted = authState === "offline-trusted";
 
     const myNotesLink = document.getElementById("openMyNotes");
     if (myNotesLink) {
-      myNotesLink.classList.add("disabled");
-      myNotesLink.setAttribute("aria-disabled", "true");
+      myNotesLink.classList.toggle("disabled", !fullyAuthenticated);
       myNotesLink.setAttribute(
-        "title",
-        "The My Notes list will be available offline in a later update."
+        "aria-disabled",
+        fullyAuthenticated ? "false" : "true"
       );
+
+      if (fullyAuthenticated) {
+        myNotesLink.removeAttribute("title");
+      } else if (offlineTrusted) {
+        myNotesLink.setAttribute(
+          "title",
+          "The My Notes list will be available offline in a later update."
+        );
+      } else {
+        myNotesLink.removeAttribute("title");
+      }
     }
 
-    const studyDeskBtn = document.getElementById("landing-study-desk-action");
-    if (studyDeskBtn) {
-      studyDeskBtn.disabled = true;
-      studyDeskBtn.setAttribute(
-        "title",
-        "Study Desk offline editing is not enabled yet."
-      );
+    const studyDeskButton = document.getElementById(
+      "landing-study-desk-action"
+    );
+
+    if (studyDeskButton) {
+      studyDeskButton.disabled = !fullyAuthenticated;
+
+      if (fullyAuthenticated) {
+        studyDeskButton.removeAttribute("title");
+      } else if (offlineTrusted) {
+        studyDeskButton.setAttribute(
+          "title",
+          "Study Desk offline editing is not enabled yet."
+        );
+      } else if (authState === "signed-out") {
+        studyDeskButton.setAttribute(
+          "title",
+          "Log in to access your Study Desk"
+        );
+      } else {
+        studyDeskButton.removeAttribute("title");
+      }
     }
 
     const studyDeskLink = document.getElementById("openStudyDesk");
     if (studyDeskLink) {
-      studyDeskLink.classList.add("disabled");
-      studyDeskLink.setAttribute("aria-disabled", "true");
+      studyDeskLink.classList.toggle("disabled", !fullyAuthenticated);
+      studyDeskLink.setAttribute(
+        "aria-disabled",
+        fullyAuthenticated ? "false" : "true"
+      );
+    }
+  }
+
+  function publishAuthState(authState, options = {}) {
+    const userId = options.userId || "";
+    const offlineTrusted = authState === "offline-trusted";
+    const signedIn =
+      authState === "signed-in" ||
+      authState === "offline-trusted";
+
+    document.documentElement.dataset.authState = authState;
+    window.AuthUI?.setAuthState?.(authState);
+    applyProtectedFeatureAccess(authState);
+
+    if (authState === "checking") {
+      return;
     }
 
     window.dispatchEvent(
       new CustomEvent("auth-state-changed", {
         detail: {
-          signedIn: true,
-          offlineTrusted: true,
-          userId: profile?.userId || ""
+          authState,
+          signedIn,
+          offlineTrusted,
+          userId: signedIn ? userId : ""
         }
       })
     );
   }
 
+  function setAuthCheckingState() {
+    publishAuthState("checking");
+  }
+
+  function setLoggedOutState() {
+    publishAuthState("signed-out");
+  }
+
+  function setLoggedInState(user) {
+    publishAuthState("signed-in", {
+      userId: user?.id || ""
+    });
+  }
+
+  function setOfflineTrustedState(profile) {
+    publishAuthState("offline-trusted", {
+      userId: profile?.userId || ""
+    });
+  }
+
+  window.setOfflineTrustedAuthUI = setOfflineTrustedState;
+  window.setLoggedOutAuthUI = setLoggedOutState;
+
   if (hasExplicitLoggedOutState()) {
-    setLoggedOutUI();
+    setLoggedOutState();
   } else {
-    setAuthCheckingUI();
+    setAuthCheckingState();
   }
 
   if (typeof lockEditorTools === "function") {
     lockEditorTools();
   }
 
-  window.setOfflineTrustedAuthUI = setOfflineTrustedUI;
-  window.setLoggedOutAuthUI = setLoggedOutUI;
+  function getClerkObject() {
+    return window.Clerk || window.clerk || null;
+  }
 
-  let pendingRemoteLogoutPromise = null;
+  function getClerkFrontendDomainFromKey(publishableKey) {
+    return atob(publishableKey.split("_")[2]).slice(0, -1);
+  }
 
-  async function completePendingRemoteLogout(options = {}) {
+  function loadScriptOnce(id, src, attributes = {}, readyCheck = null) {
+    return new Promise((resolve, reject) => {
+      if (typeof readyCheck === "function" && readyCheck()) {
+        resolve();
+        return;
+      }
+
+      const existing = document.getElementById(id);
+      if (existing) {
+        existing.remove();
+      }
+
+      const script = document.createElement("script");
+      script.id = id;
+      script.src = src;
+      script.async = true;
+
+      Object.entries(attributes).forEach(([key, value]) => {
+        script.setAttribute(key, value);
+      });
+
+      script.onload = () => resolve();
+      script.onerror = () => {
+        script.remove();
+        reject(new Error(`Failed to load script: ${src}`));
+      };
+
+      document.head.appendChild(script);
+    });
+  }
+
+  async function loadClerkRuntime() {
+    const existing = getClerkObject();
+    if (existing?.loaded) {
+      attachClerkListener(existing);
+      return existing;
+    }
+
+    if (clerkRuntimePromise) {
+      return clerkRuntimePromise;
+    }
+
+    clerkRuntimePromise = (async () => {
+      const clerkDomain = getClerkFrontendDomainFromKey(
+        CLERK_PUBLISHABLE_KEY
+      );
+
+      await loadScriptOnce(
+        "clerk-ui-script",
+        `https://${clerkDomain}/npm/@clerk/ui@1/dist/ui.browser.js`,
+        { crossorigin: "anonymous" },
+        () => Boolean(window.__internal_ClerkUICtor)
+      );
+
+      await loadScriptOnce(
+        "clerk-browser-script",
+        "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js",
+        {
+          "data-clerk-publishable-key": CLERK_PUBLISHABLE_KEY
+        },
+        () => Boolean(getClerkObject())
+      );
+
+      const clerkObj = getClerkObject();
+
+      if (!clerkObj) {
+        throw new Error("Clerk object was not found on the window.");
+      }
+
+      if (!clerkObj.loaded) {
+        await clerkObj.load({
+          ui: {
+            ClerkUI: window.__internal_ClerkUICtor
+          }
+        });
+      }
+
+      attachClerkListener(clerkObj);
+      return clerkObj;
+    })();
+
+    try {
+      return await clerkRuntimePromise;
+    } catch (error) {
+      clerkRuntimePromise = null;
+      throw error;
+    }
+  }
+
+  function attachClerkListener(clerkObj) {
+    if (clerkListenerAttached || !clerkObj?.addListener) return;
+
+    clerkListenerAttached = true;
+
+    clerkObj.addListener(({ user }) => {
+      if (getPendingRemoteLogoutUserId()) {
+        setLoggedOutState();
+
+        if (connectionCanReachAuth()) {
+          completePendingRemoteLogout(clerkObj).catch((error) => {
+            console.warn("Remote logout is still pending:", error);
+          });
+        }
+
+        return;
+      }
+
+      window.updateAuthUI?.(user || null);
+    });
+  }
+
+  async function completePendingRemoteLogout(clerkObject = null) {
     const pendingUserId = getPendingRemoteLogoutUserId();
 
     if (!pendingUserId) {
       return true;
     }
 
-    setLoggedOutUI();
-
-    if (typeof lockEditorTools === "function") {
-      lockEditorTools();
-    }
+    setLoggedOutState();
 
     if (pendingRemoteLogoutPromise) {
       return pendingRemoteLogoutPromise;
     }
 
     pendingRemoteLogoutPromise = (async () => {
-      const clerkObj = getClerkObject();
-
-      if (!clerkObj) {
-        if (options.allowReload === true) {
-          const alreadyReloaded =
-            readSessionMarker(PENDING_LOGOUT_RELOAD_KEY) === pendingUserId;
-
-          if (!alreadyReloaded) {
-            writeSessionMarker(
-              PENDING_LOGOUT_RELOAD_KEY,
-              pendingUserId
-            );
-
-            window.location.replace(
-              window.location.href
-            );
-          }
-        }
-
-        return false;
-      }
-
       try {
+        const clerkObj = clerkObject || (await loadClerkRuntime());
+
         if (clerkObj.user || clerkObj.session) {
           if (typeof clerkObj.signOut !== "function") {
             return false;
           }
 
-          const timeoutPromise = new Promise((_, reject) => {
-            window.setTimeout(
-              () => reject(
-                new Error("Remote logout timed out.")
-              ),
-              5000
-            );
-          });
-
-          await Promise.race([
-            clerkObj.signOut(),
-            timeoutPromise
-          ]);
+          await clerkObj.signOut();
         }
 
         const startedAt = Date.now();
-
         while (
           (clerkObj.user || clerkObj.session) &&
-          Date.now() - startedAt < 2500
+          Date.now() - startedAt < 3000
         ) {
           await new Promise((resolve) => {
             window.setTimeout(resolve, 50);
@@ -495,15 +371,9 @@ document.addEventListener("DOMContentLoaded", () => {
         );
 
         writeLocalMarker(PENDING_REMOTE_LOGOUT_KEY, "");
-        writeSessionMarker(PENDING_LOGOUT_RELOAD_KEY, "");
-        window.__pendingRemoteLogoutUserId = "";
-
         return true;
       } catch (error) {
-        console.warn(
-          "Remote logout is still pending:",
-          error
-        );
+        console.warn("Remote logout is still pending:", error);
         return false;
       } finally {
         pendingRemoteLogoutPromise = null;
@@ -513,155 +383,165 @@ document.addEventListener("DOMContentLoaded", () => {
     return pendingRemoteLogoutPromise;
   }
 
-  window.addEventListener("app-connectivity-changed", (event) => {
-    const state = event.detail || null;
-    updateLogoutConnectionAppearance(state);
-    updateLoginConnectionAppearance(state);
-
-    if (
-      getPendingRemoteLogoutUserId() &&
-      state?.appReachable === true &&
-      state?.connectionIssue !== true
-    ) {
-      completePendingRemoteLogout({
-        allowReload: true
-      });
-    }
-  });
-
-  window.addEventListener("offline", () => {
-    const offlineState = {
-      connectionIssue: true,
-      appReachable: false
-    };
-
-    updateLogoutConnectionAppearance(offlineState);
-    updateLoginConnectionAppearance(offlineState);
-  });
-
-  window.addEventListener("online", () => {
-    updateLogoutConnectionAppearance();
-    updateLoginConnectionAppearance();
-
-    if (getPendingRemoteLogoutUserId()) {
-      setLoggedOutUI();
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
-    }
-  });
-
-  // Expose this globally so the lazy-loaded Clerk script can call it later
   window.updateAuthUI = function (clerkUser) {
-    const pendingLogoutUserId =
-      getPendingRemoteLogoutUserId();
-
-    if (pendingLogoutUserId) {
-      window.__pendingRemoteLogoutUserId =
-        pendingLogoutUserId;
-
-      setLoggedOutUI();
+    if (getPendingRemoteLogoutUserId()) {
+      setLoggedOutState();
 
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
       }
-
-      window.dispatchEvent(
-        new CustomEvent("auth-state-changed", {
-          detail: {
-            signedIn: false,
-            offlineTrusted: false,
-            userId: ""
-          }
-        })
-      );
 
       return;
     }
 
     if (clerkUser) {
       writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
+      setLoggedInState(clerkUser);
 
-      setLoggedInUI(clerkUser);
-
-      window.UserData?.rememberAuthenticatedUser?.(clerkUser.id).catch((error) => {
-        console.warn("Could not remember the authenticated user locally:", error);
+      window.UserData?.rememberAuthenticatedUser?.(
+        clerkUser.id
+      ).catch((error) => {
+        console.warn(
+          "Could not remember the authenticated user locally:",
+          error
+        );
       });
 
       if (typeof unlockEditorTools === "function") {
         unlockEditorTools();
       }
-    } else {
-      setLoggedOutUI();
+      return;
+    }
+
+    setLoggedOutState();
+
+    if (typeof lockEditorTools === "function") {
+      lockEditorTools();
+    }
+  };
+
+  async function synchronizeAuthFromClerk() {
+    const clerkObj = await loadClerkRuntime();
+
+    let pendingUserId = getPendingRemoteLogoutUserId();
+
+    if (
+      !pendingUserId &&
+      clerkObj.user?.id &&
+      await window.UserData?.hasPendingRemoteLogout?.(
+        clerkObj.user.id
+      )
+    ) {
+      pendingUserId = clerkObj.user.id;
+      writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "1");
+      writeLocalMarker(PENDING_REMOTE_LOGOUT_KEY, pendingUserId);
+    }
+
+    if (pendingUserId) {
+      setLoggedOutState();
 
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
       }
+
+      const completed = await completePendingRemoteLogout(
+        clerkObj
+      );
+
+      if (!completed) {
+        window.AppShell?.markDegraded?.("auth");
+        return;
+      }
+
+      window.AppShell?.clearDegraded?.("auth");
+      return;
     }
 
-    window.dispatchEvent(
-      new CustomEvent("auth-state-changed", {
-        detail: {
-          signedIn: Boolean(clerkUser),
-          offlineTrusted: false,
-          userId: clerkUser?.id || ""
-        }
-      })
-    );
-  };
+    window.AppShell?.clearDegraded?.("auth");
+    window.updateAuthUI(clerkObj.user || null);
+  }
 
-  // ==========================================
-  // CLERK ACTION HELPERS
-  // ==========================================
-  function getClerkObject() {
-    return window.Clerk || window.clerk || null;
+  async function handleUnavailableAuth(error) {
+    window.AppShell?.markDegraded?.("auth");
+    console.warn("Authentication service is unavailable:", error);
+
+    if (hasExplicitLoggedOutState()) {
+      setLoggedOutState();
+      return;
+    }
+
+    const connectivity = getConnectionState();
+
+    if (connectivity.connectionIssue === true) {
+      const trustedUser =
+        await window.UserData?.getTrustedOfflineUser?.();
+
+      if (trustedUser) {
+        setOfflineTrustedState(trustedUser);
+
+        if (typeof unlockEditorToolsOffline === "function") {
+          unlockEditorToolsOffline();
+        }
+        return;
+      }
+    }
+
+    setLoggedOutState();
+
+    if (typeof lockEditorTools === "function") {
+      lockEditorTools();
+    }
   }
 
   async function openLogin() {
-  console.log("Login button clicked");
+    if (window.AuthUI?.getState?.().connectionState === "offline") {
+      return;
+    }
 
-  const clerkObj = getClerkObject();
+    try {
+      const clerkObj = await loadClerkRuntime();
 
-  if (!clerkObj) {
-    alert("Clerk is still loading. Please try again in a moment.");
-    return;
+      if (typeof clerkObj.openSignIn === "function") {
+        clerkObj.openSignIn({
+          forceRedirectUrl: window.location.href,
+          signUpForceRedirectUrl: window.location.href,
+          oauthFlow: "popup"
+        });
+        return;
+      }
+    } catch (error) {
+      console.warn("Could not open Clerk login:", error);
+    }
+
+    window.location.href =
+      "sign-in.html?redirect=" +
+      encodeURIComponent(window.location.href);
   }
 
-  if (typeof clerkObj.openSignIn === "function") {
-    clerkObj.openSignIn({
-      forceRedirectUrl: window.location.href,
-      signUpForceRedirectUrl: window.location.href,
-      oauthFlow: "popup"
-    });
-    return;
+  async function openSignup() {
+    if (window.AuthUI?.getState?.().connectionState === "offline") {
+      return;
+    }
+
+    try {
+      const clerkObj = await loadClerkRuntime();
+
+      if (typeof clerkObj.openSignUp === "function") {
+        clerkObj.openSignUp({
+          forceRedirectUrl: window.location.href,
+          signInForceRedirectUrl: window.location.href,
+          oauthFlow: "popup"
+        });
+        return;
+      }
+    } catch (error) {
+      console.warn("Could not open Clerk signup:", error);
+    }
+
+    window.location.href =
+      "sign-up.html?redirect=" +
+      encodeURIComponent(window.location.href);
   }
-
-  window.location.href = "sign-in.html?redirect=" + encodeURIComponent(window.location.href);
-}
-
-async function openSignup() {
-  console.log("Signup button clicked");
-
-  const clerkObj = getClerkObject();
-
-  if (!clerkObj) {
-    alert("Clerk is still loading. Please try again in a moment.");
-    return;
-  }
-
-  if (typeof clerkObj.openSignUp === "function") {
-    clerkObj.openSignUp({
-      forceRedirectUrl: window.location.href,
-      signInForceRedirectUrl: window.location.href,
-      oauthFlow: "popup"
-    });
-    return;
-  }
-
-  window.location.href = "sign-up.html?redirect=" + encodeURIComponent(window.location.href);
-}
-
   // ==========================================
   // BACKEND FETCH UTILITIES
   // ==========================================
@@ -1089,6 +969,7 @@ async function openSignup() {
     });
   }
 
+
   if (logoutButton) {
     logoutButton.addEventListener("click", async (event) => {
       event.preventDefault();
@@ -1096,34 +977,39 @@ async function openSignup() {
 
       const clerkObj = getClerkObject();
 
+      try {
+        await window.EditorPersistence?.flushAll?.();
+      } catch (error) {
+        console.warn(
+          "Could not flush pending editor changes before logout:",
+          error
+        );
+      }
+
       let userId = "";
       try {
         userId =
           (await window.UserData?.getActiveUserId?.()) ||
           clerkObj?.user?.id ||
           "";
-      } catch (error) {
+      } catch (_error) {
         userId = clerkObj?.user?.id || "";
       }
 
       writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "1");
-      writeLocalMarker(
-        PENDING_REMOTE_LOGOUT_KEY,
-        userId
-      );
 
-      window.__pendingRemoteLogoutUserId =
-        userId;
+      if (userId) {
+        writeLocalMarker(PENDING_REMOTE_LOGOUT_KEY, userId);
+      }
 
       try {
         await window.UserData?.disableOfflineAccess?.({
           userId,
-          pendingRemoteLogout: true
+          pendingRemoteLogout: Boolean(userId)
         });
       } catch (error) {
         writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
         writeLocalMarker(PENDING_REMOTE_LOGOUT_KEY, "");
-        window.__pendingRemoteLogoutUserId = "";
 
         console.error("Could not lock local user data:", error);
         alert(
@@ -1132,186 +1018,47 @@ async function openSignup() {
         return;
       }
 
-      setLoggedOutUI();
+      setLoggedOutState();
 
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
       }
 
-      const logoutConnectivity =
-        window.AppShell?.getState?.() || {};
-
-      if (
-        navigator.onLine !== false &&
-        logoutConnectivity.appReachable === true &&
-        logoutConnectivity.connectionIssue !== true
-      ) {
-        await completePendingRemoteLogout({
-          allowReload: false
-        });
+      if (userId && connectionCanReachAuth()) {
+        await completePendingRemoteLogout(clerkObj);
       }
 
       /*
-       * Reload once so private page content is rebuilt in the public/locked
-       * state. Because the explicit logged-out marker is already durable,
-       * Login remains visible continuously during this reload.
+       * Rebuild the current page once so private editor content is removed
+       * from the rendered document. The explicit logged-out marker is already
+       * durable, so the rebuilt page remains logged out.
        */
       window.location.reload();
     });
   }
-});
 
-// =========================================================================
-//  CLERK LOADER WITH UI COMPONENTS
-// =========================================================================
-const CLERK_PUBLISHABLE_KEY = "pk_test_c3RpcnJlZC1wb255LTE0LmNsZXJrLmFjY291bnRzLmRldiQ";
+  window.addEventListener(
+    "app-connectivity-changed",
+    (event) => {
+      const state = event.detail || {};
 
-function getClerkFrontendDomainFromKey(publishableKey) {
-  return atob(publishableKey.split("_")[2]).slice(0, -1);
-}
-
-function loadScriptOnce(id, src, attributes = {}) {
-  return new Promise((resolve, reject) => {
-    const existing = document.getElementById(id);
-
-    if (existing) {
-      resolve();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = id;
-    script.src = src;
-    script.async = true;
-
-    Object.entries(attributes).forEach(([key, value]) => {
-      script.setAttribute(key, value);
-    });
-
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-
-    document.head.appendChild(script);
-  });
-}
-
-window.addEventListener("load", async () => {
-  console.log("Window fully loaded. Loading Clerk with UI...");
-
-  try {
-    const clerkDomain = getClerkFrontendDomainFromKey(CLERK_PUBLISHABLE_KEY);
-
-    await loadScriptOnce(
-      "clerk-ui-script",
-      `https://${clerkDomain}/npm/@clerk/ui@1/dist/ui.browser.js`,
-      {
-        crossorigin: "anonymous"
-      }
-    );
-
-    await loadScriptOnce(
-      "clerk-browser-script",
-      "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js",
-      {
-        "data-clerk-publishable-key": CLERK_PUBLISHABLE_KEY
-      }
-    );
-
-    const clerkObj = window.Clerk || window.clerk;
-
-    if (!clerkObj) {
-      console.error("Clerk object was not found on the window.");
-      window.AppShell?.markDegraded?.("auth");
-      return;
-    }
-
-    await clerkObj.load({
-      ui: {
-        ClerkUI: window.__internal_ClerkUICtor
-      }
-    });
-
-    let pendingLogoutUserId =
-      getPendingRemoteLogoutUserId();
-
-    if (
-      !pendingLogoutUserId &&
-      clerkObj.user?.id &&
-      await window.UserData?.hasPendingRemoteLogout?.(
-        clerkObj.user.id
-      )
-    ) {
-      pendingLogoutUserId =
-        clerkObj.user.id;
-
-      writeLocalMarker(
-        PENDING_REMOTE_LOGOUT_KEY,
-        pendingLogoutUserId
-      );
-    }
-
-    if (pendingLogoutUserId) {
-      window.__pendingRemoteLogoutUserId =
-        pendingLogoutUserId;
-
-      if (typeof window.setLoggedOutAuthUI === "function") {
-        window.setLoggedOutAuthUI();
-      }
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
-
-      const completed =
-        await completePendingRemoteLogout({
-          allowReload: false
+      if (
+        getPendingRemoteLogoutUserId() &&
+        state.browserOnline !== false &&
+        state.appReachable === true &&
+        state.connectionIssue !== true
+      ) {
+        synchronizeAuthFromClerk().catch((error) => {
+          console.warn(
+            "Could not complete pending remote logout:",
+            error
+          );
         });
-
-      if (!completed) {
-        window.AppShell?.markDegraded?.("auth");
-        return;
       }
     }
+  );
 
-    window.AppShell?.clearDegraded?.("auth");
-
-    console.log("Clerk loaded with UI components.");
-    console.log("Clerk user:", clerkObj.user);
-    console.log("Clerk session:", clerkObj.session);
-
-    clerkObj.addListener(({ user }) => {
-      console.log("Clerk auth state changed. User:", user);
-
-      if (typeof window.updateAuthUI === "function") {
-        window.updateAuthUI(user || null);
-      }
-    });
-
-    if (typeof window.updateAuthUI === "function") {
-      window.updateAuthUI(clerkObj.user || null);
-    }
-  } catch (error) {
-    window.AppShell?.markDegraded?.("auth");
-    console.error("Failed to initialize Clerk:", error);
-
-    const connectivity = window.AppShell?.getState?.() || {};
-
-    if (
-      navigator.onLine === false ||
-      connectivity.connectionIssue === true ||
-      connectivity.appReachable === false
-    ) {
-      const trustedUser = await window.UserData?.getTrustedOfflineUser?.();
-
-      if (trustedUser && typeof window.setOfflineTrustedAuthUI === "function") {
-        window.setOfflineTrustedAuthUI(trustedUser);
-      } else if (typeof window.setLoggedOutAuthUI === "function") {
-        window.setLoggedOutAuthUI();
-
-        if (typeof lockEditorTools === "function") {
-          lockEditorTools();
-        }
-      }
-    }
-  }
+  window.addEventListener("load", () => {
+    synchronizeAuthFromClerk().catch(handleUnavailableAuth);
+  });
 });
