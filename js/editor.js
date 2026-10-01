@@ -145,6 +145,7 @@ function getEditorSaveStatusElement() {
 }
 
 let editorSaveStatusClearTimer = null;
+const EDITOR_SAVE_STATUS_DISPLAY_MS = 3000;
 
 function syncEditorSaveStatusVisibility(status) {
   const hasMessage = Boolean(status?.textContent?.trim());
@@ -195,12 +196,17 @@ function setEditorSaveStatus(message) {
 
   clearTimeout(editorSaveStatusClearTimer);
 
-  if (message === "Saved") {
+  if (message) {
     editorSaveStatusClearTimer = setTimeout(() => {
       status.textContent = "";
-      status.classList.remove("editor-save-status-saved");
+      status.classList.remove(
+        "editor-save-status-saving",
+        "editor-save-status-saved",
+        "editor-save-status-failed",
+        "editor-save-status-conflict"
+      );
       syncEditorSaveStatusVisibility(status);
-    }, 3000);
+    }, EDITOR_SAVE_STATUS_DISPLAY_MS);
   }
 }
 
