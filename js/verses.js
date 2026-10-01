@@ -1562,7 +1562,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
           return;
         }
 
-        await window.EditorPersistence?.flushQuillNotes?.();
+        await window.EditorPersistence?.flushAll?.();
 
         window.location.href =
           buildChapterUrl(
@@ -1578,7 +1578,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
           return;
         }
 
-        await window.EditorPersistence?.flushQuillNotes?.();
+        await window.EditorPersistence?.flushAll?.();
 
         window.location.href =
           buildChapterUrl(
