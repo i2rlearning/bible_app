@@ -475,6 +475,7 @@ let quillNotesStoragePageKey = "";
 let quillConflictActive = false;
 let quillChangeSequence = 0;
 let quillSavedSequence = 0;
+let quillAwaitingServerConfirmation = false;
 
 function getCurrentBiblePageIdentity() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -601,9 +602,7 @@ async function loadQuillNotes() {
 
     quillNotesLoaded = true;
 
-    if (note?.syncStatus === "pending") {
-      setPendingEditorSaveStatus();
-    }
+    quillAwaitingServerConfirmation = false;
 
     if (note?.syncStatus === "conflict") {
       quillConflictActive = true;
@@ -660,6 +659,7 @@ async function saveQuillNotes() {
   if (!pageIdentity) return;
 
   const saveSequence = quillChangeSequence;
+  quillAwaitingServerConfirmation = !editorIsInOfflineSaveMode();
 
   try {
     const quillDelta = quill.getContents();
@@ -679,6 +679,7 @@ async function saveQuillNotes() {
       quillNotesVersion = Number(result?.note?.serverVersion) || 0;
       quillSavedSequence = Math.max(quillSavedSequence, saveSequence);
       if (result?.syncStatus === "clean") {
+        quillAwaitingServerConfirmation = false;
         setEditorSaveStatus("Saved");
       } else {
         setPendingEditorSaveStatus();
@@ -701,6 +702,7 @@ async function saveQuillNotes() {
       return;
     }
 
+    quillAwaitingServerConfirmation = false;
     console.error("Save Quill notes error:", error);
     setEditorSaveStatus("Save failed");
   }
@@ -859,6 +861,7 @@ let miniEditorConflictActive = false;
 let miniEditorApplyingState = false;
 let miniEditorObserver = null;
 let miniEditorDirty = false;
+let miniEditorAwaitingServerConfirmation = false;
 
 function getMiniEditorState() {
   const bibleText = document.getElementById("bible-text");
@@ -1291,9 +1294,7 @@ async function loadMiniEditorPage() {
       clearSavedMiniEditorStateForRenderedChapter();
     }
 
-    if (page?.syncStatus === "pending") {
-      setPendingEditorSaveStatus();
-    }
+    miniEditorAwaitingServerConfirmation = false;
 
     if (page?.syncStatus === "conflict") {
       miniEditorConflictActive = true;
@@ -1364,6 +1365,8 @@ async function saveMiniEditorPage() {
     serverVersion: Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0
   };
 
+  miniEditorAwaitingServerConfirmation = !editorIsInOfflineSaveMode();
+
   try {
     if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
       const result = await window.UserData.deleteMiniEditorPage(common);
@@ -1372,6 +1375,7 @@ async function saveMiniEditorPage() {
 
       if (result?.changed !== false) {
         if (result?.syncStatus === "clean") {
+          miniEditorAwaitingServerConfirmation = false;
           setEditorSaveStatus("Saved");
         } else {
           setPendingEditorSaveStatus();
@@ -1392,6 +1396,7 @@ async function saveMiniEditorPage() {
     miniEditorStoragePageKey = result?.page?.pageKey || miniEditorStoragePageKey;
     miniEditorDirty = false;
     if (result?.syncStatus === "clean") {
+      miniEditorAwaitingServerConfirmation = false;
       setEditorSaveStatus("Saved");
     } else {
       setPendingEditorSaveStatus();
@@ -1401,6 +1406,7 @@ async function saveMiniEditorPage() {
       return;
     }
 
+    miniEditorAwaitingServerConfirmation = false;
     console.error("Save mini-editor page error:", error);
     setEditorSaveStatus("Save failed");
   }
@@ -3158,7 +3164,11 @@ window.addEventListener("user-data-synced", (event) => {
       miniEditorVersion = Number(detail.version);
     }
 
-    if (!miniEditorConflictActive) {
+    if (
+      !miniEditorConflictActive &&
+      miniEditorAwaitingServerConfirmation
+    ) {
+      miniEditorAwaitingServerConfirmation = false;
       setEditorSaveStatus("Saved");
     }
     return;
@@ -3177,7 +3187,11 @@ window.addEventListener("user-data-synced", (event) => {
     quillNotesVersion = Number(detail.version);
   }
 
-  if (!quillConflictActive) {
+  if (
+    !quillConflictActive &&
+    quillAwaitingServerConfirmation
+  ) {
+    quillAwaitingServerConfirmation = false;
     setEditorSaveStatus("Saved");
   }
 });
@@ -3192,6 +3206,7 @@ window.addEventListener("user-data-conflict", (event) => {
     detail.entityType === "mini_editor_page" &&
     detail.entityKey === (miniEditorStoragePageKey || pageIdentity.pageKey)
   ) {
+    miniEditorAwaitingServerConfirmation = false;
     miniEditorConflictActive = true;
     setEditorSaveStatus("Conflict - newer updates exist");
     showEditorVersionConflict({
@@ -3212,6 +3227,7 @@ window.addEventListener("user-data-conflict", (event) => {
     return;
   }
 
+  quillAwaitingServerConfirmation = false;
   quillConflictActive = true;
   setEditorSaveStatus("Conflict - newer notes exist");
   showEditorVersionConflict({
