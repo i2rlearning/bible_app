@@ -32,6 +32,67 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function updateLogoutConnectionAppearance(connectionState = null) {
+    if (!logoutButton) return;
+
+    const state =
+      connectionState ||
+      window.AppShell?.getState?.() ||
+      {};
+
+    const isOffline =
+      navigator.onLine === false ||
+      state.connectionIssue === true ||
+      state.appReachable === false;
+
+    logoutButton.dataset.connectionState = isOffline ? "offline" : "online";
+
+    if (isOffline) {
+      logoutButton.title =
+        "Offline - logout locks this device immediately.";
+
+      logoutButton.style.setProperty(
+        "background-color",
+        "#f3f4f6",
+        "important"
+      );
+      logoutButton.style.setProperty(
+        "background-image",
+        "none",
+        "important"
+      );
+      logoutButton.style.setProperty(
+        "border-color",
+        "#aeb7c4",
+        "important"
+      );
+      logoutButton.style.setProperty(
+        "color",
+        "#344054",
+        "important"
+      );
+      logoutButton.style.setProperty(
+        "box-shadow",
+        "none",
+        "important"
+      );
+
+      const icon = logoutButton.querySelector("i");
+      icon?.style.setProperty("color", "#344054", "important");
+      return;
+    }
+
+    logoutButton.title = "";
+    logoutButton.style.removeProperty("background-color");
+    logoutButton.style.removeProperty("background-image");
+    logoutButton.style.removeProperty("border-color");
+    logoutButton.style.removeProperty("color");
+    logoutButton.style.removeProperty("box-shadow");
+
+    const icon = logoutButton.querySelector("i");
+    icon?.style.removeProperty("color");
+  }
+
   function setAuthCheckingUI() {
     document.documentElement.dataset.authState = "checking";
 
@@ -86,6 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (logoutButton) {
       logoutButton.style.display = "";
+      updateLogoutConnectionAppearance();
     }
 
     const myNotesLink = document.getElementById("openMyNotes");
@@ -125,6 +187,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (logoutButton) {
       logoutButton.style.display = "none";
+      updateLogoutConnectionAppearance({
+        connectionIssue: false,
+        appReachable: true
+      });
     }
 
     const myNotesLink = document.getElementById("openMyNotes");
@@ -164,6 +230,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (logoutButton) {
       logoutButton.style.display = "";
+      updateLogoutConnectionAppearance();
     }
 
     const myNotesLink = document.getElementById("openMyNotes");
@@ -203,6 +270,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   window.setOfflineTrustedAuthUI = setOfflineTrustedUI;
+  window.setLoggedOutAuthUI = setLoggedOutUI;
+
+  window.addEventListener("app-connectivity-changed", (event) => {
+    updateLogoutConnectionAppearance(event.detail || null);
+  });
+
+  window.addEventListener("offline", () => {
+    updateLogoutConnectionAppearance({
+      connectionIssue: true,
+      appReachable: false
+    });
+  });
+
+  window.addEventListener("online", () => {
+    updateLogoutConnectionAppearance();
+  });
 
   // Expose this globally so the lazy-loaded Clerk script can call it later
   window.updateAuthUI = function (clerkUser) {
@@ -719,32 +802,74 @@ async function openSignup() {
       event.stopPropagation();
 
       const clerkObj = getClerkObject();
-      let remoteSignOutCompleted = false;
 
+      let userId = "";
       try {
-        if (clerkObj && typeof clerkObj.signOut === "function") {
-          await clerkObj.signOut();
-          remoteSignOutCompleted = true;
-        }
+        userId =
+          (await window.UserData?.getActiveUserId?.()) ||
+          clerkObj?.user?.id ||
+          "";
       } catch (error) {
-        console.warn(
-          "Remote sign out will be completed when connectivity returns:",
-          error
-        );
+        userId = clerkObj?.user?.id || "";
       }
 
       try {
         await window.UserData?.disableOfflineAccess?.({
-          pendingRemoteLogout: !remoteSignOutCompleted
+          userId,
+          pendingRemoteLogout: true
         });
       } catch (error) {
         console.error("Could not lock local user data:", error);
+        alert(
+          "Logout could not safely lock your local data. Please try again."
+        );
+        return;
       }
 
       setLoggedOutUI();
 
       if (typeof lockEditorTools === "function") {
         lockEditorTools();
+      }
+
+      let remoteSignOutCompleted = false;
+
+      if (
+        navigator.onLine !== false &&
+        clerkObj &&
+        typeof clerkObj.signOut === "function"
+      ) {
+        try {
+          const timeoutPromise = new Promise((_, reject) => {
+            window.setTimeout(
+              () => reject(new Error("Remote logout timed out.")),
+              3000
+            );
+          });
+
+          await Promise.race([
+            clerkObj.signOut(),
+            timeoutPromise
+          ]);
+
+          remoteSignOutCompleted = true;
+        } catch (error) {
+          console.warn(
+            "Remote sign out remains pending and will be completed later:",
+            error
+          );
+        }
+      }
+
+      if (remoteSignOutCompleted && userId) {
+        try {
+          await window.UserData?.clearPendingRemoteLogout?.(userId);
+        } catch (error) {
+          console.warn(
+            "Remote logout completed but the local pending flag could not be cleared:",
+            error
+          );
+        }
       }
 
       window.location.reload();
@@ -860,8 +985,15 @@ window.addEventListener("load", async () => {
       connectivity.appReachable === false
     ) {
       const trustedUser = await window.UserData?.getTrustedOfflineUser?.();
+
       if (trustedUser && typeof window.setOfflineTrustedAuthUI === "function") {
         window.setOfflineTrustedAuthUI(trustedUser);
+      } else if (typeof window.setLoggedOutAuthUI === "function") {
+        window.setLoggedOutAuthUI();
+
+        if (typeof lockEditorTools === "function") {
+          lockEditorTools();
+        }
       }
     }
   }
