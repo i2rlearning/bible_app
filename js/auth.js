@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (isOffline) {
       logoutButton.title =
-        "Offline - logout locks this device immediately.";
+        "Log out - you will remain logged out when you reconnect.";
 
       logoutButton.style.setProperty(
         "background-color",
@@ -289,6 +289,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Expose this globally so the lazy-loaded Clerk script can call it later
   window.updateAuthUI = function (clerkUser) {
+    if (
+      clerkUser?.id &&
+      window.__pendingRemoteLogoutUserId === clerkUser.id
+    ) {
+      setLoggedOutUI();
+
+      if (typeof lockEditorTools === "function") {
+        lockEditorTools();
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("auth-state-changed", {
+          detail: {
+            signedIn: false,
+            offlineTrusted: false,
+            userId: ""
+          }
+        })
+      );
+
+      return;
+    }
+
     if (clerkUser) {
       setLoggedInUI(clerkUser);
 
@@ -834,8 +857,16 @@ async function openSignup() {
 
       let remoteSignOutCompleted = false;
 
-      if (
+      const logoutConnectivity =
+        window.AppShell?.getState?.() || {};
+
+      const canCompleteRemoteLogoutNow =
         navigator.onLine !== false &&
+        logoutConnectivity.appReachable === true &&
+        logoutConnectivity.connectionIssue !== true;
+
+      if (
+        canCompleteRemoteLogoutNow &&
         clerkObj &&
         typeof clerkObj.signOut === "function"
       ) {
@@ -852,7 +883,9 @@ async function openSignup() {
             timeoutPromise
           ]);
 
-          remoteSignOutCompleted = true;
+          remoteSignOutCompleted =
+            !clerkObj.user &&
+            !clerkObj.session;
         } catch (error) {
           console.warn(
             "Remote sign out remains pending and will be completed later:",
@@ -949,11 +982,56 @@ window.addEventListener("load", async () => {
 
     if (
       clerkObj.user?.id &&
-      await window.UserData?.hasPendingRemoteLogout?.(clerkObj.user.id)
+      await window.UserData?.hasPendingRemoteLogout?.(
+        clerkObj.user.id
+      )
     ) {
       const signedOutUserId = clerkObj.user.id;
-      await clerkObj.signOut();
-      await window.UserData?.clearPendingRemoteLogout?.(signedOutUserId);
+
+      /*
+       * An offline logout is final from the user's point of view.
+       * Block the old session from restoring private UI until Clerk confirms
+       * that the remote session has actually been signed out.
+       */
+      window.__pendingRemoteLogoutUserId =
+        signedOutUserId;
+
+      if (typeof window.setLoggedOutAuthUI === "function") {
+        window.setLoggedOutAuthUI();
+      }
+
+      if (typeof lockEditorTools === "function") {
+        lockEditorTools();
+      }
+
+      try {
+        await clerkObj.signOut();
+
+        if (clerkObj.user || clerkObj.session) {
+          throw new Error(
+            "The previous session is still active."
+          );
+        }
+
+        await window.UserData?.clearPendingRemoteLogout?.(
+          signedOutUserId
+        );
+
+        window.__pendingRemoteLogoutUserId = "";
+      } catch (error) {
+        console.warn(
+          "Remote logout is still pending:",
+          error
+        );
+
+        window.AppShell?.markDegraded?.("auth");
+
+        /*
+         * Do not continue into signed-in initialization. A later page load
+         * or auth retry will attempt the pending remote logout again.
+         */
+        return;
+      }
     }
 
     window.AppShell?.clearDegraded?.("auth");
