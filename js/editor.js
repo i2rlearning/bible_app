@@ -332,11 +332,20 @@ async function checkEditorAuth() {
     const trustedUser = await window.UserData?.getTrustedOfflineUser?.();
 
     if (trustedUser) {
-      unlockQuillNotesOffline();
+      unlockEditorToolsOffline();
 
       if (typeof loadQuillNotes === "function") {
         loadQuillNotes();
       }
+
+      if (typeof loadMiniEditorPage === "function") {
+        waitForBibleTextContent().then((ready) => {
+          if (ready) {
+            loadMiniEditorPage();
+          }
+        });
+      }
+
       return;
     }
 
@@ -388,30 +397,13 @@ function lockEditorTools() {
 }
 
 
-function unlockQuillNotesOffline() {
-  editorToolsUnlocked = true;
-  document.body.classList.remove("editor-locked-state");
-
-  if (typeof quill !== "undefined") {
-    quill.enable();
-    quill.root.setAttribute("data-placeholder", "Notes...");
-  }
-
-  const quillToolbar = document.querySelector(".ql-toolbar");
-  if (quillToolbar) {
-    quillToolbar.classList.remove("editor-tools-locked");
-    quillToolbar.querySelectorAll("button, select").forEach((control) => {
-      control.disabled = false;
-    });
-  }
-
-  const miniToolbar = document.getElementById("bible-mini-toolbar");
-  if (miniToolbar) {
-    miniToolbar.classList.add("editor-tools-locked");
-    miniToolbar.querySelectorAll("button").forEach((button) => {
-      button.disabled = true;
-    });
-  }
+/*
+ * Restores the full private editor workspace for a trusted user when the
+ * server cannot be reached. Offline mode must not reduce editing capability:
+ * Quill and the Bible mini editor remain available and save through UserOfflineDB.
+ */
+function unlockEditorToolsOffline() {
+  unlockEditorTools();
 
   if (typeof setDrawingTool === "function") {
     setDrawingTool(null);
