@@ -81,6 +81,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function setAuthButtonVisible(button, visible) {
+    if (!button) return;
+
+    if (visible) {
+      button.style.setProperty(
+        "display",
+        "inline-flex",
+        "important"
+      );
+      return;
+    }
+
+    button.style.setProperty(
+      "display",
+      "none",
+      "important"
+    );
+  }
+
   function updateLogoutConnectionAppearance(connectionState = null) {
     if (!logoutButton) return;
 
@@ -143,7 +162,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateLoginConnectionAppearance(connectionState = null) {
-    if (!loginButton || loginButton.style.display === "none") return;
+    if (!loginButton) return;
 
     const state =
       connectionState ||
@@ -209,7 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.documentElement.dataset.authState = "checking";
 
     if (loginButton) {
-      loginButton.style.display = "none";
+      setAuthButtonVisible(loginButton, false);
       loginButton.disabled = true;
       loginButton.title = "";
     }
@@ -219,7 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (logoutButton) {
-      logoutButton.style.display = "none";
+      setAuthButtonVisible(logoutButton, false);
     }
 
     const myNotesLink = document.getElementById("openMyNotes");
@@ -248,7 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.documentElement.dataset.authState = "signed-in";
 
     if (loginButton) {
-      loginButton.style.display = "none";
+      setAuthButtonVisible(loginButton, false);
       loginButton.disabled = true;
       //loginButton.title = user?.primaryEmailAddress?.emailAddress || "Logged in";
     }
@@ -258,7 +277,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (logoutButton) {
-      logoutButton.style.display = "";
+      setAuthButtonVisible(logoutButton, true);
       updateLogoutConnectionAppearance();
     }
 
@@ -288,7 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.documentElement.dataset.authState = "signed-out";
 
     if (loginButton) {
-      loginButton.style.display = "";
+      setAuthButtonVisible(loginButton, true);
       updateLoginConnectionAppearance();
     }
 
@@ -297,7 +316,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (logoutButton) {
-      logoutButton.style.display = "none";
+      setAuthButtonVisible(logoutButton, false);
       updateLogoutConnectionAppearance({
         connectionIssue: false,
         appReachable: true
@@ -330,7 +349,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.documentElement.dataset.authState = "offline-trusted";
 
     if (loginButton) {
-      loginButton.style.display = "none";
+      setAuthButtonVisible(loginButton, false);
       loginButton.disabled = true;
       loginButton.title = "";
     }
@@ -340,7 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (logoutButton) {
-      logoutButton.style.display = "";
+      setAuthButtonVisible(logoutButton, true);
       updateLogoutConnectionAppearance();
     }
 
