@@ -1,12 +1,10 @@
-"use strict";
-
 /*
- * AppShell
- *
- * Shared application-shell and connectivity coordinator.
- * Registers the service worker, verifies real backend reachability, handles
- * offline/reconnect transitions, and exposes connection state to other modules.
+ * Project file: js/app-shell.js
+ * Purpose: Manages the shared application shell, service-worker registration,
+ * backend health checks, reconnect recovery, and app-wide connectivity state.
  */
+
+"use strict";
 
 window.AppShell = (() => {
   const HEALTH_URL = "/api/health";
