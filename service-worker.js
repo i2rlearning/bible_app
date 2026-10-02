@@ -9,7 +9,7 @@
  */
 
 const CACHE_PREFIX = "bible-app-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v8`;
+const CACHE_NAME = `${CACHE_PREFIX}v9`;
 const NETWORK_TIMEOUT_MS = 4500;
 
 const APP_PAGES = [
