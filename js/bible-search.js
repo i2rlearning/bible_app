@@ -1,12 +1,10 @@
-"use strict";
-
 /*
- * BibleSearch
- *
- * Shared Scripture Search service.
- * Searches downloaded Bible verses from BibleOfflineDB when available and
- * falls back to API.Bible for non-downloaded Bibles while online.
+ * Project file: js/bible-search.js
+ * Purpose: Provides shared Scripture search logic, using downloaded Bible data
+ * when available and the online API when an online search is required.
  */
+
+"use strict";
 
 window.BibleSearch = (() => {
   const API_BASE_URL = "https://api.scripture.api.bible/v1";
