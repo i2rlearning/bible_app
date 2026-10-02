@@ -8,8 +8,6 @@
  *
  * This file does NOT decide which Login/Logout button is visible, enabled, or
  * styled. All authentication-control presentation belongs to js/auth-ui.js.
- * It also does not directly lock/unlock the Bible editors. js/editor.js owns
- * editor access and refreshes itself when auth-state-changed is published.
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -206,7 +204,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthCheckingState();
   }
 
-
   function getClerkObject() {
     return window.Clerk || window.clerk || null;
   }
@@ -310,19 +307,12 @@ document.addEventListener("DOMContentLoaded", () => {
     clerkListenerAttached = true;
 
     clerkObj.addListener(({ user }) => {
-      if (getPendingRemoteLogoutUserId()) {
-        setLoggedOutState();
-
-        if (connectionCanReachAuth()) {
-          completePendingRemoteLogout(clerkObj).catch((error) => {
-            console.warn("Remote logout is still pending:", error);
-          });
-        }
-
-        return;
-      }
-
-      window.updateAuthUI?.(user || null);
+      reconcileAuthenticationState(user || null).catch((error) => {
+        console.warn(
+          "Could not reconcile the updated authentication state:",
+          error
+        );
+      });
     });
   }
 
@@ -382,32 +372,153 @@ document.addEventListener("DOMContentLoaded", () => {
     return pendingRemoteLogoutPromise;
   }
 
-  window.updateAuthUI = function (clerkUser) {
-    if (getPendingRemoteLogoutUserId()) {
+  async function fetchBackendAuthStatus() {
+    const response = await fetch(
+      `/api/auth-status?_=${Date.now()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Authentication status request failed (${response.status}).`
+      );
+    }
+
+    return response.json();
+  }
+
+  async function fetchBackendUser() {
+    const response = await fetch(
+      `/api/me?_=${Date.now()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Authenticated user request failed (${response.status}).`
+      );
+    }
+
+    const result = await response.json();
+    return result?.user || null;
+  }
+
+  async function publishConfirmedSignedIn(userId) {
+    if (!userId) {
+      setLoggedOutState();
+      return;
+    }
+
+    const localProfile =
+      await window.UserData?.rememberAuthenticatedUser?.(
+        userId
+      );
+
+    if (
+      localProfile?.pendingRemoteLogout === true ||
+      localProfile?.offlineAccessAllowed === false
+    ) {
+      setLoggedOutState();
+      return;
+    }
+
+    writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
+
+    setLoggedInState({
+      id: userId
+    });
+  }
+
+  async function reconcileAuthenticationState(clerkUser = null) {
+    const pendingLogoutUserId =
+      getPendingRemoteLogoutUserId();
+
+    if (pendingLogoutUserId) {
       setLoggedOutState();
 
+      if (connectionCanReachAuth()) {
+        const clerkObj = getClerkObject();
+
+        if (clerkObj) {
+          await completePendingRemoteLogout(
+            clerkObj
+          );
+        }
+      }
 
       return;
     }
 
-    if (clerkUser) {
-      writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
-      setLoggedInState(clerkUser);
-
-      window.UserData?.rememberAuthenticatedUser?.(
+    /*
+     * A positive Clerk user is safe to use immediately. It also represents
+     * a deliberate sign-in after an earlier explicit logout.
+     */
+    if (clerkUser?.id) {
+      await publishConfirmedSignedIn(
         clerkUser.id
-      ).catch((error) => {
-        console.warn(
-          "Could not remember the authenticated user locally:",
-          error
-        );
-      });
+      );
+      return;
+    }
+
+    /*
+     * An explicit logout must never be reversed merely because an old server
+     * session is still visible. Only a positive new Clerk user can clear it.
+     */
+    if (
+      readLocalMarker(EXPLICIT_LOGGED_OUT_KEY) === "1"
+    ) {
+      setLoggedOutState();
+      return;
+    }
+
+    const connection = getConnectionState();
+
+    if (connection.connectionIssue === true) {
+      const trustedUser =
+        await window.UserData?.getTrustedOfflineUser?.();
+
+      if (trustedUser) {
+        setOfflineTrustedState(trustedUser);
+      } else {
+        setLoggedOutState();
+      }
 
       return;
     }
 
-    setLoggedOutState();
-  };
+    /*
+     * Clerk can briefly report user = null while its browser session is still
+     * settling. The backend auth-status endpoint is the same authentication
+     * boundary used by private APIs, so it is the authoritative online check.
+     */
+    const authStatus =
+      await fetchBackendAuthStatus();
+
+    if (authStatus?.signedIn !== true) {
+      setLoggedOutState();
+      return;
+    }
+
+    const backendUser =
+      await fetchBackendUser();
+
+    if (!backendUser?.id) {
+      setLoggedOutState();
+      return;
+    }
+
+    await publishConfirmedSignedIn(
+      backendUser.id
+    );
+  }
 
   async function synchronizeAuthFromClerk() {
     const clerkObj = await loadClerkRuntime();
@@ -429,7 +540,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pendingUserId) {
       setLoggedOutState();
 
-
       const completed = await completePendingRemoteLogout(
         clerkObj
       );
@@ -444,7 +554,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     window.AppShell?.clearDegraded?.("auth");
-    window.updateAuthUI(clerkObj.user || null);
+    await reconcileAuthenticationState(
+      clerkObj.user || null
+    );
   }
 
   async function handleUnavailableAuth(error) {
@@ -464,7 +576,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (trustedUser) {
         setOfflineTrustedState(trustedUser);
-
         return;
       }
     }
@@ -999,7 +1110,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       setLoggedOutState();
 
-
       if (userId && connectionCanReachAuth()) {
         await completePendingRemoteLogout(clerkObj);
       }
@@ -1019,14 +1129,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const state = event.detail || {};
 
       if (
-        getPendingRemoteLogoutUserId() &&
         state.browserOnline !== false &&
         state.appReachable === true &&
         state.connectionIssue !== true
       ) {
         synchronizeAuthFromClerk().catch((error) => {
           console.warn(
-            "Could not complete pending remote logout:",
+            "Could not reconcile authentication after reconnect:",
             error
           );
         });
