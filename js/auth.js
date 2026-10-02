@@ -8,6 +8,8 @@
  *
  * This file does NOT decide which Login/Logout button is visible, enabled, or
  * styled. All authentication-control presentation belongs to js/auth-ui.js.
+ * It also does not directly lock/unlock the Bible editors. js/editor.js owns
+ * editor access and refreshes itself when auth-state-changed is published.
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -204,6 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthCheckingState();
   }
 
+
   function getClerkObject() {
     return window.Clerk || window.clerk || null;
   }
@@ -319,14 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      Promise.resolve(
-        window.updateAuthUI?.(user || null)
-      ).catch((error) => {
-        console.warn(
-          "Could not apply the updated authentication state:",
-          error
-        );
-      });
+      window.updateAuthUI?.(user || null);
     });
   }
 
@@ -386,49 +382,31 @@ document.addEventListener("DOMContentLoaded", () => {
     return pendingRemoteLogoutPromise;
   }
 
-  window.updateAuthUI = async function (clerkUser) {
+  window.updateAuthUI = function (clerkUser) {
     if (getPendingRemoteLogoutUserId()) {
       setLoggedOutState();
+
+
       return;
     }
 
-    if (!clerkUser) {
-      setLoggedOutState();
-      return;
-    }
+    if (clerkUser) {
+      writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
+      setLoggedInState(clerkUser);
 
-    writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
-
-    try {
-      const localProfile =
-        await window.UserData?.rememberAuthenticatedUser?.(
-          clerkUser.id
+      window.UserData?.rememberAuthenticatedUser?.(
+        clerkUser.id
+      ).catch((error) => {
+        console.warn(
+          "Could not remember the authenticated user locally:",
+          error
         );
+      });
 
-      /*
-       * A pending explicit logout always wins over a browser session that
-       * has not yet been remotely terminated.
-       */
-      if (
-        localProfile?.pendingRemoteLogout === true ||
-        localProfile?.offlineAccessAllowed === false
-      ) {
-        setLoggedOutState();
-        return;
-      }
-    } catch (error) {
-      console.warn(
-        "Could not prepare local user data for the authenticated session:",
-        error
-      );
+      return;
     }
 
-    /*
-     * Publish signed-in only after UserData has had the opportunity to set
-     * the active local user. Editor modules listen to this event and may
-     * immediately load private notes and annotations.
-     */
-    setLoggedInState(clerkUser);
+    setLoggedOutState();
   };
 
   async function synchronizeAuthFromClerk() {
@@ -451,6 +429,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pendingUserId) {
       setLoggedOutState();
 
+
       const completed = await completePendingRemoteLogout(
         clerkObj
       );
@@ -465,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     window.AppShell?.clearDegraded?.("auth");
-    await window.updateAuthUI(clerkObj.user || null);
+    window.updateAuthUI(clerkObj.user || null);
   }
 
   async function handleUnavailableAuth(error) {
@@ -485,6 +464,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (trustedUser) {
         setOfflineTrustedState(trustedUser);
+
         return;
       }
     }
@@ -1018,6 +998,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       setLoggedOutState();
+
 
       if (userId && connectionCanReachAuth()) {
         await completePendingRemoteLogout(clerkObj);
