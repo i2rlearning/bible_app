@@ -1,8 +1,7 @@
 /*
- * Connectivity Status Styles
- *
- * Styles the shared connection-status message used across the application.
- * The final placement will be owned by the unified application shell.
+ * Project file: css/connectivity-status.css
+ * Purpose: Styles the app-wide connectivity status banner and its online,
+ * offline, degraded, warning, and hidden presentation states.
  */
 
 .app-connectivity-status {
