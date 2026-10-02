@@ -681,27 +681,27 @@
   }
   
   function bindStudyDeskAuthState() {
-    window.addEventListener(
-      "auth-state-changed",
-      (event) => {
-        const detail = event.detail || {};
-
-        if (detail.signedIn && !detail.offlineTrusted) {
-          handleStudyDeskAuthState({
-            id: detail.userId || "authenticated-user"
-          });
-          return;
-        }
-
-        handleStudyDeskAuthState(null);
+    const originalUpdateAuthUI = window.updateAuthUI;
+  
+    window.updateAuthUI = function (clerkUser) {
+      if (typeof originalUpdateAuthUI === "function") {
+        originalUpdateAuthUI(clerkUser);
       }
-    );
-
+  
+      handleStudyDeskAuthState(clerkUser || null);
+    };
+  
     /*
-     * Study Desk stays locked until the shared authentication controller
-     * publishes an authenticated online state.
+     * Clerk normally initializes after this script.
+     * Until Clerk confirms a user, Study Desk remains locked.
      */
-    showLoggedOut();
+    const clerkObj = window.Clerk || window.clerk;
+  
+    if (clerkObj && clerkObj.loaded) {
+      handleStudyDeskAuthState(clerkObj.user || null);
+    } else {
+      showLoggedOut();
+    }
   }
     
   async function fetchJson(url, options = {}) {
