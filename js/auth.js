@@ -204,10 +204,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthCheckingState();
   }
 
-  if (typeof lockEditorTools === "function") {
-    lockEditorTools();
-  }
-
   function getClerkObject() {
     return window.Clerk || window.clerk || null;
   }
@@ -323,7 +319,14 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      window.updateAuthUI?.(user || null);
+      Promise.resolve(
+        window.updateAuthUI?.(user || null)
+      ).catch((error) => {
+        console.warn(
+          "Could not apply the updated authentication state:",
+          error
+        );
+      });
     });
   }
 
@@ -383,41 +386,49 @@ document.addEventListener("DOMContentLoaded", () => {
     return pendingRemoteLogoutPromise;
   }
 
-  window.updateAuthUI = function (clerkUser) {
+  window.updateAuthUI = async function (clerkUser) {
     if (getPendingRemoteLogoutUserId()) {
       setLoggedOutState();
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
-
       return;
     }
 
-    if (clerkUser) {
-      writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
-      setLoggedInState(clerkUser);
+    if (!clerkUser) {
+      setLoggedOutState();
+      return;
+    }
 
-      window.UserData?.rememberAuthenticatedUser?.(
-        clerkUser.id
-      ).catch((error) => {
-        console.warn(
-          "Could not remember the authenticated user locally:",
-          error
+    writeLocalMarker(EXPLICIT_LOGGED_OUT_KEY, "");
+
+    try {
+      const localProfile =
+        await window.UserData?.rememberAuthenticatedUser?.(
+          clerkUser.id
         );
-      });
 
-      if (typeof unlockEditorTools === "function") {
-        unlockEditorTools();
+      /*
+       * A pending explicit logout always wins over a browser session that
+       * has not yet been remotely terminated.
+       */
+      if (
+        localProfile?.pendingRemoteLogout === true ||
+        localProfile?.offlineAccessAllowed === false
+      ) {
+        setLoggedOutState();
+        return;
       }
-      return;
+    } catch (error) {
+      console.warn(
+        "Could not prepare local user data for the authenticated session:",
+        error
+      );
     }
 
-    setLoggedOutState();
-
-    if (typeof lockEditorTools === "function") {
-      lockEditorTools();
-    }
+    /*
+     * Publish signed-in only after UserData has had the opportunity to set
+     * the active local user. Editor modules listen to this event and may
+     * immediately load private notes and annotations.
+     */
+    setLoggedInState(clerkUser);
   };
 
   async function synchronizeAuthFromClerk() {
@@ -440,10 +451,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pendingUserId) {
       setLoggedOutState();
 
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
-
       const completed = await completePendingRemoteLogout(
         clerkObj
       );
@@ -458,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     window.AppShell?.clearDegraded?.("auth");
-    window.updateAuthUI(clerkObj.user || null);
+    await window.updateAuthUI(clerkObj.user || null);
   }
 
   async function handleUnavailableAuth(error) {
@@ -478,19 +485,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (trustedUser) {
         setOfflineTrustedState(trustedUser);
-
-        if (typeof unlockEditorToolsOffline === "function") {
-          unlockEditorToolsOffline();
-        }
         return;
       }
     }
 
     setLoggedOutState();
-
-    if (typeof lockEditorTools === "function") {
-      lockEditorTools();
-    }
   }
 
   async function openLogin() {
@@ -1019,10 +1018,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       setLoggedOutState();
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
 
       if (userId && connectionCanReachAuth()) {
         await completePendingRemoteLogout(clerkObj);
