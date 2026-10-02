@@ -25,20 +25,17 @@ window.AuthUI = (() => {
     connectionState: getInitialConnectionState()
   };
 
-  function getInitialConnectionState() {
-    const appState = window.AppShell?.getState?.() || {};
-
-    return isConnectionIssue(appState)
-      ? "offline"
-      : "online";
-  }
-
-  function isConnectionIssue(appState = {}) {
+  function connectionIsUnavailable(appState = {}) {
     return (
       navigator.onLine === false ||
       appState.connectionIssue === true ||
       appState.appReachable === false
     );
+  }
+
+  function getInitialConnectionState() {
+    const appState = window.AppShell?.getState?.() || {};
+    return connectionIsUnavailable(appState) ? "offline" : "online";
   }
 
   function getControls() {
@@ -54,27 +51,20 @@ window.AuthUI = (() => {
     button.setAttribute("aria-hidden", visible ? "false" : "true");
   }
 
-  function setOfflineAppearance(button, offline) {
+  function resetButton(button) {
     if (!button) return;
-    button.classList.toggle("auth-control-offline", offline);
-    button.dataset.connectionState = offline ? "offline" : "online";
+    button.disabled = false;
+    button.title = "";
+    button.classList.remove("auth-control-offline");
+    button.dataset.connectionState = "online";
   }
 
   function render() {
     const { login, logout } = getControls();
     const key = `${state.authState}:${state.connectionState}`;
 
-    if (login) {
-      login.disabled = true;
-      login.title = "";
-      setOfflineAppearance(login, false);
-    }
-
-    if (logout) {
-      logout.disabled = false;
-      logout.title = "";
-      setOfflineAppearance(logout, false);
-    }
+    resetButton(login);
+    resetButton(logout);
 
     switch (key) {
       case "signed-in:online":
@@ -87,23 +77,28 @@ window.AuthUI = (() => {
       case "offline-trusted:offline":
         setVisible(login, false);
         setVisible(logout, true);
-        setOfflineAppearance(logout, true);
-        logout.title =
-          "Log out - you will remain logged out when you reconnect.";
+        logout?.classList.add("auth-control-offline");
+        if (logout) {
+          logout.dataset.connectionState = "offline";
+          logout.title =
+            "Log out - you will remain logged out when you reconnect.";
+        }
         break;
 
       case "signed-out:online":
         setVisible(logout, false);
         setVisible(login, true);
-        login.disabled = false;
         break;
 
       case "signed-out:offline":
         setVisible(logout, false);
         setVisible(login, true);
-        login.disabled = true;
-        setOfflineAppearance(login, true);
-        login.title = "Login requires an internet connection.";
+        if (login) {
+          login.disabled = true;
+          login.classList.add("auth-control-offline");
+          login.dataset.connectionState = "offline";
+          login.title = "Login requires an internet connection.";
+        }
         break;
 
       case "checking:online":
@@ -121,25 +116,21 @@ window.AuthUI = (() => {
     if (!VALID_AUTH_STATES.has(authState)) {
       throw new Error(`Unknown authentication UI state: ${authState}`);
     }
-
     state.authState = authState;
     render();
   }
 
   function setConnectionState(connectionState) {
-    if (!["online", "offline"].includes(connectionState)) {
+    if (!new Set(["online", "offline"]).has(connectionState)) {
       throw new Error(`Unknown connection UI state: ${connectionState}`);
     }
-
     state.connectionState = connectionState;
     render();
   }
 
   function applyConnectivityState(appState = {}) {
     setConnectionState(
-      isConnectionIssue(appState)
-        ? "offline"
-        : "online"
+      connectionIsUnavailable(appState) ? "offline" : "online"
     );
   }
 
@@ -147,15 +138,17 @@ window.AuthUI = (() => {
     return Object.freeze({ ...state });
   }
 
-  window.addEventListener(
-    "app-connectivity-changed",
-    (event) => {
-      applyConnectivityState(event.detail || {});
-    }
-  );
+  window.addEventListener("app-connectivity-changed", (event) => {
+    applyConnectivityState(event.detail || {});
+  });
 
   window.addEventListener("offline", () => {
     setConnectionState("offline");
+  });
+
+  window.addEventListener("online", () => {
+    const appState = window.AppShell?.getState?.() || {};
+    applyConnectivityState(appState);
   });
 
   render();
