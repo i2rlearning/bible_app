@@ -9,7 +9,7 @@
  */
 
 const CACHE_PREFIX = "bible-app-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v9`;
+const CACHE_NAME = `${CACHE_PREFIX}v10`;
 const NETWORK_TIMEOUT_MS = 4500;
 
 const APP_PAGES = [
@@ -23,8 +23,8 @@ const APP_PAGES = [
 const SHELL_ASSETS = [
   ...APP_PAGES,
   "/css/anchored-annotations.css",
-  "/css/app-conflict-dialog.css",
   "/css/auth-ui.css",
+  "/css/app-conflict-dialog.css",
   "/css/bible-main.css",
   "/css/bible-selector.css",
   "/css/connectivity-status.css",
