@@ -16,6 +16,7 @@
     <link href="css/scripture-keywords.css?v=20260926-phase1d2" rel="stylesheet" />
     <link href="css/anchored-annotations.css" rel="stylesheet" />
     <link href="css/copyright.css" rel="stylesheet" />
+    <link href="css/auth-ui.css?v=20261002-auth-safe-1" rel="stylesheet" />
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
     
     <link rel="preload" as="image" href="./img/left_stamp_on.png">
@@ -29,7 +30,6 @@
 
     <title>Branch of Israel - Bible App</title>
       <link href="css/connectivity-status.css?v=20260928-connectivity-1" rel="stylesheet" />
-    <link href="css/auth-ui.css?v=20261001-auth-cleanup-1" rel="stylesheet" />
 </head>
  
   <body class="index" >
@@ -100,7 +100,7 @@
                 type="button"
                 id="login"
                 class="auth-button"
-               hidden>
+              >
                 <i
                   class="fa fa-user-o"
                   aria-hidden="true"
@@ -112,7 +112,8 @@
                 type="button"
                 id="logout"
                 class="auth-button"
-               hidden>
+                style="display: none;"
+              >
                 <i
                   class="fa fa-sign-out"
                   aria-hidden="true"
@@ -812,7 +813,7 @@
 
     <script src="js/app-shell.js?v=20260928-startup-1"></script>
     <script src="js/user-offline-db.js?v=20261001-user-data-2"></script>
-    <script src="js/user-data.js?v=20261001-auth-cleanup-1"></script>
+    <script src="js/user-data.js?v=20261002-auth-safe-1"></script>
     <script src="js/my_key.js"></script>
     <script src="js/bible-offline-db.js?v=20260927-phase2b"></script>
     <script src="js/bible-data.js?v=20260928-connectivity-1"></script>
@@ -820,8 +821,8 @@
     <script src="js/bible-version-visibility.js"></script>
     <script src="js/menu.js"></script>
     <script src="js/app-conflict-dialog.js?v=20260925-phase1d1"></script>
-    <script src="js/auth-ui.js?v=20261001-auth-cleanup-1"></script>
-    <script src="js/auth.js?v=20261001-auth-unified-1"></script>
+    <script src="js/auth-ui.js?v=20261002-auth-safe-1"></script>
+    <script src="js/auth.js?v=20261002-auth-safe-1"></script>
     
     <script src="https://cdn.scripture.api.bible/fums/fumsv2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
@@ -835,7 +836,7 @@
     <script src="js/verses.js?v=20261001-user-data-2" defer></script>
     <script src="js/scripture-reference-popup.js?v=20260928-reference-popup-1" defer></script>
     <script src="js/anchored-annotations.js"></script>
-    <script type="module" src="js/editor.js?v=20261001-auth-unified-1"></script>
+    <script type="module" src="js/editor.js?v=20261002-auth-safe-1"></script>
     <script src="js/study-actions.js"></script>
     <script src="js/scripture-keywords.js?v=20260926-phase1d5"></script>
    
