@@ -1,12 +1,10 @@
-"use strict";
-
 /*
- * ConnectivityStatus
- *
- * Reusable UI layer for connection-state messaging.
- * Shows calm inline status messages when local/offline behavior needs to be
- * explained, while staying hidden during normal online operation.
+ * Project file: js/connectivity-status.js
+ * Purpose: Reads the app's current connectivity state and updates the shared
+ * status banner so users can see when the app is online, offline, or degraded.
  */
+
+"use strict";
 
 window.ConnectivityStatus = (() => {
   const ELEMENT_ID = "app-connectivity-status";
