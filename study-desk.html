@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!--
+  Project file: study-desk.html
+  Purpose: Defines the Study Desk workspace used to create, edit, organize,
+  and revisit personal Bible studies and their related Scripture references.
+-->
 <html lang="en">
   <head>
     <meta charset="UTF-8">
@@ -21,7 +26,6 @@
 
     <title>Branch of Israel - Study Desk</title>
       <link href="css/connectivity-status.css?v=20260928-connectivity-1" rel="stylesheet" />
-    <link href="css/auth-ui.css?v=20261002-auth-repair-1" rel="stylesheet" />
 </head>
 
   <body class="study-desk-page">
@@ -77,12 +81,12 @@
               <input type="search" id="study-search" placeholder="Search studies, keywords, notes..." disabled>
             </label>
 
-            <button type="button" id="login" class="auth-button" hidden>
+            <button type="button" id="login" class="auth-button">
               <i class="fa fa-user-o" aria-hidden="true"></i>
               <span>Login</span>
             </button>
 
-            <button type="button" id="logout" class="auth-button" hidden>
+            <button type="button" id="logout" class="auth-button" style="display: none;">
               <i class="fa fa-sign-out" aria-hidden="true"></i>
               <span>Logout</span>
             </button>
@@ -386,23 +390,20 @@
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
     <script src="js/app-shell.js?v=20260928-startup-1"></script>
-    <script src="js/user-offline-db.js?v=20261001-user-data-2"></script>
-    <script src="js/user-data.js?v=20261002-auth-repair-1"></script>
     <script src="js/my_key.js"></script>
     <script src="js/bible-offline-db.js?v=20260927-phase2b"></script>
     <script src="js/bible-data.js?v=20260928-connectivity-1"></script>
     <script src="js/connectivity-status.js?v=20260928-startup-1"></script>
     <script src="js/app-conflict-dialog.js?v=20260925-phase1d1"></script>
-    <script src="js/auth-ui.js?v=20261002-auth-repair-1"></script>
-    <script src="js/auth.js?v=20261002-auth-repair-1"></script>
+    <script src="js/auth.js?v=20260928-startup-1"></script>
     <script src="js/bible-version-visibility.js"></script>
     <script src="js/bible-language.js"></script>
-    <script src="js/bible-selector.js?v=20261001-user-data-2"></script>
+    <script src="js/bible-selector.js?v=20260928-connectivity-1"></script>
 
     <script src="js/user-preferences.js"></script>
     <script src="js/passage-picker.js"></script>
     <script src="js/ui-fit-controller.js"></script>
     
-    <script src="js/study-desk.js?v=20261002-auth-repair-1"></script>
+    <script src="js/study-desk.js?v=20260925-phase1d1"></script>
   </body>
 </html>
