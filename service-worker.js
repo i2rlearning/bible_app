@@ -23,8 +23,8 @@ const APP_PAGES = [
 const SHELL_ASSETS = [
   ...APP_PAGES,
   "/css/anchored-annotations.css",
-  "/css/auth-ui.css",
   "/css/app-conflict-dialog.css",
+  "/css/auth-ui.css",
   "/css/bible-main.css",
   "/css/bible-selector.css",
   "/css/connectivity-status.css",
