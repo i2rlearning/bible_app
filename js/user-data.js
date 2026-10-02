@@ -68,43 +68,9 @@ window.UserData = (() => {
   async function rememberAuthenticatedUser(userId) {
     if (!userId) return null;
 
-    const normalizedUserId = String(userId);
-    const existing =
-      await window.UserOfflineDB.getProfile(normalizedUserId);
+    currentUserId = String(userId);
 
-    /*
-     * A pending explicit logout always wins over a restored browser session.
-     * Seeing the old Clerk session again must never re-enable trusted local
-     * access before the remote logout has actually completed.
-     */
-    if (existing?.pendingRemoteLogout === true) {
-      currentUserId = "";
-
-      const activeMeta =
-        await window.UserOfflineDB.getMeta(ACTIVE_USER_META_KEY);
-
-      if (activeMeta?.value === normalizedUserId) {
-        await window.UserOfflineDB.setMeta(ACTIVE_USER_META_KEY, "");
-      }
-
-      if (existing.offlineAccessAllowed !== false) {
-        await window.UserOfflineDB.putProfile({
-          ...existing,
-          userId: normalizedUserId,
-          offlineAccessAllowed: false,
-          updatedAt: now()
-        });
-      }
-
-      return {
-        ...existing,
-        userId: normalizedUserId,
-        offlineAccessAllowed: false
-      };
-    }
-
-    currentUserId = normalizedUserId;
-
+    const existing = await window.UserOfflineDB.getProfile(currentUserId);
     const profile = {
       ...(existing || {}),
       userId: currentUserId,
@@ -1221,3 +1187,4 @@ window.UserData = (() => {
     useRemoteQuillConflict,
     useRemoteMiniEditorConflict
   });
+})();
