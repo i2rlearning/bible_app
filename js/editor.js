@@ -317,59 +317,63 @@ toolbar?.container?.querySelector('button.ql-script[value="super"]')?.setAttribu
 // ----------------------------------------------------
 let editorToolsUnlocked = false;
 
-async function checkEditorAuth() {
+/*
+ * The editor does not authenticate independently.
+ *
+ * js/auth.js is the single authentication controller. It publishes
+ * auth-state-changed only after the active local user is ready. This editor
+ * responds to that shared state so Quill and annotations always use the same
+ * signed-in/offline-trusted identity as the rest of the application.
+ */
+let editorAuthApplySequence = 0;
+
+async function applyEditorAuthState(authState) {
+  const sequence = ++editorAuthApplySequence;
+
+  if (
+    authState !== "signed-in" &&
+    authState !== "offline-trusted"
+  ) {
+    lockEditorTools();
+    return;
+  }
+
+  if (authState === "offline-trusted") {
+    unlockEditorToolsOffline();
+  } else {
+    unlockEditorTools();
+  }
+
   try {
-    const response = await fetch("/api/me", {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store"
-    });
+    if (typeof loadQuillNotes === "function") {
+      await loadQuillNotes();
+    }
 
-    const result = await response.json();
-
-    if (response.ok && result.ok && result.user) {
-      await window.UserData?.rememberAuthenticatedUser?.(result.user.id);
-      unlockEditorTools();
-
-      if (typeof loadQuillNotes === "function") {
-        loadQuillNotes();
-      }
-
-      if (typeof loadMiniEditorPage === "function") {
-        waitForBibleTextContent().then((ready) => {
-          if (ready) {
-            loadMiniEditorPage();
-          }
-        });
-      }
+    if (sequence !== editorAuthApplySequence) {
       return;
     }
 
-    lockEditorTools();
+    const ready = await waitForBibleTextContent();
+
+    if (
+      ready &&
+      sequence === editorAuthApplySequence &&
+      typeof loadMiniEditorPage === "function"
+    ) {
+      await loadMiniEditorPage();
+    }
   } catch (error) {
-    const trustedUser = await window.UserData?.getTrustedOfflineUser?.();
-
-    if (trustedUser) {
-      unlockEditorToolsOffline();
-
-      if (typeof loadQuillNotes === "function") {
-        loadQuillNotes();
-      }
-
-      if (typeof loadMiniEditorPage === "function") {
-        waitForBibleTextContent().then((ready) => {
-          if (ready) {
-            loadMiniEditorPage();
-          }
-        });
-      }
-
+    if (sequence !== editorAuthApplySequence) {
       return;
     }
 
-    lockEditorTools();
+    console.error(
+      "Could not load private editor data for the current authentication state:",
+      error
+    );
   }
 }
+
 
 function lockEditorTools() {
   editorToolsUnlocked = false;
@@ -3240,16 +3244,24 @@ window.addEventListener("user-data-conflict", (event) => {
   });
 });
 
-// Keep editor access synchronized with the shared authentication controller.
-// The proven /api/me + trusted-offline check remains the editor's authority
-// for loading Quill notes and annotations.
-window.addEventListener("auth-state-changed", () => {
-  checkEditorAuth();
-});
-
-// Start editor auth check after all functions are loaded
+// Follow the shared authentication controller.
 // ----------------------------------------------------
-checkEditorAuth();
+window.addEventListener(
+  "auth-state-changed",
+  (event) => {
+    const authState =
+      event.detail?.authState ||
+      document.documentElement.dataset.authState ||
+      "checking";
+
+    applyEditorAuthState(authState);
+  }
+);
+
+applyEditorAuthState(
+  document.documentElement.dataset.authState ||
+  "checking"
+);
 
 // Run observer setup once content is ready
 waitForBibleTextContent().then((ready) => {
