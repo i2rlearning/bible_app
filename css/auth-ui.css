@@ -1,45 +1,23 @@
 /*
- * Authentication Control Styles
+ * Authentication Control UI Styles
  *
- * Provides the offline visual state for the shared Login/Logout controls.
- * js/auth-ui.js decides which control is visible and whether Login is enabled.
+ * Provides the neutral offline appearance for Login and Logout controls.
+ * Visibility and enabled/disabled state are decided by js/auth-ui.js.
  */
 
-#login[hidden],
-#logout[hidden] {
-  display: none !important;
-}
-
-#login.auth-control-offline,
-#logout.auth-control-offline {
+.auth-button.auth-control-offline {
+  background: #f3f4f6 !important;
   border-color: #aeb7c4 !important;
-  background-color: #f3f4f6 !important;
-  background-image: none !important;
+  color: #344054 !important;
   box-shadow: none !important;
-  color: #344054 !important;
-  transform: none !important;
 }
 
-#login.auth-control-offline i,
-#logout.auth-control-offline i {
-  color: #344054 !important;
+.auth-button.auth-control-offline i {
+  color: inherit !important;
 }
 
-#login.auth-control-offline:hover,
-#logout.auth-control-offline:hover {
-  border-color: #aeb7c4 !important;
-  background-color: #f3f4f6 !important;
-  background-image: none !important;
-  box-shadow: none !important;
-  color: #344054 !important;
-  transform: none !important;
-}
-
-#login.auth-control-offline:disabled {
+.auth-button.auth-control-offline:disabled {
+  color: #667085 !important;
   cursor: default !important;
   opacity: 1 !important;
-}
-
-#logout.auth-control-offline {
-  cursor: pointer !important;
 }
