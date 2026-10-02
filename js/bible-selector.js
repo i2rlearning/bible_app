@@ -1,3 +1,9 @@
+/*
+ * Project file: js/bible-selector.js
+ * Purpose: Provides shared Bible selection data and navigation logic for
+ * languages, Bible versions, books, chapters, cached data, and chapter bounds.
+ */
+
 "use strict";
 
 /*
@@ -1232,7 +1238,7 @@ window.BibleSelector = (() => {
       }
     }
 
-    async function openSelectedPassage() {
+    function openSelectedPassage() {
       const selectedBible =
         availableBibles.find(
           (bible) =>
@@ -1284,8 +1290,6 @@ window.BibleSelector = (() => {
 
         return;
       }
-
-      await window.EditorPersistence?.flushAll?.();
 
       window.location.assign(
         destinationUrl
