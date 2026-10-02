@@ -1,3 +1,9 @@
+/*
+ * Project file: js/verses.js
+ * Purpose: Loads and displays Bible chapter content on the Scripture page and
+ * manages chapter navigation, zoom, URL state, and swipe navigation.
+ */
+
 "use strict";
 
 // Page-level Bible loading, zoom, chapter navigation, and swipe navigation.
@@ -1554,7 +1560,7 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
         );
       }
 
-      async function goToPreviousChapter() {
+      function goToPreviousChapter() {
         const previousChapter =
           chapterNavigationState.previousChapter;
 
@@ -1562,23 +1568,19 @@ window.addEventListener("scroll", closeApiBibleFootnotes, true);
           return;
         }
 
-        await window.EditorPersistence?.flushAll?.();
-
         window.location.href =
           buildChapterUrl(
             previousChapter.id
           );
       }
 
-      async function goToNextChapter() {
+      function goToNextChapter() {
         const nextChapter =
           chapterNavigationState.nextChapter;
 
         if (!nextChapter) {
           return;
         }
-
-        await window.EditorPersistence?.flushAll?.();
 
         window.location.href =
           buildChapterUrl(
