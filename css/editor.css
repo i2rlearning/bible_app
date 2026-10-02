@@ -1,3 +1,9 @@
+/*
+ * Project file: css/editor.css
+ * Purpose: Styles the Quill note editor and the related editor controls,
+ * toolbars, formatting UI, and note-editing layout used on Scripture pages.
+ */
+
 /************* Quill Editor *************/
 .ql-container.ql-snow {
   font-size: 16px;
@@ -274,7 +280,7 @@
 
 /************* Bible highlight colors *************/
 .eb-container .bible-user-format.highlight-yellow {
-  background-color: #fff59d !important;  
+  background-color: #fff59d !important;
 }
 
 .eb-container .bible-user-format.highlight-green {
@@ -315,7 +321,7 @@
 }
 
 .eb-container .bible-user-format.text-yellow {
-  color: #c79a00 !important;  
+  color: #c79a00 !important;
 }
 
 .eb-container .bible-user-format.text-orange {
@@ -371,7 +377,7 @@
 }
 
 .font-color-option.text-yellow {
-  color: #ffed51 !important;  /* originally was c79a00 */
+  color: #c79a00 !important;
 }
 
 .font-color-option.text-orange {
