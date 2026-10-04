@@ -10,21 +10,22 @@
  * What this file does:
  * - Creates and opens the UserOfflineDB IndexedDB database.
  * - Keeps records partitioned by Clerk user ID.
- * - Provides stores for user profiles, Quill/My Notes, mini-editor page state,
- *   and a durable synchronization outbox.
+ * - Provides stores for user profiles, Quill/My Notes, Study Desk local drafts,
+ *   mini-editor page state, and a durable synchronization outbox.
  * - Provides small helper functions for reading and writing those stores.
- * - Does not change authentication, editors, navigation, synchronization,
- *   or any existing Phase 3 behavior by itself.
+ * - Study Desk drafts are local-only in this step. They are not restored or synced yet.
+ * - Does not change authentication, navigation, synchronization, or server data by itself.
  */
 
 window.UserOfflineDB = (() => {
   const DB_NAME = "UserOfflineDB";
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
 
   const STORES = Object.freeze({
     meta: "meta",
     profiles: "profiles",
     quillNotes: "quillNotes",
+    studyDrafts: "studyDrafts",
     miniEditorPages: "miniEditorPages",
     outbox: "outbox"
   });
@@ -80,6 +81,14 @@ window.UserOfflineDB = (() => {
           notes.createIndex("by_user_sync", ["userId", "syncStatus"], { unique: false });
         }
 
+        if (!db.objectStoreNames.contains(STORES.studyDrafts)) {
+          const drafts = db.createObjectStore(STORES.studyDrafts, { keyPath: "localKey" });
+          drafts.createIndex("by_user", "userId", { unique: false });
+          drafts.createIndex("by_user_draft", ["userId", "draftKey"], { unique: true });
+          drafts.createIndex("by_user_study", ["userId", "studyId"], { unique: false });
+          drafts.createIndex("by_user_updated", ["userId", "localUpdatedAt"], { unique: false });
+        }
+
         if (!db.objectStoreNames.contains(STORES.miniEditorPages)) {
           const pages = db.createObjectStore(STORES.miniEditorPages, { keyPath: "localKey" });
           pages.createIndex("by_user", "userId", { unique: false });
@@ -104,7 +113,14 @@ window.UserOfflineDB = (() => {
         }
       };
 
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+        resolve(db);
+      };
       request.onerror = () => {
         dbPromise = null;
         reject(request.error);
@@ -215,6 +231,53 @@ window.UserOfflineDB = (() => {
   async function deleteQuillNote(userId, pageKey) {
     if (!userId || !pageKey) return;
     return remove(STORES.quillNotes, buildQuillLocalKey(userId, pageKey));
+  }
+
+  function buildStudyDraftLocalKey(userId, draftKey) {
+    return `${userId}::study_draft::${draftKey}`;
+  }
+
+  async function getStudyDraft(userId, draftKey) {
+    if (!userId || !draftKey) return null;
+
+    const db = await open();
+    const transaction = db.transaction(STORES.studyDrafts, "readonly");
+    const index = transaction.objectStore(STORES.studyDrafts).index("by_user_draft");
+    const result = await requestToPromise(index.get([userId, draftKey]));
+    await transactionToPromise(transaction);
+    return result || null;
+  }
+
+  async function putStudyDraft(draft) {
+    if (!draft?.userId || !draft?.draftKey) {
+      throw new Error("Cannot store a Study Desk draft without userId and draftKey.");
+    }
+
+    const record = {
+      ...draft,
+      localKey: draft.localKey || buildStudyDraftLocalKey(draft.userId, draft.draftKey)
+    };
+
+    return put(STORES.studyDrafts, record);
+  }
+
+  async function deleteStudyDraft(userId, draftKey) {
+    if (!userId || !draftKey) return;
+    return remove(STORES.studyDrafts, buildStudyDraftLocalKey(userId, draftKey));
+  }
+
+  async function listStudyDrafts(userId) {
+    if (!userId) return [];
+
+    const db = await open();
+    const transaction = db.transaction(STORES.studyDrafts, "readonly");
+    const index = transaction.objectStore(STORES.studyDrafts).index("by_user");
+    const results = await requestToPromise(index.getAll(userId));
+    await transactionToPromise(transaction);
+
+    return (results || []).sort(
+      (a, b) => Number(b.localUpdatedAt || 0) - Number(a.localUpdatedAt || 0)
+    );
   }
 
   function buildMiniEditorLocalKey(userId, pageKey) {
@@ -339,6 +402,10 @@ window.UserOfflineDB = (() => {
     getQuillNoteByBibleChapter,
     putQuillNote,
     deleteQuillNote,
+    getStudyDraft,
+    putStudyDraft,
+    deleteStudyDraft,
+    listStudyDrafts,
     getMiniEditorPage,
     getMiniEditorPageByBibleChapter,
     putMiniEditorPage,
@@ -350,6 +417,7 @@ window.UserOfflineDB = (() => {
     listOutbox,
     resetSendingMutations,
     buildQuillLocalKey,
+    buildStudyDraftLocalKey,
     buildMiniEditorLocalKey
   });
 })();
