@@ -17,12 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const logoutButton = document.getElementById("logout");
   const myNotesModal = document.getElementById("myNotesModal");
 
-  setAuthCheckingUI();
-
-  if (typeof lockEditorTools === "function") {
-    lockEditorTools();
-  }
-
   // ==========================================
   // UI & MODAL FUNCTIONS
   // ==========================================
@@ -38,153 +32,352 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function setAuthCheckingUI() {
-    document.documentElement.dataset.authState = "checking";
+  // =========================================================================
+  // CENTRAL AUTHENTICATION STATE RESOLVER AND RENDERER
+  //
+  // This is the only section that decides Login/Logout visibility, enabled
+  // state, private navigation access, and editor lock/unlock behavior.
+  //
+  // If authentication UI behaves unexpectedly, start troubleshooting here.
+  // =========================================================================
+  const AUTH_STATE = Object.freeze({
+    CHECKING: "checking",
+    SIGNED_IN_ONLINE: "signed-in-online",
+    SIGNED_IN_OFFLINE: "signed-in-offline",
+    SIGNED_OUT_ONLINE: "signed-out-online",
+    SIGNED_OUT_OFFLINE: "signed-out-offline",
+    LOGOUT_PENDING: "logout-pending"
+  });
 
-    if (loginButton) {
-      loginButton.style.display = "none";
-      loginButton.disabled = true;
-      loginButton.title = "";
-    }
+  let currentAuthState = AUTH_STATE.CHECKING;
+  let lastKnownClerkUser = null;
 
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
+  function authConnectionIsOnline() {
+    const state = window.AppShell?.getState?.() || {};
 
-    if (logoutButton) {
-      logoutButton.style.display = "none";
-    }
-
-    const myNotesLink = document.getElementById("openMyNotes");
-
-    if (myNotesLink) {
-      myNotesLink.classList.add("disabled");
-      myNotesLink.setAttribute("aria-disabled", "true");
-    }
-
-    const studyDeskBtn = document.getElementById("landing-study-desk-action");
-
-    if (studyDeskBtn) {
-      studyDeskBtn.disabled = true;
-      studyDeskBtn.removeAttribute("title");
-    }
-
-    const studyDeskLink = document.getElementById("openStudyDesk");
-
-    if (studyDeskLink) {
-      studyDeskLink.classList.add("disabled");
-      studyDeskLink.setAttribute("aria-disabled", "true");
-    }
-  }
-
-  function setLoggedInUI(user) {
-    document.documentElement.dataset.authState = "signed-in";
-
-    if (loginButton) {
-      loginButton.style.display = "none";
-      loginButton.disabled = true;
-      //loginButton.title = user?.primaryEmailAddress?.emailAddress || "Logged in";
-    }
-
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-
-    if (logoutButton) {
-      logoutButton.style.display = "";
-    }
-
-    const myNotesLink = document.getElementById("openMyNotes");
-
-    if (myNotesLink) {
-      myNotesLink.classList.remove("disabled");
-      myNotesLink.setAttribute("aria-disabled", "false");
-    }
-
-    const studyDeskBtn = document.getElementById("landing-study-desk-action");
-
-    if (studyDeskBtn) {
-      studyDeskBtn.disabled = false;
-      studyDeskBtn.removeAttribute("title");
-    }
-
-    const studyDeskLink = document.getElementById("openStudyDesk");
-
-    if (studyDeskLink) {
-      studyDeskLink.classList.remove("disabled");
-      studyDeskLink.setAttribute("aria-disabled", "false");
-    }
-  }
-
-  function setLoggedOutUI() {
-    document.documentElement.dataset.authState = "signed-out";
-
-    if (loginButton) {
-      loginButton.style.display = "";
-      loginButton.disabled = false;
-      loginButton.title = "";
-    }
-
-    if (signupButton) {
-      signupButton.style.display = "none";
-    }
-
-    if (logoutButton) {
-      logoutButton.style.display = "none";
-    }
-
-    const myNotesLink = document.getElementById("openMyNotes");
-
-    if (myNotesLink) {
-      myNotesLink.classList.add("disabled");
-      myNotesLink.setAttribute("aria-disabled", "true");
-    }
-
-    const studyDeskBtn = document.getElementById("landing-study-desk-action");
-
-    if (studyDeskBtn) {
-      studyDeskBtn.disabled = true;
-      studyDeskBtn.setAttribute("title", "Log in to access your Study Desk");
-    }
-
-    const studyDeskLink = document.getElementById("openStudyDesk");
-
-    if (studyDeskLink) {
-      studyDeskLink.classList.add("disabled");
-      studyDeskLink.setAttribute("aria-disabled", "true");
-    }
-  }
-
-  // Expose this globally so the lazy-loaded Clerk script can call it later
-  window.updateAuthUI = function (clerkUser) {
-    if (clerkUser) {
-      setLoggedInUI(clerkUser);
-
-      if (typeof unlockEditorTools === "function") {
-        unlockEditorTools();
-      }
-
-      // Inactivity timer is disabled. Clerk handles the active session.
-    } else {
-      setLoggedOutUI();
-
-      if (typeof lockEditorTools === "function") {
-        lockEditorTools();
-      }
-
-      // Inactivity timer is disabled. Clerk handles the active session.
-    }
-
-    // Shared notification for pages that need to react immediately when
-    // Clerk signs a user in or out without navigating away from the page.
-    window.dispatchEvent(
-      new CustomEvent("auth-state-changed", {
-        detail: {
-          signedIn: Boolean(clerkUser)
-        }
-      })
+    return (
+      navigator.onLine !== false &&
+      state.browserOnline !== false &&
+      state.appReachable !== false &&
+      state.connectionIssue !== true
     );
+  }
+
+  function resolveAuthState(clerkUser) {
+    const online = authConnectionIsOnline();
+
+    if (clerkUser) {
+      return online
+        ? AUTH_STATE.SIGNED_IN_ONLINE
+        : AUTH_STATE.SIGNED_IN_OFFLINE;
+    }
+
+    return online
+      ? AUTH_STATE.SIGNED_OUT_ONLINE
+      : AUTH_STATE.SIGNED_OUT_OFFLINE;
+  }
+
+  function setPrivateNavigationEnabled(enabled) {
+    const myNotesLink =
+      document.getElementById("openMyNotes");
+
+    if (myNotesLink) {
+      myNotesLink.classList.toggle(
+        "disabled",
+        !enabled
+      );
+      myNotesLink.setAttribute(
+        "aria-disabled",
+        enabled ? "false" : "true"
+      );
+    }
+
+    const studyDeskBtn =
+      document.getElementById(
+        "landing-study-desk-action"
+      );
+
+    if (studyDeskBtn) {
+      studyDeskBtn.disabled = !enabled;
+
+      if (enabled) {
+        studyDeskBtn.removeAttribute("title");
+      } else {
+        studyDeskBtn.setAttribute(
+          "title",
+          "Log in to access your Study Desk"
+        );
+      }
+    }
+
+    const studyDeskLink =
+      document.getElementById("openStudyDesk");
+
+    if (studyDeskLink) {
+      studyDeskLink.classList.toggle(
+        "disabled",
+        !enabled
+      );
+      studyDeskLink.setAttribute(
+        "aria-disabled",
+        enabled ? "false" : "true"
+      );
+    }
+  }
+
+  function setLoginControl({
+    visible,
+    enabled,
+    title = ""
+  }) {
+    if (!loginButton) return;
+
+    loginButton.style.display =
+      visible ? "" : "none";
+    loginButton.disabled = !enabled;
+    loginButton.title = title;
+  }
+
+  function setLogoutControl({
+    visible,
+    enabled,
+    title = ""
+  }) {
+    if (!logoutButton) return;
+
+    logoutButton.style.display =
+      visible ? "" : "none";
+    logoutButton.disabled = !enabled;
+    logoutButton.title = title;
+  }
+
+  function renderAuthState(
+    state,
+    clerkUser = null,
+    { dispatch = true } = {}
+  ) {
+    currentAuthState = state;
+
+    document.documentElement.dataset.authState =
+      state;
+
+    if (signupButton) {
+      signupButton.style.display = "none";
+    }
+
+    let signedIn = false;
+    let offline = false;
+    let logoutPending = false;
+
+    switch (state) {
+      case AUTH_STATE.CHECKING:
+        setLoginControl({
+          visible: false,
+          enabled: false
+        });
+        setLogoutControl({
+          visible: false,
+          enabled: false
+        });
+        setPrivateNavigationEnabled(false);
+
+        if (
+          typeof lockEditorTools === "function"
+        ) {
+          lockEditorTools();
+        }
+        break;
+
+      case AUTH_STATE.SIGNED_IN_ONLINE:
+        signedIn = true;
+
+        setLoginControl({
+          visible: false,
+          enabled: false
+        });
+        setLogoutControl({
+          visible: true,
+          enabled: true
+        });
+        setPrivateNavigationEnabled(true);
+
+        if (
+          typeof unlockEditorTools ===
+          "function"
+        ) {
+          unlockEditorTools();
+        }
+        break;
+
+      case AUTH_STATE.SIGNED_IN_OFFLINE:
+        signedIn = true;
+        offline = true;
+
+        setLoginControl({
+          visible: false,
+          enabled: false
+        });
+        setLogoutControl({
+          visible: true,
+          enabled: true,
+          title:
+            "Logout will be completed when the connection returns"
+        });
+        setPrivateNavigationEnabled(true);
+
+        if (
+          typeof unlockEditorTools ===
+          "function"
+        ) {
+          unlockEditorTools();
+        }
+        break;
+
+      case AUTH_STATE.SIGNED_OUT_ONLINE:
+        setLoginControl({
+          visible: true,
+          enabled: true
+        });
+        setLogoutControl({
+          visible: false,
+          enabled: false
+        });
+        setPrivateNavigationEnabled(false);
+
+        if (
+          typeof lockEditorTools === "function"
+        ) {
+          lockEditorTools();
+        }
+        break;
+
+      case AUTH_STATE.SIGNED_OUT_OFFLINE:
+        offline = true;
+
+        setLoginControl({
+          visible: true,
+          enabled: false,
+          title:
+            "An internet connection is required to log in"
+        });
+        setLogoutControl({
+          visible: false,
+          enabled: false
+        });
+        setPrivateNavigationEnabled(false);
+
+        if (
+          typeof lockEditorTools === "function"
+        ) {
+          lockEditorTools();
+        }
+        break;
+
+      case AUTH_STATE.LOGOUT_PENDING:
+        offline = !authConnectionIsOnline();
+        logoutPending = true;
+
+        setLoginControl({
+          visible: true,
+          enabled: false,
+          title: offline
+            ? "Logout will finish when the connection returns"
+            : "Finishing logout..."
+        });
+        setLogoutControl({
+          visible: false,
+          enabled: false
+        });
+        setPrivateNavigationEnabled(false);
+        clearPrivateAuthenticatedUI();
+        break;
+
+      default:
+        console.warn(
+          "Unknown authentication UI state:",
+          state
+        );
+
+        renderAuthState(
+          AUTH_STATE.CHECKING,
+          null,
+          { dispatch }
+        );
+        return;
+    }
+
+    if (!dispatch) {
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "auth-state-changed",
+        {
+          detail: {
+            state,
+            signedIn,
+            offline,
+            logoutPending,
+            userId: signedIn
+              ? String(clerkUser?.id || "")
+              : ""
+          }
+        }
+      )
+    );
+  }
+
+  async function refreshAuthState(
+    clerkUser = lastKnownClerkUser
+  ) {
+    lastKnownClerkUser =
+      clerkUser || null;
+
+    const pendingLogoutUserId =
+      await window.UserData
+        ?.getPendingRemoteLogoutUserId?.();
+
+    if (pendingLogoutUserId) {
+      renderAuthState(
+        AUTH_STATE.LOGOUT_PENDING,
+        null
+      );
+
+      if (authConnectionIsOnline()) {
+        await completePendingRemoteLogout();
+      }
+
+      return;
+    }
+
+    renderAuthState(
+      resolveAuthState(lastKnownClerkUser),
+      lastKnownClerkUser
+    );
+  }
+
+  window.updateAuthUI = function (clerkUser) {
+    refreshAuthState(
+      clerkUser || null
+    ).catch((error) => {
+      console.warn(
+        "Could not refresh authentication UI:",
+        error
+      );
+    });
   };
+
+  window.getCurrentAuthUIState =
+    function () {
+      return currentAuthState;
+    };
+
+  renderAuthState(
+    AUTH_STATE.CHECKING,
+    null,
+    { dispatch: false }
+  );
 
   // ==========================================
   // CLERK ACTION HELPERS
@@ -237,10 +430,12 @@ document.addEventListener("DOMContentLoaded", () => {
       return false;
     }
 
-    setLoggedOutUI();
-    clearPrivateAuthenticatedUI();
+    renderAuthState(
+      AUTH_STATE.LOGOUT_PENDING,
+      null
+    );
 
-    if (navigator.onLine === false) {
+    if (!authConnectionIsOnline()) {
       return true;
     }
 
@@ -264,8 +459,12 @@ document.addEventListener("DOMContentLoaded", () => {
           pendingUserId
         );
 
-      setLoggedOutUI();
-      clearPrivateAuthenticatedUI();
+      lastKnownClerkUser = null;
+
+      renderAuthState(
+        resolveAuthState(null),
+        null
+      );
 
       return true;
     } catch (error) {
@@ -274,8 +473,10 @@ document.addEventListener("DOMContentLoaded", () => {
         error
       );
 
-      setLoggedOutUI();
-      clearPrivateAuthenticatedUI();
+      renderAuthState(
+        AUTH_STATE.LOGOUT_PENDING,
+        null
+      );
 
       return true;
     }
@@ -283,6 +484,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.applyClerkAuthState =
     async function (clerkUser) {
+      lastKnownClerkUser =
+        clerkUser || null;
+
+      const pendingLogoutUserId =
+        await window.UserData
+          ?.getPendingRemoteLogoutUserId?.();
+
+      if (pendingLogoutUserId) {
+        renderAuthState(
+          AUTH_STATE.LOGOUT_PENDING,
+          null
+        );
+
+        if (authConnectionIsOnline()) {
+          await completePendingRemoteLogout();
+        }
+
+        return;
+      }
+
       const userId = String(
         clerkUser?.id || ""
       );
@@ -291,28 +512,52 @@ document.addEventListener("DOMContentLoaded", () => {
         userId &&
         await userHasPendingLogout(userId)
       ) {
-        setLoggedOutUI();
-        clearPrivateAuthenticatedUI();
-        await completePendingRemoteLogout();
+        renderAuthState(
+          AUTH_STATE.LOGOUT_PENDING,
+          null
+        );
+
+        if (authConnectionIsOnline()) {
+          await completePendingRemoteLogout();
+        }
+
         return;
       }
 
-      window.updateAuthUI(
-        clerkUser || null
+      renderAuthState(
+        resolveAuthState(
+          lastKnownClerkUser
+        ),
+        lastKnownClerkUser
       );
     };
 
+  function refreshAuthStateForConnectivity() {
+    refreshAuthState(
+      getClerkObject()?.user ||
+      lastKnownClerkUser ||
+      null
+    ).catch((error) => {
+      console.warn(
+        "Could not refresh authentication state after connectivity changed:",
+        error
+      );
+    });
+  }
+
   window.addEventListener(
     "online",
-    () => {
-      completePendingRemoteLogout()
-        .catch((error) => {
-          console.warn(
-            "Could not finish pending logout:",
-            error
-          );
-        });
-    }
+    refreshAuthStateForConnectivity
+  );
+
+  window.addEventListener(
+    "offline",
+    refreshAuthStateForConnectivity
+  );
+
+  window.addEventListener(
+    "app-connectivity-changed",
+    refreshAuthStateForConnectivity
   );
 
   async function openLogin() {
@@ -806,10 +1051,14 @@ async function openSignup() {
           );
         }
 
-        setLoggedOutUI();
-        clearPrivateAuthenticatedUI();
+        lastKnownClerkUser = null;
 
-        if (navigator.onLine === false) {
+        renderAuthState(
+          AUTH_STATE.LOGOUT_PENDING,
+          null
+        );
+
+        if (!authConnectionIsOnline()) {
           return;
         }
 
@@ -825,8 +1074,10 @@ async function openSignup() {
             userId
           );
 
-        setLoggedOutUI();
-        clearPrivateAuthenticatedUI();
+        renderAuthState(
+          resolveAuthState(null),
+          null
+        );
 
         window.location.reload();
       } catch (error) {
@@ -835,8 +1086,10 @@ async function openSignup() {
           error
         );
 
-        setLoggedOutUI();
-        clearPrivateAuthenticatedUI();
+        renderAuthState(
+          AUTH_STATE.LOGOUT_PENDING,
+          null
+        );
       }
     });
   }
