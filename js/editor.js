@@ -1,847 +1,3773 @@
-<!DOCTYPE html>
-<!--
-  Project file: verse.html
-  Purpose: Defines the Scripture reading and study page, including chapter text,
-  personal notes, annotations, study actions, keywords, and navigation controls.
--->
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="css/menu.css" rel="stylesheet" />
-    <link href="css/menu-scroll.css" rel="stylesheet" />
-    <link href="css/menu-popover.css" rel="stylesheet" />
-    <link href="css/bible-main.css" rel="stylesheet" />
-    <link href="css/bible-selector.css" rel="stylesheet" />
-    <link href="css/scripture.css" rel="stylesheet" />
-    <link href="css/scripture-reference-popup.css" rel="stylesheet" />
-    <link href="css/editor.css?v=20260926-phase1d6" rel="stylesheet" />
-    <link href="css/app-conflict-dialog.css?v=20260925-phase1d1" rel="stylesheet" />
-    <link href="css/study-actions.css" rel="stylesheet" />
-    <link href="css/scripture-keywords.css?v=20260926-phase1d2" rel="stylesheet" />
-    <link href="css/anchored-annotations.css" rel="stylesheet" />
-    <link href="css/copyright.css" rel="stylesheet" />
-    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+/*
+ * Project file: js/editor.js
+ * Purpose: Controls My Notes, Scripture annotations, drawing tools, formatting,
+ * local save status, authenticated editor access, and local/offline persistence.
+ *
+ * The editor keeps server-backed personal data mirrored locally, queues changes
+ * when an already-authenticated page loses connectivity, and clears visible
+ * private editor state immediately when the user logs out.
+ */
+
+import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/+esm";
+
+// Register the Quill 2 compatible image resize/formatting module once
+Quill.register("modules/blotFormatter2", BlotFormatter2);
+
+// ----------------------------------------------------
+// Quill Custom Icons Setup (Must be before toolbarOptions)
+// ----------------------------------------------------
+const icons = Quill.import("ui/icons");
+icons["datestamp"] = '<svg viewbox="0 0 18 18"><rect class="ql-stroke" x="3" y="4" width="12" height="11" rx="1"></rect><line class="ql-stroke" x1="3" y1="7" x2="15" y2="7"></line><line class="ql-stroke" x1="6" y1="2" x2="6" y2="5"></line><line class="ql-stroke" x1="12" y1="2" x2="12" y2="5"></line></svg>';
+icons["timestamp"] = '<svg viewbox="0 0 18 18"><circle class="ql-stroke" cx="9" cy="9" r="6"></circle><polyline class="ql-stroke" points="9 5 9 9 11 9"></polyline></svg>';
+
+// ----------------------------------------------------
+// Quill font-size setup
+// ----------------------------------------------------
+const Size = Quill.import("attributors/class/size");
+Size.whitelist = ["8px", "10px", "12px", "14px", "18px", "24px", "32px"];
+Quill.register(Size, true);
+
+// ----------------------------------------------------
+// Quill Toolbar Configuration
+// ----------------------------------------------------
+const toolbarOptions = [
+  // Group 1: Font Size
+  [{ size: [false, "8px", "10px", "12px", "14px", "18px", "24px", "32px"] }],
+  ["bold", "italic", "underline", "strike"],
+  [{ color: [] }, { background: [] }],
+  [{ list: "ordered" }, { list: "bullet" }, { list: "check" }],
+  [{ align: [] }],
+  [{ script: "sub" }, { script: "super" }],
+  [{ indent: "-1" }, { indent: "+1" }],
+  [{ direction: "rtl" }],
+  ["link", "image"],
+  ["datestamp", "timestamp"],
+  ["clean"]
+];
+
+const quill = new Quill("#editor", {
+  placeholder: "Notes...",
+  theme: "snow",
+  modules: {
+    blotFormatter2: {
+      resize: {
+        useRelativeSize: false
+      }
+    }, // Activate image resizing module for Quill
+    toolbar: {
+      container: toolbarOptions,
+      handlers: {
+        datestamp: function () {
+          const now = new Date();
+
+          const dateStamp = now.toLocaleDateString([], {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          });
+
+          const range = this.quill.getSelection(true);
+
+          if (range) {
+            this.quill.insertText(range.index, dateStamp);
+            this.quill.setSelection(range.index + dateStamp.length);
+          }
+        },
+
+        timestamp: function () {
+          const now = new Date();
+
+          const timeStamp = now.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+
+          const range = this.quill.getSelection(true);
+
+          if (range) {
+            this.quill.insertText(range.index, timeStamp);
+            this.quill.setSelection(range.index + timeStamp.length);
+          }
+        }
+      }
+    }
+  }
+});
+
+// ----------------------------------------------------
+// Paste Guard: Block Large Image Pastes & Clear Event
+// ----------------------------------------------------
+quill.root.addEventListener(
+  "paste",
+  (e) => {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+
+    const items = clipboardData.items;
+    let hasImage = false;
+
+    // Check if any part of the paste contains an image
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        hasImage = true;
+        break;
+      }
+    }
+
+    if (hasImage) {
+      // Stop the browser from pasting an image
+      e.preventDefault();
+      e.stopPropagation();
+
+      alert("Direct image pasting is not allowed as this feature is diabled. Please save the image locally and use the 'Insert Image' button to insert it.");
+    }
+
+    // If there is NO image (just text), the code does nothing
+    // and lets the standard paste happen naturally.
+  },
+  true
+); // The "true" here ensures we catch the event before Quill does
+
+const toolbar = quill.getModule("toolbar");
+
+// ----------------------------------------------------
+// Save status in top navbar
+// ----------------------------------------------------
+function getEditorSaveStatusElement() {
+  let status = document.getElementById("editor-save-status");
+
+  if (!status) {
+    status = document.createElement("span");
+    status.id = "editor-save-status";
+    status.className = "editor-save-status";
+    status.textContent = "";
+
+    // Place inside the main flex container of stickyHeader
+    const flexContainer = document.querySelector("#stickyHeader .container.flex");
+    if (flexContainer) {
+      flexContainer.appendChild(status);  // append anywhere
+    } else {
+      document.body.appendChild(status);
+    }
+  }
+
+  return status;
+}
+
+let editorSaveStatusClearTimer = null;
+
+function syncEditorSaveStatusVisibility(status) {
+  const hasMessage = Boolean(status?.textContent?.trim());
+  const statusColumn = status?.closest?.(".save-status-column");
+
+  status?.classList.toggle(
+    "editor-save-status-visible",
+    hasMessage
+  );
+
+  statusColumn?.classList.toggle(
+    "save-status-column-visible",
+    hasMessage
+  );
+}
+
+function setEditorSaveStatus(message) {
+  const status = getEditorSaveStatusElement();
+
+  if (!status) return;
+
+  status.textContent = message || "";
+
+  status.classList.remove(
+    "editor-save-status-saving",
+    "editor-save-status-saved",
+    "editor-save-status-failed",
+    "editor-save-status-conflict"
+  );
+
+  if (message === "Saving...") {
+    status.classList.add("editor-save-status-saving");
+  }
+
+  if (message === "Saved" || message === "Saved on this device") {
+    status.classList.add("editor-save-status-saved");
+  }
+
+  if (message === "Save failed") {
+    status.classList.add("editor-save-status-failed");
+  }
+
+  if (String(message || "").startsWith("Conflict")) {
+    status.classList.add("editor-save-status-conflict");
+  }
+
+  syncEditorSaveStatusVisibility(status);
+
+  clearTimeout(editorSaveStatusClearTimer);
+
+  if (message === "Saved" || message === "Saved on this device") {
+    editorSaveStatusClearTimer = setTimeout(() => {
+      status.textContent = "";
+      status.classList.remove("editor-save-status-saved");
+      syncEditorSaveStatusVisibility(status);
+    }, 3000);
+  }
+}
+
+// ----------------------------------------------------
+// Offline-save detection for an already verified editor session
+// ----------------------------------------------------
+function editorShouldQueueLocally() {
+  const state = window.AppShell?.getState?.() || {};
+
+  return (
+    navigator.onLine === false ||
+    state.browserOnline === false ||
+    state.appReachable === false ||
+    state.connectionIssue === true
+  );
+}
+
+function getCurrentBibleName() {
+  const params = new URLSearchParams(window.location.search);
+
+  return (
+    params.get("bibleAbbr") ||
+    params.get("abbr") ||
+    params.get("bibleName") ||
+    ""
+  );
+}
+
+// ----------------------------------------------------
+// Small helper for safer fetch response parsing
+// ----------------------------------------------------
+async function parseResponseSafely(response) {
+  const responseText = await response.text();
+
+  let result = {};
+  try {
+    result = responseText ? JSON.parse(responseText) : {};
+  } catch (parseError) {
+    result = { message: responseText };
+  }
+
+  return result;
+}
+
+// ----------------------------------------------------
+// Page navigation state
+// ----------------------------------------------------
+let editorPageIsLeaving = false;
+
+window.addEventListener("beforeunload", () => {
+  editorPageIsLeaving = true;
+});
+
+window.addEventListener("pagehide", () => {
+  editorPageIsLeaving = true;
+});
+
+document.addEventListener(
+  "click",
+  (event) => {
+    const clickedElement = event.target;
+
+    if (!clickedElement || typeof clickedElement.closest !== "function") return;
+
+    const link = clickedElement.closest("a");
+
+    if (link && link.href) {
+      editorPageIsLeaving = true;
+    }
+  },
+  true
+);
+
+// ----------------------------------------------------
+// Tooltips and UI
+// ----------------------------------------------------
+
+const sizeSelect = toolbar?.container?.querySelector("select.ql-size");
+
+if (sizeSelect) {
+  sizeSelect.setAttribute("title", "Change Font Size");
+}
+
+const btnTitles = {
+  "ql-bold": "Bold",
+  "ql-italic": "Italic",
+  "ql-underline": "Underline",
+  "ql-strike": "Strikethrough",
+  "ql-link": "Insert Link",
+  "ql-image": "Insert Image",
+  "ql-direction": "Text Direction",
+  "ql-datestamp": "Insert Date",
+  "ql-timestamp": "Insert Time",
+  "ql-clean": "Clear Format"
+};
+
+Object.keys(btnTitles).forEach((cls) => {
+  toolbar?.container?.querySelector(`button.${cls}`)?.setAttribute("title", btnTitles[cls]);
+});
+
+toolbar?.container?.querySelector("select.ql-align")?.parentElement.setAttribute("title", "Align Text");
+toolbar?.container?.querySelector(".ql-color")?.setAttribute("title", "Font Color");
+toolbar?.container?.querySelector(".ql-background")?.setAttribute("title", "Background Color");
+toolbar?.container?.querySelector('button.ql-list[value="ordered"]')?.setAttribute("title", "Ordered List");
+toolbar?.container?.querySelector('button.ql-list[value="bullet"]')?.setAttribute("title", "Bullet List");
+toolbar?.container?.querySelector('button.ql-list[value="check"]')?.setAttribute("title", "Checkbox List");
+toolbar?.container?.querySelector('button.ql-indent[value="-1"]')?.setAttribute("title", "Outdent");
+toolbar?.container?.querySelector('button.ql-indent[value="+1"]')?.setAttribute("title", "Indent");
+toolbar?.container?.querySelector('button.ql-script[value="sub"]')?.setAttribute("title", "Subscript");
+toolbar?.container?.querySelector('button.ql-script[value="super"]')?.setAttribute("title", "Superscript");
+
+// ----------------------------------------------------
+// Auth lock for editor tools
+// ----------------------------------------------------
+let editorToolsUnlocked = false;
+let editorAuthenticatedUserId = "";
+
+async function checkEditorAuth() {
+  try {
+    const response = await fetch("/api/me", {
+      method: "GET",
+      credentials: "include"
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.ok && result.user) {
+      editorAuthenticatedUserId = String(result.user.id || "");
+
+      try {
+        if (
+          window.UserData?.rememberVerifiedAuthenticatedUser
+        ) {
+          const rememberedProfile =
+            await window.UserData.rememberVerifiedAuthenticatedUser(
+              editorAuthenticatedUserId
+            );
+
+          if (!rememberedProfile) {
+            editorAuthenticatedUserId = "";
+            clearPrivateEditorStateForLogout();
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn(
+          "Could not record verified user identity locally:",
+          error
+        );
+      }
+
+      unlockEditorTools();
+
+      if (typeof loadQuillNotes === "function") {
+        loadQuillNotes();
+      }
+
+      if (typeof loadMiniEditorPage === "function") {
+        waitForBibleTextContent().then((ready) => {
+          if (ready) {
+            loadMiniEditorPage();
+          }
+        });
+      }
+    } else {
+      editorAuthenticatedUserId = "";
+      lockEditorTools();
+    }
+  } catch (error) {
+    editorAuthenticatedUserId = "";
+    lockEditorTools();
+  }
+}
+
+function lockEditorTools() {
+  editorToolsUnlocked = false;
+
+  document.body.classList.add("editor-locked-state");
+
+  if (typeof quill !== "undefined") {
+    quill.disable();
+    quill.root.setAttribute("data-placeholder", "Log in to use notes and editor tools.");
+  }
+
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+  if (miniToolbar) {
+    miniToolbar.classList.add("editor-tools-locked");
+
+    miniToolbar.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
+    });
+  }
+
+  const quillToolbar = document.querySelector(".ql-toolbar");
+
+  if (quillToolbar) {
+    quillToolbar.classList.add("editor-tools-locked");
+
+    quillToolbar.querySelectorAll("button, select").forEach((control) => {
+      control.disabled = true;
+    });
+  }
+
+  if (typeof setDrawingTool === "function") {
+    setDrawingTool(null);
+  }
+
+  const message = document.getElementById("editor-login-message");
+
+  if (message) {
+    message.remove();
+  }
+
+  setEditorSaveStatus("");
+}
+
+function clearPrivateEditorStateForLogout() {
+  clearTimeout(quillSaveTimer);
+  clearTimeout(miniEditorSaveTimer);
+
+  quillNotesLoaded = false;
+  quillConflictActive = false;
+  quillNotesVersion = 0;
+  quillNotesStoragePageKey = "";
+
+  miniEditorLoaded = false;
+  miniEditorConflictActive = false;
+  miniEditorVersion = 0;
+  miniEditorStoragePageKey = "";
+
+  editorAuthenticatedUserId = "";
+
+  if (typeof quill !== "undefined") {
+    quill.setText("", "silent");
+  }
+
+  clearSavedMiniEditorStateForRenderedChapter();
+
+  miniEditorUndoStack = [];
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = "";
+  miniEditorHistoryReady = false;
+  miniEditorHistoryApplying = false;
+
+  lockEditorTools();
+}
+
+function unlockEditorTools() {
+  editorToolsUnlocked = true;
+  document.body.classList.remove("editor-locked-state");
+
+  if (typeof quill !== "undefined") {
+    quill.enable();
+    quill.root.setAttribute("data-placeholder", "Notes...");
+  }
+
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+  if (miniToolbar) {
+    miniToolbar.classList.remove("editor-tools-locked");
+    miniToolbar.querySelectorAll("button").forEach((button) => {
+      button.disabled = false;
+    });
+  }
+
+  const quillToolbar = document.querySelector(".ql-toolbar");
+  if (quillToolbar) {
+    quillToolbar.classList.remove("editor-tools-locked");
+    quillToolbar.querySelectorAll("button, select").forEach((control) => {
+      control.disabled = false;
+    });
+  }
+
+  const message = document.getElementById("editor-login-message");
+  if (message) {
+    message.remove();
+  }
+
+  setEditorSaveStatus("");
+  updateMiniEditorHistoryControls();
+  }
+  
+// ----------------------------------------------------
+// Quill notes save/load
+// ----------------------------------------------------
+let quillSaveTimer = null;
+let quillSaveQueue = Promise.resolve();
+let quillNotesLoaded = false;
+let quillNotesVersion = 0;
+let quillNotesStoragePageKey = "";
+let quillConflictActive = false;
+
+function getCurrentBiblePageIdentity() {
+  const urlParams = new URLSearchParams(window.location.search);
+
+  const bibleVersionID =
+    urlParams.get("version") ||
+    urlParams.get("bible") ||
+    urlParams.get("bibleId") ||
+    "";
+
+  const bibleChapterID =
+    urlParams.get("chapter") ||
+    urlParams.get("chapterId") ||
+    "";
+
+  if (!bibleVersionID || !bibleChapterID) {
+    console.warn("Missing Bible page identity", {
+      bibleVersionID,
+      bibleChapterID
+    });
+
+    return null;
+  }
+
+  return {
+    bibleVersionID,
+    bibleChapterID,
+    pageKey: `${bibleVersionID}::${bibleChapterID}`
+  };
+}
+
+function getCurrentBookChapterLabel() {
+  const urlParams = new URLSearchParams(window.location.search);
+
+  const rawChapter =
+    urlParams.get("chapter") ||
+    urlParams.get("chapterId") ||
+    "";
+
+  const bookName =
+    urlParams.get("bookName") ||
+    urlParams.get("name") ||
+    "";
+
+  const bookId =
+    urlParams.get("book") ||
+    (rawChapter.includes(".")
+      ? rawChapter.split(".")[0]
+      : "");
+
+  const chapterLabel =
+    rawChapter.includes(".")
+      ? rawChapter.split(".").pop()
+      : rawChapter;
+
+  if (bookName && chapterLabel) {
+    return `${bookName} ${chapterLabel}`.trim();
+  }
+
+  if (rawChapter.includes(".")) {
+    return rawChapter.trim();
+  }
+
+  if (bookId && chapterLabel) {
+    return `${bookId}.${chapterLabel}`.trim();
+  }
+
+  const currentPassageLabel =
+    document.getElementById("current-passage-label")
+      ?.textContent
+      ?.trim() ||
+    "";
+
+  if (currentPassageLabel.includes("·")) {
+    return currentPassageLabel
+      .split("·")
+      .pop()
+      .trim();
+  }
+
+  return currentPassageLabel;
+}
+
+
+
+async function mirrorServerQuillNoteLocally(serverNote, pageIdentity) {
+  if (!editorAuthenticatedUserId || !window.UserData?.cacheQuillNoteFromServer) {
+    return;
+  }
+
+  try {
+    await window.UserData.cacheQuillNoteFromServer(
+      editorAuthenticatedUserId,
+      serverNote,
+      {
+        ...pageIdentity,
+        pageUrl: window.location.pathname + window.location.search,
+        bookChapterLabel: getCurrentBookChapterLabel()
+      }
+    );
+  } catch (error) {
+    // The server remains the source of truth. A local mirror failure
+    // must never turn a successful online load/save into an editor failure.
+    console.warn("Could not mirror Quill notes into UserOfflineDB:", error);
+  }
+}
+
+async function removeLocalQuillMirror(pageIdentity) {
+  if (!editorAuthenticatedUserId || !window.UserData?.deleteCachedQuillNote) {
+    return;
+  }
+
+  try {
+    await window.UserData.deleteCachedQuillNote(
+      editorAuthenticatedUserId,
+      pageIdentity
+    );
+  } catch (error) {
+    // Keep the existing online behavior intact if local cleanup fails.
+    console.warn("Could not remove local Quill-note mirror:", error);
+  }
+}
+
+
+async function queueCurrentQuillStateLocally(
+  pageIdentity,
+  quillDelta,
+  plainText
+) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueQuillNoteForSync
+  ) {
+    throw new Error("Offline My Notes storage is not available.");
+  }
+
+  return window.UserData.queueQuillNoteForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      quillDelta,
+      plainText,
+      serverVersion: Number.isInteger(quillNotesVersion)
+        ? quillNotesVersion
+        : 0
+    }
+  );
+}
+
+async function queueCurrentQuillDeleteLocally(pageIdentity) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueQuillDeleteForSync
+  ) {
+    throw new Error("Offline My Notes deletion storage is not available.");
+  }
+
+  return window.UserData.queueQuillDeleteForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      serverVersion: Number.isInteger(quillNotesVersion)
+        ? quillNotesVersion
+        : 0
+    }
+  );
+}
+
+async function loadQuillNotesFromLocalCache(
+  pageIdentity
+) {
+  if (typeof quill === "undefined") {
+    return;
+  }
+
+  quill.setText("", "silent");
+
+  const cached =
+    await window.UserData
+      ?.getCachedQuillNote?.(
+        editorAuthenticatedUserId,
+        pageIdentity
+      );
+
+  if (
+    cached &&
+    cached.deleted !== true &&
+    cached.quillDelta
+  ) {
+    quill.setContents(
+      cached.quillDelta,
+      "silent"
+    );
+  }
+
+  quillNotesVersion =
+    Number(cached?.serverVersion) || 0;
+
+  quillNotesStoragePageKey =
+    cached?.pageKey ||
+    pageIdentity.pageKey;
+
+  quillNotesLoaded = true;
+}
+
+async function loadQuillNotes() {
+  if (typeof quill === "undefined") return;
+
+  const pageIdentity =
+    getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  quillNotesLoaded = false;
+  quillConflictActive = false;
+  quillNotesStoragePageKey =
+    pageIdentity.pageKey;
+
+  /*
+   * Always clear the visible editor before loading a chapter-specific note.
+   * This prevents content from the previous chapter from remaining visible
+   * when the next chapter has no note.
+   */
+  quill.setText("", "silent");
+
+  if (editorShouldQueueLocally()) {
+    await loadQuillNotesFromLocalCache(
+      pageIdentity
+    );
+    return;
+  }
+
+  try {
+    const loadParams =
+      new URLSearchParams({
+        pageKey: pageIdentity.pageKey,
+        bibleVersionID:
+          pageIdentity.bibleVersionID,
+        bibleChapterID:
+          pageIdentity.bibleChapterID
+      });
+
+    const response = await fetch(
+      `/api/quill-notes?${loadParams.toString()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await parseResponseSafely(response);
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+        `Failed to load Quill notes. Status: ${response.status}`
+      );
+    }
+
+    quillNotesVersion =
+      result.note?.version
+        ? Number(result.note.version)
+        : 0;
+
+    quillNotesStoragePageKey =
+      result.note?.page_key ||
+      pageIdentity.pageKey;
+
+    if (
+      result.note &&
+      result.note.quill_delta_json
+    ) {
+      quill.setContents(
+        result.note.quill_delta_json,
+        "silent"
+      );
+    }
+
+    if (result.note) {
+      await mirrorServerQuillNoteLocally(
+        result.note,
+        pageIdentity
+      );
+    }
+
+    quillNotesLoaded = true;
+  } catch (error) {
+    console.warn(
+      "Using local My Notes because the server could not be reached:",
+      error
+    );
+
+    await loadQuillNotesFromLocalCache(
+      pageIdentity
+    );
+  }
+}
+
+function showEditorVersionConflict(options = {}) {
+  const title = options.title || "Update available from another device";
+  const message =
+    options.message ||
+    "Your current changes have not been saved. Choose to update to the latest version or discard your changes.";
+  const detail = Object.prototype.hasOwnProperty.call(options, "detail")
+    ? options.detail
+    : "";
+
+  if (window.AppConflictDialog?.show) {
+    window.AppConflictDialog.show({
+      key: options.key || title,
+      title,
+      message,
+      detail,
+      secondaryLabel: "Keep this screen",
+      primaryLabel: "Update to latest",
+      onPrimary: () => {
+        if (typeof options.onLoadLatest === "function") {
+          options.onLoadLatest();
+        }
+      }
+    });
+    return;
+  }
+
+  window.alert(`${title}\n\n${message}`);
+}
+
+async function saveQuillNotes() {
+  if (typeof quill === "undefined") return;
+  if (!editorToolsUnlocked) return;
+  if (!quillNotesLoaded) return;
+
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  try {
+    const quillDelta = quill.getContents();
+    const plainText = quill.getText().trim();
+
+    if (!plainText) {
+      if (editorShouldQueueLocally()) {
+        await queueCurrentQuillDeleteLocally(pageIdentity);
+        console.log("Empty Quill notes saved locally for later sync");
+        setEditorSaveStatus("Saved on this device");
+        return;
+      }
+
+      const deleteParams = new URLSearchParams({ pageKey: quillNotesStoragePageKey || pageIdentity.pageKey });
+      deleteParams.set("expectedVersion", String(Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0));
+
+      const deleteResponse = await fetch(
+        `/api/quill-notes?${deleteParams.toString()}`,
+        {
+          method: "DELETE",
+          credentials: "include"
+        }
+      );
+      const deleteResult = await parseResponseSafely(deleteResponse);
+
+      if (!deleteResponse.ok) {
+        if (deleteResponse.status === 409) {
+          const conflictError = new Error(deleteResult.message || "These notes changed on another device.");
+          conflictError.code = deleteResult.code || "QUILL_NOTE_VERSION_CONFLICT";
+          conflictError.data = deleteResult;
+          throw conflictError;
+        }
+        throw new Error(deleteResult.message || "Failed to delete empty notes");
+      }
+
+      quillNotesVersion = 0;
+      await removeLocalQuillMirror(pageIdentity);
+      console.log("Empty Quill notes deleted");
+      setEditorSaveStatus("Saved");
+      return;
+    }
+
+    if (editorShouldQueueLocally()) {
+      await queueCurrentQuillStateLocally(
+        pageIdentity,
+        quillDelta,
+        plainText
+      );
+      console.log("Quill notes saved locally for later sync");
+      setEditorSaveStatus("Saved on this device");
+      return;
+    }
+
+    const response = await fetch("/api/quill-notes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        bibleVersionID: pageIdentity.bibleVersionID,
+        bibleChapterID: pageIdentity.bibleChapterID,
+        pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
+        pageUrl: window.location.pathname + window.location.search,
+        bookChapterLabel: getCurrentBookChapterLabel(),
+        quillDelta,
+        plainText,
+        expectedVersion: Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0
+      })
+    });
+
+    const result = await parseResponseSafely(response);
+
+    if (!response.ok) {
+      const saveError = new Error(result.message || `Failed to save Quill editor notes. Status: ${response.status}`);
+      saveError.code = result.code || "";
+      saveError.data = result;
+      throw saveError;
+    }
+
+    quillNotesVersion = result.note?.version ? Number(result.note.version) : quillNotesVersion;
+
+    if (result.note) {
+      await mirrorServerQuillNoteLocally(result.note, pageIdentity);
+    }
+
+    console.log("Quill notes saved");
+    setEditorSaveStatus("Saved");
+  } catch (error) {
+    if (editorPageIsLeaving || document.visibilityState === "hidden") {
+      return;
+    }
+
+    console.error("Save Quill notes error:", error);
+    if (error?.code === "QUILL_NOTE_VERSION_CONFLICT") {
+      quillConflictActive = true;
+      setEditorSaveStatus("Conflict - newer notes exist");
+      showEditorVersionConflict({
+        key: `quill:${pageIdentity.pageKey}:${error?.data?.latestNote?.version || "newer"}`,
+        onLoadLatest: () => {
+          loadQuillNotes();
+        }
+      });
+      return;
+    }
+    setEditorSaveStatus("Save failed");
+  }
+}
+
+function scheduleQuillNotesSave() {
+  if (!editorToolsUnlocked) return;
+  if (!quillNotesLoaded) return;
+  if (quillConflictActive) return;
+
+  setEditorSaveStatus("Saving...");
+
+  clearTimeout(quillSaveTimer);
+
+  quillSaveTimer = setTimeout(() => {
+    quillSaveQueue = quillSaveQueue.then(() => saveQuillNotes());
+  }, 1200);
+}
+
+if (typeof quill !== "undefined") {
+  quill.on("text-change", function () {
+    scheduleQuillNotesSave();
+  });
+}
+
+function waitForBibleTextContent(maxWaitMs = 5000) {
+  return new Promise((resolve) => {
+    const bibleText = document.getElementById("bible-text");
+
+    if (!bibleText) {
+      resolve(false);
+      return;
+    }
+
+    if (bibleText.textContent.trim().length > 0) {
+      resolve(true);
+      return;
+    }
+
+    const startedAt = Date.now();
+
+    const interval = setInterval(() => {
+      if (bibleText.textContent.trim().length > 0) {
+        clearInterval(interval);
+        resolve(true);
+        return;
+      }
+
+      if (Date.now() - startedAt >= maxWaitMs) {
+        clearInterval(interval);
+        resolve(false);
+      }
+    }, 200);
+  });
+}
+
+// ----------------------------------------------------
+// Bible annotation layout helpers
+// ----------------------------------------------------
+let bibleLayoutRefreshFrame = null;
+
+function refreshBibleAnnotationLayout() {
+  if (bibleLayoutRefreshFrame) {
+    cancelAnimationFrame(bibleLayoutRefreshFrame);
+  }
+
+  bibleLayoutRefreshFrame = requestAnimationFrame(() => {
+    // Let the browser/CSS recalculate the Bible text width first. This is
+    // especially important when the viewport grows back after being narrow.
+    if (typeof updateBibleZoomLayout === "function") {
+      updateBibleZoomLayout();
+    }
+
+    resizeAnnotationLayer();
+    ensureAllAnnotationMetadata();
+    updateAnnotationLayoutWarning();
+    window.AnchoredAnnotations?.render?.();
+
+    bibleLayoutRefreshFrame = null;
+  });
+}
+
+let bibleLayoutObserverStarted = false;
+let bibleTextResizeObserver = null;
+
+function startBibleLayoutObservers() {
+  if (bibleLayoutObserverStarted) return;
+
+  const bibleText = document.getElementById("bible-text");
+  const displayText = document.getElementById("display-text");
+  const drawingArea = document.getElementById("bible-drawing-area");
+
+  if (!bibleText) return;
+
+  bibleLayoutObserverStarted = true;
+
+  if (typeof ResizeObserver !== "undefined") {
+    bibleTextResizeObserver = new ResizeObserver(() => {
+      refreshBibleAnnotationLayout();
+    });
+
+    // Watch every layout box that can affect text wrapping or annotation size.
+    [displayText, drawingArea, bibleText].forEach((element) => {
+      if (element) bibleTextResizeObserver.observe(element);
+    });
+  }
+
+  window.addEventListener("resize", refreshBibleAnnotationLayout);
+
+  window.addEventListener("orientationchange", () => {
+    setTimeout(refreshBibleAnnotationLayout, 250);
+  });
+}
+
+// ----------------------------------------------------
+// Mini-editor save/load
+// ----------------------------------------------------
+let miniEditorSaveTimer = null;
+let miniEditorSaveQueue = Promise.resolve();
+let miniEditorLoaded = false;
+let miniEditorVersion = 0;
+let miniEditorStoragePageKey = "";
+let miniEditorPristineBibleTextHtml = "";
+let miniEditorPristinePageKey = "";
+let miniEditorConflictActive = false;
+let miniEditorApplyingState = false;
+let miniEditorObserver = null;
+
+function getMiniEditorState() {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText) return null;
+
+  ensureAllAnnotationMetadata();
+
+  return {
+    bibleTextHtml: bibleText.innerHTML,
+    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : "",
+    anchoredAnnotations:
+      window.AnchoredAnnotations?.getState?.() || []
+  };
+}
+
+function applyMiniEditorState(miniEditorJson) {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText || !miniEditorJson) return;
+
+  miniEditorApplyingState = true;
+
+  if (miniEditorJson.bibleTextHtml) {
+    bibleText.innerHTML = miniEditorJson.bibleTextHtml;
+  }
+
+  if (annotationLayer && typeof miniEditorJson.annotationLayerHtml === "string") {
+    annotationLayer.innerHTML = miniEditorJson.annotationLayerHtml;
+  }
+
+  window.AnchoredAnnotations?.setState?.(
+    miniEditorJson.anchoredAnnotations || []
+  );
+
+  // Important: recalculate the drawing layer after saved text/drawings are restored
+  requestAnimationFrame(() => {
+    ensureAllAnnotationMetadata();
+
+    if (typeof refreshBibleAnnotationLayout === "function") {
+      refreshBibleAnnotationLayout();
+    }
+
+    window.AnchoredAnnotations?.render?.();
+  });
+
+  setTimeout(() => {
+    miniEditorApplyingState = false;
+  }, 300);
+}
+
+function rememberPristineBibleTextForPage(
+  pageIdentity
+) {
+  const bibleText =
+    document.getElementById("bible-text");
+
+  const pageKey =
+    String(pageIdentity?.pageKey || "");
+
+  if (!bibleText || !pageKey) {
+    return;
+  }
+
+  /*
+   * Capture the unmodified Scripture markup once per rendered Bible page.
+   * Repeated authentication/editor initialization on the same chapter must not
+   * replace this clean snapshot after private annotations have been applied.
+   */
+  if (
+    miniEditorPristinePageKey !== pageKey ||
+    !miniEditorPristineBibleTextHtml
+  ) {
+    miniEditorPristinePageKey = pageKey;
+    miniEditorPristineBibleTextHtml =
+      bibleText.innerHTML;
+  }
+}
+
+function clearSavedMiniEditorStateForRenderedChapter() {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  miniEditorApplyingState = true;
+
+  if (
+    bibleText &&
+    miniEditorPristineBibleTextHtml
+  ) {
+    bibleText.innerHTML =
+      miniEditorPristineBibleTextHtml;
+  }
+
+  if (annotationLayer) {
+    annotationLayer.innerHTML = "";
+  }
+
+  window.AnchoredAnnotations?.setState?.([]);
+
+  selectedDrawnAnnotation = null;
+  currentShape = null;
+  currentFreehandGroup = null;
+  freehandSessionHasChanges = false;
+
+  requestAnimationFrame(() => {
+    ensureAllAnnotationMetadata();
+
+    if (typeof refreshBibleAnnotationLayout === "function") {
+      refreshBibleAnnotationLayout();
+    }
+
+    window.AnchoredAnnotations?.render?.();
+  });
+
+  setTimeout(() => {
+    miniEditorApplyingState = false;
+  }, 120);
+}
+
+function getMiniEditorFlags(miniEditorJson) {
+  const bibleTextHtml = miniEditorJson?.bibleTextHtml || "";
+  const annotationLayerHtml = miniEditorJson?.annotationLayerHtml || "";
+  const anchoredAnnotations = Array.isArray(
+    miniEditorJson?.anchoredAnnotations
+  )
+    ? miniEditorJson.anchoredAnnotations
+    : [];
+
+  return {
+    hasHighlights: bibleTextHtml.includes("highlight-"),
+    hasDrawings:
+      annotationLayerHtml.trim().length > 0 ||
+      anchoredAnnotations.length > 0 ||
+      bibleTextHtml.includes("anchored-inline-annotation"),
+    hasTextFormats:
+      bibleTextHtml.includes("bible-user-format bold") ||
+      bibleTextHtml.includes("bible-user-format italic") ||
+      bibleTextHtml.includes("bible-user-format underline") ||
+      bibleTextHtml.includes("bible-user-format double-underline") ||
+      bibleTextHtml.includes("bible-user-format overline-underline") ||
+      bibleTextHtml.includes("bible-user-format strike-through") ||
+      bibleTextHtml.includes("bible-user-format uppercase") ||
+      bibleTextHtml.includes("text-grey") ||
+      bibleTextHtml.includes("text-red") ||
+      bibleTextHtml.includes("text-blue") ||
+      bibleTextHtml.includes("text-green") ||
+      bibleTextHtml.includes("text-purple") ||
+      bibleTextHtml.includes("text-yellow") ||
+      bibleTextHtml.includes("text-orange") ||
+      bibleTextHtml.includes("text-black")
+  };
+}
+
+
+// ----------------------------------------------------
+// Mini-editor history (undo / redo)
+// ----------------------------------------------------
+const MINI_EDITOR_HISTORY_LIMIT = 50;
+let miniEditorUndoStack = [];
+let miniEditorRedoStack = [];
+let miniEditorHistorySignature = "";
+let miniEditorHistoryReady = false;
+let miniEditorHistoryApplying = false;
+let miniEditorHistorySaveTimer = null;
+
+function getMiniEditorHistorySnapshot() {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText) return null;
+
+  return {
+    bibleTextHtml: bibleText.innerHTML,
+    annotationLayerHtml: annotationLayer ? annotationLayer.innerHTML : "",
+    anchoredAnnotations:
+      window.AnchoredAnnotations?.getState?.() || []
+  };
+}
+
+function getMiniEditorHistorySignature(snapshot) {
+  if (!snapshot) return "";
+
+  return [
+    snapshot.bibleTextHtml || "",
+    snapshot.annotationLayerHtml || "",
+    JSON.stringify(snapshot.anchoredAnnotations || [])
+  ].join("::");
+}
+
+function initializeMiniEditorHistory() {
+  const snapshot = getMiniEditorHistorySnapshot();
+  if (!snapshot) return;
+
+  miniEditorUndoStack = [snapshot];
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = getMiniEditorHistorySignature(snapshot);
+  miniEditorHistoryReady = true;
+  updateMiniEditorHistoryControls();
+}
+
+function updateMiniEditorHistoryControls() {
+  const canUndo =
+    miniEditorHistoryReady &&
+    miniEditorUndoStack.length > 1;
+
+  const canRedo =
+    miniEditorHistoryReady &&
+    miniEditorRedoStack.length > 0;
+
+  document
+    .querySelectorAll(
+      '[onclick*="undoMiniEditorChange"]'
+    )
+    .forEach((button) => {
+      button.disabled = !canUndo;
+      button.classList.toggle(
+        "history-button-disabled",
+        !canUndo
+      );
+      button.setAttribute(
+        "aria-disabled",
+        String(!canUndo)
+      );
+    });
+
+  document
+    .querySelectorAll(
+      '[onclick*="redoMiniEditorChange"]'
+    )
+    .forEach((button) => {
+      button.disabled = !canRedo;
+      button.classList.toggle(
+        "history-button-disabled",
+        !canRedo
+      );
+      button.setAttribute(
+        "aria-disabled",
+        String(!canRedo)
+      );
+    });
+}
+
+function recordMiniEditorHistorySnapshot() {
+  if (!editorToolsUnlocked) return;
+  if (!miniEditorLoaded) return;
+  if (miniEditorApplyingState) return;
+  if (miniEditorHistoryApplying) return;
+
+  const snapshot = getMiniEditorHistorySnapshot();
+  if (!snapshot) return;
+
+  const signature = getMiniEditorHistorySignature(snapshot);
+  if (!signature || signature === miniEditorHistorySignature) return;
+
+  miniEditorUndoStack.push(snapshot);
+
+  if (miniEditorUndoStack.length > MINI_EDITOR_HISTORY_LIMIT) {
+    miniEditorUndoStack.shift();
+  }
+
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = signature;
+  miniEditorHistoryReady = true;
+  updateMiniEditorHistoryControls();
+}
+
+function scheduleMiniEditorSaveAfterHistoryApply() {
+  clearTimeout(miniEditorHistorySaveTimer);
+
+  miniEditorHistorySaveTimer = setTimeout(() => {
+    if (!miniEditorHistoryApplying) {
+      scheduleMiniEditorSave();
+    }
+  }, 80);
+}
+
+function applyMiniEditorHistorySnapshot(snapshot) {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText || !snapshot) return;
+
+  miniEditorApplyingState = true;
+  miniEditorHistoryApplying = true;
+
+  bibleText.innerHTML = snapshot.bibleTextHtml || "";
+
+  if (annotationLayer) {
+    annotationLayer.innerHTML = snapshot.annotationLayerHtml || "";
+  }
+
+  window.AnchoredAnnotations?.setState?.(
+    snapshot.anchoredAnnotations || []
+  );
+
+  selectedDrawnAnnotation = null;
+  currentShape = null;
+  currentFreehandGroup = null;
+  freehandSessionHasChanges = false;
+
+  requestAnimationFrame(() => {
+    ensureAllAnnotationMetadata();
+    resizeAnnotationLayer();
+    updateAnnotationLayoutWarning();
+
+    if (typeof updateBibleZoomLayout === "function") {
+      updateBibleZoomLayout();
+    }
+
+    window.AnchoredAnnotations?.render?.();
+  });
+
+  setTimeout(() => {
+    miniEditorApplyingState = false;
+    miniEditorHistoryApplying = false;
+    miniEditorHistorySignature = getMiniEditorHistorySignature(snapshot);
+    updateMiniEditorHistoryControls();
+    scheduleMiniEditorSaveAfterHistoryApply();
+  }, 120);
+}
+
+function undoMiniEditorChange() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
+  if (!miniEditorHistoryReady) {
+    initializeMiniEditorHistory();
+  }
+
+  if (miniEditorUndoStack.length <= 1) return;
+
+  const currentSnapshot = miniEditorUndoStack.pop();
+  const previousSnapshot = miniEditorUndoStack[miniEditorUndoStack.length - 1];
+
+  miniEditorRedoStack.push(currentSnapshot);
+  updateMiniEditorHistoryControls();
+  applyMiniEditorHistorySnapshot(previousSnapshot);
+}
+
+function redoMiniEditorChange() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
+  if (!miniEditorHistoryReady || miniEditorRedoStack.length === 0) return;
+
+  const nextSnapshot = miniEditorRedoStack.pop();
+  miniEditorUndoStack.push(nextSnapshot);
+  updateMiniEditorHistoryControls();
+  applyMiniEditorHistorySnapshot(nextSnapshot);
+}
+
+function isQuillEditorTarget(target) {
+  return Boolean(target?.closest?.(".ql-editor"));
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+
+  const tagName = target.tagName?.toLowerCase();
+
+  return (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    (target.isContentEditable && !target.closest?.("#bible-text"))
+  );
+}
+
+function hasBibleSelectionContext() {
+  const bibleText = document.getElementById("bible-text");
+  const selection = window.getSelection();
+
+  if (
+    bibleText &&
+    selection &&
+    selection.rangeCount &&
+    !selection.isCollapsed &&
+    bibleText.contains(selection.getRangeAt(0).commonAncestorContainer)
+  ) {
+    return true;
+  }
+
+  return Boolean(savedBibleSelectionOffsets);
+}
+
+function handleMiniEditorKeyboardShortcuts(event) {
+  if (!editorToolsUnlocked) return;
+  if (!event.ctrlKey && !event.metaKey) return;
+  if (event.altKey) return;
+
+  const key = event.key.toLowerCase();
+  const target = event.target;
+
+  // Let Quill handle its own note-editor shortcuts/history.
+  if (isQuillEditorTarget(target)) return;
+
+  if (key === "z") {
+    event.preventDefault();
+
+    if (event.shiftKey) {
+      redoMiniEditorChange();
+    } else {
+      undoMiniEditorChange();
+    }
+
+    return;
+  }
+
+  if (key === "y") {
+    event.preventDefault();
+    redoMiniEditorChange();
+    return;
+  }
+
+  if (isTypingTarget(target)) return;
+
+  if (key === "b" && hasBibleSelectionContext()) {
+    event.preventDefault();
+    applyBibleFormat("bold");
+    return;
+  }
+
+  if (key === "i" && hasBibleSelectionContext()) {
+    event.preventDefault();
+    applyBibleFormat("italic");
+    return;
+  }
+
+  if (key === "u" && hasBibleSelectionContext()) {
+    event.preventDefault();
+    applyBibleFormat("underline");
+    return;
+  }
+}
+
+document.addEventListener("keydown", handleMiniEditorKeyboardShortcuts);
+
+
+async function mirrorServerMiniEditorPageLocally(
+  serverPage,
+  pageIdentity
+) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.cacheMiniEditorPageFromServer
+  ) {
+    return;
+  }
+
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    await window.UserData.cacheMiniEditorPageFromServer(
+      editorAuthenticatedUserId,
+      serverPage,
+      {
+        ...pageIdentity,
+        pageUrl: window.location.pathname + window.location.search,
+        bibleName:
+          urlParams.get("bibleAbbr") ||
+          urlParams.get("abbr") ||
+          "",
+        bookChapterLabel: getCurrentBookChapterLabel()
+      }
+    );
+  } catch (error) {
+    // The server remains authoritative here. A local mirror failure must not
+    // turn a successful online annotation load/save into an editor failure.
+    console.warn(
+      "Could not mirror mini-editor state into UserOfflineDB:",
+      error
+    );
+  }
+}
+
+async function removeLocalMiniEditorMirror(pageIdentity) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.deleteCachedMiniEditorPage
+  ) {
+    return;
+  }
+
+  try {
+    await window.UserData.deleteCachedMiniEditorPage(
+      editorAuthenticatedUserId,
+      pageIdentity
+    );
+  } catch (error) {
+    // Keep normal online deletion behavior intact if local cleanup fails.
+    console.warn(
+      "Could not remove local mini-editor mirror:",
+      error
+    );
+  }
+}
+
+
+async function queueCurrentMiniEditorStateLocally(
+  pageIdentity,
+  miniEditorJson,
+  flags
+) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueMiniEditorPageForSync
+  ) {
+    throw new Error("Offline annotation storage is not available.");
+  }
+
+  return window.UserData.queueMiniEditorPageForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      miniEditorJson,
+      hasHighlights: flags.hasHighlights,
+      hasDrawings: flags.hasDrawings,
+      hasTextFormats: flags.hasTextFormats,
+      serverVersion: Number.isInteger(miniEditorVersion)
+        ? miniEditorVersion
+        : 0
+    }
+  );
+}
+
+async function queueCurrentMiniEditorDeleteLocally(pageIdentity) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueMiniEditorDeleteForSync
+  ) {
+    throw new Error("Offline annotation deletion storage is not available.");
+  }
+
+  return window.UserData.queueMiniEditorDeleteForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      serverVersion: Number.isInteger(miniEditorVersion)
+        ? miniEditorVersion
+        : 0
+    }
+  );
+}
+
+async function loadMiniEditorPageFromLocalCache(
+  pageIdentity
+) {
+  const cached =
+    await window.UserData
+      ?.getCachedMiniEditorPage?.(
+        editorAuthenticatedUserId,
+        pageIdentity
+      );
+
+  miniEditorVersion =
+    Number(cached?.serverVersion) || 0;
+
+  miniEditorStoragePageKey =
+    cached?.pageKey ||
+    pageIdentity.pageKey;
+
+  if (
+    cached &&
+    cached.deleted !== true &&
+    cached.miniEditorJson
+  ) {
+    applyMiniEditorState(
+      cached.miniEditorJson
+    );
+  } else {
+    clearSavedMiniEditorStateForRenderedChapter();
+  }
+
+  miniEditorLoaded = true;
+  initializeMiniEditorHistory();
+  startBibleLayoutObservers();
+  startMiniEditorObserver();
+}
+
+async function loadMiniEditorPage() {
+  if (!editorToolsUnlocked) return;
+
+  const pageIdentity =
+    getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  miniEditorConflictActive = false;
+  miniEditorStoragePageKey =
+    pageIdentity.pageKey;
+
+  rememberPristineBibleTextForPage(
+    pageIdentity
+  );
+
+  /*
+   * Clear the previous chapter's annotation state before loading this chapter.
+   * This keeps chapter data isolated even when the next chapter has no saved
+   * annotation record.
+   */
+  clearSavedMiniEditorStateForRenderedChapter();
+
+  if (editorShouldQueueLocally()) {
+    await loadMiniEditorPageFromLocalCache(
+      pageIdentity
+    );
+    return;
+  }
+
+  try {
+    const loadParams =
+      new URLSearchParams({
+        pageKey: pageIdentity.pageKey,
+        bibleVersionID:
+          pageIdentity.bibleVersionID,
+        bibleChapterID:
+          pageIdentity.bibleChapterID
+      });
+
+    const response = await fetch(
+      `/api/mini-editor-page?${loadParams.toString()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await parseResponseSafely(response);
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+        `Failed to load mini-editor page. Status: ${response.status}`
+      );
+    }
+
+    miniEditorVersion =
+      result.page?.version
+        ? Number(result.page.version)
+        : 0;
+
+    miniEditorStoragePageKey =
+      result.page?.page_key ||
+      pageIdentity.pageKey;
+
+    if (
+      result.page &&
+      result.page.mini_editor_json
+    ) {
+      const savedState =
+        typeof result.page.mini_editor_json ===
+          "string"
+          ? JSON.parse(
+              result.page.mini_editor_json
+            )
+          : result.page.mini_editor_json;
+
+      applyMiniEditorState(savedState);
+    }
+
+    if (result.page) {
+      await mirrorServerMiniEditorPageLocally(
+        result.page,
+        pageIdentity
+      );
+    }
+
+    miniEditorLoaded = true;
+    initializeMiniEditorHistory();
+    startBibleLayoutObservers();
+    startMiniEditorObserver();
+  } catch (error) {
+    console.warn(
+      "Using local mini-editor data because the server could not be reached:",
+      error
+    );
+
+    await loadMiniEditorPageFromLocalCache(
+      pageIdentity
+    );
+  }
+}
+
+async function reloadMiniEditorPageAfterChapterRender() {
+  if (!editorToolsUnlocked) return;
+
+  clearTimeout(miniEditorSaveTimer);
+
+  if (miniEditorObserver) {
+    miniEditorObserver.disconnect();
+    miniEditorObserver = null;
+  }
+
+  miniEditorLoaded = false;
+  miniEditorVersion = 0;
+  miniEditorStoragePageKey = "";
+  miniEditorHistoryReady = false;
+  miniEditorUndoStack = [];
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = "";
+
+  await loadMiniEditorPage();
+}
+
+async function saveMiniEditorPage() {
+  if (!editorToolsUnlocked) return;
+  if (!miniEditorLoaded) return;
+
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) return;
+
+  const miniEditorJson = getMiniEditorState();
+
+  if (!miniEditorJson) return;
+
+  const flags = getMiniEditorFlags(miniEditorJson);
+
+  try {
+    if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
+      if (editorShouldQueueLocally()) {
+        await queueCurrentMiniEditorDeleteLocally(pageIdentity);
+        console.log("Empty mini-editor state saved locally for later sync");
+        setEditorSaveStatus("Saved on this device");
+        return;
+      }
+
+      const deleteParams = new URLSearchParams({ pageKey: miniEditorStoragePageKey || pageIdentity.pageKey });
+      deleteParams.set("expectedVersion", String(Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0));
+
+      const deleteResponse = await fetch(
+        `/api/mini-editor-page?${deleteParams.toString()}`,
+        {
+          method: "DELETE",
+          credentials: "include"
+        }
+      );
+      const deleteResult = await parseResponseSafely(deleteResponse);
+
+      if (!deleteResponse.ok) {
+        if (deleteResponse.status === 409) {
+          const conflictError = new Error(deleteResult.message || "This Bible page changed on another device.");
+          conflictError.code = deleteResult.code || "MINI_EDITOR_VERSION_CONFLICT";
+          conflictError.data = deleteResult;
+          throw conflictError;
+        }
+        throw new Error(deleteResult.message || "Failed to delete empty mini-editor page");
+      }
+
+      miniEditorVersion = 0;
+      await removeLocalMiniEditorMirror(pageIdentity);
+      console.log("Empty mini-editor page deleted");
+      setEditorSaveStatus("Saved");
+      return;
+    }
+
+    if (editorShouldQueueLocally()) {
+      await queueCurrentMiniEditorStateLocally(
+        pageIdentity,
+        miniEditorJson,
+        flags
+      );
+      console.log("Mini-editor state saved locally for later sync");
+      setEditorSaveStatus("Saved on this device");
+      return;
+    }
+
+    const response = await fetch("/api/mini-editor-page", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        bibleVersionID: pageIdentity.bibleVersionID,
+        bibleChapterID: pageIdentity.bibleChapterID,
+        pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
+        pageUrl: window.location.pathname + window.location.search,
+        bibleName: new URLSearchParams(window.location.search).get("bibleAbbr") ||
+          new URLSearchParams(window.location.search).get("abbr") || "",
+        bookChapterLabel: getCurrentBookChapterLabel(),
+        miniEditorJson,
+        hasHighlights: flags.hasHighlights,
+        hasDrawings: flags.hasDrawings,
+        hasTextFormats: flags.hasTextFormats,
+        expectedVersion: Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0
+      })
+    });
+
+    const result = await parseResponseSafely(response);
+
+    if (!response.ok) {
+      const detailedError = [
+        result.message,
+        result.error,
+        result.code ? `Code: ${result.code}` : "",
+        result.detail ? `Detail: ${result.detail}` : ""
+      ]
+        .filter(Boolean)
+        .join(" | ");
     
-    <link rel="preload" as="image" href="./img/left_stamp_on.png">
-    <link rel="preload" as="image" href="./img/right_stamp_on.png">
-    <link rel="preload" as="image" href="./img/orig_left_stamp.png">
-    <link rel="preload" as="image" href="./img/orig_right_stamp.png">
+      const saveError = new Error(detailedError || `Failed to save mini-editor page. Status: ${response.status}`);
+      saveError.code = result.code || "";
+      saveError.data = result;
+      throw saveError;
+    }
 
-    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/dist/css/quill-blot-formatter2.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+    miniEditorVersion = result.page?.version ? Number(result.page.version) : miniEditorVersion;
 
-    <title>Branch of Israel - Bible App</title>
-      <link href="css/connectivity-status.css?v=20260928-connectivity-1" rel="stylesheet" />
-</head>
- 
-  <body class="index" >
-      <div class="subheader" id="stickyHeader">
-        <div class="container flex">
-          <div class="subheadings">
-            <div class="verse-toolbar-left">
-              <!-- Hamburger menu -->
-              <div class="column menu-toggle-column">
-                <div class="hamburger">
-                    <button
-                      type="button"
-                      id="menuToggle"
-                      class="main-nav-toggle"
-                      aria-label="Toggle menu"
-                      aria-expanded="false"
-                    >
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </button>
-                  </div>
-              </div>
+    if (result.page) {
+      await mirrorServerMiniEditorPageLocally(
+        result.page,
+        pageIdentity
+      );
+    }
 
-              <!-- Compact passage picker -->
-              <div class="column passage-picker-column">
-                <div
-                  class="passage-picker"
-                  id="passage-picker"
-                  data-passage-picker-open-label="Open"
-                >
-                  <button
-                    type="button"
-                    id="passage-picker-toggle"
-                    class="passage-picker-toggle"
-                    aria-haspopup="dialog"
-                    aria-expanded="false"
-                    aria-controls="passage-picker-panel"
-                  >
-                    <span id="current-passage-label">Loading passage...</span>
-                    <span class="passage-picker-chevron" aria-hidden="true">▼</span>
-                  </button>
-                </div>
-              </div>
+    console.log("Mini-editor page saved");
+    setEditorSaveStatus("Saved");
+  } catch (error) {
+    if (editorPageIsLeaving || document.visibilityState === "hidden") {
+      return;
+    }
 
-              <div class="column mobile-current-passage-column">
-                <button
-                  type="button"
-                  id="mobile-current-passage-button"
-                  class="mobile-current-passage-button"
-                  data-open-passage
-                  aria-label="Open current passage"
-                >
-                  <span id="mobile-current-passage-label">Loading...</span>
-                </button>
-              </div>
-            </div>
+    console.error("Save mini-editor page error:", error);
+    if (error?.code === "MINI_EDITOR_VERSION_CONFLICT") {
+      miniEditorConflictActive = true;
+      setEditorSaveStatus("Conflict - newer updates exist");
+      showEditorVersionConflict({
+        key: `mini:${pageIdentity.pageKey}:${error?.data?.latestPage?.version || "newer"}`,
+        onLoadLatest: () => {
+          reloadMiniEditorPageAfterChapterRender();
+        }
+      });
+      return;
+    }
+    setEditorSaveStatus("Save failed");
+  }
+}
 
-            <!-- Save status placeholder. The visible zoom slider was removed from the navbar for now.
-                 verses.js still keeps optional zoom support if we bring it back later. -->
-            <div class="column save-status-column" aria-live="polite">
-              <span id="editor-save-status" class="editor-save-status"></span>
-            </div>
+function scheduleMiniEditorSave() {
+  if (!editorToolsUnlocked) return;
+  if (!miniEditorLoaded) return;
+  if (miniEditorApplyingState) return;
+  if (miniEditorConflictActive) return;
 
-            <!-- Login/Logout -->
-            <div class="column auth-button-container verse-auth-buttons">
-              <button
-                type="button"
-                id="login"
-                class="auth-button"
-              >
-                <i
-                  class="fa fa-user-o"
-                  aria-hidden="true"
-                ></i>
-                <span>Login</span>
-              </button>
-            
-              <button
-                type="button"
-                id="logout"
-                class="auth-button"
-                style="display: none;"
-              >
-                <i
-                  class="fa fa-sign-out"
-                  aria-hidden="true"
-                ></i>
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+  setEditorSaveStatus("Saving...");
 
+  clearTimeout(miniEditorSaveTimer);
 
-    <!-- **************** Preferences Modal **************** -->
-    <div id="preferencesModal" class="preferences-modal" style="display: none;">
-      <div class="preferences-dialog" role="dialog" aria-modal="true" aria-labelledby="preferences-title">
-        <button type="button" id="closePreferences" class="preferences-close" aria-label="Close preferences">&times;</button>
+  miniEditorSaveTimer = setTimeout(() => {
+    miniEditorSaveQueue = miniEditorSaveQueue.then(() => saveMiniEditorPage());
+  }, 1200);
+}
 
-        <h2 id="preferences-title">Preferences</h2>
+function startMiniEditorObserver() {
+  const bibleText = document.getElementById("bible-text");
+  const annotationLayer = document.getElementById("bible-annotation-layer");
 
-        <label class="preferences-field" for="preferences-language">
-          <span>Preferred Language</span>
-          <select id="preferences-language"></select>
-        </label>
+  if (!bibleText) {
+    console.warn("Mini-editor target elements missing. Retrying...");
+    return;
+  }
 
-        <label class="preferences-field" for="preferences-bible">
-          <span>Preferred Bible</span>
-          <select id="preferences-bible" disabled>
-            <option value="">Loading Bibles...</option>
-          </select>
-        </label>
+  // Disconnect any active duplicate instance
+  if (miniEditorObserver) {
+    miniEditorObserver.disconnect();
+  }
 
-        <label class="preferences-field" for="preferences-landing-page">
-          <span>Starting Page</span>
-          <select id="preferences-landing-page">
-            <option value="index">Home</option>
-            <option value="verse">Passage Page</option>
-          </select>
-        </label>
+  miniEditorObserver = new MutationObserver((mutations) => {
+    // Avoid triggering save if the change was programmatically applied via load
+    if (miniEditorApplyingState) return;
 
-        <label class="preferences-field preferences-checkbox-field" for="preferences-freehand-warning">
-          <input type="checkbox" id="preferences-freehand-warning">
-          <span>Show freehand drawing warning</span>
-        </label>
+    const hasSavableChange = mutations.some((mutation) => {
+      // Ignore annotation-layer sizing performed by resizeAnnotationLayer().
+      // These are layout-only changes and should not trigger autosave.
+      if (
+        mutation.type === "attributes" &&
+        mutation.target === annotationLayer &&
+        ["width", "height", "viewBox", "style", "preserveAspectRatio"].includes(
+          mutation.attributeName
+        )
+      ) {
+        return false;
+      }
 
-        <div id="preferences-status" class="preferences-status" aria-live="polite"></div>
+      // Ignore metadata updates added for layout warnings. These are internal
+      // bookkeeping changes, not user edits, and must not start an autosave loop.
+      if (isAnnotationMetadataOnlyMutation(mutation)) {
+        return false;
+      }
 
-        <div class="preferences-actions">
-          <button type="button" id="cancelPreferences" class="preferences-button preferences-button-secondary">Cancel</button>
-          <button type="button" id="savePreferences" class="preferences-button preferences-button-primary">Save Preferences</button>
-        </div>
-      </div>
-    </div>
+      if (isSelectionOnlyClassMutation(mutation)) {
+        return false;
+      }
 
-    <!-- ****** My Notes Modal ****** -->
-    <div id="myNotesModal" class="modal" style="display:none;">
-      <div class="my-notes-content">
-        <button type="button" id="closeMyNotes" class="modal-close" title="Close My Notes">
-          &times;
-        </button>
-    
-        <h2>My Notes</h2>
-    
-        <input
-          type="text"
-          id="myNotesSearch"
-          placeholder="Search notes..."
-          class="my-notes-search"
+      return true;
+    });
+
+    if (hasSavableChange) {
+      scheduleMiniEditorSave();
+    }
+  });
+
+  miniEditorObserver.observe(bibleText, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeOldValue: true,
+    characterData: true
+  });
+
+  if (annotationLayer) {
+    miniEditorObserver.observe(annotationLayer, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeOldValue: true,
+      characterData: true
+    });
+  }
+  console.log("Mini-editor mutation observers attached successfully.");
+}
+
+// ----------------------------------------------------
+// Mini-editor selection memory
+// ----------------------------------------------------
+let savedBibleSelectionOffsets = null;
+let savedBibleSelectionTimestamp = 0;
+
+function getTextOffsetWithinElement(root, targetNode, targetOffset) {
+  let offset = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+
+    if (node === targetNode) {
+      return offset + targetOffset;
+    }
+
+    offset += node.nodeValue.length;
+  }
+
+  return offset;
+}
+
+function getRangeFromTextOffsets(root, startOffset, endOffset) {
+  const range = document.createRange();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+  let currentOffset = 0;
+  let startSet = false;
+  let endSet = false;
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const nodeLength = node.nodeValue.length;
+    const nodeStart = currentOffset;
+    const nodeEnd = currentOffset + nodeLength;
+
+    if (!startSet && startOffset >= nodeStart && startOffset <= nodeEnd) {
+      range.setStart(node, startOffset - nodeStart);
+      startSet = true;
+    }
+
+    if (!endSet && endOffset >= nodeStart && endOffset <= nodeEnd) {
+      range.setEnd(node, endOffset - nodeStart);
+      endSet = true;
+      break;
+    }
+
+    currentOffset = nodeEnd;
+  }
+
+  return startSet && endSet ? range : null;
+}
+
+function saveBibleSelection() {
+  const selection = window.getSelection();
+  const bibleText = document.getElementById("bible-text");
+
+  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!bibleText.contains(range.commonAncestorContainer)) {
+    return;
+  }
+
+  const start = getTextOffsetWithinElement(
+    bibleText,
+    range.startContainer,
+    range.startOffset
+  );
+
+  const end = getTextOffsetWithinElement(
+    bibleText,
+    range.endContainer,
+    range.endOffset
+  );
+
+  if (start === end) {
+    return;
+  }
+
+  savedBibleSelectionOffsets = { start, end };
+  savedBibleSelectionTimestamp = Date.now();
+}
+
+function restoreBibleSelection() {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!savedBibleSelectionOffsets || !bibleText) {
+    return false;
+  }
+
+  const range = getRangeFromTextOffsets(
+    bibleText,
+    savedBibleSelectionOffsets.start,
+    savedBibleSelectionOffsets.end
+  );
+
+  if (!range) {
+    return false;
+  }
+
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  return true;
+}
+
+function rememberCurrentSelectionOffsets() {
+  saveBibleSelection();
+}
+
+function clearSavedBibleSelection() {
+  savedBibleSelectionOffsets = null;
+  savedBibleSelectionTimestamp = 0;
+}
+
+function clearAllRememberedBibleSelections() {
+  clearSavedBibleSelection();
+
+  if (window.AnchoredAnnotations?.clearRememberedSelection) {
+    window.AnchoredAnnotations.clearRememberedSelection();
+  }
+}
+
+function getLiveBibleSelectionRange() {
+  const selection = window.getSelection();
+  const bibleText = document.getElementById("bible-text");
+
+  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!bibleText.contains(range.commonAncestorContainer)) {
+    return null;
+  }
+
+  return range.cloneRange();
+}
+
+function getRecentSavedBibleSelectionRange(maxAgeMs = 60000) {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!savedBibleSelectionOffsets || !bibleText) {
+    return null;
+  }
+
+  if (Date.now() - savedBibleSelectionTimestamp > maxAgeMs) {
+    return null;
+  }
+
+  const range = getRangeFromTextOffsets(
+    bibleText,
+    savedBibleSelectionOffsets.start,
+    savedBibleSelectionOffsets.end
+  );
+
+  if (!range || range.collapsed) {
+    return null;
+  }
+
+  return range;
+}
+
+function getClearTargetBibleSelectionRange() {
+  return getLiveBibleSelectionRange() || getRecentSavedBibleSelectionRange();
+}
+
+document.addEventListener("selectionchange", saveBibleSelection);
+
+// Selection memory is only a temporary bridge between visible Bible text and
+// mini-toolbar controls. Clicking anywhere outside the mini-toolbar means the
+// user has intentionally left that selection, so no formatting/drawing action
+// may reuse an invisible old range.
+document.addEventListener("pointerdown", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof Element)) return;
+
+  if (target.closest("#bible-mini-toolbar")) {
+    return;
+  }
+
+  clearAllRememberedBibleSelections();
+});
+
+// ----------------------------------------------------
+// Mini-editor text formatting
+// ----------------------------------------------------
+function applyBibleFormat(className) {
+  restoreBibleSelection();
+
+  const selection = window.getSelection();
+  const bibleText = document.getElementById("bible-text");
+
+  if (!selection || !selection.rangeCount || selection.isCollapsed || !bibleText) {
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!bibleText.contains(range.commonAncestorContainer)) {
+    return;
+  }
+
+  saveBibleSelection();
+  wrapSelectedTextNodes(range, className);
+  restoreBibleSelection();
+  recordMiniEditorHistorySnapshot();
+}
+
+function wrapSelectedTextNodes(range, className) {
+  const bibleText = document.getElementById("bible-text");
+  if (!bibleText) return;
+
+  const textNodes = [];
+  const walker = document.createTreeWalker(
+    bibleText,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!node.nodeValue.trim() || !range.intersectsNode(node)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((textNode) => {
+    wrapTextNodePart(textNode, range, className);
+  });
+}
+
+function wrapTextNodePart(textNode, range, className) {
+  let startOffset = 0;
+  let endOffset = textNode.nodeValue.length;
+
+  if (textNode === range.startContainer) {
+    startOffset = range.startOffset;
+  }
+
+  if (textNode === range.endContainer) {
+    endOffset = range.endOffset;
+  }
+
+  if (startOffset >= endOffset) return;
+
+  const selectedRange = document.createRange();
+  selectedRange.setStart(textNode, startOffset);
+  selectedRange.setEnd(textNode, endOffset);
+
+  const span = document.createElement("span");
+  span.classList.add("bible-user-format", className);
+  selectedRange.surroundContents(span);
+}
+
+function clearBibleSelectionFormat() {
+  const bibleText = document.getElementById("bible-text");
+  const range = getClearTargetBibleSelectionRange();
+
+  if (!bibleText || !range || range.collapsed) {
+    return false;
+  }
+
+  const selectedOffsets = {
+    start: getTextOffsetWithinElement(
+      bibleText,
+      range.startContainer,
+      range.startOffset
+    ),
+    end: getTextOffsetWithinElement(
+      bibleText,
+      range.endContainer,
+      range.endOffset
+    )
+  };
+
+  let changed = false;
+
+  if (window.AnchoredAnnotations?.clearIntersectingRange?.(range.cloneRange())) {
+    changed = true;
+  }
+
+  const formattingRange = getRangeFromTextOffsets(
+    bibleText,
+    selectedOffsets.start,
+    selectedOffsets.end
+  );
+
+  if (
+    formattingRange &&
+    removeBibleUserFormattingFromRange(formattingRange)
+  ) {
+    changed = true;
+  }
+
+  savedBibleSelectionOffsets = null;
+  savedBibleSelectionTimestamp = 0;
+
+  const selection = window.getSelection();
+
+  if (selection) {
+    selection.removeAllRanges();
+  }
+
+  if (changed) {
+    recordMiniEditorHistorySnapshot();
+    scheduleMiniEditorSave();
+  }
+
+  return changed;
+}
+
+function removeBibleUserFormattingFromRange(range) {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText || !range || range.collapsed) {
+    return false;
+  }
+
+  const formattedSpans = Array.from(
+    bibleText.querySelectorAll(".bible-user-format")
+  ).filter((span) => {
+    try {
+      return range.intersectsNode(span);
+    } catch (error) {
+      return false;
+    }
+  });
+
+  if (!formattedSpans.length) {
+    return false;
+  }
+
+  formattedSpans.forEach(unwrapElement);
+  bibleText.normalize();
+
+  return true;
+}
+
+function unwrapElement(element) {
+  const parent = element.parentNode;
+  if (!parent) return;
+
+  while (element.firstChild) {
+    parent.insertBefore(element.firstChild, element);
+  }
+
+  parent.removeChild(element);
+  parent.normalize();
+}
+
+// ----------------------------------------------------
+// Mini-editor drawing tools
+// ----------------------------------------------------
+let activeDrawingTool = null;
+let isDrawing = false;
+let startX = 0;
+let startY = 0;
+let currentShape = null;
+let selectedDrawnAnnotation = null;
+let freehandPoints = [];
+let currentFreehandGroup = null;
+let freehandSessionHasChanges = false;
+let freehandGroupCounter = 0;
+let activePointerId = null;
+let activePointerType = null;
+
+const ANCHORED_DRAWING_TOOL_LABELS = {
+  circle: "Circle",
+  square: "Square",
+  bracket: "Bracket"
+};
+
+const ANCHORED_DRAWING_TOOLS =
+  new Set(Object.keys(ANCHORED_DRAWING_TOOL_LABELS));
+
+const FREEHAND_GROUP_TOUCH_PADDING = 10;
+const FREEHAND_ACTIVE_SESSION_PADDING = 28;
+const ANNOTATION_LAYOUT_WARNING_THRESHOLD = 40;
+let annotationLayoutWarningDismissed = false;
+let annotationLayoutBaselineWidth = null;
+let annotationLayoutBaselineViewportWidth = null;
+const LAYOUT_SENSITIVE_ANNOTATION_SELECTOR =
+  ".freehand-group";
+
+const ANNOTATION_METADATA_ATTRIBUTE_NAMES = new Set([
+  "data-annotation-id",
+  "data-annotation-type",
+  "data-anchor-type",
+  "data-created-width",
+  "data-created-height",
+  "data-created-viewport-width",
+  "data-created-viewport-height",
+  "data-created-pathname",
+  "data-bounds-x",
+  "data-bounds-y",
+  "data-bounds-width",
+  "data-bounds-height"
+]);
+
+function setDatasetValueIfChanged(element, key, value) {
+  if (!element) return;
+
+  const stringValue = String(value);
+
+  if (element.dataset[key] !== stringValue) {
+    element.dataset[key] = stringValue;
+  }
+}
+
+function isAnnotationMetadataAttribute(attributeName) {
+  return ANNOTATION_METADATA_ATTRIBUTE_NAMES.has(attributeName);
+}
+
+function isAnnotationMetadataOnlyMutation(mutation) {
+  return (
+    mutation.type === "attributes" &&
+    isAnnotationMetadataAttribute(mutation.attributeName) &&
+    mutation.target instanceof Element &&
+    mutation.target.matches?.(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  );
+}
+
+const ANNOTATION_SELECTION_CLASS_NAMES = new Set([
+  "selected-annotation",
+  "anchored-inline-selected"
+]);
+
+function getClassSetFromValue(classValue = "") {
+  return new Set(
+    String(classValue)
+      .split(/\s+/)
+      .map((className) => className.trim())
+      .filter(Boolean)
+  );
+}
+
+function areClassSetsEqual(firstSet, secondSet) {
+  if (firstSet.size !== secondSet.size) return false;
+
+  for (const value of firstSet) {
+    if (!secondSet.has(value)) return false;
+  }
+
+  return true;
+}
+
+function removeSelectionClassesFromSet(classSet) {
+  const result = new Set(classSet);
+
+  ANNOTATION_SELECTION_CLASS_NAMES.forEach((className) => {
+    result.delete(className);
+  });
+
+  return result;
+}
+
+function isSelectionOnlyClassMutation(mutation) {
+  if (
+    mutation.type !== "attributes" ||
+    mutation.attributeName !== "class" ||
+    !(mutation.target instanceof Element)
+  ) {
+    return false;
+  }
+
+  const previousClasses = getClassSetFromValue(mutation.oldValue || "");
+  const currentClasses = getClassSetFromValue(
+    mutation.target.getAttribute("class") || ""
+  );
+
+  const previousWithoutSelection =
+    removeSelectionClassesFromSet(previousClasses);
+  const currentWithoutSelection =
+    removeSelectionClassesFromSet(currentClasses);
+
+  return areClassSetsEqual(previousWithoutSelection, currentWithoutSelection);
+}
+
+const drawingArea = document.getElementById("bible-drawing-area");
+const annotationLayer = document.getElementById("bible-annotation-layer");
+
+function getBibleTextLayoutMetrics() {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText) {
+    return { width: 0, height: 0 };
+  }
+
+  const rect = bibleText.getBoundingClientRect();
+
+  return {
+    width: Math.round(rect.width || bibleText.clientWidth || bibleText.scrollWidth || 0),
+    height: Math.round(bibleText.scrollHeight || rect.height || bibleText.clientHeight || 0)
+  };
+}
+
+function getAnnotationIdPrefix(type) {
+  if (type === "freehand") return "freehand";
+  if (type === "circle") return "circle";
+  if (type === "square") return "square";
+  return "annotation";
+}
+
+function createAnnotationId(type) {
+  return `${getAnnotationIdPrefix(type)}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function getAnnotationType(element) {
+  if (!element) return "annotation";
+  if (element.classList.contains("freehand-group")) return "freehand";
+  if (element.classList.contains("circle")) return "circle";
+  if (element.classList.contains("square")) return "square";
+  return element.dataset.annotationType || "annotation";
+}
+
+function addAnnotationMetadata(element, options = {}) {
+  if (!element) return;
+
+  const type = options.type || getAnnotationType(element);
+  const metrics = getBibleTextLayoutMetrics();
+
+  if (!element.dataset.annotationId) {
+    setDatasetValueIfChanged(element, "annotationId", createAnnotationId(type));
+  }
+
+  setDatasetValueIfChanged(element, "annotationType", type);
+
+  if (!element.dataset.anchorType) {
+    setDatasetValueIfChanged(element, "anchorType", "chapter-canvas");
+  }
+
+  if (!element.dataset.createdWidth) {
+    setDatasetValueIfChanged(element, "createdWidth", metrics.width);
+  }
+
+  if (!element.dataset.createdHeight) {
+    setDatasetValueIfChanged(element, "createdHeight", metrics.height);
+  }
+
+  if (!element.dataset.createdViewportWidth) {
+    setDatasetValueIfChanged(element, "createdViewportWidth", Math.round(window.innerWidth || 0));
+  }
+
+  if (!element.dataset.createdViewportHeight) {
+    setDatasetValueIfChanged(element, "createdViewportHeight", Math.round(window.innerHeight || 0));
+  }
+
+  if (!element.dataset.createdPathname) {
+    setDatasetValueIfChanged(element, "createdPathname", window.location.pathname);
+  }
+
+  updateAnnotationBoundsMetadata(element);
+}
+
+function updateAnnotationBoundsMetadata(element) {
+  if (!element || typeof element.getBBox !== "function") return;
+
+  try {
+    const box = element.getBBox();
+
+    if (!Number.isFinite(box.width) || !Number.isFinite(box.height)) return;
+
+    setDatasetValueIfChanged(element, "boundsX", Math.round(box.x));
+    setDatasetValueIfChanged(element, "boundsY", Math.round(box.y));
+    setDatasetValueIfChanged(element, "boundsWidth", Math.round(box.width));
+    setDatasetValueIfChanged(element, "boundsHeight", Math.round(box.height));
+  } catch (error) {
+    // getBBox can fail while an SVG object is detached or not rendered yet.
+  }
+}
+
+function ensureAllAnnotationMetadata() {
+  if (!annotationLayer) return;
+
+  annotationLayer
+    .querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+    .forEach((annotation) => {
+      addAnnotationMetadata(annotation, {
+        type: getAnnotationType(annotation)
+      });
+    });
+}
+
+function hasLayoutSensitiveAnnotations() {
+  return Boolean(
+    annotationLayer?.querySelector(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  );
+}
+
+function ensureAnnotationLayoutWarningElement() {
+  let warning = document.getElementById("annotation-layout-warning");
+
+  if (warning) return warning;
+
+  warning = document.createElement("div");
+  warning.id = "annotation-layout-warning";
+  warning.className = "annotation-layout-warning";
+  warning.setAttribute("role", "status");
+  warning.setAttribute("aria-live", "polite");
+  warning.hidden = true;
+
+  const message = document.createElement("div");
+  message.className = "annotation-layout-warning__message";
+  message.textContent =
+    "Visual annotations may not align at this display size. Return near the original window size for best alignment.";
+
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "annotation-layout-warning__close";
+  closeButton.setAttribute("aria-label", "Dismiss annotation alignment warning");
+  closeButton.textContent = "×";
+  closeButton.addEventListener("click", () => {
+    annotationLayoutWarningDismissed = true;
+    warning.hidden = true;
+  });
+
+  warning.appendChild(message);
+  warning.appendChild(closeButton);
+
+  document.body.appendChild(warning);
+
+  return warning;
+}
+
+function getMaxAnnotationLayoutDifference(currentWidth) {
+  if (!annotationLayer) return 0;
+
+  const currentViewportWidth = Math.round(window.innerWidth || 0);
+
+  return Array.from(
+    annotationLayer.querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  ).reduce((maxDifference, annotation) => {
+    const createdContentWidth = Number(annotation.dataset.createdWidth);
+    const createdViewportWidth = Number(annotation.dataset.createdViewportWidth);
+
+    const contentDifference =
+      Number.isFinite(createdContentWidth) && createdContentWidth > 0
+        ? Math.abs(currentWidth - createdContentWidth)
+        : 0;
+
+    const viewportDifference =
+      Number.isFinite(createdViewportWidth) && createdViewportWidth > 0
+        ? Math.abs(currentViewportWidth - createdViewportWidth)
+        : 0;
+
+    return Math.max(maxDifference, contentDifference, viewportDifference);
+  }, 0);
+}
+
+function updateAnnotationLayoutWarning() {
+  const warning = ensureAnnotationLayoutWarningElement();
+
+  if (warning) {
+    warning.hidden = true;
+  }
+
+  annotationLayoutWarningDismissed = false;
+}
+
+function getCurrentBibleZoom() {
+  const zoom = Number(window.currentBibleZoom);
+  return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+}
+
+function getDrawingCoordinates(event) {
+  const layer = document.getElementById("bible-annotation-layer");
+
+  if (layer) {
+    const rect = layer.getBoundingClientRect();
+    const viewBox = layer.viewBox && layer.viewBox.baseVal;
+
+    if (rect.width > 0 && rect.height > 0 && viewBox) {
+      return {
+        x: viewBox.x + ((event.clientX - rect.left) / rect.width) * viewBox.width,
+        y: viewBox.y + ((event.clientY - rect.top) / rect.height) * viewBox.height
+      };
+    }
+  }
+
+  if (!drawingArea) {
+    return { x: 0, y: 0 };
+  }
+
+  const rect = drawingArea.getBoundingClientRect();
+  const zoom = getCurrentBibleZoom();
+
+  return {
+    x: (event.clientX - rect.left) / zoom,
+    y: (event.clientY - rect.top) / zoom
+  };
+}
+
+function getAnnotationBaseSize(currentWidth, currentHeight) {
+  const layer = document.getElementById("bible-annotation-layer");
+
+  if (!layer) {
+    return { width: currentWidth, height: currentHeight };
+  }
+
+  const annotations = Array.from(
+    layer.querySelectorAll(LAYOUT_SENSITIVE_ANNOTATION_SELECTOR)
+  );
+
+  const widths = annotations
+    .map((annotation) => Number(annotation.dataset.createdWidth))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  const heights = annotations
+    .map((annotation) => Number(annotation.dataset.createdHeight))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  return {
+    width: Math.max(currentWidth, ...widths),
+    height: Math.max(currentHeight, ...heights)
+  };
+}
+
+function resizeAnnotationLayer() {
+  const bibleText = document.getElementById("bible-text");
+  const layer = document.getElementById("bible-annotation-layer");
+
+  if (!bibleText || !layer) return;
+
+  const rect = bibleText.getBoundingClientRect();
+  const currentWidth = Math.ceil(rect.width || bibleText.clientWidth || bibleText.scrollWidth || 1);
+  const currentHeight = Math.ceil(bibleText.scrollHeight || rect.height || 1);
+  const baseSize = getAnnotationBaseSize(currentWidth, currentHeight);
+
+  // The displayed SVG follows the Bible text box. The viewBox can remain at
+  // the original annotation size so coordinate-based drawings scale back when
+  // the viewport returns to the original size instead of drifting off-screen.
+  layer.setAttribute("width", String(currentWidth));
+  layer.setAttribute("height", String(currentHeight));
+  layer.setAttribute("viewBox", `0 0 ${Math.ceil(baseSize.width)} ${Math.ceil(baseSize.height)}`);
+  layer.setAttribute("preserveAspectRatio", "none");
+  layer.style.width = `${currentWidth}px`;
+  layer.style.height = `${currentHeight}px`;
+}
+
+// ----------------------------------------------------
+// The rest of the drawing engine remains perfectly intact...
+// ----------------------------------------------------
+function getExpandedBBox(element, padding = 0) {
+  const box = element.getBBox();
+
+  return {
+    x: box.x - padding,
+    y: box.y - padding,
+    width: box.width + padding * 2,
+    height: box.height + padding * 2,
+    right: box.x + box.width + padding,
+    bottom: box.y + box.height + padding
+  };
+}
+
+function boxesOverlap(a, b) {
+  return !(
+    a.right < b.x ||
+    a.x > b.right ||
+    a.bottom < b.y ||
+    a.y > b.bottom
+  );
+}
+
+function freehandPathTouchesActiveSession(path) {
+  if (!path || !currentFreehandGroup) return false;
+
+  try {
+    const pathBox = getExpandedBBox(path, FREEHAND_ACTIVE_SESSION_PADDING);
+    const groupBox = getExpandedBBox(currentFreehandGroup, FREEHAND_ACTIVE_SESSION_PADDING);
+    return boxesOverlap(pathBox, groupBox);
+  } catch (error) {
+    return false;
+  }
+}
+
+function findTouchingFreehandGroups(path) {
+  if (!annotationLayer) return [];
+
+  const pathBox = getExpandedBBox(path, FREEHAND_GROUP_TOUCH_PADDING);
+
+  return Array.from(annotationLayer.querySelectorAll(".freehand-group")).filter(
+    (group) => {
+      if (group.contains(path)) return false;
+
+      const groupBox = getExpandedBBox(group, FREEHAND_GROUP_TOUCH_PADDING);
+      return boxesOverlap(pathBox, groupBox);
+    }
+  );
+}
+
+function createFreehandGroup() {
+  const newGroup = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "g"
+  );
+
+  newGroup.classList.add("drawn-annotation", "freehand-group");
+  newGroup.dataset.groupId = `freehand-${freehandGroupCounter++}`;
+  addAnnotationMetadata(newGroup, { type: "freehand" });
+  annotationLayer.appendChild(newGroup);
+
+  return newGroup;
+}
+
+function mergeFreehandGroups(targetGroup, groupsToMerge) {
+  groupsToMerge.forEach((group) => {
+    while (group.firstChild) {
+      targetGroup.appendChild(group.firstChild);
+    }
+
+    group.remove();
+  });
+
+  updateAnnotationBoundsMetadata(targetGroup);
+}
+
+function attachFreehandPathToGroup(path) {
+  if (currentFreehandGroup && freehandPathTouchesActiveSession(path)) {
+    currentFreehandGroup.appendChild(path);
+    updateAnnotationBoundsMetadata(currentFreehandGroup);
+    updateAnnotationLayoutWarning();
+    freehandSessionHasChanges = true;
+    return;
+  }
+
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
+  const touchingGroups = findTouchingFreehandGroups(path);
+
+  if (touchingGroups.length === 0) {
+    const group = createFreehandGroup();
+    group.appendChild(path);
+    updateAnnotationBoundsMetadata(group);
+    updateAnnotationLayoutWarning();
+    currentFreehandGroup = group;
+    freehandSessionHasChanges = true;
+    return;
+  }
+
+  const targetGroup = touchingGroups[0];
+  targetGroup.appendChild(path);
+
+  if (touchingGroups.length > 1) {
+    mergeFreehandGroups(targetGroup, touchingGroups.slice(1));
+  }
+
+  updateAnnotationBoundsMetadata(targetGroup);
+  updateAnnotationLayoutWarning();
+  currentFreehandGroup = targetGroup;
+  freehandSessionHasChanges = true;
+}
+
+function finalizeFreehandGroup(options = {}) {
+  const shouldRecordHistory = Boolean(options.recordHistory);
+
+  if (currentFreehandGroup) {
+    updateAnnotationBoundsMetadata(currentFreehandGroup);
+  }
+
+  currentFreehandGroup = null;
+  updateAnnotationLayoutWarning();
+
+  if (shouldRecordHistory && freehandSessionHasChanges) {
+    freehandSessionHasChanges = false;
+    recordMiniEditorHistorySnapshot();
+  } else if (!currentFreehandGroup) {
+    freehandSessionHasChanges = false;
+  }
+}
+
+const FREEHAND_WARNING_STORAGE_KEY =
+  "boi-hide-freehand-warning";
+
+let pendingFreehandWarningTool = null;
+
+function shouldShowFreehandWarning() {
+  if (window.UserPreferences?.read) {
+    return (
+      window.UserPreferences.read()
+        .freehandWarningEnabled !== false
+    );
+  }
+
+  try {
+    return (
+      window.localStorage.getItem(
+        FREEHAND_WARNING_STORAGE_KEY
+      ) !== "true"
+    );
+  } catch (error) {
+    return true;
+  }
+}
+
+function rememberFreehandWarningChoice(shouldHide) {
+  if (!shouldHide) return;
+
+  if (window.UserPreferences?.write) {
+    window.UserPreferences.write({
+      freehandWarningEnabled: false
+    });
+  }
+
+  try {
+    window.localStorage.setItem(
+      FREEHAND_WARNING_STORAGE_KEY,
+      "true"
+    );
+  } catch (error) {
+    console.warn(
+      "Could not save freehand warning preference:",
+      error
+    );
+  }
+}
+
+function closeFreehandWarningDialog() {
+  const dialog =
+    document.getElementById(
+      "freehandWarningDialog"
+    );
+
+  if (dialog) {
+    dialog.classList.remove("is-open");
+    dialog.setAttribute("hidden", "hidden");
+  }
+
+  pendingFreehandWarningTool = null;
+}
+
+function ensureFreehandWarningDialog() {
+  let dialog =
+    document.getElementById(
+      "freehandWarningDialog"
+    );
+
+  if (dialog) {
+    return dialog;
+  }
+
+  dialog = document.createElement("div");
+  dialog.id = "freehandWarningDialog";
+  dialog.className = "freehand-warning-dialog";
+  dialog.setAttribute("hidden", "hidden");
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute(
+    "aria-labelledby",
+    "freehandWarningTitle"
+  );
+
+  dialog.innerHTML = `
+    <div class="freehand-warning-card">
+      <button
+        type="button"
+        class="freehand-warning-close"
+        aria-label="Close freehand warning"
+      >
+        ×
+      </button>
+      <h3 id="freehandWarningTitle">Freehand drawing</h3>
+      <p>
+        Freehand drawings work best on the screen size where they were created.
+        Alignment may vary on other devices.
+      </p>
+      <label class="freehand-warning-check">
+        <input type="checkbox" id="freehandWarningDontShowAgain" />
+        <span>Do not show this again</span>
+      </label>
+      <div class="freehand-warning-actions">
+        <button
+          type="button"
+          class="freehand-warning-cancel"
         >
-    
-        <div id="myNotesStatus" class="my-notes-status">
-          Loading...
-        </div>
-    
-        <div class="my-notes-table-wrapper">
-          <table class="my-notes-table">
-            <thead>
-              <tr>
-                <th>Bible</th>
-                <th>Book / Chapter</th>
-                <th>Saved Content</th>
-                <th>Preview</th>
-                <th>Updated</th>
-                <th>Open</th>
-                <th>Delete</th>
-              </tr>
-            </thead>
-            <tbody id="myNotesTableBody">
-            </tbody>
-          </table>
-        </div>
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="freehand-warning-continue"
+        >
+          Continue
+        </button>
       </div>
     </div>
-      
-    <header>
-      <div id="menuNav" class="overlay">
-        <div class="overlay-content">
-          <div class="menu-current-passage" aria-live="polite">
-            <span class="menu-current-passage-title">Current Passage</span>
-            <span id="menu-current-passage-label" class="menu-current-passage-value">Loading...</span>
-          </div>
-
-          <a href="./index.html?stay=home">Home</a>
-          <a href="#" id="openPassagePickerFromMenu" class="mobile-passage-link" data-open-passage>Open Passage</a>
-          <a href="#" id="openMyNotes" class="disabled" aria-disabled="true">My Notes</a>
-          <a href="./study-desk.html" id="openStudyDesk" class="disabled" aria-disabled="true">Study Desk</a>
-          <a href="./search.html">Search</a>
-          <a href="#" id="openPreferences">Preferences</a>
-        </div>
-      </div>
-    </header>
-
-    <main class="container">
-
-      <div id="bible-mini-toolbar" aria-label="Bible annotation toolbar">
-
-        <!-- Desktop mini toolbar -->
-        <div class="desktop-mini-toolbar" aria-label="Desktop annotation toolbar">
-
-          <div class="toolbar-dropdown">
-            <button
-              type="button"
-              class="dropdown-btn"
-              data-mobile-label="Aa"
-              onclick="toggleFontMenu()"
-            >
-              <span class="toolbar-label">Text</span>
-            </button>
-
-            <div id="font-menu" class="toolbar-dropdown-menu">
-              <button onclick="applyBibleFormat('bold'); closeFontMenu();" title="Bold"><strong>B</strong></button>
-              <button onclick="applyBibleFormat('italic'); closeFontMenu();" title="Italic"><em>I</em></button>
-              <button onclick="applyBibleFormat('underline'); closeFontMenu();" title="Underline"><u>U</u></button>
-
-              <button
-                onclick="applyBibleFormat('double-underline'); closeFontMenu();"
-                title="Double Underline"
-              >
-                <span style="text-decoration-line: underline; text-decoration-style: double;">DU</span>
-              </button>
-
-              <button
-                onclick="applyBibleFormat('overline-underline'); closeFontMenu();"
-                title="Overline Underline"
-              >
-                <span style="text-decoration: overline underline;">OU</span>
-              </button>
-
-              <button
-                onclick="applyBibleFormat('strike-through'); closeFontMenu();"
-                title="Strikethrough"
-              >
-                <span style="text-decoration-line: line-through;">S</span>
-              </button>
-
-              <button
-                onclick="applyBibleFormat('uppercase'); closeFontMenu();"
-                title="Uppercase"
-                aria-label="Uppercase"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="menu-icon"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <path d="M4 18 L7.5 8 L11 18" />
-                  <path d="M5.5 14 L9.5 14" />
-                  <path d="M7.5 5 L7.5 2" stroke-width="1.8" />
-                  <path d="M5.5 4 L7.5 2 L9.5 4" stroke-width="1.8" />
-                  <path d="M13 18 L17.5 4 L22 18" />
-                  <path d="M14.5 13 L20.5 13" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="toolbar-dropdown">
-            <button
-              type="button"
-              class="dropdown-btn"
-              onclick="toggleFontColorMenu()"
-            >
-              <span class="toolbar-label">Font Color</span>
-            </button>
-
-            <div id="font-color-menu" class="toolbar-dropdown-menu">
-              <button type="button" class="font-color-option text-grey" onclick="applyBibleFormat('text-grey'); closeFontColorMenu();" title="Grey">A</button>
-              <button type="button" class="font-color-option text-red" onclick="applyBibleFormat('text-red'); closeFontColorMenu();" title="Red">A</button>
-              <button type="button" class="font-color-option text-blue" onclick="applyBibleFormat('text-blue'); closeFontColorMenu();" title="Blue">A</button>
-              <button type="button" class="font-color-option text-green" onclick="applyBibleFormat('text-green'); closeFontColorMenu();" title="Green">A</button>
-              <button type="button" class="font-color-option text-purple" onclick="applyBibleFormat('text-purple'); closeFontColorMenu();" title="Purple">A</button>
-              <button type="button" class="font-color-option text-yellow" onclick="applyBibleFormat('text-yellow'); closeFontColorMenu();" title="Yellow">A</button>
-              <button type="button" class="font-color-option text-orange" onclick="applyBibleFormat('text-orange'); closeFontColorMenu();" title="Orange">A</button>
-            </div>
-          </div>
-
-          <div class="toolbar-dropdown">
-            <button
-              type="button"
-              class="dropdown-btn"
-              onclick="toggleHighlightMenu()"
-            >
-              <span class="toolbar-label">Highlighter</span>
-            </button>
-
-            <div id="highlight-menu" class="toolbar-dropdown-menu">
-              <button type="button" class="color-option yellow" onclick="applyBibleFormat('highlight-yellow'); closeHighlightMenu();" title="Yellow"></button>
-              <button type="button" class="color-option green" onclick="applyBibleFormat('highlight-green'); closeHighlightMenu();" title="Green"></button>
-              <button type="button" class="color-option blue" onclick="applyBibleFormat('highlight-blue'); closeHighlightMenu();" title="Blue"></button>
-              <button type="button" class="color-option pink" onclick="applyBibleFormat('highlight-pink'); closeHighlightMenu();" title="Pink"></button>
-              <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeHighlightMenu();" title="Orange"></button>
-            </div>
-          </div>
-
-          <div class="toolbar-dropdown draw-toolbar-dropdown">
-            <button
-              type="button"
-              class="dropdown-btn"
-              onclick="toggleDrawMenu()"
-            >
-              <span class="toolbar-label">Draw</span>
-            </button>
-
-            <div id="draw-menu" class="toolbar-dropdown-menu">
-              <button
-                type="button"
-                onmousedown="event.preventDefault();"
-                onclick="setDrawingTool('circle'); closeDrawMenu();"
-                data-drawing-tool="circle"
-                title="Circle selected text"
-                aria-label="Circle selected text"
-                class="draw-tool-choice"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="10"/>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onmousedown="event.preventDefault();"
-                onclick="setDrawingTool('square'); closeDrawMenu();"
-                data-drawing-tool="square"
-                title="Square selected text"
-                aria-label="Square selected text"
-                class="draw-tool-choice"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  aria-hidden="true"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onmousedown="event.preventDefault();"
-                onclick="setDrawingTool('bracket'); closeDrawMenu();"
-                data-drawing-tool="bracket"
-                title="Bracket selected text"
-                aria-label="Bracket selected text"
-                class="draw-tool-choice"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 11V5h6"/>
-                  <path d="M13 19h6v-6"/>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onclick="setDrawingTool('freehand'); closeDrawMenu();"
-                data-drawing-tool="freehand"
-                title="Freehand drawing"
-                aria-label="Freehand drawing"
-                class="draw-tool-choice"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M12 20h9"/>
-                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Add selected Scripture to Study -->
-          <button
-            type="button"
-            class="mini-toolbar-icon-button study-selection-trigger"
-            data-study-selection-trigger
-            title="Add selected Scripture to Study"
-            aria-label="Add selected Scripture to Study"
-            aria-haspopup="dialog"
-            aria-expanded="false"
-          >
-            <span class="study-bookmark-icon" aria-hidden="true">
-              <i class="fa fa-bookmark-o"></i>
-              <span class="study-bookmark-plus">+</span>
-            </span>
-          </button>
-
-          <!-- View or add Keywords for the selected Scripture -->
-          <button
-            type="button"
-            class="mini-toolbar-icon-button scripture-keywords-trigger"
-            data-scripture-keywords-trigger
-            title="View or add Scripture Keywords"
-            aria-label="View or add Scripture Keywords"
-            aria-haspopup="dialog"
-            aria-expanded="false"
-          >
-            <i class="fa fa-tags" aria-hidden="true"></i>
-          </button>
-
-          <button
-            type="button"
-            onclick="undoMiniEditorChange()"
-            class="mini-toolbar-icon-button undo-redo-button"
-            title="Undo"
-            aria-label="Undo"
-          >
-            <i class="fa fa-undo" aria-hidden="true"></i>
-          </button>
-
-          <button
-            type="button"
-            onclick="redoMiniEditorChange()"
-            class="mini-toolbar-icon-button undo-redo-button"
-            title="Redo"
-            aria-label="Redo"
-          >
-            <i class="fa fa-repeat" aria-hidden="true"></i>
-          </button>
-
-          <button
-            onclick="setDrawingTool(null)"
-            id="textToolButton"
-            class="text-tool-button"
-            data-drawing-tool="text"
-            title="Text / Select"
-          >
-            T
-          </button>
-
-          <button
-            type="button"
-            onmousedown="event.preventDefault(); rememberCurrentSelectionOffsets();"
-            onclick="clearSelectedBibleAnnotation();"
-            class="clear-format-button"
-            title="Clear selected formatting"
-            aria-label="Clear selected formatting"
-          >
-            Clear
-          </button>
-        </div>
-
-
-        <!-- Mobile mini toolbar -->
-        <div class="mobile-mini-toolbar" aria-label="Mobile annotation toolbar">
-
-          <div class="mobile-toolbar-group">
-            <button
-              type="button"
-              class="mobile-toolbar-toggle"
-              onclick="toggleMobileToolbarMenu('mobile-text-menu')"
-              aria-haspopup="true"
-              aria-expanded="false"
-            >
-              Text
-            </button>
-
-            <div id="mobile-text-menu" class="mobile-toolbar-menu mobile-text-menu">
-              <div class="mobile-toolbar-menu-title">Text Style</div>
-
-              <button onclick="applyBibleFormat('bold'); closeMobileToolbarMenus();" title="Bold">
-                <strong>B</strong>
-              </button>
-
-              <button onclick="applyBibleFormat('italic'); closeMobileToolbarMenus();" title="Italic">
-                <em>I</em>
-              </button>
-
-              <button onclick="applyBibleFormat('underline'); closeMobileToolbarMenus();" title="Underline">
-                <u>U</u>
-              </button>
-
-              <button onclick="applyBibleFormat('double-underline'); closeMobileToolbarMenus();" title="Double Underline">
-                <span style="text-decoration-line: underline; text-decoration-style: double;">DU</span>
-              </button>
-
-              <button onclick="applyBibleFormat('overline-underline'); closeMobileToolbarMenus();" title="Overline Underline">
-                <span style="text-decoration: overline underline;">OU</span>
-              </button>
-
-              <button onclick="applyBibleFormat('strike-through'); closeMobileToolbarMenus();" title="Strikethrough">
-                <span style="text-decoration-line: line-through;">S</span>
-              </button>
-
-              <button
-                onclick="applyBibleFormat('uppercase'); closeMobileToolbarMenus();"
-                title="Uppercase"
-                aria-label="Uppercase"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="menu-icon"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <path d="M4 18 L7.5 8 L11 18" />
-                  <path d="M5.5 14 L9.5 14" />
-                  <path d="M7.5 5 L7.5 2" stroke-width="1.8" />
-                  <path d="M5.5 4 L7.5 2 L9.5 4" stroke-width="1.8" />
-                  <path d="M13 18 L17.5 4 L22 18" />
-                  <path d="M14.5 13 L20.5 13" />
-                </svg>
-              </button>
-
-              <div class="mobile-toolbar-menu-title">Font Color</div>
-
-              <button type="button" class="font-color-option text-grey" onclick="applyBibleFormat('text-grey'); closeMobileToolbarMenus();" title="Grey">A</button>
-              <button type="button" class="font-color-option text-red" onclick="applyBibleFormat('text-red'); closeMobileToolbarMenus();" title="Red">A</button>
-              <button type="button" class="font-color-option text-blue" onclick="applyBibleFormat('text-blue'); closeMobileToolbarMenus();" title="Blue">A</button>
-              <button type="button" class="font-color-option text-green" onclick="applyBibleFormat('text-green'); closeMobileToolbarMenus();" title="Green">A</button>
-              <button type="button" class="font-color-option text-purple" onclick="applyBibleFormat('text-purple'); closeMobileToolbarMenus();" title="Purple">A</button>
-              <button type="button" class="font-color-option text-yellow" onclick="applyBibleFormat('text-yellow'); closeMobileToolbarMenus();" title="Yellow">A</button>
-              <button type="button" class="font-color-option text-orange" onclick="applyBibleFormat('text-orange'); closeMobileToolbarMenus();" title="Orange">A</button>
-            </div>
-          </div>
-
-          <div class="mobile-toolbar-group">
-            <button
-              type="button"
-              class="mobile-toolbar-toggle"
-              onclick="toggleMobileToolbarMenu('mobile-drawing-menu')"
-              aria-haspopup="true"
-              aria-expanded="false"
-            >
-              Drawing
-            </button>
-
-            <div id="mobile-drawing-menu" class="mobile-toolbar-menu mobile-drawing-menu">
-              <div class="mobile-toolbar-menu-title">Highlight</div>
-
-              <button type="button" class="color-option yellow" onclick="applyBibleFormat('highlight-yellow'); closeMobileToolbarMenus();" title="Yellow"></button>
-              <button type="button" class="color-option green" onclick="applyBibleFormat('highlight-green'); closeMobileToolbarMenus();" title="Green"></button>
-              <button type="button" class="color-option blue" onclick="applyBibleFormat('highlight-blue'); closeMobileToolbarMenus();" title="Blue"></button>
-              <button type="button" class="color-option pink" onclick="applyBibleFormat('highlight-pink'); closeMobileToolbarMenus();" title="Pink"></button>
-              <button type="button" class="color-option orange" onclick="applyBibleFormat('highlight-orange'); closeMobileToolbarMenus();" title="Orange"></button>
-
-              <div class="mobile-toolbar-menu-title">Draw</div>
-
-              <button
-                type="button"
-                onmousedown="event.preventDefault();"
-                onclick="setDrawingTool('circle'); closeMobileToolbarMenus();"
-                data-drawing-tool="circle"
-                title="Circle selected text"
-                aria-label="Circle selected text"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <circle cx="12" cy="12" r="5.25" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onmousedown="event.preventDefault();"
-                onclick="setDrawingTool('square'); closeMobileToolbarMenus();"
-                data-drawing-tool="square"
-                title="Square selected text"
-                aria-label="Square selected text"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <rect x="7" y="7" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onmousedown="event.preventDefault();"
-                onclick="setDrawingTool('bracket'); closeMobileToolbarMenus();"
-                data-drawing-tool="bracket"
-                title="Bracket selected text"
-                aria-label="Bracket selected text"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M5 11V5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                  <path d="M13 19h6v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                onclick="setDrawingTool('freehand'); closeMobileToolbarMenus();"
-                data-drawing-tool="freehand"
-                title="Freehand drawing"
-                aria-label="Freehand drawing"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M5 19l3.8-1 9-9a2.1 2.1 0 0 0-3-3l-9 9L5 19z" fill="currentColor"></path>
-                  <path d="M13.8 6.8l3.4 3.4" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"></path>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="mobile-toolbar-group">
-            <button
-              type="button"
-              id="mobile-actions-toggle"
-              class="mobile-toolbar-toggle"
-              onclick="toggleMobileToolbarMenu('mobile-actions-menu')"
-              aria-haspopup="true"
-              aria-expanded="false"
-            >
-              Actions
-            </button>
-
-            <div id="mobile-actions-menu" class="mobile-toolbar-menu mobile-actions-menu">
-
-              <button
-                type="button"
-                class="select-text-action"
-                onclick="setDrawingTool(null); closeMobileToolbarMenus();"
-                data-drawing-tool="text"
-                title="Return to Text Selection"
-                aria-label="Return to Text Selection"
-              >
-                <span class="action-letter" aria-hidden="true">T</span>
-                <span>Select</span>
-              </button>
-
-              <button
-                type="button"
-                onclick="undoMiniEditorChange(); closeMobileToolbarMenus();"
-                title="Undo"
-                aria-label="Undo"
-              >
-                <i class="fa fa-undo" aria-hidden="true"></i>
-                <span>Undo</span>
-              </button>
-
-              <button
-                type="button"
-                onclick="redoMiniEditorChange(); closeMobileToolbarMenus();"
-                title="Redo"
-                aria-label="Redo"
-              >
-                <i class="fa fa-repeat" aria-hidden="true"></i>
-                <span>Redo</span>
-              </button>
-
-              <button
-                type="button"
-                data-study-selection-trigger
-                data-study-selection-mobile-action="true"
-                title="Add selected Scripture to Study"
-                aria-label="Add selected Scripture to Study"
-                aria-haspopup="dialog"
-                aria-expanded="false"
-              >
-                <span class="study-bookmark-icon" aria-hidden="true">
-                  <i class="fa fa-bookmark-o"></i>
-                  <span class="study-bookmark-plus">+</span>
-                </span>
-                <span>Add to Study</span>
-              </button>
-
-              <button
-                type="button"
-                data-scripture-keywords-trigger
-                title="View or add Scripture Keywords"
-                aria-label="View or add Scripture Keywords"
-                aria-haspopup="dialog"
-                aria-expanded="false"
-              >
-                <i class="fa fa-tags" aria-hidden="true"></i>
-                <span>Keywords</span>
-              </button>
-
-              <button
-                type="button"
-                onpointerdown="rememberCurrentSelectionOffsets();"
-                onclick="clearSelectedBibleAnnotation(); closeMobileToolbarMenus();"
-                title="Clear selected formatting"
-                aria-label="Clear selected formatting"
-              >
-                <span>Clear</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Mobile Add to Study -->
-          <button
-            type="button"
-            class="mobile-study-selection-trigger study-selection-trigger"
-            data-study-selection-trigger
-            title="Add selected Scripture to Study"
-            aria-label="Add selected Scripture to Study"
-            aria-haspopup="dialog"
-            aria-expanded="false"
-          >
-            <span class="study-bookmark-icon" aria-hidden="true">
-              <i class="fa fa-bookmark-o"></i>
-              <span class="study-bookmark-plus">+</span>
-            </span>
-          </button>
-
-        </div>
-      </div>
-
-
-      <div class="eb-container" id="display-text">
-        <div id="bible-drawing-area">
-          <div id="bible-text"></div>
-          <svg id="bible-annotation-layer"></svg>
-        </div>
-      </div>
-
-      <div id="scripture-license-footer" class="scripture-license-footer" aria-live="polite">
-        <span id="scripture-license-summary">Bible text: Loading...</span>
-        <span class="scripture-license-separator" aria-hidden="true">•</span>
-        <a id="scripture-license-link" href="./copyright.html">Copyright &amp; License</a>
-        <span class="scripture-license-separator" aria-hidden="true">•</span>
-        <a href="https://api.bible" target="_blank" rel="noopener noreferrer">Powered by API.Bible</a>
-      </div>
-    
-      <div class="leftcol">
-        <a id="prevURL">
-          <img id="imgleft" class="left-button" src="./img/orig_left_stamp.png" alt="Previous chapter" />
-        </a>
-      </div>
-    
-      <div class="rightcol">
-        <a id="nextURL">
-          <img id="imgright" class="right-button" src="./img/orig_right_stamp.png" alt="Next chapter" />
-        </a>
-      </div>
-
-      <!-- Quill Editor --> 
-      <div id="editor"></div>
-
-      <div class="bottom-spacer"></div>
-
-    </main>   
-
-    <script src="js/app-shell.js?v=20260928-startup-1"></script>
-    <script src="js/user-offline-db.js?v=20261004-phase4-step6-1"></script>
-    <script src="js/user-data.js?v=20261004-logout-metadata-fix-1"></script>
-    <script src="js/my_key.js"></script>
-    <script src="js/bible-offline-db.js?v=20260927-phase2b"></script>
-    <script src="js/bible-data.js?v=20260928-connectivity-1"></script>
-    <script src="js/connectivity-status.js?v=20260928-startup-1"></script>
-    <script src="js/bible-version-visibility.js"></script>
-    <script src="js/menu.js"></script>
-    <script src="js/app-conflict-dialog.js?v=20260925-phase1d1"></script>
-    <script src="js/auth.js?v=20261004-offline-trusted-navigation-1"></script>
-    
-    <script src="https://cdn.scripture.api.bible/fums/fumsv2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-
-    <script src="js/bible-language.js"></script>
-    <script src="js/bible-selector.js?v=20260928-connectivity-1"></script>
-    <script src="js/user-preferences.js"></script>
-    <script src="js/passage-picker.js"></script>
-    <script src="js/copyright-footer.js"></script>
-
-    <script src="js/verses.js?v=20260927-phase2a" defer></script>
-    <script src="js/scripture-reference-popup.js?v=20260928-reference-popup-1" defer></script>
-    <script src="js/anchored-annotations.js"></script>
-    <script type="module" src="js/editor.js?v=20261004-mini-logout-clear-1"></script>
-    <script src="js/study-actions.js"></script>
-    <script src="js/scripture-keywords.js?v=20260926-phase1d5"></script>
-   
-</body>
-</html>
+  `;
+
+  document.body.appendChild(dialog);
+
+  dialog
+    .querySelector(".freehand-warning-close")
+    ?.addEventListener("click", () => {
+      closeFreehandWarningDialog();
+    });
+
+  dialog
+    .querySelector(".freehand-warning-cancel")
+    ?.addEventListener("click", () => {
+      closeFreehandWarningDialog();
+    });
+
+  dialog
+    .querySelector(".freehand-warning-continue")
+    ?.addEventListener("click", () => {
+      const dontShowAgain =
+        dialog.querySelector(
+          "#freehandWarningDontShowAgain"
+        )?.checked;
+
+      rememberFreehandWarningChoice(
+        Boolean(dontShowAgain)
+      );
+
+      const toolToActivate =
+        pendingFreehandWarningTool;
+
+      closeFreehandWarningDialog();
+
+      if (toolToActivate === "freehand") {
+        setDrawingTool(
+          "freehand",
+          { skipFreehandWarning: true }
+        );
+      }
+    });
+
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      closeFreehandWarningDialog();
+    }
+  });
+
+  return dialog;
+}
+
+function showFreehandWarningDialog() {
+  const dialog = ensureFreehandWarningDialog();
+
+  pendingFreehandWarningTool = "freehand";
+
+  dialog.removeAttribute("hidden");
+  dialog.classList.add("is-open");
+
+  const checkbox =
+    dialog.querySelector(
+      "#freehandWarningDontShowAgain"
+    );
+
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+
+  const continueButton =
+    dialog.querySelector(
+      ".freehand-warning-continue"
+    );
+
+  continueButton?.focus();
+}
+
+function setDrawingTool(tool, options = {}) {
+  if (!drawingArea) return;
+
+  if (ANCHORED_DRAWING_TOOLS.has(tool)) {
+    if (!window.AnchoredAnnotations?.createFromCurrentSelection) {
+      window.alert(
+        "The responsive annotation tool is not loaded yet. Please refresh the page and try again."
+      );
+      return;
+    }
+
+    window.AnchoredAnnotations?.rememberCurrentSelection?.();
+
+    const anchoredResult =
+      window.AnchoredAnnotations.createFromCurrentSelection(tool);
+
+    if (!anchoredResult?.created) {
+      const toolLabel =
+        ANCHORED_DRAWING_TOOL_LABELS[tool] || "this tool";
+
+      window.alert(
+        `Select Bible text first, then click ${toolLabel}.`
+      );
+
+      activeDrawingTool = null;
+      drawingArea.classList.remove("drawing-mode");
+
+      document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+        button.classList.remove("active-tool");
+      });
+
+      const textButton = document.querySelector(
+        '[data-drawing-tool="text"]'
+      );
+
+      textButton?.classList.add("active-tool");
+
+      closeDrawMenu();
+      closeMobileToolbarMenus();
+      return;
+    }
+
+    if (currentFreehandGroup) {
+      finalizeFreehandGroup({ recordHistory: true });
+    }
+
+    activeDrawingTool = null;
+    drawingArea.classList.remove("drawing-mode");
+
+    document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+      button.classList.remove("active-tool");
+    });
+
+    const textButton = document.querySelector(
+      '[data-drawing-tool="text"]'
+    );
+
+    textButton?.classList.add("active-tool");
+
+    closeDrawMenu();
+    closeMobileToolbarMenus();
+    recordMiniEditorHistorySnapshot();
+    scheduleMiniEditorSave();
+    return;
+  }
+
+  const skipFreehandWarning =
+    Boolean(options.skipFreehandWarning);
+
+  if (
+    tool === "freehand" &&
+    activeDrawingTool !== "freehand" &&
+    !skipFreehandWarning &&
+    shouldShowFreehandWarning()
+  ) {
+    showFreehandWarningDialog();
+    return;
+  }
+
+  if (activeDrawingTool === "freehand" && tool !== "freehand") {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
+  activeDrawingTool = tool === "freehand" ? "freehand" : null;
+
+  document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+    button.classList.remove("active-tool");
+  });
+
+  if (tool) {
+    drawingArea.classList.add("drawing-mode");
+
+    const activeButton = document.querySelector(
+      `[data-drawing-tool="${tool}"]`
+    );
+
+    activeButton?.classList.add("active-tool");
+  } else {
+    drawingArea.classList.remove("drawing-mode");
+
+    const textButton = document.querySelector(
+      '[data-drawing-tool="text"]'
+    );
+
+    textButton?.classList.add("active-tool");
+  }
+}
+
+window.isBibleDrawingActive = function () {
+  return Boolean(activeDrawingTool);
+};
+
+function clearSelectedDrawnAnnotation() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
+  if (!selectedDrawnAnnotation) {
+    if (window.AnchoredAnnotations?.clearSelected?.()) {
+      recordMiniEditorHistorySnapshot();
+      scheduleMiniEditorSave();
+      return true;
+    }
+
+    return false;
+  }
+
+  const annotationToRemove =
+    selectedDrawnAnnotation.closest?.(".freehand-group") ||
+    selectedDrawnAnnotation;
+
+  annotationToRemove.remove();
+  selectedDrawnAnnotation = null;
+  updateAnnotationLayoutWarning();
+  recordMiniEditorHistorySnapshot();
+  scheduleMiniEditorSave();
+
+  return true;
+}
+
+function clearSelectedBibleAnnotation() {
+  if (clearBibleSelectionFormat()) {
+    return true;
+  }
+
+  return clearSelectedDrawnAnnotation();
+}
+
+function clearDrawnAnnotations() {
+  if (currentFreehandGroup) {
+    finalizeFreehandGroup({ recordHistory: true });
+  }
+
+  if (!annotationLayer) return;
+
+  annotationLayer.innerHTML = "";
+  window.AnchoredAnnotations?.clear?.();
+
+  selectedDrawnAnnotation = null;
+  currentFreehandGroup = null;
+  freehandSessionHasChanges = false;
+  annotationLayoutWarningDismissed = false;
+  updateAnnotationLayoutWarning();
+  recordMiniEditorHistorySnapshot();
+  scheduleMiniEditorSave();
+}
+
+function handleDrawingPointerDown(event) {
+  if (activeDrawingTool !== "freehand" || !drawingArea || !annotationLayer) {
+    return;
+  }
+
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  if (activePointerId !== null) {
+    return;
+  }
+
+  event.preventDefault();
+
+  activePointerId = event.pointerId;
+  activePointerType = event.pointerType;
+
+  try {
+    drawingArea.setPointerCapture(event.pointerId);
+  } catch (error) {
+    console.warn("Could not capture pointer:", error);
+  }
+
+  isDrawing = true;
+  selectedDrawnAnnotation = null;
+
+  document
+    .querySelectorAll(".drawn-annotation, .freehand-group")
+    .forEach((shape) => {
+      shape.classList.remove("selected-annotation");
+    });
+
+  const point = getDrawingCoordinates(event);
+  startX = point.x;
+  startY = point.y;
+  freehandPoints = [`M ${startX} ${startY}`];
+
+  currentShape = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "path"
+  );
+
+  currentShape.classList.add("freehand");
+  currentShape.setAttribute("d", freehandPoints.join(" "));
+  annotationLayer.appendChild(currentShape);
+}
+
+function handleDrawingPointerMove(event) {
+  if (!isDrawing || !currentShape) return;
+  if (event.pointerId !== activePointerId) return;
+  if (activeDrawingTool !== "freehand") return;
+
+  event.preventDefault();
+
+  const point = getDrawingCoordinates(event);
+  freehandPoints.push(`L ${point.x} ${point.y}`);
+  currentShape.setAttribute("d", freehandPoints.join(" "));
+}
+
+function releaseActivePointer(event) {
+  if (
+    drawingArea &&
+    activePointerId !== null &&
+    event &&
+    drawingArea.hasPointerCapture(event.pointerId)
+  ) {
+    try {
+      drawingArea.releasePointerCapture(event.pointerId);
+    } catch (error) {
+      console.warn("Could not release pointer capture:", error);
+    }
+  }
+
+  activePointerId = null;
+  activePointerType = null;
+}
+
+function finishDrawingStroke(event) {
+  if (!isDrawing) return;
+
+  if (
+    event &&
+    activePointerId !== null &&
+    event.pointerId !== activePointerId
+  ) {
+    return;
+  }
+
+  const completedFreehandStroke = activeDrawingTool === "freehand" && currentShape;
+
+  if (completedFreehandStroke) {
+    attachFreehandPathToGroup(currentShape);
+  } else if (currentShape) {
+    updateAnnotationBoundsMetadata(currentShape);
+    updateAnnotationLayoutWarning();
+  }
+
+  if (!completedFreehandStroke) {
+    recordMiniEditorHistorySnapshot();
+  }
+
+  isDrawing = false;
+  currentShape = null;
+  freehandPoints = [];
+
+  releaseActivePointer(event);
+}
+
+function cancelDrawingStroke(event) {
+  if (
+    activePointerId !== null &&
+    event.pointerId !== activePointerId
+  ) {
+    return;
+  }
+
+  currentShape?.remove();
+  updateAnnotationLayoutWarning();
+
+  isDrawing = false;
+  currentShape = null;
+  freehandPoints = [];
+
+  releaseActivePointer(event);
+}
+
+if (drawingArea && annotationLayer) {
+  setDrawingTool(null);
+
+  annotationLayer.addEventListener("click", function (event) {
+    if (currentFreehandGroup) {
+      finalizeFreehandGroup({ recordHistory: true });
+    }
+
+    const clickedAnnotation =
+      event.target.closest(".drawn-annotation, .freehand-group") ||
+      (event.target.classList?.contains("freehand") ? event.target : null);
+
+    if (!clickedAnnotation) return;
+
+    selectedDrawnAnnotation =
+      clickedAnnotation.closest?.(".freehand-group") || clickedAnnotation;
+
+    clearSavedBibleSelection();
+
+    document
+      .querySelectorAll(".drawn-annotation, .freehand-group, .freehand")
+      .forEach((shape) => {
+        shape.classList.remove("selected-annotation");
+      });
+
+    selectedDrawnAnnotation.classList.add("selected-annotation");
+  });
+
+  drawingArea.addEventListener("pointerdown", handleDrawingPointerDown);
+  drawingArea.addEventListener("pointermove", handleDrawingPointerMove);
+  drawingArea.addEventListener("pointerup", finishDrawingStroke);
+  drawingArea.addEventListener("pointercancel", cancelDrawingStroke);
+
+  drawingArea.addEventListener("lostpointercapture", function (event) {
+    if (isDrawing && event.pointerId === activePointerId) {
+      finishDrawingStroke(event);
+    }
+  });
+}
+
+// ----------------------------------------------------
+// Mini-toolbar and dropdowns
+// ----------------------------------------------------
+const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+if (miniToolbar) {
+  miniToolbar.addEventListener("pointerdown", function (event) {
+    const control = event.target.closest("button, select");
+
+    if (control) {
+      rememberCurrentSelectionOffsets();
+    }
+  });
+}
+
+function toggleMenu(id) {
+  document.getElementById(id)?.classList.toggle("show");
+}
+
+function closeMenu(id) {
+  document.getElementById(id)?.classList.remove("show");
+}
+
+function toggleHighlightMenu() {
+  toggleMenu("highlight-menu");
+}
+
+function closeHighlightMenu() {
+  closeMenu("highlight-menu");
+}
+
+function toggleFontMenu() {
+  toggleMenu("font-menu");
+}
+
+function closeFontMenu() {
+  closeMenu("font-menu");
+}
+
+function toggleFontColorMenu() {
+  toggleMenu("font-color-menu");
+}
+
+function closeFontColorMenu() {
+  closeMenu("font-color-menu");
+}
+
+function toggleDrawMenu() {
+  toggleMenu("draw-menu");
+}
+
+function closeDrawMenu() {
+  closeMenu("draw-menu");
+}
+
+document.addEventListener("click", function (event) {
+  const menuIds = [
+    "font-menu",
+    "highlight-menu",
+    "font-color-menu",
+    "draw-menu"
+  ];
+
+  menuIds.forEach((menuId) => {
+    const menu = document.getElementById(menuId);
+    const dropdown = menu?.closest(".toolbar-dropdown");
+
+    if (dropdown && !dropdown.contains(event.target)) {
+      closeMenu(menuId);
+    }
+  });
+});
+
+
+// ----------------------------------------------------
+// Keep the fixed mini-toolbar below the sticky navbar
+// ----------------------------------------------------
+function updateStickyEditorLayoutVars() {
+  const root = document.documentElement;
+  const stickyHeader = document.getElementById("stickyHeader");
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+  if (stickyHeader) {
+    const headerHeight = Math.ceil(stickyHeader.getBoundingClientRect().height);
+    if (headerHeight > 0) {
+      root.style.setProperty("--sticky-header-height", `${headerHeight}px`);
+    }
+  }
+
+  if (miniToolbar) {
+    const toolbarHeight = Math.ceil(miniToolbar.getBoundingClientRect().height);
+    if (toolbarHeight > 0) {
+      root.style.setProperty("--mini-toolbar-height", `${toolbarHeight}px`);
+    }
+  }
+}
+
+function scheduleStickyEditorLayoutUpdate() {
+  requestAnimationFrame(updateStickyEditorLayoutVars);
+}
+
+window.addEventListener("load", scheduleStickyEditorLayoutUpdate);
+window.addEventListener("resize", scheduleStickyEditorLayoutUpdate);
+window.addEventListener("orientationchange", scheduleStickyEditorLayoutUpdate);
+
+if (document.fonts?.ready) {
+  document.fonts.ready.then(scheduleStickyEditorLayoutUpdate).catch(() => {});
+}
+
+if (typeof ResizeObserver !== "undefined") {
+  const stickyEditorLayoutObserver = new ResizeObserver(scheduleStickyEditorLayoutUpdate);
+  const stickyHeader = document.getElementById("stickyHeader");
+  const miniToolbar = document.getElementById("bible-mini-toolbar");
+
+  if (stickyHeader) stickyEditorLayoutObserver.observe(stickyHeader);
+  if (miniToolbar) stickyEditorLayoutObserver.observe(miniToolbar);
+}
+
+scheduleStickyEditorLayoutUpdate();
+setTimeout(scheduleStickyEditorLayoutUpdate, 250);
+setTimeout(scheduleStickyEditorLayoutUpdate, 1000);
+
+
+function closeMobileToolbarMenus() {
+  const menus = document.querySelectorAll(".mobile-toolbar-menu");
+  const toggles = document.querySelectorAll(".mobile-toolbar-toggle");
+
+  menus.forEach((menu) => {
+    menu.classList.remove("show");
+  });
+
+  toggles.forEach((toggle) => {
+    toggle.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleMobileToolbarMenu(menuId) {
+  const menu = document.getElementById(menuId);
+
+  if (!menu) return;
+
+  const wasOpen = menu.classList.contains("show");
+  closeMobileToolbarMenus();
+
+  if (!wasOpen) {
+    menu.classList.add("show");
+
+    const toggle = document.querySelector(
+      `.mobile-toolbar-toggle[onclick*="${menuId}"]`
+    );
+
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", "true");
+    }
+  }
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof Element)) return;
+
+  if (!target.closest("#bible-mini-toolbar")) {
+    closeMobileToolbarMenus();
+  }
+});
+
+function isTypingOrFormTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      'input, textarea, select, [contenteditable="true"], .ql-editor'
+    )
+  );
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeMobileToolbarMenus();
+    closeFreehandWarningDialog();
+    return;
+  }
+
+  if (event.key === "Delete") {
+    if (isTypingOrFormTarget(event.target)) {
+      return;
+    }
+
+    if (clearSelectedDrawnAnnotation()) {
+      event.preventDefault();
+    }
+  }
+});
+
+// ----------------------------------------------------
+// Expose functions used by inline HTML onclick attributes
+// ----------------------------------------------------
+window.setDrawingTool = setDrawingTool;
+window.rememberCurrentSelectionOffsets = rememberCurrentSelectionOffsets;
+window.getRememberedBibleSelectionRange = function () {
+  const bibleText = document.getElementById("bible-text");
+
+  if (!bibleText || !savedBibleSelectionOffsets) return null;
+  if (Date.now() - savedBibleSelectionTimestamp > 120000) return null;
+
+  return getRangeFromTextOffsets(
+    bibleText,
+    savedBibleSelectionOffsets.start,
+    savedBibleSelectionOffsets.end
+  );
+};
+window.clearSavedBibleSelection = clearSavedBibleSelection;
+window.clearAllRememberedBibleSelections = clearAllRememberedBibleSelections;
+window.clearBibleSelectionFormat = clearBibleSelectionFormat;
+window.clearSelectedDrawnAnnotation = clearSelectedDrawnAnnotation;
+window.clearSelectedBibleAnnotation = clearSelectedBibleAnnotation;
+window.clearDrawnAnnotations = clearDrawnAnnotations;
+window.applyBibleFormat = applyBibleFormat;
+window.toggleHighlightMenu = toggleHighlightMenu;
+window.closeHighlightMenu = closeHighlightMenu;
+window.toggleFontMenu = toggleFontMenu;
+window.closeFontMenu = closeFontMenu;
+window.toggleFontColorMenu = toggleFontColorMenu;
+window.closeFontColorMenu = closeFontColorMenu;
+window.toggleDrawMenu = toggleDrawMenu;
+window.closeDrawMenu = closeDrawMenu;
+window.resizeAnnotationLayer = resizeAnnotationLayer;
+window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
+window.reloadMiniEditorPageAfterChapterRender = reloadMiniEditorPageAfterChapterRender;
+window.clearPrivateEditorStateForLogout = clearPrivateEditorStateForLogout;
+window.updateAnnotationLayoutWarning = updateAnnotationLayoutWarning;
+window.undoMiniEditorChange = undoMiniEditorChange;
+window.redoMiniEditorChange = redoMiniEditorChange;
+window.toggleMobileToolbarMenu = toggleMobileToolbarMenu;
+window.closeMobileToolbarMenus = closeMobileToolbarMenus;
+
+// ----------------------------------------------------
+// Keep editor access aligned with the shared authentication state
+// ----------------------------------------------------
+async function applySharedEditorAuthState(
+  detail = {}
+) {
+  const signedIn =
+    detail.signedIn === true;
+  const userId =
+    String(detail.userId || "");
+
+  if (!signedIn || !userId) {
+    clearPrivateEditorStateForLogout();
+    return;
+  }
+
+  const needsLoad =
+    editorAuthenticatedUserId !== userId ||
+    !editorToolsUnlocked ||
+    !quillNotesLoaded ||
+    !miniEditorLoaded;
+
+  editorAuthenticatedUserId =
+    userId;
+
+  unlockEditorTools();
+
+  if (!needsLoad) {
+    return;
+  }
+
+  await loadQuillNotes();
+
+  const ready =
+    await waitForBibleTextContent();
+
+  if (ready) {
+    await loadMiniEditorPage();
+  }
+}
+
+window.addEventListener(
+  "auth-state-changed",
+  (event) => {
+    applySharedEditorAuthState(
+      event.detail || {}
+    ).catch((error) => {
+      console.warn(
+        "Could not apply shared editor authentication state:",
+        error
+      );
+    });
+  }
+);
+
+/*
+ * If authentication completed before this module attached its listener,
+ * reconcile once from the already-rendered shared state.
+ */
+Promise.resolve().then(async () => {
+  const authState =
+    window.getCurrentAuthUIState?.() ||
+    document.documentElement.dataset.authState ||
+    "";
+
+  if (
+    authState !== "signed-in-online" &&
+    authState !== "signed-in-offline"
+  ) {
+    return;
+  }
+
+  const identity =
+    await window.UserData
+      ?.getIdentitySnapshot?.();
+
+  const userId =
+    identity?.liveUserId ||
+    identity?.lastVerifiedUserId ||
+    "";
+
+  if (!userId) {
+    return;
+  }
+
+  await applySharedEditorAuthState({
+    signedIn: true,
+    offline:
+      authState ===
+      "signed-in-offline",
+    userId
+  });
+});
+
+// ----------------------------------------------------
+// Start editor auth check after all functions are loaded
+// ----------------------------------------------------
+checkEditorAuth();
+
+// Run observer setup once content is ready
+waitForBibleTextContent().then((ready) => {
+  if (ready) {
+    startMiniEditorObserver();
+  }
+});
