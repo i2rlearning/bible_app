@@ -1074,6 +1074,7 @@ let miniEditorLoaded = false;
 let miniEditorVersion = 0;
 let miniEditorStoragePageKey = "";
 let miniEditorPristineBibleTextHtml = "";
+let miniEditorPristinePageKey = "";
 let miniEditorConflictActive = false;
 let miniEditorApplyingState = false;
 let miniEditorObserver = null;
@@ -1128,6 +1129,34 @@ function applyMiniEditorState(miniEditorJson) {
   setTimeout(() => {
     miniEditorApplyingState = false;
   }, 300);
+}
+
+function rememberPristineBibleTextForPage(
+  pageIdentity
+) {
+  const bibleText =
+    document.getElementById("bible-text");
+
+  const pageKey =
+    String(pageIdentity?.pageKey || "");
+
+  if (!bibleText || !pageKey) {
+    return;
+  }
+
+  /*
+   * Capture the unmodified Scripture markup once per rendered Bible page.
+   * Repeated authentication/editor initialization on the same chapter must not
+   * replace this clean snapshot after private annotations have been applied.
+   */
+  if (
+    miniEditorPristinePageKey !== pageKey ||
+    !miniEditorPristineBibleTextHtml
+  ) {
+    miniEditorPristinePageKey = pageKey;
+    miniEditorPristineBibleTextHtml =
+      bibleText.innerHTML;
+  }
 }
 
 function clearSavedMiniEditorStateForRenderedChapter() {
@@ -1652,13 +1681,9 @@ async function loadMiniEditorPage() {
   miniEditorStoragePageKey =
     pageIdentity.pageKey;
 
-  const bibleText =
-    document.getElementById("bible-text");
-
-  if (bibleText) {
-    miniEditorPristineBibleTextHtml =
-      bibleText.innerHTML;
-  }
+  rememberPristineBibleTextForPage(
+    pageIdentity
+  );
 
   /*
    * Clear the previous chapter's annotation state before loading this chapter.
