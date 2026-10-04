@@ -6,6 +6,9 @@
  * UserOfflineDB without changing the existing server-first save behavior.
  * It also mirrors successful online mini-editor loads/saves into UserOfflineDB
  * while keeping the existing server-first annotation behavior unchanged.
+ * Phase 4 Step 6 adds durable local outbox saves for My Notes and mini-editor
+ * changes made after an already-authenticated page loses connectivity.
+ * Automatic reconnect synchronization is intentionally deferred to Step 7.
  */
 
 import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/+esm";
@@ -189,7 +192,7 @@ function setEditorSaveStatus(message) {
     status.classList.add("editor-save-status-saving");
   }
 
-  if (message === "Saved") {
+  if (message === "Saved" || message === "Saved on this device") {
     status.classList.add("editor-save-status-saved");
   }
 
@@ -205,13 +208,38 @@ function setEditorSaveStatus(message) {
 
   clearTimeout(editorSaveStatusClearTimer);
 
-  if (message === "Saved") {
+  if (message === "Saved" || message === "Saved on this device") {
     editorSaveStatusClearTimer = setTimeout(() => {
       status.textContent = "";
       status.classList.remove("editor-save-status-saved");
       syncEditorSaveStatusVisibility(status);
     }, 3000);
   }
+}
+
+// ----------------------------------------------------
+// Offline-save detection for an already verified editor session
+// ----------------------------------------------------
+function editorShouldQueueLocally() {
+  const state = window.AppShell?.getState?.() || {};
+
+  return (
+    navigator.onLine === false ||
+    state.browserOnline === false ||
+    state.appReachable === false ||
+    state.connectionIssue === true
+  );
+}
+
+function getCurrentBibleName() {
+  const params = new URLSearchParams(window.location.search);
+
+  return (
+    params.get("bibleAbbr") ||
+    params.get("abbr") ||
+    params.get("bibleName") ||
+    ""
+  );
 }
 
 // ----------------------------------------------------
@@ -555,6 +583,59 @@ async function removeLocalQuillMirror(pageIdentity) {
   }
 }
 
+
+async function queueCurrentQuillStateLocally(
+  pageIdentity,
+  quillDelta,
+  plainText
+) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueQuillNoteForSync
+  ) {
+    throw new Error("Offline My Notes storage is not available.");
+  }
+
+  return window.UserData.queueQuillNoteForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      quillDelta,
+      plainText,
+      serverVersion: Number.isInteger(quillNotesVersion)
+        ? quillNotesVersion
+        : 0
+    }
+  );
+}
+
+async function queueCurrentQuillDeleteLocally(pageIdentity) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueQuillDeleteForSync
+  ) {
+    throw new Error("Offline My Notes deletion storage is not available.");
+  }
+
+  return window.UserData.queueQuillDeleteForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      serverVersion: Number.isInteger(quillNotesVersion)
+        ? quillNotesVersion
+        : 0
+    }
+  );
+}
+
 async function loadQuillNotes() {
   if (typeof quill === "undefined") return;
 
@@ -646,6 +727,13 @@ async function saveQuillNotes() {
     const plainText = quill.getText().trim();
 
     if (!plainText) {
+      if (editorShouldQueueLocally()) {
+        await queueCurrentQuillDeleteLocally(pageIdentity);
+        console.log("Empty Quill notes saved locally for later sync");
+        setEditorSaveStatus("Saved on this device");
+        return;
+      }
+
       const deleteParams = new URLSearchParams({ pageKey: quillNotesStoragePageKey || pageIdentity.pageKey });
       deleteParams.set("expectedVersion", String(Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0));
 
@@ -672,6 +760,17 @@ async function saveQuillNotes() {
       await removeLocalQuillMirror(pageIdentity);
       console.log("Empty Quill notes deleted");
       setEditorSaveStatus("Saved");
+      return;
+    }
+
+    if (editorShouldQueueLocally()) {
+      await queueCurrentQuillStateLocally(
+        pageIdentity,
+        quillDelta,
+        plainText
+      );
+      console.log("Quill notes saved locally for later sync");
+      setEditorSaveStatus("Saved on this device");
       return;
     }
 
@@ -1315,6 +1414,61 @@ async function removeLocalMiniEditorMirror(pageIdentity) {
   }
 }
 
+
+async function queueCurrentMiniEditorStateLocally(
+  pageIdentity,
+  miniEditorJson,
+  flags
+) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueMiniEditorPageForSync
+  ) {
+    throw new Error("Offline annotation storage is not available.");
+  }
+
+  return window.UserData.queueMiniEditorPageForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      miniEditorJson,
+      hasHighlights: flags.hasHighlights,
+      hasDrawings: flags.hasDrawings,
+      hasTextFormats: flags.hasTextFormats,
+      serverVersion: Number.isInteger(miniEditorVersion)
+        ? miniEditorVersion
+        : 0
+    }
+  );
+}
+
+async function queueCurrentMiniEditorDeleteLocally(pageIdentity) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.queueMiniEditorDeleteForSync
+  ) {
+    throw new Error("Offline annotation deletion storage is not available.");
+  }
+
+  return window.UserData.queueMiniEditorDeleteForSync(
+    editorAuthenticatedUserId,
+    {
+      ...pageIdentity,
+      pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
+      pageUrl: window.location.pathname + window.location.search,
+      bibleName: getCurrentBibleName(),
+      bookChapterLabel: getCurrentBookChapterLabel(),
+      serverVersion: Number.isInteger(miniEditorVersion)
+        ? miniEditorVersion
+        : 0
+    }
+  );
+}
+
 async function loadMiniEditorPage() {
   if (!editorToolsUnlocked) return;
 
@@ -1415,6 +1569,13 @@ async function saveMiniEditorPage() {
 
   try {
     if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
+      if (editorShouldQueueLocally()) {
+        await queueCurrentMiniEditorDeleteLocally(pageIdentity);
+        console.log("Empty mini-editor state saved locally for later sync");
+        setEditorSaveStatus("Saved on this device");
+        return;
+      }
+
       const deleteParams = new URLSearchParams({ pageKey: miniEditorStoragePageKey || pageIdentity.pageKey });
       deleteParams.set("expectedVersion", String(Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0));
 
@@ -1441,6 +1602,17 @@ async function saveMiniEditorPage() {
       await removeLocalMiniEditorMirror(pageIdentity);
       console.log("Empty mini-editor page deleted");
       setEditorSaveStatus("Saved");
+      return;
+    }
+
+    if (editorShouldQueueLocally()) {
+      await queueCurrentMiniEditorStateLocally(
+        pageIdentity,
+        miniEditorJson,
+        flags
+      );
+      console.log("Mini-editor state saved locally for later sync");
+      setEditorSaveStatus("Saved on this device");
       return;
     }
 
