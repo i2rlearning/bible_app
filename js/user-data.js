@@ -4,8 +4,8 @@
  * Project file: js/user-data.js
  *
  * Purpose:
- * Provides the Phase 4 user/device identity layer and the first local mirror for
- * authenticated My Notes (Quill) data from the Scripture page.
+ * Provides the Phase 4 user/device identity layer, the local mirror for
+ * authenticated My Notes (Quill), and local-only Study Desk draft autosave.
  *
  * What this file does:
  * - Creates one persistent deviceId for this browser/device installation.
@@ -16,6 +16,10 @@
  * - Mirrors successful server Quill-note loads/saves into UserOfflineDB.
  * - Removes the local Quill mirror only after an explicit successful server delete.
  * - Preserves any older pending/conflict local record instead of overwriting it.
+ * - Saves authenticated Study Desk drafts locally with the current deviceId.
+ * - Keeps Study Desk draft autosave local-only in this step; it does not sync drafts.
+ * - Deletes a Study Desk local draft after the user explicitly discards it or after
+ *   the existing server Save succeeds.
  *
  * Important security rule:
  * - deviceId is NOT authentication.
@@ -23,7 +27,8 @@
  * - A live Clerk session or a successful protected /api/me response is required
  *   before this step writes private user data into the local mirror.
  * - Offline trust and offline private-data access are intentionally NOT enabled
- *   in this step. The local mirror is not yet used as an offline source of truth.
+ *   in this step. Local Quill mirrors and Study Desk drafts are not yet used as
+ *   offline sources of truth.
  *
  * Dependencies:
  * - js/user-offline-db.js must be loaded before this file is used.
@@ -286,6 +291,79 @@ window.UserData = (() => {
     return null;
   }
 
+  async function saveStudyDraft(input = {}) {
+    const db = requireUserOfflineDB();
+    const userId = getLiveAuthenticatedUserId();
+
+    if (!userId) {
+      throw new Error("A live authenticated user is required to save a Study Desk draft.");
+    }
+
+    const draftKey = String(input.draftKey || "");
+    if (!draftKey) {
+      throw new Error("A Study Desk draftKey is required.");
+    }
+
+    await rememberVerifiedAuthenticatedUser(userId);
+
+    const existing = await db.getStudyDraft(userId, draftKey);
+    const timestamp = now();
+
+    const record = {
+      ...(existing || {}),
+      userId,
+      deviceId: getDeviceId(),
+      draftKey,
+      studyId: input.studyId ? String(input.studyId) : "",
+      baseVersion:
+        input.baseVersion !== null &&
+        input.baseVersion !== undefined &&
+        Number.isInteger(Number(input.baseVersion))
+          ? Number(input.baseVersion)
+          : null,
+      data: input.data || {},
+      createdAt: Number(existing?.createdAt) || timestamp,
+      localUpdatedAt: timestamp,
+      syncStatus: "local-draft"
+    };
+
+    await db.putStudyDraft(record);
+    return record;
+  }
+
+  async function getStudyDraft(draftKey) {
+    const db = requireUserOfflineDB();
+    const userId = getLiveAuthenticatedUserId();
+
+    if (!userId || !draftKey) {
+      return null;
+    }
+
+    return db.getStudyDraft(userId, String(draftKey));
+  }
+
+  async function listStudyDrafts() {
+    const db = requireUserOfflineDB();
+    const userId = getLiveAuthenticatedUserId();
+
+    if (!userId) {
+      return [];
+    }
+
+    return db.listStudyDrafts(userId);
+  }
+
+  async function deleteStudyDraft(draftKey) {
+    const db = requireUserOfflineDB();
+    const userId = getLiveAuthenticatedUserId();
+
+    if (!userId || !draftKey) {
+      return;
+    }
+
+    await db.deleteStudyDraft(userId, String(draftKey));
+  }
+
   async function getStoredProfile(userId) {
     if (!userId) {
       return null;
@@ -327,6 +405,10 @@ window.UserData = (() => {
     cacheQuillNoteFromServer,
     deleteCachedQuillNote,
     getCachedQuillNote,
+    saveStudyDraft,
+    getStudyDraft,
+    listStudyDrafts,
+    deleteStudyDraft,
     getStoredProfile,
     getLastVerifiedUserId,
     getIdentitySnapshot
