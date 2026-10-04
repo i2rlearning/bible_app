@@ -139,7 +139,6 @@ window.UserData = (() => {
     await db.putProfile(profile);
     await db.setMeta(
       LAST_VERIFIED_USER_META_KEY,
-    PENDING_REMOTE_LOGOUT_META_KEY,
       verifiedUserId
     );
 
@@ -1746,8 +1745,24 @@ window.UserData = (() => {
   async function getLastVerifiedUserId() {
     const db = requireUserOfflineDB();
     const record = await db.getMeta(LAST_VERIFIED_USER_META_KEY);
+    const value = String(record?.value || "");
 
-    return String(record?.value || "");
+    /*
+     * Ignore and remove an invalid metadata value rather than treating arbitrary
+     * text as a verified Clerk user ID.
+     */
+    if (
+      value &&
+      value === PENDING_REMOTE_LOGOUT_META_KEY
+    ) {
+      await db.setMeta(
+        LAST_VERIFIED_USER_META_KEY,
+        ""
+      );
+      return "";
+    }
+
+    return value;
   }
 
   async function getIdentitySnapshot() {
