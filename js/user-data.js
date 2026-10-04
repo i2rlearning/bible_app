@@ -16,6 +16,8 @@
  * - Mirrors successful server Quill-note loads/saves into UserOfflineDB.
  * - Removes the local Quill mirror only after an explicit successful server delete.
  * - Mirrors successful server mini-editor loads/saves into UserOfflineDB.
+ * - Queues authenticated My Notes and mini-editor changes in the durable outbox
+ *   when the already-verified editor session is offline.
  * - Removes a clean local mini-editor mirror after an explicit successful server delete.
  * - Preserves older pending/conflict mini-editor records instead of overwriting them.
  * - Preserves any older pending/conflict local record instead of overwriting it.
@@ -29,15 +31,18 @@
  * - A userId stored in IndexedDB is NOT authentication.
  * - A live Clerk session or a successful protected /api/me response is required
  *   before this step writes private user data into the local mirror.
- * - Offline trust and offline private-data access are intentionally NOT enabled
- *   in this step. Local Quill mirrors and Study Desk drafts are not yet used as
- *   offline sources of truth.
+ * - Full offline trust after reload/navigation is intentionally NOT enabled yet.
+ * - Step 6 allows only an editor session that was already verified online on the
+ *   current page to queue private edits while connectivity is lost.
+ * - Automatic reconnect synchronization is intentionally deferred to Step 7.
  *
  * Dependencies:
  * - js/user-offline-db.js must be loaded before this file is used.
  */
 
 window.UserData = (() => {
+  const ENTITY_QUILL_NOTE = "quill_note";
+  const ENTITY_MINI_EDITOR_PAGE = "mini_editor_page";
   const DEVICE_ID_STORAGE_KEY = "BibleAppDeviceId";
   const LAST_VERIFIED_USER_META_KEY = "phase4LastVerifiedUserId";
 
@@ -521,6 +526,462 @@ window.UserData = (() => {
     return null;
   }
 
+
+  async function requirePreviouslyVerifiedLocalUser(userId) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+    const profile = verifiedUserId
+      ? await db.getProfile(verifiedUserId)
+      : null;
+
+    if (!profile?.lastVerifiedAt) {
+      throw new Error(
+        "Offline private edits require a user that was verified online on this device."
+      );
+    }
+
+    return profile;
+  }
+
+  async function getReusablePendingMutation(userId, entityType, entityKey) {
+    const db = requireUserOfflineDB();
+    const items = await db.listOutboxForEntity(
+      String(userId || ""),
+      String(entityType || ""),
+      String(entityKey || "")
+    );
+
+    return items.find((item) => item.status === "pending") || null;
+  }
+
+  async function removePendingMutationsForEntity(userId, entityType, entityKey) {
+    const db = requireUserOfflineDB();
+    const items = await db.listOutboxForEntity(
+      String(userId || ""),
+      String(entityType || ""),
+      String(entityKey || "")
+    );
+
+    for (const item of items) {
+      if (item.status === "pending") {
+        await db.deleteOutboxMutation(item.mutationId);
+      }
+    }
+  }
+
+  async function putQuillOutboxMutation(userId, noteRecord, operation) {
+    const db = requireUserOfflineDB();
+    const entityKey = String(noteRecord.pageKey || "");
+    const existing = await getReusablePendingMutation(
+      userId,
+      ENTITY_QUILL_NOTE,
+      entityKey
+    );
+    const timestamp = now();
+
+    const mutation = {
+      ...(existing || {}),
+      mutationId: existing?.mutationId || newUuid(),
+      userId: String(userId),
+      deviceId: getDeviceId(),
+      entityType: ENTITY_QUILL_NOTE,
+      entityKey,
+      operation,
+      baseVersion: Number(noteRecord.serverVersion) || 0,
+      payload: operation === "delete"
+        ? null
+        : {
+            bibleVersionID: noteRecord.bibleVersionID,
+            bibleChapterID: noteRecord.bibleChapterID,
+            pageKey: noteRecord.pageKey,
+            pageUrl: noteRecord.pageUrl || "",
+            bibleName: noteRecord.bibleName || "",
+            bookChapterLabel: noteRecord.bookChapterLabel || "",
+            quillDelta: noteRecord.quillDelta,
+            plainText: noteRecord.plainText || ""
+          },
+      status: "pending",
+      createdAt: Number(existing?.createdAt) || timestamp,
+      updatedAt: timestamp,
+      attemptCount: Number(existing?.attemptCount) || 0,
+      lastError: ""
+    };
+
+    await db.putOutboxMutation(mutation);
+    return mutation;
+  }
+
+  async function queueQuillNoteForSync(userId, input = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+    const pageKey = String(input.pageKey || "");
+
+    if (!verifiedUserId || !pageKey) {
+      throw new Error("A verified userId and pageKey are required to queue My Notes.");
+    }
+
+    await requirePreviouslyVerifiedLocalUser(verifiedUserId);
+
+    let existing = await db.getQuillNote(verifiedUserId, pageKey);
+
+    if (
+      !existing &&
+      input.bibleVersionID &&
+      input.bibleChapterID
+    ) {
+      existing = await db.getQuillNoteByBibleChapter(
+        verifiedUserId,
+        String(input.bibleVersionID),
+        String(input.bibleChapterID)
+      );
+    }
+
+    const record = {
+      ...(existing || {}),
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      pageKey: existing?.pageKey || pageKey,
+      bibleVersionID: String(input.bibleVersionID || existing?.bibleVersionID || ""),
+      bibleChapterID: String(input.bibleChapterID || existing?.bibleChapterID || ""),
+      pageUrl: String(input.pageUrl || existing?.pageUrl || ""),
+      bibleName: String(input.bibleName || existing?.bibleName || ""),
+      bookChapterLabel: String(input.bookChapterLabel || existing?.bookChapterLabel || ""),
+      quillDelta: input.quillDelta,
+      plainText: String(input.plainText || ""),
+      serverVersion:
+        Number(existing?.serverVersion) ||
+        Number(input.serverVersion) ||
+        0,
+      serverUpdatedAt: existing?.serverUpdatedAt || null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putQuillNote(record);
+
+    const operation = record.serverVersion > 0 ? "update" : "create";
+    const mutation = await putQuillOutboxMutation(
+      verifiedUserId,
+      record,
+      operation
+    );
+
+    return {
+      userId: verifiedUserId,
+      note: record,
+      mutationId: mutation.mutationId,
+      syncStatus: "pending"
+    };
+  }
+
+  async function queueQuillDeleteForSync(userId, input = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+    const requestedPageKey = String(input.pageKey || "");
+
+    if (!verifiedUserId || !requestedPageKey) {
+      throw new Error("A verified userId and pageKey are required to queue a My Notes delete.");
+    }
+
+    await requirePreviouslyVerifiedLocalUser(verifiedUserId);
+
+    let existing = await db.getQuillNote(
+      verifiedUserId,
+      requestedPageKey
+    );
+
+    if (
+      !existing &&
+      input.bibleVersionID &&
+      input.bibleChapterID
+    ) {
+      existing = await db.getQuillNoteByBibleChapter(
+        verifiedUserId,
+        String(input.bibleVersionID),
+        String(input.bibleChapterID)
+      );
+    }
+
+    const entityKey = existing?.pageKey || requestedPageKey;
+    const serverVersion =
+      Number(existing?.serverVersion) ||
+      Number(input.serverVersion) ||
+      0;
+
+    if (serverVersion <= 0) {
+      await removePendingMutationsForEntity(
+        verifiedUserId,
+        ENTITY_QUILL_NOTE,
+        entityKey
+      );
+
+      await db.deleteQuillNote(verifiedUserId, entityKey);
+
+      return {
+        userId: verifiedUserId,
+        note: null,
+        mutationId: "",
+        syncStatus: "clean",
+        queued: false
+      };
+    }
+
+    const tombstone = {
+      ...(existing || {}),
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      pageKey: entityKey,
+      bibleVersionID: String(input.bibleVersionID || existing?.bibleVersionID || ""),
+      bibleChapterID: String(input.bibleChapterID || existing?.bibleChapterID || ""),
+      pageUrl: String(input.pageUrl || existing?.pageUrl || ""),
+      bibleName: String(input.bibleName || existing?.bibleName || ""),
+      bookChapterLabel: String(input.bookChapterLabel || existing?.bookChapterLabel || ""),
+      quillDelta: null,
+      plainText: "",
+      serverVersion,
+      serverUpdatedAt: existing?.serverUpdatedAt || null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: true
+    };
+
+    await db.putQuillNote(tombstone);
+
+    const mutation = await putQuillOutboxMutation(
+      verifiedUserId,
+      tombstone,
+      "delete"
+    );
+
+    return {
+      userId: verifiedUserId,
+      note: null,
+      mutationId: mutation.mutationId,
+      syncStatus: "pending",
+      queued: true
+    };
+  }
+
+  async function putMiniEditorOutboxMutation(userId, pageRecord, operation) {
+    const db = requireUserOfflineDB();
+    const entityKey = String(pageRecord.pageKey || "");
+    const existing = await getReusablePendingMutation(
+      userId,
+      ENTITY_MINI_EDITOR_PAGE,
+      entityKey
+    );
+    const timestamp = now();
+
+    const mutation = {
+      ...(existing || {}),
+      mutationId: existing?.mutationId || newUuid(),
+      userId: String(userId),
+      deviceId: getDeviceId(),
+      entityType: ENTITY_MINI_EDITOR_PAGE,
+      entityKey,
+      operation,
+      baseVersion: Number(pageRecord.serverVersion) || 0,
+      payload: operation === "delete"
+        ? null
+        : {
+            bibleVersionID: pageRecord.bibleVersionID,
+            bibleChapterID: pageRecord.bibleChapterID,
+            pageKey: pageRecord.pageKey,
+            pageUrl: pageRecord.pageUrl || "",
+            bibleName: pageRecord.bibleName || "",
+            bookChapterLabel: pageRecord.bookChapterLabel || "",
+            miniEditorJson: pageRecord.miniEditorJson,
+            hasHighlights: Boolean(pageRecord.hasHighlights),
+            hasDrawings: Boolean(pageRecord.hasDrawings),
+            hasTextFormats: Boolean(pageRecord.hasTextFormats)
+          },
+      status: "pending",
+      createdAt: Number(existing?.createdAt) || timestamp,
+      updatedAt: timestamp,
+      attemptCount: Number(existing?.attemptCount) || 0,
+      lastError: ""
+    };
+
+    await db.putOutboxMutation(mutation);
+    return mutation;
+  }
+
+  async function queueMiniEditorPageForSync(userId, input = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+    const pageKey = String(input.pageKey || "");
+
+    if (!verifiedUserId || !pageKey) {
+      throw new Error("A verified userId and pageKey are required to queue annotations.");
+    }
+
+    await requirePreviouslyVerifiedLocalUser(verifiedUserId);
+
+    let existing = await db.getMiniEditorPage(
+      verifiedUserId,
+      pageKey
+    );
+
+    if (
+      !existing &&
+      input.bibleVersionID &&
+      input.bibleChapterID
+    ) {
+      existing = await db.getMiniEditorPageByBibleChapter(
+        verifiedUserId,
+        String(input.bibleVersionID),
+        String(input.bibleChapterID)
+      );
+    }
+
+    const record = {
+      ...(existing || {}),
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      pageKey: existing?.pageKey || pageKey,
+      bibleVersionID: String(input.bibleVersionID || existing?.bibleVersionID || ""),
+      bibleChapterID: String(input.bibleChapterID || existing?.bibleChapterID || ""),
+      pageUrl: String(input.pageUrl || existing?.pageUrl || ""),
+      bibleName: String(input.bibleName || existing?.bibleName || ""),
+      bookChapterLabel: String(input.bookChapterLabel || existing?.bookChapterLabel || ""),
+      miniEditorJson: input.miniEditorJson,
+      hasHighlights: Boolean(input.hasHighlights),
+      hasDrawings: Boolean(input.hasDrawings),
+      hasTextFormats: Boolean(input.hasTextFormats),
+      serverVersion:
+        Number(existing?.serverVersion) ||
+        Number(input.serverVersion) ||
+        0,
+      serverUpdatedAt: existing?.serverUpdatedAt || null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putMiniEditorPage(record);
+
+    const operation = record.serverVersion > 0 ? "update" : "create";
+    const mutation = await putMiniEditorOutboxMutation(
+      verifiedUserId,
+      record,
+      operation
+    );
+
+    return {
+      userId: verifiedUserId,
+      page: record,
+      mutationId: mutation.mutationId,
+      syncStatus: "pending"
+    };
+  }
+
+  async function queueMiniEditorDeleteForSync(userId, input = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+    const requestedPageKey = String(input.pageKey || "");
+
+    if (!verifiedUserId || !requestedPageKey) {
+      throw new Error("A verified userId and pageKey are required to queue an annotation delete.");
+    }
+
+    await requirePreviouslyVerifiedLocalUser(verifiedUserId);
+
+    let existing = await db.getMiniEditorPage(
+      verifiedUserId,
+      requestedPageKey
+    );
+
+    if (
+      !existing &&
+      input.bibleVersionID &&
+      input.bibleChapterID
+    ) {
+      existing = await db.getMiniEditorPageByBibleChapter(
+        verifiedUserId,
+        String(input.bibleVersionID),
+        String(input.bibleChapterID)
+      );
+    }
+
+    const entityKey = existing?.pageKey || requestedPageKey;
+    const serverVersion =
+      Number(existing?.serverVersion) ||
+      Number(input.serverVersion) ||
+      0;
+
+    if (serverVersion <= 0) {
+      await removePendingMutationsForEntity(
+        verifiedUserId,
+        ENTITY_MINI_EDITOR_PAGE,
+        entityKey
+      );
+
+      await db.deleteMiniEditorPage(verifiedUserId, entityKey);
+
+      return {
+        userId: verifiedUserId,
+        page: null,
+        mutationId: "",
+        syncStatus: "clean",
+        queued: false
+      };
+    }
+
+    const tombstone = {
+      ...(existing || {}),
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      pageKey: entityKey,
+      bibleVersionID: String(input.bibleVersionID || existing?.bibleVersionID || ""),
+      bibleChapterID: String(input.bibleChapterID || existing?.bibleChapterID || ""),
+      pageUrl: String(input.pageUrl || existing?.pageUrl || ""),
+      bibleName: String(input.bibleName || existing?.bibleName || ""),
+      bookChapterLabel: String(input.bookChapterLabel || existing?.bookChapterLabel || ""),
+      miniEditorJson: null,
+      hasHighlights: false,
+      hasDrawings: false,
+      hasTextFormats: false,
+      serverVersion,
+      serverUpdatedAt: existing?.serverUpdatedAt || null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: true
+    };
+
+    await db.putMiniEditorPage(tombstone);
+
+    const mutation = await putMiniEditorOutboxMutation(
+      verifiedUserId,
+      tombstone,
+      "delete"
+    );
+
+    return {
+      userId: verifiedUserId,
+      page: null,
+      mutationId: mutation.mutationId,
+      syncStatus: "pending",
+      queued: true
+    };
+  }
+
+  async function listPendingOutboxForUser(userId) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+
+    if (!verifiedUserId) {
+      return [];
+    }
+
+    return db.listOutbox(verifiedUserId, ["pending"]);
+  }
+
+
   async function saveStudyDraft(input = {}) {
     const db = requireUserOfflineDB();
     const userId = getLiveAuthenticatedUserId();
@@ -626,6 +1087,8 @@ window.UserData = (() => {
   }
 
   return Object.freeze({
+    ENTITY_QUILL_NOTE,
+    ENTITY_MINI_EDITOR_PAGE,
     DEVICE_ID_STORAGE_KEY,
     LAST_VERIFIED_USER_META_KEY,
     getDeviceId,
@@ -638,6 +1101,11 @@ window.UserData = (() => {
     cacheMiniEditorPageFromServer,
     deleteCachedMiniEditorPage,
     getCachedMiniEditorPage,
+    queueQuillNoteForSync,
+    queueQuillDeleteForSync,
+    queueMiniEditorPageForSync,
+    queueMiniEditorDeleteForSync,
+    listPendingOutboxForUser,
     saveStudyDraft,
     getStudyDraft,
     listStudyDrafts,
