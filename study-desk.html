@@ -3,6 +3,8 @@
   Project file: study-desk.html
   Purpose: Defines the Study Desk workspace used to create, edit, organize,
   and revisit personal Bible studies and their related Scripture references.
+  Phase 4 Step 4 also loads the local user-data layer so unsaved Study Desk
+  changes can be debounced into UserOfflineDB without changing server Save.
 -->
 <html lang="en">
   <head>
@@ -390,6 +392,8 @@
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
     <script src="js/app-shell.js?v=20260928-startup-1"></script>
+    <script src="js/user-offline-db.js?v=20261004-phase4-step4-1"></script>
+    <script src="js/user-data.js?v=20261004-phase4-step4-1"></script>
     <script src="js/my_key.js"></script>
     <script src="js/bible-offline-db.js?v=20260927-phase2b"></script>
     <script src="js/bible-data.js?v=20260928-connectivity-1"></script>
@@ -404,6 +408,6 @@
     <script src="js/passage-picker.js"></script>
     <script src="js/ui-fit-controller.js"></script>
     
-    <script src="js/study-desk.js?v=20260925-phase1d1"></script>
+    <script src="js/study-desk.js?v=20261004-phase4-step4-1"></script>
   </body>
 </html>
