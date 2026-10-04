@@ -1,14 +1,11 @@
 /*
  * Project file: js/editor.js
- * Purpose: Controls the Scripture-page Quill editors and related study tools,
- * including note editing, formatting, annotations, loading, and saving behavior.
- * Phase 4 Step 3 also mirrors successful online My Notes loads/saves into
- * UserOfflineDB without changing the existing server-first save behavior.
- * It also mirrors successful online mini-editor loads/saves into UserOfflineDB
- * while keeping the existing server-first annotation behavior unchanged.
- * Phase 4 Step 6 adds durable local outbox saves for My Notes and mini-editor
- * changes made after an already-authenticated page loses connectivity.
- * Automatic reconnect synchronization is intentionally deferred to Step 7.
+ * Purpose: Controls My Notes, Scripture annotations, drawing tools, formatting,
+ * local save status, authenticated editor access, and local/offline persistence.
+ *
+ * The editor keeps server-backed personal data mirrored locally, queues changes
+ * when an already-authenticated page loses connectivity, and clears visible
+ * private editor state immediately when the user logs out.
  */
 
 import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/+esm";
@@ -344,11 +341,25 @@ async function checkEditorAuth() {
       editorAuthenticatedUserId = String(result.user.id || "");
 
       try {
-        await window.UserData?.rememberVerifiedAuthenticatedUser?.(
-          editorAuthenticatedUserId
-        );
+        if (
+          window.UserData?.rememberVerifiedAuthenticatedUser
+        ) {
+          const rememberedProfile =
+            await window.UserData.rememberVerifiedAuthenticatedUser(
+              editorAuthenticatedUserId
+            );
+
+          if (!rememberedProfile) {
+            editorAuthenticatedUserId = "";
+            clearPrivateEditorStateForLogout();
+            return;
+          }
+        }
       } catch (error) {
-        console.warn("Could not record verified user identity locally:", error);
+        console.warn(
+          "Could not record verified user identity locally:",
+          error
+        );
       }
 
       unlockEditorTools();
@@ -415,6 +426,37 @@ function lockEditorTools() {
   }
 
   setEditorSaveStatus("");
+}
+
+function clearPrivateEditorStateForLogout() {
+  clearTimeout(quillSaveTimer);
+  clearTimeout(miniEditorSaveTimer);
+
+  quillNotesLoaded = false;
+  quillConflictActive = false;
+  quillNotesVersion = 0;
+  quillNotesStoragePageKey = "";
+
+  miniEditorLoaded = false;
+  miniEditorConflictActive = false;
+  miniEditorVersion = 0;
+  miniEditorStoragePageKey = "";
+
+  editorAuthenticatedUserId = "";
+
+  if (typeof quill !== "undefined") {
+    quill.setText("", "silent");
+  }
+
+  clearSavedMiniEditorStateForRenderedChapter();
+
+  miniEditorUndoStack = [];
+  miniEditorRedoStack = [];
+  miniEditorHistorySignature = "";
+  miniEditorHistoryReady = false;
+  miniEditorHistoryApplying = false;
+
+  lockEditorTools();
 }
 
 function unlockEditorTools() {
@@ -561,7 +603,7 @@ async function mirrorServerQuillNoteLocally(serverNote, pageIdentity) {
       }
     );
   } catch (error) {
-    // The server remains the source of truth in this step. A local mirror failure
+    // The server remains the source of truth. A local mirror failure
     // must never turn a successful online load/save into an editor failure.
     console.warn("Could not mirror Quill notes into UserOfflineDB:", error);
   }
@@ -947,6 +989,7 @@ let miniEditorSaveQueue = Promise.resolve();
 let miniEditorLoaded = false;
 let miniEditorVersion = 0;
 let miniEditorStoragePageKey = "";
+let miniEditorPristineBibleTextHtml = "";
 let miniEditorConflictActive = false;
 let miniEditorApplyingState = false;
 let miniEditorObserver = null;
@@ -1004,9 +1047,18 @@ function applyMiniEditorState(miniEditorJson) {
 }
 
 function clearSavedMiniEditorStateForRenderedChapter() {
+  const bibleText = document.getElementById("bible-text");
   const annotationLayer = document.getElementById("bible-annotation-layer");
 
   miniEditorApplyingState = true;
+
+  if (
+    bibleText &&
+    miniEditorPristineBibleTextHtml
+  ) {
+    bibleText.innerHTML =
+      miniEditorPristineBibleTextHtml;
+  }
 
   if (annotationLayer) {
     annotationLayer.innerHTML = "";
@@ -1478,6 +1530,14 @@ async function loadMiniEditorPage() {
 
   miniEditorConflictActive = false;
   miniEditorStoragePageKey = pageIdentity.pageKey;
+
+  const bibleText =
+    document.getElementById("bible-text");
+
+  if (bibleText) {
+    miniEditorPristineBibleTextHtml =
+      bibleText.innerHTML;
+  }
 
   try {
     const loadParams = new URLSearchParams({
@@ -3416,6 +3476,7 @@ window.closeDrawMenu = closeDrawMenu;
 window.resizeAnnotationLayer = resizeAnnotationLayer;
 window.refreshBibleAnnotationLayout = refreshBibleAnnotationLayout;
 window.reloadMiniEditorPageAfterChapterRender = reloadMiniEditorPageAfterChapterRender;
+window.clearPrivateEditorStateForLogout = clearPrivateEditorStateForLogout;
 window.updateAnnotationLayoutWarning = updateAnnotationLayoutWarning;
 window.undoMiniEditorChange = undoMiniEditorChange;
 window.redoMiniEditorChange = redoMiniEditorChange;
