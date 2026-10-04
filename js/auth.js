@@ -331,8 +331,9 @@ document.addEventListener("DOMContentLoaded", () => {
   async function refreshAuthState(
     clerkUser = lastKnownClerkUser
   ) {
-    lastKnownClerkUser =
-      clerkUser || null;
+    if (clerkUser) {
+      lastKnownClerkUser = clerkUser;
+    }
 
     const pendingLogoutUserId =
       await window.UserData
@@ -351,9 +352,30 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (clerkUser) {
+      renderAuthState(
+        resolveAuthState(clerkUser),
+        clerkUser
+      );
+      return;
+    }
+
+    const trustedOfflineProfile =
+      await getTrustedOfflineProfile();
+
+    if (trustedOfflineProfile) {
+      renderAuthState(
+        AUTH_STATE.SIGNED_IN_OFFLINE,
+        {
+          id: trustedOfflineProfile.userId
+        }
+      );
+      return;
+    }
+
     renderAuthState(
-      resolveAuthState(lastKnownClerkUser),
-      lastKnownClerkUser
+      resolveAuthState(null),
+      null
     );
   }
 
@@ -404,6 +426,53 @@ document.addEventListener("DOMContentLoaded", () => {
         error
       );
       return false;
+    }
+  }
+
+  async function getTrustedOfflineProfile() {
+    if (authConnectionIsOnline()) {
+      return null;
+    }
+
+    if (!window.UserData) {
+      return null;
+    }
+
+    try {
+      const pendingLogoutUserId =
+        await window.UserData
+          .getPendingRemoteLogoutUserId?.();
+
+      if (pendingLogoutUserId) {
+        return null;
+      }
+
+      const userId =
+        await window.UserData
+          .getLastVerifiedUserId?.();
+
+      if (!userId) {
+        return null;
+      }
+
+      const profile =
+        await window.UserData
+          .getStoredProfile?.(userId);
+
+      if (
+        !profile?.lastVerifiedAt ||
+        profile.pendingRemoteLogout === true
+      ) {
+        return null;
+      }
+
+      return profile;
+    } catch (error) {
+      console.warn(
+        "Could not resolve trusted offline user:",
+        error
+      );
+      return null;
     }
   }
 
@@ -487,48 +556,8 @@ document.addEventListener("DOMContentLoaded", () => {
       lastKnownClerkUser =
         clerkUser || null;
 
-      const pendingLogoutUserId =
-        await window.UserData
-          ?.getPendingRemoteLogoutUserId?.();
-
-      if (pendingLogoutUserId) {
-        renderAuthState(
-          AUTH_STATE.LOGOUT_PENDING,
-          null
-        );
-
-        if (authConnectionIsOnline()) {
-          await completePendingRemoteLogout();
-        }
-
-        return;
-      }
-
-      const userId = String(
-        clerkUser?.id || ""
-      );
-
-      if (
-        userId &&
-        await userHasPendingLogout(userId)
-      ) {
-        renderAuthState(
-          AUTH_STATE.LOGOUT_PENDING,
-          null
-        );
-
-        if (authConnectionIsOnline()) {
-          await completePendingRemoteLogout();
-        }
-
-        return;
-      }
-
-      renderAuthState(
-        resolveAuthState(
-          lastKnownClerkUser
-        ),
-        lastKnownClerkUser
+      await refreshAuthState(
+        clerkUser || null
       );
     };
 
@@ -1209,5 +1238,12 @@ window.addEventListener("load", async () => {
   } catch (error) {
     window.AppShell?.markDegraded?.("auth");
     console.error("Failed to initialize Clerk:", error);
+
+    if (
+      typeof window.updateAuthUI ===
+      "function"
+    ) {
+      window.updateAuthUI(null);
+    }
   }
 });
