@@ -2,6 +2,8 @@
  * Project file: js/editor.js
  * Purpose: Controls the Scripture-page Quill editors and related study tools,
  * including note editing, formatting, annotations, loading, and saving behavior.
+ * Phase 4 Step 3 also mirrors successful online My Notes loads/saves into
+ * UserOfflineDB without changing the existing server-first save behavior.
  */
 
 import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/+esm";
@@ -297,6 +299,7 @@ toolbar?.container?.querySelector('button.ql-script[value="super"]')?.setAttribu
 // Auth lock for editor tools
 // ----------------------------------------------------
 let editorToolsUnlocked = false;
+let editorAuthenticatedUserId = "";
 
 async function checkEditorAuth() {
   try {
@@ -308,6 +311,16 @@ async function checkEditorAuth() {
     const result = await response.json();
 
     if (response.ok && result.ok && result.user) {
+      editorAuthenticatedUserId = String(result.user.id || "");
+
+      try {
+        await window.UserData?.rememberVerifiedAuthenticatedUser?.(
+          editorAuthenticatedUserId
+        );
+      } catch (error) {
+        console.warn("Could not record verified user identity locally:", error);
+      }
+
       unlockEditorTools();
 
       if (typeof loadQuillNotes === "function") {
@@ -322,9 +335,11 @@ async function checkEditorAuth() {
         });
       }
     } else {
+      editorAuthenticatedUserId = "";
       lockEditorTools();
     }
   } catch (error) {
+    editorAuthenticatedUserId = "";
     lockEditorTools();
   }
 }
@@ -499,6 +514,45 @@ function getCurrentBookChapterLabel() {
 }
 
 
+
+async function mirrorServerQuillNoteLocally(serverNote, pageIdentity) {
+  if (!editorAuthenticatedUserId || !window.UserData?.cacheQuillNoteFromServer) {
+    return;
+  }
+
+  try {
+    await window.UserData.cacheQuillNoteFromServer(
+      editorAuthenticatedUserId,
+      serverNote,
+      {
+        ...pageIdentity,
+        pageUrl: window.location.pathname + window.location.search,
+        bookChapterLabel: getCurrentBookChapterLabel()
+      }
+    );
+  } catch (error) {
+    // The server remains the source of truth in this step. A local mirror failure
+    // must never turn a successful online load/save into an editor failure.
+    console.warn("Could not mirror Quill notes into UserOfflineDB:", error);
+  }
+}
+
+async function removeLocalQuillMirror(pageIdentity) {
+  if (!editorAuthenticatedUserId || !window.UserData?.deleteCachedQuillNote) {
+    return;
+  }
+
+  try {
+    await window.UserData.deleteCachedQuillNote(
+      editorAuthenticatedUserId,
+      pageIdentity
+    );
+  } catch (error) {
+    // Keep the existing online behavior intact if local cleanup fails.
+    console.warn("Could not remove local Quill-note mirror:", error);
+  }
+}
+
 async function loadQuillNotes() {
   if (typeof quill === "undefined") return;
 
@@ -534,6 +588,10 @@ async function loadQuillNotes() {
 
     if (result.note && result.note.quill_delta_json) {
       quill.setContents(result.note.quill_delta_json);
+    }
+
+    if (result.note) {
+      await mirrorServerQuillNoteLocally(result.note, pageIdentity);
     }
 
     quillNotesLoaded = true;
@@ -609,6 +667,7 @@ async function saveQuillNotes() {
       }
 
       quillNotesVersion = 0;
+      await removeLocalQuillMirror(pageIdentity);
       console.log("Empty Quill notes deleted");
       setEditorSaveStatus("Saved");
       return;
@@ -642,6 +701,11 @@ async function saveQuillNotes() {
     }
 
     quillNotesVersion = result.note?.version ? Number(result.note.version) : quillNotesVersion;
+
+    if (result.note) {
+      await mirrorServerQuillNoteLocally(result.note, pageIdentity);
+    }
+
     console.log("Quill notes saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
