@@ -4,41 +4,30 @@
  * Project file: js/user-data.js
  *
  * Purpose:
- * Provides the Phase 4 user/device identity layer, the local mirror for
- * authenticated My Notes (Quill), and local-only Study Desk draft autosave.
+ * Provides the local user/device data layer for authenticated personal content.
  *
  * What this file does:
  * - Creates one persistent deviceId for this browser/device installation.
- * - Reads the currently authenticated Clerk user from the live Clerk session.
- * - Accepts a user ID verified by the protected /api/me endpoint.
- * - Stores a local profile keyed strictly by Clerk userId in UserOfflineDB.
- * - Records which Clerk user was most recently verified online on this device.
- * - Mirrors successful server Quill-note loads/saves into UserOfflineDB.
- * - Removes the local Quill mirror only after an explicit successful server delete.
- * - Mirrors successful server mini-editor loads/saves into UserOfflineDB.
- * - Queues authenticated My Notes and mini-editor changes in the durable outbox
- *   when the already-verified editor session is offline.
- * - Removes a clean local mini-editor mirror after an explicit successful server delete.
- * - Preserves older pending/conflict mini-editor records instead of overwriting them.
- * - Preserves any older pending/conflict local record instead of overwriting it.
- * - Saves authenticated Study Desk drafts locally with the current deviceId.
- * - Keeps Study Desk draft autosave local-only in this step; it does not sync drafts.
- * - Deletes a Study Desk local draft after the user explicitly discards it or after
- *   the existing server Save succeeds.
+ * - Records a Clerk user only after the user is verified by Clerk or /api/me.
+ * - Keeps personal records isolated by Clerk userId in UserOfflineDB.
+ * - Mirrors successful My Notes and mini-editor server data into IndexedDB.
+ * - Saves Study Desk drafts locally before an explicit server save.
+ * - Queues My Notes and mini-editor changes when an already-authenticated page
+ *   loses connectivity.
+ * - Retries queued changes when authenticated connectivity returns.
+ * - Uses server version checks so stale local work cannot silently overwrite a
+ *   newer server copy.
+ * - Records an explicit logout request locally when remote sign-out cannot be
+ *   completed immediately.
+ * - Prevents a pending logout from re-trusting an old Clerk session or sending
+ *   queued private changes until remote sign-out succeeds.
  *
- * Important security rule:
- * - deviceId is NOT authentication.
- * - A userId stored in IndexedDB is NOT authentication.
+ * Security rules:
+ * - deviceId is not authentication.
+ * - A userId stored in IndexedDB is not authentication.
  * - A live Clerk session or a successful protected /api/me response is required
- *   before this step writes private user data into the local mirror.
- * - Full offline trust after reload/navigation is intentionally NOT enabled yet.
- * - Step 6 allows only an editor session that was already verified online on the
- *   current page to queue private edits while connectivity is lost.
- * - Automatically retries queued My Notes and mini-editor mutations after
- *   authenticated connectivity is restored.
- * - Uses the existing version-checked server routes so stale offline work cannot
- *   silently overwrite a newer server version.
- * - Conflict presentation/resolution is intentionally deferred to a later step.
+ *   before private data is treated as authenticated.
+ * - An explicit logout request takes priority over a restored Clerk session.
  *
  * Dependencies:
  * - js/user-offline-db.js must be loaded before this file is used.
@@ -49,6 +38,7 @@ window.UserData = (() => {
   const ENTITY_MINI_EDITOR_PAGE = "mini_editor_page";
   const DEVICE_ID_STORAGE_KEY = "BibleAppDeviceId";
   const LAST_VERIFIED_USER_META_KEY = "phase4LastVerifiedUserId";
+  const PENDING_REMOTE_LOGOUT_META_KEY = "pendingRemoteLogoutUserId";
 
   let flushPromise = null;
   let flushTimer = null;
@@ -118,20 +108,40 @@ window.UserData = (() => {
       return null;
     }
 
-    const deviceId = getDeviceId();
     const existing = await db.getProfile(verifiedUserId);
+
+    if (existing?.pendingRemoteLogout === true) {
+      const lastVerified = await db.getMeta(
+        LAST_VERIFIED_USER_META_KEY
+      );
+
+      if (String(lastVerified?.value || "") === verifiedUserId) {
+        await db.setMeta(LAST_VERIFIED_USER_META_KEY, "");
+      }
+
+      return null;
+    }
+
+    const deviceId = getDeviceId();
     const timestamp = now();
 
     const profile = {
+      ...(existing || {}),
       userId: verifiedUserId,
       deviceId,
       createdAt: Number(existing?.createdAt) || timestamp,
       lastVerifiedAt: timestamp,
+      pendingRemoteLogout: false,
+      logoutRequestedAt: null,
       updatedAt: timestamp
     };
 
     await db.putProfile(profile);
-    await db.setMeta(LAST_VERIFIED_USER_META_KEY, verifiedUserId);
+    await db.setMeta(
+      LAST_VERIFIED_USER_META_KEY,
+    PENDING_REMOTE_LOGOUT_META_KEY,
+      verifiedUserId
+    );
 
     return profile;
   }
@@ -145,6 +155,125 @@ window.UserData = (() => {
 
     return rememberVerifiedAuthenticatedUser(userId);
   }
+
+
+  async function markLogoutPending(userId = "") {
+    const db = requireUserOfflineDB();
+    const requestedUserId = String(
+      userId ||
+      getLiveAuthenticatedUserId() ||
+      await getLastVerifiedUserId() ||
+      ""
+    );
+
+    if (!requestedUserId) {
+      return null;
+    }
+
+    const existing = await db.getProfile(requestedUserId);
+    const timestamp = now();
+
+    const profile = {
+      ...(existing || {}),
+      userId: requestedUserId,
+      deviceId: existing?.deviceId || getDeviceId(),
+      createdAt: Number(existing?.createdAt) || timestamp,
+      pendingRemoteLogout: true,
+      logoutRequestedAt: timestamp,
+      updatedAt: timestamp
+    };
+
+    await db.putProfile(profile);
+    await db.setMeta(
+      PENDING_REMOTE_LOGOUT_META_KEY,
+      requestedUserId
+    );
+
+    const lastVerified = await db.getMeta(
+      LAST_VERIFIED_USER_META_KEY
+    );
+
+    if (
+      String(lastVerified?.value || "") ===
+      requestedUserId
+    ) {
+      await db.setMeta(
+        LAST_VERIFIED_USER_META_KEY,
+        ""
+      );
+    }
+
+    return profile;
+  }
+
+  async function getPendingRemoteLogoutUserId() {
+    const db = requireUserOfflineDB();
+    const record = await db.getMeta(
+      PENDING_REMOTE_LOGOUT_META_KEY
+    );
+
+    return String(record?.value || "");
+  }
+
+  async function hasPendingRemoteLogout(userId = "") {
+    const db = requireUserOfflineDB();
+    const requestedUserId = String(
+      userId ||
+      await getPendingRemoteLogoutUserId() ||
+      ""
+    );
+
+    if (!requestedUserId) {
+      return false;
+    }
+
+    const profile = await db.getProfile(
+      requestedUserId
+    );
+
+    return profile?.pendingRemoteLogout === true;
+  }
+
+  async function clearPendingRemoteLogout(userId = "") {
+    const db = requireUserOfflineDB();
+    const requestedUserId = String(
+      userId ||
+      await getPendingRemoteLogoutUserId() ||
+      ""
+    );
+
+    if (!requestedUserId) {
+      return;
+    }
+
+    const existing = await db.getProfile(
+      requestedUserId
+    );
+
+    if (existing) {
+      await db.putProfile({
+        ...existing,
+        pendingRemoteLogout: false,
+        logoutRequestedAt: null,
+        updatedAt: now()
+      });
+    }
+
+    const pending = await db.getMeta(
+      PENDING_REMOTE_LOGOUT_META_KEY
+    );
+
+    if (
+      String(pending?.value || "") ===
+      requestedUserId
+    ) {
+      await db.setMeta(
+        PENDING_REMOTE_LOGOUT_META_KEY,
+        ""
+      );
+    }
+  }
+
 
   function mapServerQuillNote(serverNote, fallbackIdentity = {}) {
     if (!serverNote) {
@@ -222,8 +351,8 @@ window.UserData = (() => {
     const existing = await db.getQuillNote(verifiedUserId, mapped.pageKey);
     const protectedLocalStatuses = new Set(["pending", "sending", "conflict"]);
 
-    // A leftover unsynchronized record from an earlier Phase 4 attempt may still
-    // exist because the Phase 3 rollback intentionally did not clear IndexedDB.
+    // An older unsynchronized local record may still exist because browser
+    // storage is intentionally preserved during code rollbacks and updates.
     // Never destroy that local work merely because an online server copy loaded.
     if (existing && protectedLocalStatuses.has(existing.syncStatus)) {
       return existing;
@@ -1361,6 +1490,23 @@ window.UserData = (() => {
       const db = requireUserOfflineDB();
       const liveUserId = getLiveAuthenticatedUserId();
 
+      if (
+        liveUserId &&
+        await hasPendingRemoteLogout(liveUserId)
+      ) {
+        return {
+          attempted: 0,
+          synced: 0,
+          conflicts: 0,
+          pending: (
+            await db.listOutbox(
+              liveUserId,
+              ["pending", "sending"]
+            )
+          ).length
+        };
+      }
+
       if (!liveUserId || !canTryServer()) {
         return {
           attempted: 0,
@@ -1607,14 +1753,23 @@ window.UserData = (() => {
   async function getIdentitySnapshot() {
     const liveUserId = getLiveAuthenticatedUserId();
     const lastVerifiedUserId = await getLastVerifiedUserId();
-    const profile = liveUserId
-      ? await getStoredProfile(liveUserId)
+    const pendingRemoteLogoutUserId =
+      await getPendingRemoteLogoutUserId();
+
+    const profileUserId =
+      liveUserId ||
+      pendingRemoteLogoutUserId ||
+      lastVerifiedUserId;
+
+    const profile = profileUserId
+      ? await getStoredProfile(profileUserId)
       : null;
 
     return {
       deviceId: getDeviceId(),
       liveUserId,
       lastVerifiedUserId,
+      pendingRemoteLogoutUserId,
       profile
     };
   }
@@ -1628,6 +1783,10 @@ window.UserData = (() => {
     getLiveAuthenticatedUserId,
     rememberVerifiedAuthenticatedUser,
     rememberCurrentAuthenticatedUser,
+    markLogoutPending,
+    getPendingRemoteLogoutUserId,
+    hasPendingRemoteLogout,
+    clearPendingRemoteLogout,
     cacheQuillNoteFromServer,
     deleteCachedQuillNote,
     getCachedQuillNote,
