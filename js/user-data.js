@@ -15,6 +15,9 @@
  * - Records which Clerk user was most recently verified online on this device.
  * - Mirrors successful server Quill-note loads/saves into UserOfflineDB.
  * - Removes the local Quill mirror only after an explicit successful server delete.
+ * - Mirrors successful server mini-editor loads/saves into UserOfflineDB.
+ * - Removes a clean local mini-editor mirror after an explicit successful server delete.
+ * - Preserves older pending/conflict mini-editor records instead of overwriting them.
  * - Preserves any older pending/conflict local record instead of overwriting it.
  * - Saves authenticated Study Desk drafts locally with the current deviceId.
  * - Keeps Study Desk draft autosave local-only in this step; it does not sync drafts.
@@ -291,6 +294,233 @@ window.UserData = (() => {
     return null;
   }
 
+
+  function mapServerMiniEditorPage(serverPage, fallbackIdentity = {}) {
+    if (!serverPage) {
+      return null;
+    }
+
+    let miniEditorJson =
+      serverPage.mini_editor_json ??
+      serverPage.miniEditorJson ??
+      null;
+
+    if (typeof miniEditorJson === "string") {
+      try {
+        miniEditorJson = JSON.parse(miniEditorJson);
+      } catch (_error) {
+        // Keep the original value if an older server record is not JSON-parsable.
+      }
+    }
+
+    return {
+      pageKey: String(
+        serverPage.page_key ||
+        serverPage.pageKey ||
+        fallbackIdentity.pageKey ||
+        ""
+      ),
+      bibleVersionID: String(
+        serverPage.bible_version_id ||
+        serverPage.bibleVersionID ||
+        fallbackIdentity.bibleVersionID ||
+        ""
+      ),
+      bibleChapterID: String(
+        serverPage.bible_chapter_id ||
+        serverPage.bibleChapterID ||
+        fallbackIdentity.bibleChapterID ||
+        ""
+      ),
+      pageUrl: String(
+        serverPage.page_url ||
+        serverPage.pageUrl ||
+        fallbackIdentity.pageUrl ||
+        ""
+      ),
+      bibleName: String(
+        serverPage.bible_name ||
+        serverPage.bibleName ||
+        fallbackIdentity.bibleName ||
+        ""
+      ),
+      bookChapterLabel: String(
+        serverPage.book_chapter_label ||
+        serverPage.bookChapterLabel ||
+        fallbackIdentity.bookChapterLabel ||
+        ""
+      ),
+      miniEditorJson,
+      hasHighlights: Boolean(
+        serverPage.has_highlights ??
+        serverPage.hasHighlights
+      ),
+      hasDrawings: Boolean(
+        serverPage.has_drawings ??
+        serverPage.hasDrawings
+      ),
+      hasTextFormats: Boolean(
+        serverPage.has_text_formats ??
+        serverPage.hasTextFormats
+      ),
+      serverVersion: Number(
+        serverPage.version ||
+        serverPage.serverVersion
+      ) || 0,
+      serverUpdatedAt:
+        serverPage.updated_at ||
+        serverPage.updatedAt ||
+        null
+    };
+  }
+
+  async function cacheMiniEditorPageFromServer(
+    userId,
+    serverPage,
+    fallbackIdentity = {}
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+
+    if (!verifiedUserId) {
+      throw new Error("Cannot cache mini-editor state without a verified userId.");
+    }
+
+    const mapped = mapServerMiniEditorPage(serverPage, fallbackIdentity);
+
+    if (!mapped?.pageKey) {
+      return null;
+    }
+
+    const existing = await db.getMiniEditorPage(
+      verifiedUserId,
+      mapped.pageKey
+    );
+
+    const protectedLocalStatuses = new Set([
+      "pending",
+      "sending",
+      "conflict"
+    ]);
+
+    // Do not destroy unsynchronized work that may remain from an earlier run.
+    if (existing && protectedLocalStatuses.has(existing.syncStatus)) {
+      return existing;
+    }
+
+    const record = {
+      ...(existing || {}),
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      pageKey: mapped.pageKey,
+      bibleVersionID: mapped.bibleVersionID,
+      bibleChapterID: mapped.bibleChapterID,
+      pageUrl: mapped.pageUrl,
+      bibleName: mapped.bibleName,
+      bookChapterLabel: mapped.bookChapterLabel,
+      miniEditorJson: mapped.miniEditorJson,
+      hasHighlights: mapped.hasHighlights,
+      hasDrawings: mapped.hasDrawings,
+      hasTextFormats: mapped.hasTextFormats,
+      serverVersion: mapped.serverVersion,
+      serverUpdatedAt: mapped.serverUpdatedAt,
+      localUpdatedAt: now(),
+      syncStatus: "clean",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putMiniEditorPage(record);
+    return record;
+  }
+
+  async function deleteCachedMiniEditorPage(userId, identity = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+
+    if (!verifiedUserId) {
+      return;
+    }
+
+    const pageKey = String(identity.pageKey || "");
+    let pageMatch = null;
+
+    if (pageKey) {
+      pageMatch = await db.getMiniEditorPage(verifiedUserId, pageKey);
+    }
+
+    if (
+      !pageMatch &&
+      identity.bibleVersionID &&
+      identity.bibleChapterID
+    ) {
+      pageMatch = await db.getMiniEditorPageByBibleChapter(
+        verifiedUserId,
+        String(identity.bibleVersionID),
+        String(identity.bibleChapterID)
+      );
+    }
+
+    const protectedLocalStatuses = new Set([
+      "pending",
+      "sending",
+      "conflict"
+    ]);
+
+    // A successful server delete removes only a clean mirror. If an older
+    // unsynchronized local record exists, leave it intact for later recovery.
+    if (
+      pageMatch &&
+      protectedLocalStatuses.has(pageMatch.syncStatus)
+    ) {
+      return;
+    }
+
+    if (pageKey) {
+      await db.deleteMiniEditorPage(verifiedUserId, pageKey);
+    }
+
+    if (
+      pageMatch?.pageKey &&
+      pageMatch.pageKey !== pageKey
+    ) {
+      await db.deleteMiniEditorPage(
+        verifiedUserId,
+        pageMatch.pageKey
+      );
+    }
+  }
+
+  async function getCachedMiniEditorPage(userId, identity = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+
+    if (!verifiedUserId) {
+      return null;
+    }
+
+    if (identity.pageKey) {
+      const byPage = await db.getMiniEditorPage(
+        verifiedUserId,
+        String(identity.pageKey)
+      );
+
+      if (byPage) {
+        return byPage;
+      }
+    }
+
+    if (identity.bibleVersionID && identity.bibleChapterID) {
+      return db.getMiniEditorPageByBibleChapter(
+        verifiedUserId,
+        String(identity.bibleVersionID),
+        String(identity.bibleChapterID)
+      );
+    }
+
+    return null;
+  }
+
   async function saveStudyDraft(input = {}) {
     const db = requireUserOfflineDB();
     const userId = getLiveAuthenticatedUserId();
@@ -405,6 +635,9 @@ window.UserData = (() => {
     cacheQuillNoteFromServer,
     deleteCachedQuillNote,
     getCachedQuillNote,
+    cacheMiniEditorPageFromServer,
+    deleteCachedMiniEditorPage,
+    getCachedMiniEditorPage,
     saveStudyDraft,
     getStudyDraft,
     listStudyDrafts,
