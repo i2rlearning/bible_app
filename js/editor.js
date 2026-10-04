@@ -678,51 +678,135 @@ async function queueCurrentQuillDeleteLocally(pageIdentity) {
   );
 }
 
+async function loadQuillNotesFromLocalCache(
+  pageIdentity
+) {
+  if (typeof quill === "undefined") {
+    return;
+  }
+
+  quill.setText("", "silent");
+
+  const cached =
+    await window.UserData
+      ?.getCachedQuillNote?.(
+        editorAuthenticatedUserId,
+        pageIdentity
+      );
+
+  if (
+    cached &&
+    cached.deleted !== true &&
+    cached.quillDelta
+  ) {
+    quill.setContents(
+      cached.quillDelta,
+      "silent"
+    );
+  }
+
+  quillNotesVersion =
+    Number(cached?.serverVersion) || 0;
+
+  quillNotesStoragePageKey =
+    cached?.pageKey ||
+    pageIdentity.pageKey;
+
+  quillNotesLoaded = true;
+}
+
 async function loadQuillNotes() {
   if (typeof quill === "undefined") return;
 
-  const pageIdentity = getCurrentBiblePageIdentity();
+  const pageIdentity =
+    getCurrentBiblePageIdentity();
 
   if (!pageIdentity) return;
 
   quillNotesLoaded = false;
   quillConflictActive = false;
-  quillNotesStoragePageKey = pageIdentity.pageKey;
+  quillNotesStoragePageKey =
+    pageIdentity.pageKey;
+
+  /*
+   * Always clear the visible editor before loading a chapter-specific note.
+   * This prevents content from the previous chapter from remaining visible
+   * when the next chapter has no note.
+   */
+  quill.setText("", "silent");
+
+  if (editorShouldQueueLocally()) {
+    await loadQuillNotesFromLocalCache(
+      pageIdentity
+    );
+    return;
+  }
 
   try {
-    const loadParams = new URLSearchParams({
-      pageKey: pageIdentity.pageKey,
-      bibleVersionID: pageIdentity.bibleVersionID,
-      bibleChapterID: pageIdentity.bibleChapterID
-    });
+    const loadParams =
+      new URLSearchParams({
+        pageKey: pageIdentity.pageKey,
+        bibleVersionID:
+          pageIdentity.bibleVersionID,
+        bibleChapterID:
+          pageIdentity.bibleChapterID
+      });
 
-    const response = await fetch(`/api/quill-notes?${loadParams.toString()}`, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store"
-    });
+    const response = await fetch(
+      `/api/quill-notes?${loadParams.toString()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
 
-    const result = await parseResponseSafely(response);
+    const result =
+      await parseResponseSafely(response);
 
     if (!response.ok) {
-      throw new Error(result.message || `Failed to load Quill notes. Status: ${response.status}`);
+      throw new Error(
+        result.message ||
+        `Failed to load Quill notes. Status: ${response.status}`
+      );
     }
 
-    quillNotesVersion = result.note?.version ? Number(result.note.version) : 0;
-    quillNotesStoragePageKey = result.note?.page_key || pageIdentity.pageKey;
+    quillNotesVersion =
+      result.note?.version
+        ? Number(result.note.version)
+        : 0;
 
-    if (result.note && result.note.quill_delta_json) {
-      quill.setContents(result.note.quill_delta_json);
+    quillNotesStoragePageKey =
+      result.note?.page_key ||
+      pageIdentity.pageKey;
+
+    if (
+      result.note &&
+      result.note.quill_delta_json
+    ) {
+      quill.setContents(
+        result.note.quill_delta_json,
+        "silent"
+      );
     }
 
     if (result.note) {
-      await mirrorServerQuillNoteLocally(result.note, pageIdentity);
+      await mirrorServerQuillNoteLocally(
+        result.note,
+        pageIdentity
+      );
     }
 
     quillNotesLoaded = true;
   } catch (error) {
-    console.error("Load Quill notes error:", error);
-    quillNotesLoaded = true;
+    console.warn(
+      "Using local My Notes because the server could not be reached:",
+      error
+    );
+
+    await loadQuillNotesFromLocalCache(
+      pageIdentity
+    );
   }
 }
 
@@ -1521,15 +1605,52 @@ async function queueCurrentMiniEditorDeleteLocally(pageIdentity) {
   );
 }
 
+async function loadMiniEditorPageFromLocalCache(
+  pageIdentity
+) {
+  const cached =
+    await window.UserData
+      ?.getCachedMiniEditorPage?.(
+        editorAuthenticatedUserId,
+        pageIdentity
+      );
+
+  miniEditorVersion =
+    Number(cached?.serverVersion) || 0;
+
+  miniEditorStoragePageKey =
+    cached?.pageKey ||
+    pageIdentity.pageKey;
+
+  if (
+    cached &&
+    cached.deleted !== true &&
+    cached.miniEditorJson
+  ) {
+    applyMiniEditorState(
+      cached.miniEditorJson
+    );
+  } else {
+    clearSavedMiniEditorStateForRenderedChapter();
+  }
+
+  miniEditorLoaded = true;
+  initializeMiniEditorHistory();
+  startBibleLayoutObservers();
+  startMiniEditorObserver();
+}
+
 async function loadMiniEditorPage() {
   if (!editorToolsUnlocked) return;
 
-  const pageIdentity = getCurrentBiblePageIdentity();
+  const pageIdentity =
+    getCurrentBiblePageIdentity();
 
   if (!pageIdentity) return;
 
   miniEditorConflictActive = false;
-  miniEditorStoragePageKey = pageIdentity.pageKey;
+  miniEditorStoragePageKey =
+    pageIdentity.pageKey;
 
   const bibleText =
     document.getElementById("bible-text");
@@ -1539,37 +1660,71 @@ async function loadMiniEditorPage() {
       bibleText.innerHTML;
   }
 
+  /*
+   * Clear the previous chapter's annotation state before loading this chapter.
+   * This keeps chapter data isolated even when the next chapter has no saved
+   * annotation record.
+   */
+  clearSavedMiniEditorStateForRenderedChapter();
+
+  if (editorShouldQueueLocally()) {
+    await loadMiniEditorPageFromLocalCache(
+      pageIdentity
+    );
+    return;
+  }
+
   try {
-    const loadParams = new URLSearchParams({
-      pageKey: pageIdentity.pageKey,
-      bibleVersionID: pageIdentity.bibleVersionID,
-      bibleChapterID: pageIdentity.bibleChapterID
-    });
+    const loadParams =
+      new URLSearchParams({
+        pageKey: pageIdentity.pageKey,
+        bibleVersionID:
+          pageIdentity.bibleVersionID,
+        bibleChapterID:
+          pageIdentity.bibleChapterID
+      });
 
-    const response = await fetch(`/api/mini-editor-page?${loadParams.toString()}`, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store"
-    });
+    const response = await fetch(
+      `/api/mini-editor-page?${loadParams.toString()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
 
-    const result = await parseResponseSafely(response);
+    const result =
+      await parseResponseSafely(response);
 
     if (!response.ok) {
-      throw new Error(result.message || `Failed to load mini-editor page. Status: ${response.status}`);
+      throw new Error(
+        result.message ||
+        `Failed to load mini-editor page. Status: ${response.status}`
+      );
     }
 
-    miniEditorVersion = result.page?.version ? Number(result.page.version) : 0;
-    miniEditorStoragePageKey = result.page?.page_key || pageIdentity.pageKey;
+    miniEditorVersion =
+      result.page?.version
+        ? Number(result.page.version)
+        : 0;
 
-    if (result.page && result.page.mini_editor_json) {
+    miniEditorStoragePageKey =
+      result.page?.page_key ||
+      pageIdentity.pageKey;
+
+    if (
+      result.page &&
+      result.page.mini_editor_json
+    ) {
       const savedState =
-        typeof result.page.mini_editor_json === "string"
-          ? JSON.parse(result.page.mini_editor_json)
+        typeof result.page.mini_editor_json ===
+          "string"
+          ? JSON.parse(
+              result.page.mini_editor_json
+            )
           : result.page.mini_editor_json;
 
       applyMiniEditorState(savedState);
-    } else {
-      clearSavedMiniEditorStateForRenderedChapter();
     }
 
     if (result.page) {
@@ -1584,11 +1739,14 @@ async function loadMiniEditorPage() {
     startBibleLayoutObservers();
     startMiniEditorObserver();
   } catch (error) {
-    console.error("Load mini-editor page error:", error);
-    miniEditorLoaded = true;
-    initializeMiniEditorHistory();
-    startBibleLayoutObservers();
-    startMiniEditorObserver();
+    console.warn(
+      "Using local mini-editor data because the server could not be reached:",
+      error
+    );
+
+    await loadMiniEditorPageFromLocalCache(
+      pageIdentity
+    );
   }
 }
 
@@ -3482,6 +3640,100 @@ window.undoMiniEditorChange = undoMiniEditorChange;
 window.redoMiniEditorChange = redoMiniEditorChange;
 window.toggleMobileToolbarMenu = toggleMobileToolbarMenu;
 window.closeMobileToolbarMenus = closeMobileToolbarMenus;
+
+// ----------------------------------------------------
+// Keep editor access aligned with the shared authentication state
+// ----------------------------------------------------
+async function applySharedEditorAuthState(
+  detail = {}
+) {
+  const signedIn =
+    detail.signedIn === true;
+  const userId =
+    String(detail.userId || "");
+
+  if (!signedIn || !userId) {
+    clearPrivateEditorStateForLogout();
+    return;
+  }
+
+  const needsLoad =
+    editorAuthenticatedUserId !== userId ||
+    !editorToolsUnlocked ||
+    !quillNotesLoaded ||
+    !miniEditorLoaded;
+
+  editorAuthenticatedUserId =
+    userId;
+
+  unlockEditorTools();
+
+  if (!needsLoad) {
+    return;
+  }
+
+  await loadQuillNotes();
+
+  const ready =
+    await waitForBibleTextContent();
+
+  if (ready) {
+    await loadMiniEditorPage();
+  }
+}
+
+window.addEventListener(
+  "auth-state-changed",
+  (event) => {
+    applySharedEditorAuthState(
+      event.detail || {}
+    ).catch((error) => {
+      console.warn(
+        "Could not apply shared editor authentication state:",
+        error
+      );
+    });
+  }
+);
+
+/*
+ * If authentication completed before this module attached its listener,
+ * reconcile once from the already-rendered shared state.
+ */
+Promise.resolve().then(async () => {
+  const authState =
+    window.getCurrentAuthUIState?.() ||
+    document.documentElement.dataset.authState ||
+    "";
+
+  if (
+    authState !== "signed-in-online" &&
+    authState !== "signed-in-offline"
+  ) {
+    return;
+  }
+
+  const identity =
+    await window.UserData
+      ?.getIdentitySnapshot?.();
+
+  const userId =
+    identity?.liveUserId ||
+    identity?.lastVerifiedUserId ||
+    "";
+
+  if (!userId) {
+    return;
+  }
+
+  await applySharedEditorAuthState({
+    signedIn: true,
+    offline:
+      authState ===
+      "signed-in-offline",
+    userId
+  });
+});
 
 // ----------------------------------------------------
 // Start editor auth check after all functions are loaded
