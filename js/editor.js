@@ -4,6 +4,8 @@
  * including note editing, formatting, annotations, loading, and saving behavior.
  * Phase 4 Step 3 also mirrors successful online My Notes loads/saves into
  * UserOfflineDB without changing the existing server-first save behavior.
+ * It also mirrors successful online mini-editor loads/saves into UserOfflineDB
+ * while keeping the existing server-first annotation behavior unchanged.
  */
 
 import BlotFormatter2 from "https://cdn.jsdelivr.net/npm/@enzedonline/quill-blot-formatter2@3.2.0/+esm";
@@ -1253,6 +1255,66 @@ function handleMiniEditorKeyboardShortcuts(event) {
 
 document.addEventListener("keydown", handleMiniEditorKeyboardShortcuts);
 
+
+async function mirrorServerMiniEditorPageLocally(
+  serverPage,
+  pageIdentity
+) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.cacheMiniEditorPageFromServer
+  ) {
+    return;
+  }
+
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    await window.UserData.cacheMiniEditorPageFromServer(
+      editorAuthenticatedUserId,
+      serverPage,
+      {
+        ...pageIdentity,
+        pageUrl: window.location.pathname + window.location.search,
+        bibleName:
+          urlParams.get("bibleAbbr") ||
+          urlParams.get("abbr") ||
+          "",
+        bookChapterLabel: getCurrentBookChapterLabel()
+      }
+    );
+  } catch (error) {
+    // The server remains authoritative here. A local mirror failure must not
+    // turn a successful online annotation load/save into an editor failure.
+    console.warn(
+      "Could not mirror mini-editor state into UserOfflineDB:",
+      error
+    );
+  }
+}
+
+async function removeLocalMiniEditorMirror(pageIdentity) {
+  if (
+    !editorAuthenticatedUserId ||
+    !window.UserData?.deleteCachedMiniEditorPage
+  ) {
+    return;
+  }
+
+  try {
+    await window.UserData.deleteCachedMiniEditorPage(
+      editorAuthenticatedUserId,
+      pageIdentity
+    );
+  } catch (error) {
+    // Keep normal online deletion behavior intact if local cleanup fails.
+    console.warn(
+      "Could not remove local mini-editor mirror:",
+      error
+    );
+  }
+}
+
 async function loadMiniEditorPage() {
   if (!editorToolsUnlocked) return;
 
@@ -1294,6 +1356,13 @@ async function loadMiniEditorPage() {
       applyMiniEditorState(savedState);
     } else {
       clearSavedMiniEditorStateForRenderedChapter();
+    }
+
+    if (result.page) {
+      await mirrorServerMiniEditorPageLocally(
+        result.page,
+        pageIdentity
+      );
     }
 
     miniEditorLoaded = true;
@@ -1369,6 +1438,7 @@ async function saveMiniEditorPage() {
       }
 
       miniEditorVersion = 0;
+      await removeLocalMiniEditorMirror(pageIdentity);
       console.log("Empty mini-editor page deleted");
       setEditorSaveStatus("Saved");
       return;
@@ -1415,6 +1485,14 @@ async function saveMiniEditorPage() {
     }
 
     miniEditorVersion = result.page?.version ? Number(result.page.version) : miniEditorVersion;
+
+    if (result.page) {
+      await mirrorServerMiniEditorPageLocally(
+        result.page,
+        pageIdentity
+      );
+    }
+
     console.log("Mini-editor page saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
