@@ -34,7 +34,11 @@
  * - Full offline trust after reload/navigation is intentionally NOT enabled yet.
  * - Step 6 allows only an editor session that was already verified online on the
  *   current page to queue private edits while connectivity is lost.
- * - Automatic reconnect synchronization is intentionally deferred to Step 7.
+ * - Automatically retries queued My Notes and mini-editor mutations after
+ *   authenticated connectivity is restored.
+ * - Uses the existing version-checked server routes so stale offline work cannot
+ *   silently overwrite a newer server version.
+ * - Conflict presentation/resolution is intentionally deferred to a later step.
  *
  * Dependencies:
  * - js/user-offline-db.js must be loaded before this file is used.
@@ -45,6 +49,9 @@ window.UserData = (() => {
   const ENTITY_MINI_EDITOR_PAGE = "mini_editor_page";
   const DEVICE_ID_STORAGE_KEY = "BibleAppDeviceId";
   const LAST_VERIFIED_USER_META_KEY = "phase4LastVerifiedUserId";
+
+  let flushPromise = null;
+  let flushTimer = null;
 
   function now() {
     return Date.now();
@@ -982,6 +989,532 @@ window.UserData = (() => {
   }
 
 
+  function getConnectivityState() {
+    return window.AppShell?.getState?.() || {
+      browserOnline: navigator.onLine !== false,
+      appReachable: null,
+      connectionIssue: navigator.onLine === false
+    };
+  }
+
+  function canTryServer() {
+    const state = getConnectivityState();
+
+    return (
+      navigator.onLine !== false &&
+      state.browserOnline !== false &&
+      state.appReachable !== false &&
+      state.connectionIssue !== true
+    );
+  }
+
+  async function readJsonSafely(response) {
+    try {
+      return await response.json();
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function dispatchUserDataEvent(type, detail = {}) {
+    window.dispatchEvent(
+      new CustomEvent(type, { detail })
+    );
+  }
+
+  async function markMutationPending(mutation, error) {
+    const db = requireUserOfflineDB();
+
+    await db.putOutboxMutation({
+      ...mutation,
+      status: "pending",
+      updatedAt: now(),
+      attemptCount: Number(mutation.attemptCount) || 0,
+      lastError: String(
+        error?.message ||
+        error ||
+        "Synchronization failed"
+      )
+    });
+  }
+
+  async function markConflict(mutation, result) {
+    const db = requireUserOfflineDB();
+    const latest =
+      mutation.entityType === ENTITY_QUILL_NOTE
+        ? (result?.latestNote || null)
+        : (result?.latestPage || null);
+
+    await db.putOutboxMutation({
+      ...mutation,
+      status: "conflict",
+      updatedAt: now(),
+      lastError: String(
+        result?.message ||
+        "A newer server version exists."
+      )
+    });
+
+    if (mutation.entityType === ENTITY_QUILL_NOTE) {
+      const current = await db.getQuillNote(
+        mutation.userId,
+        mutation.entityKey
+      );
+
+      if (current) {
+        await db.putQuillNote({
+          ...current,
+          syncStatus: "conflict",
+          conflictRemote: latest,
+          localUpdatedAt: now()
+        });
+      }
+    } else if (
+      mutation.entityType === ENTITY_MINI_EDITOR_PAGE
+    ) {
+      const current = await db.getMiniEditorPage(
+        mutation.userId,
+        mutation.entityKey
+      );
+
+      if (current) {
+        await db.putMiniEditorPage({
+          ...current,
+          syncStatus: "conflict",
+          conflictRemote: latest,
+          localUpdatedAt: now()
+        });
+      }
+    }
+
+    dispatchUserDataEvent("user-data-conflict", {
+      userId: mutation.userId,
+      entityType: mutation.entityType,
+      entityKey: mutation.entityKey,
+      latestNote:
+        mutation.entityType === ENTITY_QUILL_NOTE
+          ? latest
+          : null,
+      latestPage:
+        mutation.entityType === ENTITY_MINI_EDITOR_PAGE
+          ? latest
+          : null
+    });
+  }
+
+  async function applyQuillSyncSuccess(mutation, result) {
+    const db = requireUserOfflineDB();
+
+    if (mutation.operation === "delete") {
+      await db.deleteQuillNote(
+        mutation.userId,
+        mutation.entityKey
+      );
+      await db.deleteOutboxMutation(mutation.mutationId);
+
+      dispatchUserDataEvent("user-data-synced", {
+        userId: mutation.userId,
+        entityType: ENTITY_QUILL_NOTE,
+        entityKey: mutation.entityKey,
+        deleted: true,
+        version: null
+      });
+
+      return;
+    }
+
+    const serverNote = result?.note || null;
+    const mapped = mapServerQuillNote(
+      serverNote,
+      mutation.payload || {}
+    );
+
+    if (!mapped?.pageKey) {
+      throw new Error(
+        "The server did not return the synchronized My Notes record."
+      );
+    }
+
+    const current = await db.getQuillNote(
+      mutation.userId,
+      mutation.entityKey
+    );
+
+    await db.putQuillNote({
+      ...(current || {}),
+      userId: mutation.userId,
+      deviceId: getDeviceId(),
+      pageKey: mapped.pageKey,
+      bibleVersionID: mapped.bibleVersionID,
+      bibleChapterID: mapped.bibleChapterID,
+      pageUrl: mapped.pageUrl,
+      bibleName:
+        current?.bibleName ||
+        mutation.payload?.bibleName ||
+        mapped.bibleName ||
+        "",
+      bookChapterLabel:
+        current?.bookChapterLabel ||
+        mutation.payload?.bookChapterLabel ||
+        mapped.bookChapterLabel ||
+        "",
+      quillDelta: mapped.quillDelta,
+      plainText: mapped.plainText,
+      serverVersion: mapped.serverVersion,
+      serverUpdatedAt: mapped.serverUpdatedAt,
+      localUpdatedAt: now(),
+      syncStatus: "clean",
+      conflictRemote: null,
+      deleted: false
+    });
+
+    await db.deleteOutboxMutation(mutation.mutationId);
+
+    dispatchUserDataEvent("user-data-synced", {
+      userId: mutation.userId,
+      entityType: ENTITY_QUILL_NOTE,
+      entityKey: mapped.pageKey,
+      version: mapped.serverVersion,
+      note: serverNote
+    });
+  }
+
+  async function applyMiniEditorSyncSuccess(
+    mutation,
+    result
+  ) {
+    const db = requireUserOfflineDB();
+
+    if (mutation.operation === "delete") {
+      await db.deleteMiniEditorPage(
+        mutation.userId,
+        mutation.entityKey
+      );
+      await db.deleteOutboxMutation(mutation.mutationId);
+
+      dispatchUserDataEvent("user-data-synced", {
+        userId: mutation.userId,
+        entityType: ENTITY_MINI_EDITOR_PAGE,
+        entityKey: mutation.entityKey,
+        deleted: true,
+        version: null
+      });
+
+      return;
+    }
+
+    const serverPage = result?.page || null;
+    const mapped = mapServerMiniEditorPage(
+      serverPage,
+      mutation.payload || {}
+    );
+
+    if (!mapped?.pageKey) {
+      throw new Error(
+        "The server did not return the synchronized mini-editor record."
+      );
+    }
+
+    const current = await db.getMiniEditorPage(
+      mutation.userId,
+      mutation.entityKey
+    );
+
+    await db.putMiniEditorPage({
+      ...(current || {}),
+      userId: mutation.userId,
+      deviceId: getDeviceId(),
+      pageKey: mapped.pageKey,
+      bibleVersionID: mapped.bibleVersionID,
+      bibleChapterID: mapped.bibleChapterID,
+      pageUrl: mapped.pageUrl,
+      bibleName:
+        mapped.bibleName ||
+        current?.bibleName ||
+        mutation.payload?.bibleName ||
+        "",
+      bookChapterLabel:
+        mapped.bookChapterLabel ||
+        current?.bookChapterLabel ||
+        mutation.payload?.bookChapterLabel ||
+        "",
+      miniEditorJson: mapped.miniEditorJson,
+      hasHighlights: mapped.hasHighlights,
+      hasDrawings: mapped.hasDrawings,
+      hasTextFormats: mapped.hasTextFormats,
+      serverVersion: mapped.serverVersion,
+      serverUpdatedAt: mapped.serverUpdatedAt,
+      localUpdatedAt: now(),
+      syncStatus: "clean",
+      conflictRemote: null,
+      deleted: false
+    });
+
+    await db.deleteOutboxMutation(mutation.mutationId);
+
+    dispatchUserDataEvent("user-data-synced", {
+      userId: mutation.userId,
+      entityType: ENTITY_MINI_EDITOR_PAGE,
+      entityKey: mapped.pageKey,
+      version: mapped.serverVersion,
+      page: serverPage
+    });
+  }
+
+  async function sendOutboxMutation(mutation) {
+    if (mutation.entityType === ENTITY_QUILL_NOTE) {
+      if (mutation.operation === "delete") {
+        const params = new URLSearchParams({
+          pageKey: mutation.entityKey,
+          expectedVersion: String(
+            Number(mutation.baseVersion) || 0
+          )
+        });
+
+        const response = await fetch(
+          `/api/quill-notes?${params.toString()}`,
+          {
+            method: "DELETE",
+            credentials: "include",
+            cache: "no-store"
+          }
+        );
+
+        const result = await readJsonSafely(response);
+        return { response, result };
+      }
+
+      const response = await fetch("/api/quill-notes", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ...(mutation.payload || {}),
+          expectedVersion:
+            Number(mutation.baseVersion) || 0
+        })
+      });
+
+      const result = await readJsonSafely(response);
+      return { response, result };
+    }
+
+    if (
+      mutation.entityType === ENTITY_MINI_EDITOR_PAGE
+    ) {
+      if (mutation.operation === "delete") {
+        const params = new URLSearchParams({
+          pageKey: mutation.entityKey,
+          expectedVersion: String(
+            Number(mutation.baseVersion) || 0
+          )
+        });
+
+        const response = await fetch(
+          `/api/mini-editor-page?${params.toString()}`,
+          {
+            method: "DELETE",
+            credentials: "include",
+            cache: "no-store"
+          }
+        );
+
+        const result = await readJsonSafely(response);
+        return { response, result };
+      }
+
+      const response = await fetch(
+        "/api/mini-editor-page",
+        {
+          method: "POST",
+          credentials: "include",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            ...(mutation.payload || {}),
+            expectedVersion:
+              Number(mutation.baseVersion) || 0
+          })
+        }
+      );
+
+      const result = await readJsonSafely(response);
+      return { response, result };
+    }
+
+    throw new Error(
+      `Unsupported outbox entity type: ${mutation.entityType}`
+    );
+  }
+
+  async function flushOutbox() {
+    if (flushPromise) {
+      return flushPromise;
+    }
+
+    flushPromise = (async () => {
+      const db = requireUserOfflineDB();
+      const liveUserId = getLiveAuthenticatedUserId();
+
+      if (!liveUserId || !canTryServer()) {
+        return {
+          attempted: 0,
+          synced: 0,
+          conflicts: 0,
+          pending: liveUserId
+            ? (await db.listOutbox(
+                liveUserId,
+                ["pending", "sending"]
+              )).length
+            : 0
+        };
+      }
+
+      await rememberVerifiedAuthenticatedUser(liveUserId);
+      await db.resetSendingMutations(liveUserId);
+
+      const pending = await db.listOutbox(
+        liveUserId,
+        ["pending"]
+      );
+
+      let synced = 0;
+      let conflicts = 0;
+
+      for (const originalMutation of pending) {
+        if (!canTryServer()) {
+          break;
+        }
+
+        const mutation = {
+          ...originalMutation,
+          status: "sending",
+          attemptCount:
+            (Number(originalMutation.attemptCount) || 0) + 1,
+          updatedAt: now(),
+          lastError: ""
+        };
+
+        await db.putOutboxMutation(mutation);
+
+        try {
+          const { response, result } =
+            await sendOutboxMutation(mutation);
+
+          if (response.status === 409) {
+            await markConflict(mutation, result);
+            conflicts += 1;
+            continue;
+          }
+
+          if (!response.ok) {
+            throw new Error(
+              result?.message ||
+              `Synchronization failed with HTTP ${response.status}.`
+            );
+          }
+
+          if (mutation.entityType === ENTITY_QUILL_NOTE) {
+            await applyQuillSyncSuccess(
+              mutation,
+              result
+            );
+          } else {
+            await applyMiniEditorSyncSuccess(
+              mutation,
+              result
+            );
+          }
+
+          synced += 1;
+        } catch (error) {
+          await markMutationPending(mutation, error);
+
+          if (!canTryServer()) {
+            break;
+          }
+        }
+      }
+
+      const remaining = await db.listOutbox(
+        liveUserId,
+        ["pending", "sending"]
+      );
+
+      return {
+        attempted: pending.length,
+        synced,
+        conflicts,
+        pending: remaining.length
+      };
+    })();
+
+    try {
+      return await flushPromise;
+    } finally {
+      flushPromise = null;
+    }
+  }
+
+  function scheduleFlush(delayMs = 250) {
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+    }
+
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+
+      flushOutbox().catch((error) => {
+        console.warn(
+          "Could not synchronize pending offline changes:",
+          error
+        );
+      });
+    }, Math.max(0, Number(delayMs) || 0));
+  }
+
+  window.addEventListener("online", () => {
+    scheduleFlush(250);
+  });
+
+  window.addEventListener(
+    "app-connectivity-changed",
+    (event) => {
+      const state = event.detail || {};
+
+      if (
+        state.browserOnline !== false &&
+        state.appReachable === true &&
+        state.connectionIssue !== true
+      ) {
+        scheduleFlush(250);
+      }
+    }
+  );
+
+  window.addEventListener(
+    "auth-state-changed",
+    (event) => {
+      if (event.detail?.signedIn) {
+        scheduleFlush(350);
+      }
+    }
+  );
+
+  window.addEventListener(
+    "load",
+    () => {
+      scheduleFlush(800);
+    },
+    { once: true }
+  );
+
+
   async function saveStudyDraft(input = {}) {
     const db = requireUserOfflineDB();
     const userId = getLiveAuthenticatedUserId();
@@ -1106,6 +1639,8 @@ window.UserData = (() => {
     queueMiniEditorPageForSync,
     queueMiniEditorDeleteForSync,
     listPendingOutboxForUser,
+    flushOutbox,
+    scheduleFlush,
     saveStudyDraft,
     getStudyDraft,
     listStudyDrafts,
