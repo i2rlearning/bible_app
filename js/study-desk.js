@@ -4,16 +4,17 @@
  * Project file: js/study-desk.js
  *
  * Purpose:
- * Controls the Study Desk workspace for creating, editing, organizing, previewing,
- * and saving personal Bible studies, including categories, keywords, Scripture
- * references, Quill content, conflict notices, and the existing server Save flow.
+ * Controls the Study Desk workspace for creating, editing, organizing,
+ * previewing, and saving personal Bible studies.
  *
- * Phase 4 Step 4 behavior:
- * - Adds a short debounced local autosave for unsaved Study Desk changes.
- * - Local drafts are stored per Clerk user and device in UserOfflineDB.
- * - The existing server Save button and server version/conflict rules remain unchanged.
- * - Local drafts are NOT restored automatically and are NOT synchronized in this step.
- * - A successful server Save or an explicit discard removes the corresponding local draft.
+ * What this file does:
+ * - Loads and saves studies, categories, keywords, and Scripture references.
+ * - Manages the Study Desk Quill editor and preview.
+ * - Preserves the existing server Save and version/conflict behavior.
+ * - Debounces unsaved Study Desk changes into UserOfflineDB as a local draft.
+ * - Clears a local draft after a successful server Save or explicit discard.
+ * - Reacts to the shared authentication state and keeps private Study Desk
+ *   content hidden unless an authenticated online session is available.
  */
 
 (function () {
@@ -850,27 +851,65 @@
   }
   
   function bindStudyDeskAuthState() {
-    const originalUpdateAuthUI = window.updateAuthUI;
-  
-    window.updateAuthUI = function (clerkUser) {
-      if (typeof originalUpdateAuthUI === "function") {
-        originalUpdateAuthUI(clerkUser);
+    function applySharedAuthState(detail = {}) {
+      const signedInOnline =
+        detail.signedIn === true &&
+        detail.offline !== true &&
+        detail.logoutPending !== true;
+
+      if (signedInOnline) {
+        handleStudyDeskAuthState({
+          id:
+            detail.userId ||
+            window.Clerk?.user?.id ||
+            window.clerk?.user?.id ||
+            "authenticated-user"
+        });
+        return;
       }
-  
-      handleStudyDeskAuthState(clerkUser || null);
-    };
-  
-    /*
-     * Clerk normally initializes after this script.
-     * Until Clerk confirms a user, Study Desk remains locked.
-     */
-    const clerkObj = window.Clerk || window.clerk;
-  
-    if (clerkObj && clerkObj.loaded) {
-      handleStudyDeskAuthState(clerkObj.user || null);
-    } else {
-      showLoggedOut();
+
+      handleStudyDeskAuthState(null);
     }
+
+    window.addEventListener(
+      "auth-state-changed",
+      (event) => {
+        applySharedAuthState(
+          event.detail || {}
+        );
+      }
+    );
+
+    /*
+     * The authentication controller may have completed before this script
+     * attaches its event listener. Read the already-rendered shared state once
+     * so Study Desk cannot remain locked merely because it missed that event.
+     */
+    const currentAuthState =
+      window.getCurrentAuthUIState?.() ||
+      document.documentElement.dataset.authState ||
+      "";
+
+    const currentUserId =
+      window.Clerk?.user?.id ||
+      window.clerk?.user?.id ||
+      "";
+
+    applySharedAuthState({
+      state: currentAuthState,
+      signedIn:
+        currentAuthState ===
+          "signed-in-online" ||
+        currentAuthState ===
+          "signed-in-offline",
+      offline:
+        currentAuthState ===
+        "signed-in-offline",
+      logoutPending:
+        currentAuthState ===
+        "logout-pending",
+      userId: currentUserId
+    });
   }
     
   async function fetchJson(url, options = {}) {
