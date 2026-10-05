@@ -797,6 +797,20 @@
     els.saveState.classList.toggle("is-success", type === "success");
   }
 
+  function showAuthChecking() {
+    if (els.authMessage) {
+      els.authMessage.hidden = true;
+    }
+
+    if (els.app) {
+      els.app.hidden = true;
+    }
+
+    if (els.search) {
+      els.search.disabled = true;
+    }
+  }
+
   function showLoggedOut() {
     if (els.authMessage) els.authMessage.hidden = false;
     if (els.app) els.app.hidden = true;
@@ -852,6 +866,21 @@
   
   function bindStudyDeskAuthState() {
     function applySharedAuthState(detail = {}) {
+      const sharedState =
+        String(
+          detail.state ||
+          document.documentElement.dataset.authState ||
+          ""
+        );
+
+      if (
+        !sharedState ||
+        sharedState === "checking"
+      ) {
+        showAuthChecking();
+        return;
+      }
+
       const signedInOnline =
         detail.signedIn === true &&
         detail.offline !== true &&
@@ -7433,8 +7462,12 @@
   
     applyStudyToForm(getEmptyStudy());
   
-    // Default to locked until Clerk confirms authentication.
-    showLoggedOut();
+    /*
+     * Keep private content hidden while authentication is still resolving.
+     * The login message is shown only after the shared auth controller has
+     * positively resolved the user as signed out.
+     */
+    showAuthChecking();
     bindStudyDeskAuthState();
   });
 })();
