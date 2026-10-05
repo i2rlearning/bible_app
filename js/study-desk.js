@@ -831,9 +831,73 @@
   }
 
   let studyLoadPromise = null;
+  let studyAuthRetryTimer = null;
+  let studyAuthRetryCount = 0;
+
+  const STUDY_AUTH_RETRY_LIMIT = 6;
+
+  function getSharedStudyAuthState() {
+    return (
+      window.getCurrentAuthUIState?.() ||
+      document.documentElement.dataset.authState ||
+      ""
+    );
+  }
+
+  function sharedAuthIsSignedInOnline() {
+    return (
+      getSharedStudyAuthState() ===
+      "signed-in-online"
+    );
+  }
+
+  function clearStudyAuthRetry() {
+    if (studyAuthRetryTimer) {
+      clearTimeout(studyAuthRetryTimer);
+      studyAuthRetryTimer = null;
+    }
+
+    studyAuthRetryCount = 0;
+  }
+
+  function scheduleStudyAuthRetry() {
+    if (
+      studyAuthRetryTimer ||
+      studyAuthRetryCount >=
+        STUDY_AUTH_RETRY_LIMIT
+    ) {
+      return;
+    }
+
+    studyAuthRetryCount += 1;
+
+    const delay =
+      Math.min(
+        250 * studyAuthRetryCount,
+        1250
+      );
+
+    studyAuthRetryTimer =
+      setTimeout(() => {
+        studyAuthRetryTimer = null;
+
+        if (!sharedAuthIsSignedInOnline()) {
+          return;
+        }
+
+        handleStudyDeskAuthState({
+          id:
+            window.Clerk?.user?.id ||
+            window.clerk?.user?.id ||
+            "authenticated-user"
+        });
+      }, delay);
+  }
 
   function handleStudyDeskAuthState(user) {
     if (!user) {
+      clearStudyAuthRetry();
+
       state.studies = [];
       state.categories = [];
       state.availableTags = [];
@@ -853,6 +917,7 @@
     }
   
     if (state.hasLoaded) {
+      clearStudyAuthRetry();
       showApp();
       return;
     }
@@ -960,8 +1025,21 @@
     }
 
     if (response.status === 401) {
-      showLoggedOut();
-      throw new Error("Please log in to use Study Desk.");
+      const requestError =
+        new Error(
+          "Please log in to use Study Desk."
+        );
+
+      requestError.status = 401;
+      requestError.data = result;
+
+      if (sharedAuthIsSignedInOnline()) {
+        showAuthChecking();
+      } else {
+        showLoggedOut();
+      }
+
+      throw requestError;
     }
 
     if (!response.ok) {
@@ -2230,8 +2308,13 @@
     try {
       await loadSetup();
       const result = await fetchJson("/api/studies");
-      state.studies = Array.isArray(result.studies) ? result.studies : [];
+      state.studies =
+        Array.isArray(result.studies)
+          ? result.studies
+          : [];
+
       state.hasLoaded = true;
+      clearStudyAuthRetry();
       showApp();
       renderStudyList();
 
@@ -2241,7 +2324,20 @@
         applyStudyToForm(getEmptyStudy());
       }
     } catch (error) {
-      setListStatus(error.message, "error");
+      if (
+        error?.status === 401 &&
+        sharedAuthIsSignedInOnline()
+      ) {
+        showAuthChecking();
+        setListStatus("");
+        scheduleStudyAuthRetry();
+        return;
+      }
+
+      setListStatus(
+        error.message,
+        "error"
+      );
     }
   }
 
