@@ -454,14 +454,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (authConnectionIsOnline()) {
       /*
-       * Clerk can briefly report no user while restoring an existing browser
-       * session. Confirm the server session before publishing a real signed-out
-       * state so pages do not flash logged-out content for an authenticated user.
+       * Clerk can briefly report no user while restoring or re-checking an
+       * existing browser session. If the UI is already in a confirmed signed-in
+       * state, keep that presentation stable while the server re-confirms it.
+       * This avoids needlessly hiding and re-showing the Logout control.
        */
-      renderAuthState(
-        AUTH_STATE.CHECKING,
-        null
-      );
+      const preserveSignedInPresentation =
+        currentAuthState ===
+          AUTH_STATE.SIGNED_IN_ONLINE ||
+        currentAuthState ===
+          AUTH_STATE.SIGNED_IN_OFFLINE;
+
+      if (!preserveSignedInPresentation) {
+        renderAuthState(
+          AUTH_STATE.CHECKING,
+          null
+        );
+      }
 
       const serverAuth =
         await probeServerAuthentication();
