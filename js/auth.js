@@ -51,6 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentAuthState = AUTH_STATE.CHECKING;
   let lastKnownClerkUser = null;
+  let serverAuthProbePromise = null;
 
   function authConnectionIsOnline() {
     const state = window.AppShell?.getState?.() || {};
@@ -328,6 +329,97 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  async function probeServerAuthentication() {
+    if (!authConnectionIsOnline()) {
+      return {
+        resolved: false,
+        user: null
+      };
+    }
+
+    if (serverAuthProbePromise) {
+      return serverAuthProbePromise;
+    }
+
+    serverAuthProbePromise = (async () => {
+      try {
+        const statusResponse = await fetch(
+          "/api/auth-status",
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store"
+          }
+        );
+
+        if (!statusResponse.ok) {
+          return {
+            resolved: false,
+            user: null
+          };
+        }
+
+        const status =
+          await statusResponse.json();
+
+        if (status?.signedIn !== true) {
+          return {
+            resolved: true,
+            user: null
+          };
+        }
+
+        const meResponse = await fetch(
+          "/api/me",
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store"
+          }
+        );
+
+        if (!meResponse.ok) {
+          return {
+            resolved: false,
+            user: null
+          };
+        }
+
+        const me = await meResponse.json();
+        const userId =
+          String(me?.user?.id || "");
+
+        if (!userId) {
+          return {
+            resolved: false,
+            user: null
+          };
+        }
+
+        return {
+          resolved: true,
+          user: { id: userId }
+        };
+      } catch (error) {
+        console.warn(
+          "Could not confirm authentication with the server:",
+          error
+        );
+
+        return {
+          resolved: false,
+          user: null
+        };
+      }
+    })();
+
+    try {
+      return await serverAuthProbePromise;
+    } finally {
+      serverAuthProbePromise = null;
+    }
+  }
+
   async function refreshAuthState(
     clerkUser = lastKnownClerkUser
   ) {
@@ -360,6 +452,56 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (authConnectionIsOnline()) {
+      /*
+       * Clerk can briefly report no user while restoring an existing browser
+       * session. Confirm the server session before publishing a real signed-out
+       * state so pages do not flash logged-out content for an authenticated user.
+       */
+      renderAuthState(
+        AUTH_STATE.CHECKING,
+        null
+      );
+
+      const serverAuth =
+        await probeServerAuthentication();
+
+      if (!serverAuth.resolved) {
+        return;
+      }
+
+      if (serverAuth.user) {
+        lastKnownClerkUser =
+          serverAuth.user;
+
+        try {
+          await window.UserData
+            ?.rememberVerifiedAuthenticatedUser?.(
+              serverAuth.user.id
+            );
+        } catch (error) {
+          console.warn(
+            "Could not record server-verified user identity locally:",
+            error
+          );
+        }
+
+        renderAuthState(
+          AUTH_STATE.SIGNED_IN_ONLINE,
+          serverAuth.user
+        );
+        return;
+      }
+
+      lastKnownClerkUser = null;
+
+      renderAuthState(
+        AUTH_STATE.SIGNED_OUT_ONLINE,
+        null
+      );
+      return;
+    }
+
     const trustedOfflineProfile =
       await getTrustedOfflineProfile();
 
@@ -374,7 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     renderAuthState(
-      resolveAuthState(null),
+      AUTH_STATE.SIGNED_OUT_OFFLINE,
       null
     );
   }
