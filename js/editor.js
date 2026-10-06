@@ -875,107 +875,190 @@ async function saveQuillNotes() {
   try {
     const quillDelta = quill.getContents();
     const plainText = quill.getText().trim();
+    const queueOnly = editorShouldQueueLocally();
 
     if (!plainText) {
-      if (editorShouldQueueLocally()) {
-        await queueCurrentQuillDeleteLocally(pageIdentity);
-        console.log("Empty Quill notes saved locally for later sync");
+      const queuedDelete =
+        await queueCurrentQuillDeleteLocally(
+          pageIdentity
+        );
+
+      if (queuedDelete?.queued === false) {
+        quillNotesVersion = 0;
+        console.log("Empty Quill notes cleared locally");
+        setEditorSaveStatus("Saved");
+        return;
+      }
+
+      if (queueOnly) {
+        console.log(
+          "Empty Quill notes saved locally for later sync"
+        );
         setEditorSaveStatus("Saved on this device");
         return;
       }
 
-      const deleteParams = new URLSearchParams({ pageKey: quillNotesStoragePageKey || pageIdentity.pageKey });
-      deleteParams.set("expectedVersion", String(Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0));
+      await window.UserData.flushOutbox();
 
-      const deleteResponse = await fetch(
-        `/api/quill-notes?${deleteParams.toString()}`,
-        {
-          method: "DELETE",
-          credentials: "include"
-        }
-      );
-      const deleteResult = await parseResponseSafely(deleteResponse);
+      const cachedAfterDelete =
+        await window.UserData.getCachedQuillNote(
+          editorAuthenticatedUserId,
+          {
+            ...pageIdentity,
+            pageKey:
+              quillNotesStoragePageKey ||
+              pageIdentity.pageKey
+          }
+        );
 
-      if (!deleteResponse.ok) {
-        if (deleteResponse.status === 409) {
-          const conflictError = new Error(deleteResult.message || "These notes changed on another device.");
-          conflictError.code = deleteResult.code || "QUILL_NOTE_VERSION_CONFLICT";
-          conflictError.data = deleteResult;
-          throw conflictError;
-        }
-        throw new Error(deleteResult.message || "Failed to delete empty notes");
+      if (
+        cachedAfterDelete?.syncStatus ===
+        "conflict"
+      ) {
+        const conflictError = new Error(
+          "These notes changed on another device."
+        );
+        conflictError.code =
+          "QUILL_NOTE_VERSION_CONFLICT";
+        conflictError.data = {
+          latestNote:
+            cachedAfterDelete.conflictRemote ||
+            null
+        };
+        throw conflictError;
+      }
+
+      if (
+        cachedAfterDelete?.syncStatus ===
+          "pending" ||
+        cachedAfterDelete?.syncStatus ===
+          "sending"
+      ) {
+        console.log(
+          "Empty Quill notes remain queued for synchronization"
+        );
+        setEditorSaveStatus("Saved on this device");
+        return;
+      }
+
+      if (cachedAfterDelete) {
+        throw new Error(
+          "The synchronized My Notes delete did not clear the local mirror."
+        );
       }
 
       quillNotesVersion = 0;
-      await removeLocalQuillMirror(pageIdentity);
       console.log("Empty Quill notes deleted");
       setEditorSaveStatus("Saved");
       return;
     }
 
-    if (editorShouldQueueLocally()) {
-      await queueCurrentQuillStateLocally(
-        pageIdentity,
-        quillDelta,
-        plainText
+    await queueCurrentQuillStateLocally(
+      pageIdentity,
+      quillDelta,
+      plainText
+    );
+
+    if (queueOnly) {
+      console.log(
+        "Quill notes saved locally for later sync"
       );
-      console.log("Quill notes saved locally for later sync");
       setEditorSaveStatus("Saved on this device");
       return;
     }
 
-    const response = await fetch("/api/quill-notes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        bibleVersionID: pageIdentity.bibleVersionID,
-        bibleChapterID: pageIdentity.bibleChapterID,
-        pageKey: quillNotesStoragePageKey || pageIdentity.pageKey,
-        pageUrl: window.location.pathname + window.location.search,
-        bookChapterLabel: getCurrentBookChapterLabel(),
-        quillDelta,
-        plainText,
-        expectedVersion: Number.isInteger(quillNotesVersion) ? quillNotesVersion : 0
-      })
-    });
+    await window.UserData.flushOutbox();
 
-    const result = await parseResponseSafely(response);
+    const cachedAfterSave =
+      await window.UserData.getCachedQuillNote(
+        editorAuthenticatedUserId,
+        {
+          ...pageIdentity,
+          pageKey:
+            quillNotesStoragePageKey ||
+            pageIdentity.pageKey
+        }
+      );
 
-    if (!response.ok) {
-      const saveError = new Error(result.message || `Failed to save Quill editor notes. Status: ${response.status}`);
-      saveError.code = result.code || "";
-      saveError.data = result;
-      throw saveError;
+    if (
+      cachedAfterSave?.syncStatus ===
+      "conflict"
+    ) {
+      const conflictError = new Error(
+        "These notes changed on another device."
+      );
+      conflictError.code =
+        "QUILL_NOTE_VERSION_CONFLICT";
+      conflictError.data = {
+        latestNote:
+          cachedAfterSave.conflictRemote ||
+          null
+      };
+      throw conflictError;
     }
 
-    quillNotesVersion = result.note?.version ? Number(result.note.version) : quillNotesVersion;
-
-    if (result.note) {
-      await mirrorServerQuillNoteLocally(result.note, pageIdentity);
+    if (
+      cachedAfterSave?.syncStatus ===
+        "pending" ||
+      cachedAfterSave?.syncStatus ===
+        "sending"
+    ) {
+      console.log(
+        "Quill notes remain queued for synchronization"
+      );
+      setEditorSaveStatus("Saved on this device");
+      return;
     }
+
+    if (!cachedAfterSave) {
+      throw new Error(
+        "The synchronized My Notes record is unavailable locally."
+      );
+    }
+
+    quillNotesVersion =
+      Number(cachedAfterSave.serverVersion) ||
+      quillNotesVersion;
+
+    quillNotesStoragePageKey =
+      cachedAfterSave.pageKey ||
+      quillNotesStoragePageKey ||
+      pageIdentity.pageKey;
 
     console.log("Quill notes saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
-    if (editorPageIsLeaving || document.visibilityState === "hidden") {
+    if (
+      editorPageIsLeaving ||
+      document.visibilityState === "hidden"
+    ) {
       return;
     }
 
     console.error("Save Quill notes error:", error);
-    if (error?.code === "QUILL_NOTE_VERSION_CONFLICT") {
+
+    if (
+      error?.code ===
+      "QUILL_NOTE_VERSION_CONFLICT"
+    ) {
       quillConflictActive = true;
-      setEditorSaveStatus("Conflict - newer notes exist");
+      setEditorSaveStatus(
+        "Conflict - newer notes exist"
+      );
       showEditorVersionConflict({
-        key: `quill:${pageIdentity.pageKey}:${error?.data?.latestNote?.version || "newer"}`,
+        key:
+          `quill:${pageIdentity.pageKey}:` +
+          `${
+            error?.data?.latestNote?.version ||
+            "newer"
+          }`,
         onLoadLatest: () => {
           loadQuillNotes();
         }
       });
       return;
     }
+
     setEditorSaveStatus("Save failed");
   }
 }
