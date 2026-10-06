@@ -858,6 +858,24 @@
     );
   }
 
+  async function getTrustedStudyUserId() {
+    const liveUserId =
+      window.UserData?.getLiveAuthenticatedUserId?.() ||
+      "";
+
+    if (liveUserId) {
+      return liveUserId;
+    }
+
+    if (sharedAuthIsSignedInOffline()) {
+      return (
+        await window.UserData?.getLastVerifiedUserId?.()
+      ) || "";
+    }
+
+    return "";
+  }
+
   function clearStudyAuthRetry() {
     if (studyAuthRetryTimer) {
       clearTimeout(studyAuthRetryTimer);
@@ -2331,8 +2349,7 @@
     try {
       if (sharedAuthIsSignedInOffline()) {
         const userId =
-          window.UserData?.getLiveAuthenticatedUserId?.() ||
-          "";
+          await getTrustedStudyUserId();
 
         const cachedRecords =
           userId &&
@@ -2435,8 +2452,7 @@
     try {
       if (sharedAuthIsSignedInOffline()) {
         const userId =
-          window.UserData?.getLiveAuthenticatedUserId?.() ||
-          "";
+          await getTrustedStudyUserId();
 
         const cached =
           userId &&
