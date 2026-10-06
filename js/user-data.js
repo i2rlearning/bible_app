@@ -1922,6 +1922,513 @@ window.UserData = (() => {
     return nextCursor;
   }
 
+  async function hasUnsyncedLocalEntityWork(
+    userId,
+    entityType,
+    entityKey
+  ) {
+    const db = requireUserOfflineDB();
+    const outboxItems =
+      await db.listOutboxForEntity(
+        userId,
+        entityType,
+        entityKey
+      );
+
+    if (
+      outboxItems.some((item) =>
+        ["pending", "sending", "conflict"].includes(
+          item.status
+        )
+      )
+    ) {
+      return true;
+    }
+
+    const local =
+      entityType === ENTITY_QUILL_NOTE
+        ? await db.getQuillNote(userId, entityKey)
+        : await db.getMiniEditorPage(
+            userId,
+            entityKey
+          );
+
+    return Boolean(
+      local &&
+      ["pending", "sending", "conflict"].includes(
+        local.syncStatus
+      )
+    );
+  }
+
+  async function fetchCurrentSyncEntity(
+    entityType,
+    entityKey
+  ) {
+    const route =
+      entityType === ENTITY_QUILL_NOTE
+        ? "/api/quill-notes"
+        : "/api/mini-editor-page";
+
+    const params = new URLSearchParams({
+      pageKey: entityKey
+    });
+
+    const response = await fetch(
+      `${route}?${params.toString()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    if (response.redirected) {
+      throw new Error(
+        "The authenticated server session is not ready."
+      );
+    }
+
+    const body = await readJsonSafely(response);
+
+    if (!response.ok) {
+      throw new Error(
+        body?.message ||
+        `Could not load synchronized entity (${response.status}).`
+      );
+    }
+
+    return entityType === ENTITY_QUILL_NOTE
+      ? (body?.note || null)
+      : (body?.page || null);
+  }
+
+  async function applyRemoteSyncEntity(
+    userId,
+    change
+  ) {
+    const db = requireUserOfflineDB();
+    const entityType = String(
+      change?.entityType || ""
+    );
+    const entityKey = String(
+      change?.entityKey || ""
+    );
+
+    if (
+      ![
+        ENTITY_QUILL_NOTE,
+        ENTITY_MINI_EDITOR_PAGE
+      ].includes(entityType)
+    ) {
+      return {
+        applied: false,
+        blocked: true,
+        reason: "unsupported_entity"
+      };
+    }
+
+    if (
+      await hasUnsyncedLocalEntityWork(
+        userId,
+        entityType,
+        entityKey
+      )
+    ) {
+      return {
+        applied: false,
+        blocked: true,
+        reason: "local_unsynced_work"
+      };
+    }
+
+    if (change?.operation === "delete") {
+      if (entityType === ENTITY_QUILL_NOTE) {
+        await db.deleteQuillNote(
+          userId,
+          entityKey
+        );
+      } else {
+        await db.deleteMiniEditorPage(
+          userId,
+          entityKey
+        );
+      }
+
+      dispatchUserDataEvent(
+        "user-data-remote-change",
+        {
+          userId,
+          entityType,
+          entityKey,
+          operation: "delete",
+          deleted: true,
+          version: null,
+          changeSequence:
+            String(
+              change?.changeSequence || ""
+            )
+        }
+      );
+
+      return {
+        applied: true,
+        deleted: true
+      };
+    }
+
+    const serverEntity =
+      await fetchCurrentSyncEntity(
+        entityType,
+        entityKey
+      );
+
+    /*
+     * A later delete may already have removed an entity even when this page of
+     * history contains an earlier create/update row. The current server state
+     * is authoritative for catch-up, so absence is applied as a delete.
+     */
+    if (!serverEntity) {
+      if (
+        await hasUnsyncedLocalEntityWork(
+          userId,
+          entityType,
+          entityKey
+        )
+      ) {
+        return {
+          applied: false,
+          blocked: true,
+          reason: "local_unsynced_work"
+        };
+      }
+
+      if (entityType === ENTITY_QUILL_NOTE) {
+        await db.deleteQuillNote(
+          userId,
+          entityKey
+        );
+      } else {
+        await db.deleteMiniEditorPage(
+          userId,
+          entityKey
+        );
+      }
+
+      dispatchUserDataEvent(
+        "user-data-remote-change",
+        {
+          userId,
+          entityType,
+          entityKey,
+          operation: "delete",
+          deleted: true,
+          version: null,
+          changeSequence:
+            String(
+              change?.changeSequence || ""
+            )
+        }
+      );
+
+      return {
+        applied: true,
+        deleted: true
+      };
+    }
+
+    let cached;
+
+    if (entityType === ENTITY_QUILL_NOTE) {
+      const existing =
+        await db.getQuillNote(
+          userId,
+          entityKey
+        );
+
+      cached =
+        await cacheQuillNoteFromServer(
+          userId,
+          serverEntity,
+          existing || { pageKey: entityKey }
+        );
+    } else {
+      const existing =
+        await db.getMiniEditorPage(
+          userId,
+          entityKey
+        );
+
+      cached =
+        await cacheMiniEditorPageFromServer(
+          userId,
+          serverEntity,
+          existing || { pageKey: entityKey }
+        );
+    }
+
+    dispatchUserDataEvent(
+      "user-data-remote-change",
+      {
+        userId,
+        entityType,
+        entityKey,
+        operation:
+          String(change?.operation || "update"),
+        deleted: false,
+        version:
+          Number(cached?.serverVersion) || 0,
+        changeSequence:
+          String(
+            change?.changeSequence || ""
+          )
+      }
+    );
+
+    return {
+      applied: true,
+      deleted: false,
+      version:
+        Number(cached?.serverVersion) || 0
+    };
+  }
+
+  async function fetchSyncChangePage(
+    after,
+    limit
+  ) {
+    const params = new URLSearchParams({
+      after: normalizeSyncCursor(after),
+      limit: String(limit)
+    });
+
+    const response = await fetch(
+      `/api/sync/changes?${params.toString()}`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    if (response.redirected) {
+      throw new Error(
+        "The authenticated server session is not ready."
+      );
+    }
+
+    const body = await readJsonSafely(response);
+
+    if (!response.ok || body?.ok !== true) {
+      throw new Error(
+        body?.message ||
+        `Could not load synchronization changes (${response.status}).`
+      );
+    }
+
+    return body;
+  }
+
+  async function catchUpSyncChanges(
+    options = {}
+  ) {
+    const userId =
+      getLiveAuthenticatedUserId();
+
+    if (!userId) {
+      throw new Error(
+        "A live authenticated user is required for synchronization catch-up."
+      );
+    }
+
+    if (!canTryServer()) {
+      return {
+        ok: false,
+        reason: "offline",
+        startCursor: await getSyncCursor(),
+        endCursor: await getSyncCursor(),
+        changesRead: 0,
+        entitiesApplied: 0,
+        pages: 0
+      };
+    }
+
+    const serverUserConfirmed =
+      await waitForServerAuthenticatedUser(
+        userId
+      );
+
+    if (!serverUserConfirmed) {
+      return {
+        ok: false,
+        reason: "auth_not_ready",
+        startCursor: await getSyncCursor(),
+        endCursor: await getSyncCursor(),
+        changesRead: 0,
+        entitiesApplied: 0,
+        pages: 0
+      };
+    }
+
+    /*
+     * Local mutations always get first opportunity to reach the server. This
+     * prevents a remote catch-up from replacing a device's pending local work.
+     */
+    await flushOutbox();
+
+    const limit = Math.min(
+      100,
+      Math.max(
+        1,
+        Number(options.limit) || 100
+      )
+    );
+    const maxPages = Math.min(
+      100,
+      Math.max(
+        1,
+        Number(options.maxPages) || 20
+      )
+    );
+
+    const startCursor =
+      await getSyncCursor();
+    let cursor = startCursor;
+    let latestSequence = startCursor;
+    let changesRead = 0;
+    let entitiesApplied = 0;
+    let pages = 0;
+
+    while (pages < maxPages) {
+      const page =
+        await fetchSyncChangePage(
+          cursor,
+          limit
+        );
+
+      pages += 1;
+      latestSequence =
+        normalizeSyncCursor(
+          page.latestSequence ?? cursor
+        );
+
+      const changes = Array.isArray(
+        page.changes
+      )
+        ? page.changes
+        : [];
+
+      changesRead += changes.length;
+
+      if (changes.length === 0) {
+        break;
+      }
+
+      /*
+       * The change log records every accepted mutation, while IndexedDB needs
+       * only the current server state. Repeated changes for one entity inside
+       * this page are coalesced to the newest row before reading that entity.
+       */
+      const newestByEntity = new Map();
+
+      for (const change of changes) {
+        const entityType = String(
+          change?.entityType || ""
+        );
+        const entityKey = String(
+          change?.entityKey || ""
+        );
+
+        newestByEntity.set(
+          `${entityType}\u0000${entityKey}`,
+          change
+        );
+      }
+
+      for (
+        const change of newestByEntity.values()
+      ) {
+        const result =
+          await applyRemoteSyncEntity(
+            userId,
+            change
+          );
+
+        if (!result.applied) {
+          return {
+            ok: false,
+            reason:
+              result.reason ||
+              "remote_change_blocked",
+            startCursor,
+            endCursor: cursor,
+            latestSequence,
+            changesRead,
+            entitiesApplied,
+            pages,
+            blockedChange: {
+              changeSequence:
+                String(
+                  change?.changeSequence ||
+                  ""
+                ),
+              entityType:
+                String(
+                  change?.entityType || ""
+                ),
+              entityKey:
+                String(
+                  change?.entityKey || ""
+                )
+            }
+          };
+        }
+
+        entitiesApplied += 1;
+      }
+
+      const nextCursor =
+        normalizeSyncCursor(
+          page.nextCursor ?? cursor
+        );
+
+      if (
+        BigInt(nextCursor) <
+        BigInt(cursor)
+      ) {
+        throw new Error(
+          "The server returned a synchronization cursor that moved backward."
+        );
+      }
+
+      /*
+       * Advance only after every entity represented by this page was safely
+       * applied. If any apply fails, this page is replayed on the next attempt.
+       */
+      cursor =
+        await setSyncCursor(
+          nextCursor
+        );
+
+      if (!page.hasMore) {
+        break;
+      }
+    }
+
+    return {
+      ok: true,
+      startCursor,
+      endCursor: cursor,
+      latestSequence,
+      changesRead,
+      entitiesApplied,
+      pages,
+      caughtUp:
+        BigInt(cursor) >=
+        BigInt(latestSequence)
+    };
+  }
+
   async function getStoredProfile(userId) {
     if (!userId) {
       return null;
@@ -2010,6 +2517,7 @@ window.UserData = (() => {
     deleteStudyDraft,
     getSyncCursor,
     setSyncCursor,
+    catchUpSyncChanges,
     getStoredProfile,
     getLastVerifiedUserId,
     getIdentitySnapshot
