@@ -155,6 +155,86 @@ window.UserData = (() => {
     return rememberVerifiedAuthenticatedUser(userId);
   }
 
+  function wait(delayMs) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, Math.max(0, Number(delayMs) || 0));
+    });
+  }
+
+  async function serverConfirmsAuthenticatedUser(expectedUserId) {
+    const normalizedUserId = String(expectedUserId || "");
+
+    if (!normalizedUserId || !canTryServer()) {
+      return false;
+    }
+
+    try {
+      /*
+       * Browser connectivity can recover slightly before Clerk's server-side
+       * session is ready again. Confirm the protected API session before
+       * sending queued private mutations so they are never mistaken for an
+       * unauthenticated navigation request.
+       */
+      const statusResponse = await fetch("/api/auth-status", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      });
+
+      if (!statusResponse.ok) {
+        return false;
+      }
+
+      const status = await readJsonSafely(statusResponse);
+
+      if (status?.signedIn !== true) {
+        return false;
+      }
+
+      const meResponse = await fetch("/api/me", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      });
+
+      if (!meResponse.ok || meResponse.redirected) {
+        return false;
+      }
+
+      const me = await readJsonSafely(meResponse);
+
+      return (
+        String(me?.user?.id || "") === normalizedUserId
+      );
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  async function waitForServerAuthenticatedUser(expectedUserId) {
+    const retryDelays = [0, 300, 600, 900, 1200, 1600];
+
+    for (const delayMs of retryDelays) {
+      if (delayMs > 0) {
+        await wait(delayMs);
+      }
+
+      if (!canTryServer()) {
+        return false;
+      }
+
+      if (
+        await serverConfirmsAuthenticatedUser(
+          expectedUserId
+        )
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
 
   async function markLogoutPending(userId = "") {
     const db = requireUserOfflineDB();
@@ -1425,6 +1505,17 @@ window.UserData = (() => {
       })
     });
 
+    if (response.redirected) {
+      return {
+        response: { status: 401, ok: false },
+        result: {
+          code: "SYNC_AUTH_NOT_READY",
+          message:
+            "The authenticated server session is not ready yet."
+        }
+      };
+    }
+
     const envelope = await readJsonSafely(response);
 
     if (!response.ok) {
@@ -1514,6 +1605,23 @@ window.UserData = (() => {
                 ["pending", "sending"]
               )).length
             : 0
+        };
+      }
+
+      const serverUserConfirmed =
+        await waitForServerAuthenticatedUser(liveUserId);
+
+      if (!serverUserConfirmed) {
+        return {
+          attempted: 0,
+          synced: 0,
+          conflicts: 0,
+          pending: (
+            await db.listOutbox(
+              liveUserId,
+              ["pending", "sending"]
+            )
+          ).length
         };
       }
 
