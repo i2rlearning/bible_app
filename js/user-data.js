@@ -39,6 +39,7 @@ window.UserData = (() => {
   const DEVICE_ID_STORAGE_KEY = "BibleAppDeviceId";
   const LAST_VERIFIED_USER_META_KEY = "phase4LastVerifiedUserId";
   const PENDING_REMOTE_LOGOUT_META_KEY = "pendingRemoteLogoutUserId";
+  const SYNC_CURSOR_META_PREFIX = "syncCursor";
 
   let flushPromise = null;
   let flushTimer = null;
@@ -1838,6 +1839,89 @@ window.UserData = (() => {
     await db.deleteStudyDraft(userId, String(draftKey));
   }
 
+  function getSyncCursorMetaKey(userId) {
+    return `${SYNC_CURSOR_META_PREFIX}:${String(userId || "")}:${getDeviceId()}`;
+  }
+
+  function normalizeSyncCursor(value) {
+    const cursor = String(
+      value === null || value === undefined
+        ? "0"
+        : value
+    ).trim();
+
+    if (!/^\d+$/.test(cursor)) {
+      throw new Error(
+        "syncCursor must be a non-negative change sequence."
+      );
+    }
+
+    return cursor;
+  }
+
+  async function getSyncCursor() {
+    const db = requireUserOfflineDB();
+    const userId = getLiveAuthenticatedUserId();
+
+    if (!userId) {
+      return "0";
+    }
+
+    const record = await db.getMeta(
+      getSyncCursorMetaKey(userId)
+    );
+
+    if (
+      record?.value === null ||
+      record?.value === undefined ||
+      record?.value === ""
+    ) {
+      return "0";
+    }
+
+    try {
+      return normalizeSyncCursor(record.value);
+    } catch (_error) {
+      return "0";
+    }
+  }
+
+  async function setSyncCursor(nextSequence) {
+    const db = requireUserOfflineDB();
+    const userId = getLiveAuthenticatedUserId();
+
+    if (!userId) {
+      throw new Error(
+        "A live authenticated user is required to update syncCursor."
+      );
+    }
+
+    const nextCursor =
+      normalizeSyncCursor(nextSequence);
+    const currentCursor =
+      await getSyncCursor();
+
+    /*
+     * A device cursor is monotonic. Rewinding it can cause already-processed
+     * remote changes to be replayed and can obscure synchronization bugs.
+     */
+    if (
+      BigInt(nextCursor) <
+      BigInt(currentCursor)
+    ) {
+      throw new Error(
+        `syncCursor cannot move backward from ${currentCursor} to ${nextCursor}.`
+      );
+    }
+
+    await db.setMeta(
+      getSyncCursorMetaKey(userId),
+      nextCursor
+    );
+
+    return nextCursor;
+  }
+
   async function getStoredProfile(userId) {
     if (!userId) {
       return null;
@@ -1924,6 +2008,8 @@ window.UserData = (() => {
     getStudyDraft,
     listStudyDrafts,
     deleteStudyDraft,
+    getSyncCursor,
+    setSyncCursor,
     getStoredProfile,
     getLastVerifiedUserId,
     getIdentitySnapshot
