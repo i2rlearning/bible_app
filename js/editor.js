@@ -1931,133 +1931,227 @@ async function saveMiniEditorPage() {
   if (!editorToolsUnlocked) return;
   if (!miniEditorLoaded) return;
 
-  const pageIdentity = getCurrentBiblePageIdentity();
+  const pageIdentity =
+    getCurrentBiblePageIdentity();
 
   if (!pageIdentity) return;
 
-  const miniEditorJson = getMiniEditorState();
+  const miniEditorJson =
+    getMiniEditorState();
 
   if (!miniEditorJson) return;
 
-  const flags = getMiniEditorFlags(miniEditorJson);
+  const flags =
+    getMiniEditorFlags(miniEditorJson);
 
   try {
-    if (!flags.hasHighlights && !flags.hasDrawings && !flags.hasTextFormats) {
-      if (editorShouldQueueLocally()) {
-        await queueCurrentMiniEditorDeleteLocally(pageIdentity);
-        console.log("Empty mini-editor state saved locally for later sync");
-        setEditorSaveStatus("Saved on this device");
+    const queueOnly =
+      editorShouldQueueLocally();
+
+    if (
+      !flags.hasHighlights &&
+      !flags.hasDrawings &&
+      !flags.hasTextFormats
+    ) {
+      const queuedDelete =
+        await queueCurrentMiniEditorDeleteLocally(
+          pageIdentity
+        );
+
+      if (queuedDelete?.queued === false) {
+        miniEditorVersion = 0;
+        console.log(
+          "Empty mini-editor state cleared locally"
+        );
+        setEditorSaveStatus("Saved");
         return;
       }
 
-      const deleteParams = new URLSearchParams({ pageKey: miniEditorStoragePageKey || pageIdentity.pageKey });
-      deleteParams.set("expectedVersion", String(Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0));
+      if (queueOnly) {
+        console.log(
+          "Empty mini-editor state saved locally for later sync"
+        );
+        setEditorSaveStatus(
+          "Saved on this device"
+        );
+        return;
+      }
 
-      const deleteResponse = await fetch(
-        `/api/mini-editor-page?${deleteParams.toString()}`,
-        {
-          method: "DELETE",
-          credentials: "include"
-        }
-      );
-      const deleteResult = await parseResponseSafely(deleteResponse);
+      await window.UserData.flushOutbox();
 
-      if (!deleteResponse.ok) {
-        if (deleteResponse.status === 409) {
-          const conflictError = new Error(deleteResult.message || "This Bible page changed on another device.");
-          conflictError.code = deleteResult.code || "MINI_EDITOR_VERSION_CONFLICT";
-          conflictError.data = deleteResult;
-          throw conflictError;
-        }
-        throw new Error(deleteResult.message || "Failed to delete empty mini-editor page");
+      const cachedAfterDelete =
+        await window.UserData
+          .getCachedMiniEditorPage(
+            editorAuthenticatedUserId,
+            {
+              ...pageIdentity,
+              pageKey:
+                miniEditorStoragePageKey ||
+                pageIdentity.pageKey
+            }
+          );
+
+      if (
+        cachedAfterDelete?.syncStatus ===
+        "conflict"
+      ) {
+        const conflictError = new Error(
+          "This Bible page changed on another device."
+        );
+        conflictError.code =
+          "MINI_EDITOR_VERSION_CONFLICT";
+        conflictError.data = {
+          latestPage:
+            cachedAfterDelete.conflictRemote ||
+            null
+        };
+        throw conflictError;
+      }
+
+      if (
+        cachedAfterDelete?.syncStatus ===
+          "pending" ||
+        cachedAfterDelete?.syncStatus ===
+          "sending"
+      ) {
+        console.log(
+          "Mini-editor delete remains queued for synchronization"
+        );
+        setEditorSaveStatus(
+          "Saved on this device"
+        );
+        return;
+      }
+
+      if (cachedAfterDelete) {
+        throw new Error(
+          "The synchronized mini-editor delete did not clear the local mirror."
+        );
       }
 
       miniEditorVersion = 0;
-      await removeLocalMiniEditorMirror(pageIdentity);
-      console.log("Empty mini-editor page deleted");
+      console.log(
+        "Empty mini-editor page deleted"
+      );
       setEditorSaveStatus("Saved");
       return;
     }
 
-    if (editorShouldQueueLocally()) {
-      await queueCurrentMiniEditorStateLocally(
-        pageIdentity,
-        miniEditorJson,
-        flags
+    await queueCurrentMiniEditorStateLocally(
+      pageIdentity,
+      miniEditorJson,
+      flags
+    );
+
+    if (queueOnly) {
+      console.log(
+        "Mini-editor state saved locally for later sync"
       );
-      console.log("Mini-editor state saved locally for later sync");
-      setEditorSaveStatus("Saved on this device");
+      setEditorSaveStatus(
+        "Saved on this device"
+      );
       return;
     }
 
-    const response = await fetch("/api/mini-editor-page", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        bibleVersionID: pageIdentity.bibleVersionID,
-        bibleChapterID: pageIdentity.bibleChapterID,
-        pageKey: miniEditorStoragePageKey || pageIdentity.pageKey,
-        pageUrl: window.location.pathname + window.location.search,
-        bibleName: new URLSearchParams(window.location.search).get("bibleAbbr") ||
-          new URLSearchParams(window.location.search).get("abbr") || "",
-        bookChapterLabel: getCurrentBookChapterLabel(),
-        miniEditorJson,
-        hasHighlights: flags.hasHighlights,
-        hasDrawings: flags.hasDrawings,
-        hasTextFormats: flags.hasTextFormats,
-        expectedVersion: Number.isInteger(miniEditorVersion) ? miniEditorVersion : 0
-      })
-    });
+    await window.UserData.flushOutbox();
 
-    const result = await parseResponseSafely(response);
+    const cachedAfterSave =
+      await window.UserData
+        .getCachedMiniEditorPage(
+          editorAuthenticatedUserId,
+          {
+            ...pageIdentity,
+            pageKey:
+              miniEditorStoragePageKey ||
+              pageIdentity.pageKey
+          }
+        );
 
-    if (!response.ok) {
-      const detailedError = [
-        result.message,
-        result.error,
-        result.code ? `Code: ${result.code}` : "",
-        result.detail ? `Detail: ${result.detail}` : ""
-      ]
-        .filter(Boolean)
-        .join(" | ");
-    
-      const saveError = new Error(detailedError || `Failed to save mini-editor page. Status: ${response.status}`);
-      saveError.code = result.code || "";
-      saveError.data = result;
-      throw saveError;
+    if (
+      cachedAfterSave?.syncStatus ===
+      "conflict"
+    ) {
+      const conflictError = new Error(
+        "This Bible page changed on another device."
+      );
+      conflictError.code =
+        "MINI_EDITOR_VERSION_CONFLICT";
+      conflictError.data = {
+        latestPage:
+          cachedAfterSave.conflictRemote ||
+          null
+      };
+      throw conflictError;
     }
 
-    miniEditorVersion = result.page?.version ? Number(result.page.version) : miniEditorVersion;
+    if (
+      cachedAfterSave?.syncStatus ===
+        "pending" ||
+      cachedAfterSave?.syncStatus ===
+        "sending"
+    ) {
+      console.log(
+        "Mini-editor state remains queued for synchronization"
+      );
+      setEditorSaveStatus(
+        "Saved on this device"
+      );
+      return;
+    }
 
-    if (result.page) {
-      await mirrorServerMiniEditorPageLocally(
-        result.page,
-        pageIdentity
+    if (!cachedAfterSave) {
+      throw new Error(
+        "The synchronized mini-editor record is unavailable locally."
       );
     }
+
+    miniEditorVersion =
+      Number(
+        cachedAfterSave.serverVersion
+      ) || miniEditorVersion;
+
+    miniEditorStoragePageKey =
+      cachedAfterSave.pageKey ||
+      miniEditorStoragePageKey ||
+      pageIdentity.pageKey;
 
     console.log("Mini-editor page saved");
     setEditorSaveStatus("Saved");
   } catch (error) {
-    if (editorPageIsLeaving || document.visibilityState === "hidden") {
+    if (
+      editorPageIsLeaving ||
+      document.visibilityState === "hidden"
+    ) {
       return;
     }
 
-    console.error("Save mini-editor page error:", error);
-    if (error?.code === "MINI_EDITOR_VERSION_CONFLICT") {
+    console.error(
+      "Save mini-editor page error:",
+      error
+    );
+
+    if (
+      error?.code ===
+      "MINI_EDITOR_VERSION_CONFLICT"
+    ) {
       miniEditorConflictActive = true;
-      setEditorSaveStatus("Conflict - newer updates exist");
+      setEditorSaveStatus(
+        "Conflict - newer updates exist"
+      );
       showEditorVersionConflict({
-        key: `mini:${pageIdentity.pageKey}:${error?.data?.latestPage?.version || "newer"}`,
+        key:
+          `mini:${pageIdentity.pageKey}:` +
+          `${
+            error?.data?.latestPage?.version ||
+            "newer"
+          }`,
         onLoadLatest: () => {
           reloadMiniEditorPageAfterChapterRender();
         }
       });
       return;
     }
+
     setEditorSaveStatus("Save failed");
   }
 }
