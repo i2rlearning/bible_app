@@ -742,6 +742,30 @@ async function loadQuillNotes() {
     return;
   }
 
+  const cachedQuillNote =
+    await window.UserData
+      ?.getCachedQuillNote?.(
+        editorAuthenticatedUserId,
+        pageIdentity
+      );
+
+  if (
+    cachedQuillNote?.syncStatus === "pending" ||
+    cachedQuillNote?.syncStatus === "conflict"
+  ) {
+    await loadQuillNotesFromLocalCache(
+      pageIdentity
+    );
+
+    if (
+      cachedQuillNote.syncStatus === "pending"
+    ) {
+      window.UserData?.scheduleFlush?.(0);
+    }
+
+    return;
+  }
+
   try {
     const loadParams =
       new URLSearchParams({
@@ -1696,6 +1720,30 @@ async function loadMiniEditorPage() {
     await loadMiniEditorPageFromLocalCache(
       pageIdentity
     );
+    return;
+  }
+
+  const cachedMiniEditorPage =
+    await window.UserData
+      ?.getCachedMiniEditorPage?.(
+        editorAuthenticatedUserId,
+        pageIdentity
+      );
+
+  if (
+    cachedMiniEditorPage?.syncStatus === "pending" ||
+    cachedMiniEditorPage?.syncStatus === "conflict"
+  ) {
+    await loadMiniEditorPageFromLocalCache(
+      pageIdentity
+    );
+
+    if (
+      cachedMiniEditorPage.syncStatus === "pending"
+    ) {
+      window.UserData?.scheduleFlush?.(0);
+    }
+
     return;
   }
 
@@ -3665,6 +3713,49 @@ window.undoMiniEditorChange = undoMiniEditorChange;
 window.redoMiniEditorChange = redoMiniEditorChange;
 window.toggleMobileToolbarMenu = toggleMobileToolbarMenu;
 window.closeMobileToolbarMenus = closeMobileToolbarMenus;
+
+// ----------------------------------------------------
+// Keep the open editor aligned with successful background synchronization
+// ----------------------------------------------------
+window.addEventListener("user-data-synced", (event) => {
+  const detail = event.detail || {};
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) {
+    return;
+  }
+
+  if (
+    detail.entityType === "mini_editor_page" &&
+    detail.entityKey ===
+      (miniEditorStoragePageKey || pageIdentity.pageKey)
+  ) {
+    miniEditorVersion = detail.deleted
+      ? 0
+      : (
+          Number(detail.version) > 0
+            ? Number(detail.version)
+            : miniEditorVersion
+        );
+
+    return;
+  }
+
+  if (
+    detail.entityType === "quill_note" &&
+    detail.entityKey ===
+      (quillNotesStoragePageKey || pageIdentity.pageKey)
+  ) {
+    quillNotesVersion = detail.deleted
+      ? 0
+      : (
+          Number(detail.version) > 0
+            ? Number(detail.version)
+            : quillNotesVersion
+        );
+
+  }
+});
 
 // ----------------------------------------------------
 // Keep editor access aligned with the shared authentication state
