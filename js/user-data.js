@@ -14,7 +14,7 @@
  * - Saves Study Desk drafts locally before an explicit server save.
  * - Queues My Notes and mini-editor changes when an already-authenticated page
  *   loses connectivity.
- * - Retries queued changes when authenticated connectivity returns.
+ * - Retries queued changes through an idempotent mutation endpoint when authenticated connectivity returns.
  * - Uses server version checks so stale local work cannot silently overwrite a
  *   newer server copy.
  * - Records an explicit logout request locally when remote sign-out cannot be
@@ -1390,94 +1390,91 @@ window.UserData = (() => {
   }
 
   async function sendOutboxMutation(mutation) {
-    if (mutation.entityType === ENTITY_QUILL_NOTE) {
-      if (mutation.operation === "delete") {
-        const params = new URLSearchParams({
-          pageKey: mutation.entityKey,
-          expectedVersion: String(
-            Number(mutation.baseVersion) || 0
-          )
-        });
-
-        const response = await fetch(
-          `/api/quill-notes?${params.toString()}`,
-          {
-            method: "DELETE",
-            credentials: "include",
-            cache: "no-store"
-          }
-        );
-
-        const result = await readJsonSafely(response);
-        return { response, result };
-      }
-
-      const response = await fetch("/api/quill-notes", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ...(mutation.payload || {}),
-          expectedVersion:
-            Number(mutation.baseVersion) || 0
-        })
-      });
-
-      const result = await readJsonSafely(response);
-      return { response, result };
-    }
-
     if (
-      mutation.entityType === ENTITY_MINI_EDITOR_PAGE
+      mutation.entityType !== ENTITY_QUILL_NOTE &&
+      mutation.entityType !== ENTITY_MINI_EDITOR_PAGE
     ) {
-      if (mutation.operation === "delete") {
-        const params = new URLSearchParams({
-          pageKey: mutation.entityKey,
-          expectedVersion: String(
-            Number(mutation.baseVersion) || 0
-          )
-        });
-
-        const response = await fetch(
-          `/api/mini-editor-page?${params.toString()}`,
-          {
-            method: "DELETE",
-            credentials: "include",
-            cache: "no-store"
-          }
-        );
-
-        const result = await readJsonSafely(response);
-        return { response, result };
-      }
-
-      const response = await fetch(
-        "/api/mini-editor-page",
-        {
-          method: "POST",
-          credentials: "include",
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            ...(mutation.payload || {}),
-            expectedVersion:
-              Number(mutation.baseVersion) || 0
-          })
-        }
+      throw new Error(
+        `Unsupported outbox entity type: ${mutation.entityType}`
       );
-
-      const result = await readJsonSafely(response);
-      return { response, result };
     }
 
-    throw new Error(
-      `Unsupported outbox entity type: ${mutation.entityType}`
-    );
+    const response = await fetch("/api/sync/mutations", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        deviceId: getDeviceId(),
+        mutations: [
+          {
+            mutationId: mutation.mutationId,
+            entityType: mutation.entityType,
+            entityKey: mutation.entityKey,
+            operation: mutation.operation,
+            baseVersion:
+              Number(mutation.baseVersion) || 0,
+            payload:
+              mutation.operation === "delete"
+                ? null
+                : (mutation.payload || null)
+          }
+        ]
+      })
+    });
+
+    const envelope = await readJsonSafely(response);
+
+    if (!response.ok) {
+      return { response, result: envelope };
+    }
+
+    const syncResult = Array.isArray(envelope?.results)
+      ? envelope.results[0]
+      : null;
+
+    if (!syncResult) {
+      return {
+        response: { status: 502, ok: false },
+        result: {
+          code: "SYNC_RESULT_MISSING",
+          message:
+            "The synchronization response did not include a mutation result."
+        }
+      };
+    }
+
+    if (syncResult.status === "conflict") {
+      return {
+        response: { status: 409, ok: false },
+        result: syncResult
+      };
+    }
+
+    if (syncResult.status === "error") {
+      return {
+        response: { status: 400, ok: false },
+        result: syncResult
+      };
+    }
+
+    if (syncResult.status !== "ok") {
+      return {
+        response: { status: 502, ok: false },
+        result: {
+          code: "SYNC_RESULT_INVALID",
+          message:
+            "The synchronization response returned an unknown mutation status."
+        }
+      };
+    }
+
+    return {
+      response: { status: 200, ok: true },
+      result: syncResult.result || {}
+    };
   }
 
   async function flushOutbox() {
