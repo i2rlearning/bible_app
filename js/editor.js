@@ -3935,6 +3935,73 @@ window.addEventListener("user-data-synced", (event) => {
 });
 
 // ----------------------------------------------------
+// Refresh the currently open chapter after safe remote catch-up
+// ----------------------------------------------------
+window.addEventListener("user-data-remote-change", (event) => {
+  const detail = event.detail || {};
+  const pageIdentity = getCurrentBiblePageIdentity();
+
+  if (!pageIdentity) {
+    return;
+  }
+
+  const currentSaveStatus =
+    document
+      .getElementById("editor-save-status")
+      ?.textContent
+      ?.trim() || "";
+
+  /*
+   * Do not repaint over a local edit that is still inside the autosave debounce
+   * window. If a local save is already in progress, normal version protection
+   * will resolve any stale-write situation instead of silently replacing work.
+   */
+  if (currentSaveStatus === "Saving...") {
+    return;
+  }
+
+  if (
+    detail.entityType === "mini_editor_page" &&
+    detail.entityKey ===
+      (miniEditorStoragePageKey || pageIdentity.pageKey)
+  ) {
+    if (miniEditorConflictActive) {
+      return;
+    }
+
+    loadMiniEditorPageFromLocalCache(
+      pageIdentity
+    ).catch((error) => {
+      console.warn(
+        "Could not refresh the open mini-editor page after remote catch-up:",
+        error
+      );
+    });
+
+    return;
+  }
+
+  if (
+    detail.entityType === "quill_note" &&
+    detail.entityKey ===
+      (quillNotesStoragePageKey || pageIdentity.pageKey)
+  ) {
+    if (quillConflictActive) {
+      return;
+    }
+
+    loadQuillNotesFromLocalCache(
+      pageIdentity
+    ).catch((error) => {
+      console.warn(
+        "Could not refresh the open My Notes editor after remote catch-up:",
+        error
+      );
+    });
+  }
+});
+
+// ----------------------------------------------------
 // Keep editor access aligned with the shared authentication state
 // ----------------------------------------------------
 async function applySharedEditorAuthState(
