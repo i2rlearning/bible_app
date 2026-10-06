@@ -19,13 +19,14 @@
 
 window.UserOfflineDB = (() => {
   const DB_NAME = "UserOfflineDB";
-  const DB_VERSION = 3;
+  const DB_VERSION = 4;
 
   const STORES = Object.freeze({
     meta: "meta",
     profiles: "profiles",
     quillNotes: "quillNotes",
     studyDrafts: "studyDrafts",
+    studies: "studies",
     miniEditorPages: "miniEditorPages",
     outbox: "outbox"
   });
@@ -87,6 +88,14 @@ window.UserOfflineDB = (() => {
           drafts.createIndex("by_user_draft", ["userId", "draftKey"], { unique: true });
           drafts.createIndex("by_user_study", ["userId", "studyId"], { unique: false });
           drafts.createIndex("by_user_updated", ["userId", "localUpdatedAt"], { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains(STORES.studies)) {
+          const studies = db.createObjectStore(STORES.studies, { keyPath: "localKey" });
+          studies.createIndex("by_user", "userId", { unique: false });
+          studies.createIndex("by_user_study", ["userId", "studyId"], { unique: true });
+          studies.createIndex("by_user_updated", ["userId", "localUpdatedAt"], { unique: false });
+          studies.createIndex("by_user_sync", ["userId", "syncStatus"], { unique: false });
         }
 
         if (!db.objectStoreNames.contains(STORES.miniEditorPages)) {
@@ -280,6 +289,53 @@ window.UserOfflineDB = (() => {
     );
   }
 
+  function buildStudyLocalKey(userId, studyId) {
+    return `${userId}::study::${studyId}`;
+  }
+
+  async function getStudy(userId, studyId) {
+    if (!userId || !studyId) return null;
+
+    const db = await open();
+    const transaction = db.transaction(STORES.studies, "readonly");
+    const index = transaction.objectStore(STORES.studies).index("by_user_study");
+    const result = await requestToPromise(index.get([userId, studyId]));
+    await transactionToPromise(transaction);
+    return result || null;
+  }
+
+  async function putStudy(study) {
+    if (!study?.userId || !study?.studyId) {
+      throw new Error("Cannot store a Study without userId and studyId.");
+    }
+
+    const record = {
+      ...study,
+      localKey: study.localKey || buildStudyLocalKey(study.userId, study.studyId)
+    };
+
+    return put(STORES.studies, record);
+  }
+
+  async function deleteStudy(userId, studyId) {
+    if (!userId || !studyId) return;
+    return remove(STORES.studies, buildStudyLocalKey(userId, studyId));
+  }
+
+  async function listStudies(userId) {
+    if (!userId) return [];
+
+    const db = await open();
+    const transaction = db.transaction(STORES.studies, "readonly");
+    const index = transaction.objectStore(STORES.studies).index("by_user");
+    const results = await requestToPromise(index.getAll(userId));
+    await transactionToPromise(transaction);
+
+    return (results || []).sort(
+      (a, b) => Number(b.localUpdatedAt || 0) - Number(a.localUpdatedAt || 0)
+    );
+  }
+
   function buildMiniEditorLocalKey(userId, pageKey) {
     return `${userId}::mini_editor_page::${pageKey}`;
   }
@@ -406,6 +462,10 @@ window.UserOfflineDB = (() => {
     putStudyDraft,
     deleteStudyDraft,
     listStudyDrafts,
+    getStudy,
+    putStudy,
+    deleteStudy,
+    listStudies,
     getMiniEditorPage,
     getMiniEditorPageByBibleChapter,
     putMiniEditorPage,
@@ -418,6 +478,7 @@ window.UserOfflineDB = (() => {
     resetSendingMutations,
     buildQuillLocalKey,
     buildStudyDraftLocalKey,
+    buildStudyLocalKey,
     buildMiniEditorLocalKey
   });
 })();
