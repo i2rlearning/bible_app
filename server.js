@@ -1077,6 +1077,104 @@ app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
 });
 
 // ----------------------------------------------------
+// Ordered synchronization history for authenticated device catch-up
+// ----------------------------------------------------
+app.get("/api/sync/changes", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const after = String(req.query.after ?? "0").trim();
+    const requestedLimit = Number(req.query.limit ?? 100);
+
+    if (!/^\d+$/.test(after)) {
+      return res.status(400).json({
+        ok: false,
+        code: "SYNC_CURSOR_INVALID",
+        message: "after must be a non-negative change sequence."
+      });
+    }
+
+    if (
+      !Number.isInteger(requestedLimit) ||
+      requestedLimit < 1 ||
+      requestedLimit > 100
+    ) {
+      return res.status(400).json({
+        ok: false,
+        code: "SYNC_LIMIT_INVALID",
+        message: "limit must be an integer between 1 and 100."
+      });
+    }
+
+    const [changesResult, latestResult] = await Promise.all([
+      pool.query(
+        `
+        SELECT
+          change_sequence::text AS change_sequence,
+          entity_type,
+          entity_key,
+          operation,
+          resulting_version,
+          source_device_id,
+          source_mutation_id,
+          changed_at
+        FROM sync_change_log
+        WHERE user_id = $1
+          AND change_sequence > $2::bigint
+        ORDER BY change_sequence ASC
+        LIMIT $3
+        `,
+        [userId, after, requestedLimit]
+      ),
+      pool.query(
+        `
+        SELECT
+          COALESCE(MAX(change_sequence), 0)::text AS latest_sequence
+        FROM sync_change_log
+        WHERE user_id = $1
+        `,
+        [userId]
+      )
+    ]);
+
+    const changes = changesResult.rows.map((row) => ({
+      changeSequence: row.change_sequence,
+      entityType: row.entity_type,
+      entityKey: row.entity_key,
+      operation: row.operation,
+      resultingVersion: row.resulting_version,
+      sourceDeviceId: row.source_device_id,
+      sourceMutationId: row.source_mutation_id,
+      changedAt: row.changed_at
+    }));
+
+    const latestSequence =
+      latestResult.rows[0]?.latest_sequence || "0";
+
+    const nextCursor =
+      changes.length > 0
+        ? changes[changes.length - 1].changeSequence
+        : after;
+
+    return res.json({
+      ok: true,
+      after,
+      nextCursor,
+      latestSequence,
+      hasMore:
+        changes.length === requestedLimit &&
+        BigInt(nextCursor) < BigInt(latestSequence),
+      changes
+    });
+  } catch (error) {
+    console.error("Sync changes error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to load synchronization changes"
+    });
+  }
+});
+
+// ----------------------------------------------------
 // Mini-editor page routes
 // ----------------------------------------------------
 app.get("/api/mini-editor-page", requireAuth(), async (req, res) => {
