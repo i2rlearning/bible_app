@@ -851,6 +851,13 @@
     );
   }
 
+  function sharedAuthIsSignedInOffline() {
+    return (
+      getSharedStudyAuthState() ===
+      "signed-in-offline"
+    );
+  }
+
   function clearStudyAuthRetry() {
     if (studyAuthRetryTimer) {
       clearTimeout(studyAuthRetryTimer);
@@ -952,6 +959,22 @@
         detail.logoutPending !== true;
 
       if (signedInOnline) {
+        handleStudyDeskAuthState({
+          id:
+            detail.userId ||
+            window.Clerk?.user?.id ||
+            window.clerk?.user?.id ||
+            "authenticated-user"
+        });
+        return;
+      }
+
+      const signedInOffline =
+        detail.signedIn === true &&
+        detail.offline === true &&
+        detail.logoutPending !== true;
+
+      if (signedInOffline) {
         handleStudyDeskAuthState({
           id:
             detail.userId ||
@@ -2306,6 +2329,53 @@
     setListStatus("Loading...");
 
     try {
+      if (sharedAuthIsSignedInOffline()) {
+        const userId =
+          window.UserData?.getLiveAuthenticatedUserId?.() ||
+          "";
+
+        const cachedRecords =
+          userId &&
+          window.UserData?.listCachedStudies
+            ? await window.UserData.listCachedStudies(
+                userId
+              )
+            : [];
+
+        state.studies = cachedRecords
+          .filter(
+            (record) =>
+              record &&
+              record.deleted !== true &&
+              record.study
+          )
+          .map((record) => record.study);
+
+        state.hasLoaded = true;
+        clearStudyAuthRetry();
+        showApp();
+        renderStudyList();
+
+        if (
+          state.studies.length &&
+          !state.activeStudyId
+        ) {
+          await loadStudy(
+            state.studies[0].id
+          );
+        } else if (
+          !state.studies.length &&
+          !state.activeStudyId
+        ) {
+          applyStudyToForm(
+            getEmptyStudy()
+          );
+        }
+
+        setListStatus("");
+        return;
+      }
+
       await loadSetup();
       const result = await fetchJson("/api/studies");
       state.studies =
@@ -2363,7 +2433,53 @@
     setStatus("Loading study...");
 
     try {
-      const result = await fetchJson(`/api/studies/${encodeURIComponent(id)}`);
+      if (sharedAuthIsSignedInOffline()) {
+        const userId =
+          window.UserData?.getLiveAuthenticatedUserId?.() ||
+          "";
+
+        const cached =
+          userId &&
+          window.UserData?.getCachedStudy
+            ? await window.UserData.getCachedStudy(
+                userId,
+                id
+              )
+            : null;
+
+        if (!cached?.study || cached.deleted === true) {
+          throw new Error(
+            "This Study is not available on this device while offline."
+          );
+        }
+
+        applyStudyToForm(cached.study);
+        renderStudyList();
+        setStatus("");
+        return;
+      }
+
+      const result = await fetchJson(
+        `/api/studies/${encodeURIComponent(id)}`
+      );
+
+      if (
+        window.UserData?.cacheStudyFromServer &&
+        result?.study
+      ) {
+        try {
+          await window.UserData.cacheStudyFromServer(
+            window.UserData.getLiveAuthenticatedUserId(),
+            result.study
+          );
+        } catch (error) {
+          console.warn(
+            "Could not refresh the local Study cache:",
+            error
+          );
+        }
+      }
+
       applyStudyToForm(result.study);
       renderStudyList();
     } catch (error) {
