@@ -2313,6 +2313,22 @@
           ? result.studies
           : [];
 
+      if (
+        window.UserData?.cacheStudiesFromServer
+      ) {
+        try {
+          await window.UserData.cacheStudiesFromServer(
+            window.UserData.getLiveAuthenticatedUserId(),
+            state.studies
+          );
+        } catch (error) {
+          console.warn(
+            "Could not refresh the local Study cache:",
+            error
+          );
+        }
+      }
+
       state.hasLoaded = true;
       clearStudyAuthRetry();
       showApp();
