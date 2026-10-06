@@ -36,6 +36,7 @@
 window.UserData = (() => {
   const ENTITY_QUILL_NOTE = "quill_note";
   const ENTITY_MINI_EDITOR_PAGE = "mini_editor_page";
+  const ENTITY_STUDY = "study";
   const DEVICE_ID_STORAGE_KEY = "BibleAppDeviceId";
   const LAST_VERIFIED_USER_META_KEY = "phase4LastVerifiedUserId";
   const PENDING_REMOTE_LOGOUT_META_KEY = "pendingRemoteLogoutUserId";
@@ -60,6 +61,14 @@ window.UserData = (() => {
       const value = character === "x" ? random : ((random & 0x3) | 0x8);
       return value.toString(16);
     });
+  }
+
+  function cloneLocalValue(value) {
+    if (typeof window.structuredClone === "function") {
+      return window.structuredClone(value);
+    }
+
+    return JSON.parse(JSON.stringify(value));
   }
 
   function requireUserOfflineDB() {
@@ -742,6 +751,220 @@ window.UserData = (() => {
     }
 
     return null;
+  }
+
+
+  async function cacheStudyFromServer(userId, serverStudy) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = String(userId || "");
+    const studyId = String(serverStudy?.id || "");
+
+    if (!verifiedUserId) {
+      throw new Error(
+        "Cannot cache a Study without a verified userId."
+      );
+    }
+
+    if (!studyId) {
+      return null;
+    }
+
+    const existing =
+      await db.getStudy(
+        verifiedUserId,
+        studyId
+      );
+
+    const protectedLocalStatuses = new Set([
+      "pending",
+      "sending",
+      "conflict"
+    ]);
+
+    /*
+     * Once Study editing becomes local-first, an online refresh must never
+     * destroy a local Study that has not finished synchronizing.
+     */
+    if (
+      existing &&
+      protectedLocalStatuses.has(
+        existing.syncStatus
+      )
+    ) {
+      return existing;
+    }
+
+    const normalizedStudy =
+      cloneLocalValue(serverStudy);
+
+    const version =
+      Number(normalizedStudy.version) || 0;
+
+    const record = {
+      ...(existing || {}),
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      studyId,
+      study: cloneLocalValue(
+        normalizedStudy
+      ),
+      baseStudy: cloneLocalValue(
+        normalizedStudy
+      ),
+      baseVersion: version,
+      serverVersion: version,
+      serverUpdatedAt:
+        normalizedStudy.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "clean",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudy(record);
+    return record;
+  }
+
+  async function cacheStudiesFromServer(
+    userId,
+    serverStudies
+  ) {
+    const studies =
+      Array.isArray(serverStudies)
+        ? serverStudies
+        : [];
+
+    const cached = [];
+
+    for (const study of studies) {
+      const record =
+        await cacheStudyFromServer(
+          userId,
+          study
+        );
+
+      if (record) {
+        cached.push(record);
+      }
+    }
+
+    return cached;
+  }
+
+  async function getCachedStudy(
+    userId,
+    studyId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedStudyId =
+      String(studyId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedStudyId
+    ) {
+      return null;
+    }
+
+    return db.getStudy(
+      verifiedUserId,
+      verifiedStudyId
+    );
+  }
+
+  async function listCachedStudies(
+    userId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+
+    if (!verifiedUserId) {
+      return [];
+    }
+
+    return db.listStudies(
+      verifiedUserId
+    );
+  }
+
+  async function refreshStudyCacheFromServer() {
+    const userId =
+      getLiveAuthenticatedUserId();
+
+    if (!userId) {
+      throw new Error(
+        "A live authenticated user is required to refresh Studies."
+      );
+    }
+
+    if (!canTryServer()) {
+      return {
+        ok: false,
+        reason: "offline",
+        count: 0
+      };
+    }
+
+    const serverUserConfirmed =
+      await waitForServerAuthenticatedUser(
+        userId
+      );
+
+    if (!serverUserConfirmed) {
+      return {
+        ok: false,
+        reason: "auth_not_ready",
+        count: 0
+      };
+    }
+
+    const response = await fetch(
+      "/api/studies",
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    if (response.redirected) {
+      return {
+        ok: false,
+        reason: "auth_not_ready",
+        count: 0
+      };
+    }
+
+    const body =
+      await readJsonSafely(response);
+
+    if (!response.ok) {
+      throw new Error(
+        body?.message ||
+        "Failed to load Studies."
+      );
+    }
+
+    const studies =
+      Array.isArray(body?.studies)
+        ? body.studies
+        : [];
+
+    const cached =
+      await cacheStudiesFromServer(
+        userId,
+        studies
+      );
+
+    return {
+      ok: true,
+      count: cached.length,
+      studies: cached
+    };
   }
 
 
@@ -2536,6 +2759,7 @@ window.UserData = (() => {
   return Object.freeze({
     ENTITY_QUILL_NOTE,
     ENTITY_MINI_EDITOR_PAGE,
+    ENTITY_STUDY,
     DEVICE_ID_STORAGE_KEY,
     LAST_VERIFIED_USER_META_KEY,
     getDeviceId,
@@ -2552,6 +2776,11 @@ window.UserData = (() => {
     cacheMiniEditorPageFromServer,
     deleteCachedMiniEditorPage,
     getCachedMiniEditorPage,
+    cacheStudyFromServer,
+    cacheStudiesFromServer,
+    refreshStudyCacheFromServer,
+    getCachedStudy,
+    listCachedStudies,
     queueQuillNoteForSync,
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
