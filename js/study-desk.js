@@ -1938,7 +1938,102 @@
     }
   }
 
+  function handleOwnStudySyncSuccess(event) {
+    const detail = event?.detail || {};
+
+    if (
+      detail.entityType !== "study" ||
+      !detail.study?.id
+    ) {
+      return;
+    }
+
+    const syncedStudy = detail.study;
+    const syncedStudyId = String(
+      syncedStudy.id || ""
+    );
+    const syncedVersion =
+      Number(syncedStudy.version) ||
+      Number(detail.version) ||
+      0;
+
+    if (!syncedStudyId || syncedVersion < 1) {
+      return;
+    }
+
+    upsertStudyInState(syncedStudy);
+    renderStudyList();
+
+    if (
+      syncedStudyId !==
+      String(state.activeStudyId || "")
+    ) {
+      return;
+    }
+
+    /*
+     * user-data-synced is emitted only after this device's own queued mutation
+     * has been accepted by the server. Advance the open Study's known version
+     * so the legacy remote-version watcher does not mistake our own save for a
+     * change from another browser or device.
+     */
+    state.activeStudyVersion =
+      Math.max(
+        Number(state.activeStudyVersion) || 0,
+        syncedVersion
+      );
+
+    const remoteVersion =
+      Number(state.remoteStudy?.version) ||
+      0;
+
+    if (
+      state.remoteStudy &&
+      remoteVersion <= syncedVersion
+    ) {
+      state.remoteStudy = null;
+    }
+
+    const referencedRemoteVersion =
+      Number(
+        state.referencedScripturesRemoteStudy?.version
+      ) || 0;
+
+    if (
+      state.referencedScripturesRemoteStudy &&
+      referencedRemoteVersion <=
+        syncedVersion
+    ) {
+      state.referencedScripturesRemoteStudy =
+        null;
+      state.referencedScripturesStale =
+        false;
+    }
+
+    lastStudyConflictDialogKey = "";
+
+    if (
+      !state.remoteStudy &&
+      window.AppConflictDialog?.isOpen?.()
+    ) {
+      window.AppConflictDialog.close();
+    }
+
+    updateReferencedScriptureRefreshNotice();
+    updateStudyActionAvailability();
+
+    if (!state.hasUnsavedChanges) {
+      setStatus("", "");
+      setSaveState("Synced", "success");
+    }
+  }
+
   function initStudySync() {
+    window.addEventListener(
+      "user-data-synced",
+      handleOwnStudySyncSuccess
+    );
+
     if ("BroadcastChannel" in window) {
       studySyncChannel = new BroadcastChannel(STUDY_SYNC_CHANNEL_NAME);
       studySyncChannel.addEventListener("message", (event) => {
