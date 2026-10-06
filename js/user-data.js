@@ -1411,6 +1411,215 @@ window.UserData = (() => {
     };
   }
 
+  async function putStudyOutboxMutation(
+    userId,
+    studyRecord
+  ) {
+    const db = requireUserOfflineDB();
+    const entityKey = String(
+      studyRecord.studyId || ""
+    );
+    const existing =
+      await getReusablePendingMutation(
+        userId,
+        ENTITY_STUDY,
+        entityKey
+      );
+    const timestamp = now();
+    const study =
+      cloneLocalValue(
+        studyRecord.study || {}
+      );
+
+    const mutation = {
+      ...(existing || {}),
+      mutationId:
+        existing?.mutationId ||
+        newUuid(),
+      userId: String(userId),
+      deviceId: getDeviceId(),
+      entityType: ENTITY_STUDY,
+      entityKey,
+      operation: "update",
+      baseVersion:
+        Number(
+          studyRecord.serverVersion
+        ) || 0,
+      payload: {
+        title: String(
+          study.title || ""
+        ),
+        categoryId:
+          study.categoryId ||
+          study.category?.id ||
+          null,
+        speaker: String(
+          study.speaker || ""
+        ),
+        location: String(
+          study.location || ""
+        ),
+        studyDate:
+          study.studyDate || null,
+        mainScripture: String(
+          study.mainScripture || ""
+        ),
+        tagIds: Array.isArray(
+          study.tags
+        )
+          ? study.tags
+              .map((tag) =>
+                String(tag?.id || "")
+              )
+              .filter(Boolean)
+          : [],
+        linkedScriptures:
+          Array.isArray(
+            study.linkedScriptures
+          )
+            ? cloneLocalValue(
+                study.linkedScriptures
+              )
+            : [],
+        contentHtml: String(
+          study.contentHtml || ""
+        ),
+        previewText: String(
+          study.previewText || ""
+        )
+      },
+      status: "pending",
+      createdAt:
+        Number(existing?.createdAt) ||
+        timestamp,
+      updatedAt: timestamp,
+      attemptCount:
+        Number(
+          existing?.attemptCount
+        ) || 0,
+      lastError: ""
+    };
+
+    await db.putOutboxMutation(
+      mutation
+    );
+
+    return mutation;
+  }
+
+  async function queueStudyUpdateForSync(
+    userId,
+    studyInput = {}
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const studyId =
+      String(studyInput?.id || "");
+
+    if (
+      !verifiedUserId ||
+      !studyId
+    ) {
+      throw new Error(
+        "A verified userId and existing Study ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const existing =
+      await db.getStudy(
+        verifiedUserId,
+        studyId
+      );
+
+    if (!existing) {
+      throw new Error(
+        "This Study is not available in the local cache."
+      );
+    }
+
+    const serverVersion =
+      Number(existing.serverVersion) ||
+      Number(studyInput.version) ||
+      0;
+
+    if (serverVersion < 1) {
+      throw new Error(
+        "An existing server version is required before this Study can synchronize."
+      );
+    }
+
+    const localStudy = {
+      ...cloneLocalValue(
+        existing.study || {}
+      ),
+      ...cloneLocalValue(
+        studyInput || {}
+      ),
+      id: studyId,
+      version: serverVersion
+    };
+
+    const record = {
+      ...existing,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      studyId,
+      study: localStudy,
+      baseStudy:
+        cloneLocalValue(
+          existing.baseStudy ||
+          existing.study ||
+          localStudy
+        ),
+      baseVersion:
+        Number(
+          existing.baseVersion
+        ) ||
+        serverVersion,
+      serverVersion,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudy(record);
+
+    const mutation =
+      await putStudyOutboxMutation(
+        verifiedUserId,
+        record
+      );
+
+    dispatchUserDataEvent(
+      "user-data-local-save",
+      {
+        userId: verifiedUserId,
+        entityType: ENTITY_STUDY,
+        entityKey: studyId,
+        mutationId:
+          mutation.mutationId,
+        deleted: false
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      study: record,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending"
+    };
+  }
+
+
   async function listPendingOutboxForUser(userId) {
     const db = requireUserOfflineDB();
     const verifiedUserId = String(userId || "");
@@ -1477,7 +1686,11 @@ window.UserData = (() => {
     const latest =
       mutation.entityType === ENTITY_QUILL_NOTE
         ? (result?.latestNote || null)
-        : (result?.latestPage || null);
+        : mutation.entityType === ENTITY_MINI_EDITOR_PAGE
+          ? (result?.latestPage || null)
+          : mutation.entityType === ENTITY_STUDY
+            ? (result?.latestStudy || null)
+            : null;
 
     await db.putOutboxMutation({
       ...mutation,
@@ -1519,6 +1732,25 @@ window.UserData = (() => {
           localUpdatedAt: now()
         });
       }
+    } else if (
+      mutation.entityType === ENTITY_STUDY
+    ) {
+      const current = await db.getStudy(
+        mutation.userId,
+        mutation.entityKey
+      );
+
+      if (current) {
+        await db.putStudy({
+          ...current,
+          syncStatus: "conflict",
+          conflictRemote:
+            latest
+              ? cloneLocalValue(latest)
+              : null,
+          localUpdatedAt: now()
+        });
+      }
     }
 
     dispatchUserDataEvent("user-data-conflict", {
@@ -1531,6 +1763,10 @@ window.UserData = (() => {
           : null,
       latestPage:
         mutation.entityType === ENTITY_MINI_EDITOR_PAGE
+          ? latest
+          : null,
+      latestStudy:
+        mutation.entityType === ENTITY_STUDY
           ? latest
           : null
     });
@@ -1695,10 +1931,157 @@ window.UserData = (() => {
     });
   }
 
+  async function updatePendingMutationBaseVersions(
+    userId,
+    entityType,
+    entityKey,
+    newVersion
+  ) {
+    const db = requireUserOfflineDB();
+    const items =
+      await db.listOutboxForEntity(
+        userId,
+        entityType,
+        entityKey
+      );
+
+    for (const item of items) {
+      if (item.status !== "pending") {
+        continue;
+      }
+
+      await db.putOutboxMutation({
+        ...item,
+        baseVersion:
+          Number(newVersion) || 0,
+        updatedAt: now()
+      });
+    }
+  }
+
+  async function applyStudySyncSuccess(
+    mutation,
+    result
+  ) {
+    const db = requireUserOfflineDB();
+    const serverStudy =
+      result?.study || null;
+
+    if (
+      !serverStudy?.id ||
+      String(serverStudy.id) !==
+        String(mutation.entityKey)
+    ) {
+      throw new Error(
+        "The server did not return the synchronized Study."
+      );
+    }
+
+    const current =
+      await db.getStudy(
+        mutation.userId,
+        mutation.entityKey
+      );
+    const serverVersion =
+      Number(serverStudy.version) ||
+      Number(
+        result?.resultVersion
+      ) ||
+      0;
+
+    if (serverVersion < 1) {
+      throw new Error(
+        "The synchronized Study did not include a valid version."
+      );
+    }
+
+    const hasNewerLocalWork =
+      Boolean(
+        current &&
+        Number(
+          current.localUpdatedAt || 0
+        ) >
+          Number(
+            mutation.updatedAt ||
+            mutation.createdAt ||
+            0
+          )
+      );
+
+    if (hasNewerLocalWork) {
+      await db.putStudy({
+        ...current,
+        baseStudy:
+          cloneLocalValue(
+            serverStudy
+          ),
+        baseVersion:
+          serverVersion,
+        serverVersion,
+        serverUpdatedAt:
+          serverStudy.updatedAt ||
+          null,
+        syncStatus: "pending",
+        conflictRemote: null
+      });
+
+      await updatePendingMutationBaseVersions(
+        mutation.userId,
+        ENTITY_STUDY,
+        mutation.entityKey,
+        serverVersion
+      );
+    } else {
+      await db.putStudy({
+        ...(current || {}),
+        userId: mutation.userId,
+        deviceId: getDeviceId(),
+        studyId:
+          String(serverStudy.id),
+        study:
+          cloneLocalValue(
+            serverStudy
+          ),
+        baseStudy:
+          cloneLocalValue(
+            serverStudy
+          ),
+        baseVersion:
+          serverVersion,
+        serverVersion,
+        serverUpdatedAt:
+          serverStudy.updatedAt ||
+          null,
+        localUpdatedAt: now(),
+        syncStatus: "clean",
+        conflictRemote: null,
+        deleted: false
+      });
+    }
+
+    await db.deleteOutboxMutation(
+      mutation.mutationId
+    );
+
+    dispatchUserDataEvent(
+      "user-data-synced",
+      {
+        userId: mutation.userId,
+        entityType: ENTITY_STUDY,
+        entityKey:
+          String(serverStudy.id),
+        version: serverVersion,
+        study: serverStudy
+      }
+    );
+  }
+
+
   async function sendOutboxMutation(mutation) {
     if (
       mutation.entityType !== ENTITY_QUILL_NOTE &&
-      mutation.entityType !== ENTITY_MINI_EDITOR_PAGE
+      mutation.entityType !== ENTITY_MINI_EDITOR_PAGE &&
+      mutation.entityType !== ENTITY_STUDY
     ) {
       throw new Error(
         `Unsupported outbox entity type: ${mutation.entityType}`
@@ -1900,8 +2283,17 @@ window.UserData = (() => {
               mutation,
               result
             );
-          } else {
+          } else if (
+            mutation.entityType === ENTITY_MINI_EDITOR_PAGE
+          ) {
             await applyMiniEditorSyncSuccess(
+              mutation,
+              result
+            );
+          } else if (
+            mutation.entityType === ENTITY_STUDY
+          ) {
+            await applyStudySyncSuccess(
               mutation,
               result
             );
@@ -2219,10 +2611,17 @@ window.UserData = (() => {
     const local =
       entityType === ENTITY_QUILL_NOTE
         ? await db.getQuillNote(userId, entityKey)
-        : await db.getMiniEditorPage(
-            userId,
-            entityKey
-          );
+        : entityType === ENTITY_MINI_EDITOR_PAGE
+          ? await db.getMiniEditorPage(
+              userId,
+              entityKey
+            )
+          : entityType === ENTITY_STUDY
+            ? await db.getStudy(
+                userId,
+                entityKey
+              )
+            : null;
 
     return Boolean(
       local &&
@@ -2236,17 +2635,37 @@ window.UserData = (() => {
     entityType,
     entityKey
   ) {
-    const route =
-      entityType === ENTITY_QUILL_NOTE
-        ? "/api/quill-notes"
-        : "/api/mini-editor-page";
+    let url;
 
-    const params = new URLSearchParams({
-      pageKey: entityKey
-    });
+    if (entityType === ENTITY_QUILL_NOTE) {
+      const params =
+        new URLSearchParams({
+          pageKey: entityKey
+        });
+      url =
+        `/api/quill-notes?${params.toString()}`;
+    } else if (
+      entityType === ENTITY_MINI_EDITOR_PAGE
+    ) {
+      const params =
+        new URLSearchParams({
+          pageKey: entityKey
+        });
+      url =
+        `/api/mini-editor-page?${params.toString()}`;
+    } else if (
+      entityType === ENTITY_STUDY
+    ) {
+      url =
+        `/api/studies/${encodeURIComponent(entityKey)}`;
+    } else {
+      throw new Error(
+        `Unsupported synchronized entity type: ${entityType}`
+      );
+    }
 
     const response = await fetch(
-      `${route}?${params.toString()}`,
+      url,
       {
         method: "GET",
         credentials: "include",
@@ -2260,18 +2679,34 @@ window.UserData = (() => {
       );
     }
 
-    const body = await readJsonSafely(response);
+    const body =
+      await readJsonSafely(response);
 
     if (!response.ok) {
+      if (
+        response.status === 404 &&
+        entityType === ENTITY_STUDY
+      ) {
+        return null;
+      }
+
       throw new Error(
         body?.message ||
         `Could not load synchronized entity (${response.status}).`
       );
     }
 
-    return entityType === ENTITY_QUILL_NOTE
-      ? (body?.note || null)
-      : (body?.page || null);
+    if (entityType === ENTITY_QUILL_NOTE) {
+      return body?.note || null;
+    }
+
+    if (
+      entityType === ENTITY_MINI_EDITOR_PAGE
+    ) {
+      return body?.page || null;
+    }
+
+    return body?.study || null;
   }
 
   async function applyRemoteSyncEntity(
@@ -2289,7 +2724,8 @@ window.UserData = (() => {
     if (
       ![
         ENTITY_QUILL_NOTE,
-        ENTITY_MINI_EDITOR_PAGE
+        ENTITY_MINI_EDITOR_PAGE,
+        ENTITY_STUDY
       ].includes(entityType)
     ) {
       return {
@@ -2319,8 +2755,15 @@ window.UserData = (() => {
           userId,
           entityKey
         );
-      } else {
+      } else if (
+        entityType === ENTITY_MINI_EDITOR_PAGE
+      ) {
         await db.deleteMiniEditorPage(
+          userId,
+          entityKey
+        );
+      } else {
+        await db.deleteStudy(
           userId,
           entityKey
         );
@@ -2379,8 +2822,15 @@ window.UserData = (() => {
           userId,
           entityKey
         );
-      } else {
+      } else if (
+        entityType === ENTITY_MINI_EDITOR_PAGE
+      ) {
         await db.deleteMiniEditorPage(
+          userId,
+          entityKey
+        );
+      } else {
+        await db.deleteStudy(
           userId,
           entityKey
         );
@@ -2423,7 +2873,9 @@ window.UserData = (() => {
           serverEntity,
           existing || { pageKey: entityKey }
         );
-    } else {
+    } else if (
+      entityType === ENTITY_MINI_EDITOR_PAGE
+    ) {
       const existing =
         await db.getMiniEditorPage(
           userId,
@@ -2435,6 +2887,12 @@ window.UserData = (() => {
           userId,
           serverEntity,
           existing || { pageKey: entityKey }
+        );
+    } else {
+      cached =
+        await cacheStudyFromServer(
+          userId,
+          serverEntity
         );
     }
 
@@ -2785,6 +3243,7 @@ window.UserData = (() => {
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
     queueMiniEditorDeleteForSync,
+    queueStudyUpdateForSync,
     listPendingOutboxForUser,
     flushOutbox,
     scheduleFlush,
