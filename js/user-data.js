@@ -43,6 +43,8 @@ window.UserData = (() => {
 
   let flushPromise = null;
   let flushTimer = null;
+  let catchUpPromise = null;
+  let catchUpTimer = null;
 
   function now() {
     return Date.now();
@@ -1729,8 +1731,51 @@ window.UserData = (() => {
     }, Math.max(0, Number(delayMs) || 0));
   }
 
+  async function runAutomaticCatchUp() {
+    if (catchUpPromise) {
+      return catchUpPromise;
+    }
+
+    if (
+      !getLiveAuthenticatedUserId() ||
+      !canTryServer()
+    ) {
+      return null;
+    }
+
+    catchUpPromise = (async () => {
+      try {
+        return await catchUpSyncChanges();
+      } catch (error) {
+        console.warn(
+          "Could not catch up synchronized changes:",
+          error
+        );
+        return null;
+      }
+    })();
+
+    try {
+      return await catchUpPromise;
+    } finally {
+      catchUpPromise = null;
+    }
+  }
+
+  function scheduleCatchUp(delayMs = 700) {
+    if (catchUpTimer) {
+      clearTimeout(catchUpTimer);
+    }
+
+    catchUpTimer = setTimeout(() => {
+      catchUpTimer = null;
+      runAutomaticCatchUp();
+    }, Math.max(0, Number(delayMs) || 0));
+  }
+
   window.addEventListener("online", () => {
     scheduleFlush(250);
+    scheduleCatchUp(900);
   });
 
   window.addEventListener(
@@ -1744,6 +1789,7 @@ window.UserData = (() => {
         state.connectionIssue !== true
       ) {
         scheduleFlush(250);
+        scheduleCatchUp(650);
       }
     }
   );
@@ -1753,6 +1799,7 @@ window.UserData = (() => {
     (event) => {
       if (event.detail?.signedIn) {
         scheduleFlush(350);
+        scheduleCatchUp(700);
       }
     }
   );
@@ -1761,6 +1808,7 @@ window.UserData = (() => {
     "load",
     () => {
       scheduleFlush(800);
+      scheduleCatchUp(1200);
     },
     { once: true }
   );
