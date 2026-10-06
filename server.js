@@ -1023,6 +1023,319 @@ async function processMiniEditorSyncMutation(userId, deviceId, mutation) {
   }
 }
 
+
+async function processStudySyncMutation(userId, deviceId, mutation) {
+  const mutationId = String(mutation?.mutationId || "").trim();
+  const entityType = String(mutation?.entityType || "").trim();
+  const entityKey = String(mutation?.entityKey || "").trim();
+  const operation = String(mutation?.operation || "").trim();
+  const baseVersion = Number(mutation?.baseVersion);
+  const payload = mutation?.payload || null;
+
+  if (!isUuid(mutationId)) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_MUTATION_ID_INVALID",
+      message: "A valid mutationId is required."
+    };
+  }
+
+  if (entityType !== "study") {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_ENTITY_UNSUPPORTED",
+      message: "This entity type is not supported by the sync endpoint yet."
+    };
+  }
+
+  if (!isUuid(entityKey)) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_ENTITY_KEY_INVALID",
+      message: "A valid Study ID is required."
+    };
+  }
+
+  if (operation !== "update") {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_STUDY_OPERATION_UNSUPPORTED",
+      message: "Only existing Study updates are supported by this sync path right now."
+    };
+  }
+
+  if (!Number.isInteger(baseVersion) || baseVersion < 1) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_EXISTING_VERSION_REQUIRED",
+      message: "A Study update requires an existing server version."
+    };
+  }
+
+  const title = normalizeText(payload?.title);
+  const categoryId = normalizeOptionalText(payload?.categoryId) || null;
+  const contentHtml =
+    typeof payload?.contentHtml === "string"
+      ? payload.contentHtml
+      : "";
+  const previewText =
+    normalizeOptionalText(payload?.previewText) ||
+    buildPreviewText(contentHtml);
+
+  if (!payload || !title) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_STUDY_PAYLOAD_INVALID",
+      message: "The Study payload is incomplete."
+    };
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const claim = await client.query(
+      `
+      INSERT INTO sync_mutations (
+        user_id,
+        mutation_id,
+        device_id,
+        entity_type,
+        entity_key,
+        operation,
+        processed_at,
+        result_version,
+        result_json
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NULL, NULL)
+      ON CONFLICT (user_id, mutation_id)
+      DO NOTHING
+      RETURNING mutation_id
+      `,
+      [
+        userId,
+        mutationId,
+        deviceId,
+        entityType,
+        entityKey,
+        operation
+      ]
+    );
+
+    if (claim.rows.length === 0) {
+      const previous = await client.query(
+        `
+        SELECT result_version, result_json
+        FROM sync_mutations
+        WHERE user_id = $1
+          AND mutation_id = $2
+        LIMIT 1
+        `,
+        [userId, mutationId]
+      );
+
+      await client.query("COMMIT");
+
+      return {
+        mutationId,
+        status: "ok",
+        duplicate: true,
+        resultVersion:
+          previous.rows[0]?.result_version ?? null,
+        result:
+          previous.rows[0]?.result_json || null
+      };
+    }
+
+    let categoryName = "Study";
+
+    if (categoryId) {
+      const categoryResult = await client.query(
+        `
+        SELECT name
+        FROM user_study_categories
+        WHERE user_id = $1
+          AND id = $2
+        LIMIT 1
+        `,
+        [userId, categoryId]
+      );
+
+      if (!categoryResult.rows.length) {
+        await client.query("ROLLBACK");
+
+        return {
+          mutationId,
+          status: "error",
+          code: "SYNC_STUDY_CATEGORY_INVALID",
+          message: "Selected category is not available."
+        };
+      }
+
+      categoryName =
+        categoryResult.rows[0].name || "Study";
+    }
+
+    const updated = await client.query(
+      `
+      UPDATE saved_studies
+      SET
+        title = $3,
+        category_id = $4,
+        study_type = $5,
+        speaker = $6,
+        location = $7,
+        study_date = $8,
+        main_scripture = $9,
+        linked_scriptures = $10::jsonb,
+        content_html = $11,
+        preview_text = $12,
+        version = version + 1,
+        updated_at = NOW()
+      WHERE user_id = $1
+        AND id = $2
+        AND version = $13
+      RETURNING id, version
+      `,
+      [
+        userId,
+        entityKey,
+        title,
+        categoryId,
+        categoryName,
+        normalizeOptionalText(payload.speaker),
+        normalizeOptionalText(payload.location),
+        normalizeStudyDate(payload.studyDate),
+        normalizeOptionalText(payload.mainScripture),
+        JSON.stringify(
+          normalizeJsonArray(payload.linkedScriptures)
+        ),
+        contentHtml,
+        previewText,
+        baseVersion
+      ]
+    );
+
+    if (!updated.rows.length) {
+      const latestStudy = await getStudyById(
+        userId,
+        entityKey,
+        client
+      );
+
+      await client.query("ROLLBACK");
+
+      if (!latestStudy) {
+        return {
+          mutationId,
+          status: "error",
+          code: "SYNC_STUDY_NOT_FOUND",
+          message: "Study not found."
+        };
+      }
+
+      return {
+        mutationId,
+        status: "conflict",
+        code: "STUDY_VERSION_CONFLICT",
+        message:
+          "This Study changed since this device last synchronized.",
+        latestStudy
+      };
+    }
+
+    await replaceStudyTags(
+      client,
+      userId,
+      entityKey,
+      payload.tagIds
+    );
+
+    const study = await getStudyById(
+      userId,
+      entityKey,
+      client
+    );
+
+    const resultVersion =
+      Number(study?.version) ||
+      Number(updated.rows[0]?.version) ||
+      baseVersion + 1;
+
+    const resultJson = { study };
+
+    await client.query(
+      `
+      UPDATE sync_mutations
+      SET
+        result_version = $3,
+        result_json = $4
+      WHERE user_id = $1
+        AND mutation_id = $2
+      `,
+      [
+        userId,
+        mutationId,
+        resultVersion,
+        resultJson
+      ]
+    );
+
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id,
+        entity_type,
+        entity_key,
+        operation,
+        resulting_version,
+        source_device_id,
+        source_mutation_id,
+        changed_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      `,
+      [
+        userId,
+        entityType,
+        entityKey,
+        operation,
+        resultVersion,
+        deviceId,
+        mutationId
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      mutationId,
+      status: "ok",
+      duplicate: false,
+      resultVersion,
+      result: resultJson
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_rollbackError) {
+      // Preserve the original database error for logging.
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+
 app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
@@ -1055,6 +1368,11 @@ app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
 
       if (mutation?.entityType === "mini_editor_page") {
         results.push(await processMiniEditorSyncMutation(userId, deviceId, mutation));
+        continue;
+      }
+
+      if (mutation?.entityType === "study") {
+        results.push(await processStudySyncMutation(userId, deviceId, mutation));
         continue;
       }
 
