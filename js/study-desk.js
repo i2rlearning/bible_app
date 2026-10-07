@@ -2549,6 +2549,30 @@
               userId
             );
 
+          const locallyDeletedStudyIds =
+            new Set(
+              cachedStudies
+                .filter(
+                  (record) =>
+                    record?.deleted === true &&
+                    ["pending", "sending"].includes(
+                      record.syncStatus
+                    )
+                )
+                .map((record) =>
+                  String(record.studyId || "")
+                )
+                .filter(Boolean)
+            );
+
+          state.studies =
+            state.studies.filter(
+              (study) =>
+                !locallyDeletedStudyIds.has(
+                  String(study?.id || "")
+                )
+            );
+
           cachedStudies
             .filter(
               (record) =>
@@ -3202,45 +3226,170 @@
       return;
     }
 
-    const studyId = state.activeStudyId;
-    const currentTitle = els.title.value.trim() || "this study";
+    const studyId =
+      String(state.activeStudyId);
+    const currentTitle =
+      els.title.value.trim() ||
+      "this study";
 
-    if (!confirm(`Delete ${currentTitle}? This cannot be undone.`)) {
+    if (
+      !confirm(
+        `Delete ${currentTitle}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    const userId =
+      await getTrustedStudyUserId();
+
+    if (!userId) {
+      setStatus(
+        "A verified signed-in user is required before this Study can be deleted.",
+        "error",
+        0
+      );
       return;
     }
 
     setStatus("Deleting...");
     state.isSaving = true;
+    updateStudyActionAvailability();
 
     try {
-      await fetchJson(
-        `/api/studies/${encodeURIComponent(studyId)}?expectedVersion=${encodeURIComponent(state.activeStudyVersion)}`,
-        { method: "DELETE" }
-      );
+      await window.UserData
+        .queueStudyDeleteForSync(
+          userId,
+          studyId
+        );
 
-      state.studies = state.studies.filter((study) => study.id !== studyId);
+      /*
+       * The local tombstone is already durable in IndexedDB. Remove the Study
+       * from the visible list immediately so offline delete behaves like a real
+       * local-first delete instead of waiting for PostgreSQL.
+       */
+      state.studies =
+        state.studies.filter(
+          (study) =>
+            String(study?.id || "") !==
+            studyId
+        );
+
       state.activeStudyId = null;
       state.activeStudyVersion = null;
       state.remoteStudy = null;
+      state.referencedScripturesRemoteStudy = null;
+      state.referencedScripturesStale = false;
+
       renderStudyList();
-      publishStudySync("study-deleted", { studyId });
+      publishStudySync(
+        "study-deleted",
+        { studyId }
+      );
 
       if (state.studies.length) {
-        await loadStudy(state.studies[0].id);
+        await loadStudy(
+          state.studies[0].id
+        );
       } else {
-        applyStudyToForm(getEmptyStudy());
+        applyStudyToForm(
+          getEmptyStudy()
+        );
+        renderStudyList();
       }
 
-      setStatus("Study deleted.", "success");
-    } catch (error) {
-      if (error.status === 409 && error.data?.code === "STUDY_VERSION_CONFLICT") {
-        handleVersionConflict(error, "delete");
+      if (
+        studyDeskConnectionUnavailable()
+      ) {
+        setStatus(
+          "Study deleted on this device. It will sync when you are back online.",
+          "success"
+        );
         return;
       }
 
-      setStatus(error.message, "error");
+      await window.UserData.flushOutbox();
+
+      const cached =
+        await window.UserData.getCachedStudy(
+          userId,
+          studyId
+        );
+
+      if (
+        cached?.syncStatus === "conflict"
+      ) {
+        const latest =
+          cached.conflictRemote ||
+          null;
+
+        if (latest?.id) {
+          upsertStudyInState(latest);
+          renderStudyList();
+
+          state.remoteStudy = latest;
+
+          if (
+            window.AppConflictDialog?.show
+          ) {
+            window.AppConflictDialog.show({
+              key:
+                `study-delete-conflict:${studyId}:${latest.version || "unknown"}`,
+              title:
+                "Newer Study version available",
+              message:
+                "This Study changed on another device before your delete could be synchronized.",
+              detail:
+                "The newer server copy has been preserved. Review it before deciding what to do next.",
+              secondaryLabel: null,
+              primaryLabel: "OK"
+            });
+          }
+        }
+
+        setStatus(
+          "The Study was not deleted because a newer version exists.",
+          "error",
+          0
+        );
+        return;
+      }
+
+      if (
+        cached?.syncStatus === "pending" ||
+        cached?.syncStatus === "sending"
+      ) {
+        setStatus(
+          "Study deleted on this device. Synchronization will retry automatically.",
+          "success"
+        );
+        return;
+      }
+
+      if (cached) {
+        throw new Error(
+          "The Study delete was sent, but local deletion could not be confirmed."
+        );
+      }
+
+      setStatus(
+        "Study deleted.",
+        "success"
+      );
+    } catch (error) {
+      console.error(
+        "Delete Study error:",
+        error
+      );
+
+      setStatus(
+        error.message ||
+          "The Study could not be deleted.",
+        "error"
+      );
     } finally {
       state.isSaving = false;
+      updateStudyActionAvailability();
     }
   }
 
