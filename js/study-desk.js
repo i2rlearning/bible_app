@@ -228,8 +228,22 @@
 
     const blockedByRemoteChange = Boolean(state.remoteStudy);
     const blockedByReferencedRefresh = Boolean(state.referencedScripturesStale);
-    const blockedByVersion = Boolean(
-      state.activeStudyId && !Number.isInteger(state.activeStudyVersion)
+    const activeVersion = Number(state.activeStudyVersion);
+    const hasLocalStudyVersion =
+      Number.isInteger(activeVersion) &&
+      activeVersion >= 0;
+    const hasServerStudyVersion =
+      Number.isInteger(activeVersion) &&
+      activeVersion >= 1;
+
+    const blockedBySaveVersion = Boolean(
+      state.activeStudyId &&
+      !hasLocalStudyVersion
+    );
+
+    const blockedByDeleteVersion = Boolean(
+      state.activeStudyId &&
+      !hasServerStudyVersion
     );
 
     els.saveButton.disabled =
@@ -237,14 +251,14 @@
       state.isSaving ||
       blockedByRemoteChange ||
       blockedByReferencedRefresh ||
-      blockedByVersion;
+      blockedBySaveVersion;
 
     els.deleteButton.disabled =
       state.isPreview ||
       state.isSaving ||
       blockedByRemoteChange ||
       blockedByReferencedRefresh ||
-      blockedByVersion;
+      blockedByDeleteVersion;
   }
 
   function applyLatestRemoteStudy() {
@@ -1663,8 +1677,18 @@
     state.localDraftKey = state.activeStudyId
       ? `study:${state.activeStudyId}`
       : `new:${createLocalStudyDraftId()}`;
-    const loadedVersion = Number(data.version);
-    state.activeStudyVersion = Number.isInteger(loadedVersion) && loadedVersion >= 1 ? loadedVersion : null;
+    const loadedVersion =
+      data.version === null ||
+      data.version === undefined ||
+      data.version === ""
+        ? null
+        : Number(data.version);
+
+    state.activeStudyVersion =
+      Number.isInteger(loadedVersion) &&
+      loadedVersion >= 0
+        ? loadedVersion
+        : null;
     state.remoteStudy = null;
     lastStudyConflictDialogKey = "";
     state.referencedScripturesStale = false;
@@ -1703,7 +1727,12 @@
 
     els.modeLabel.textContent = state.activeStudyId ? "Edit Study" : "New Study";
     els.editorTitle.textContent = data.title || "Untitled Study";
-    els.deleteButton.hidden = !state.activeStudyId;
+    els.deleteButton.hidden =
+      !state.activeStudyId ||
+      !(
+        Number.isInteger(state.activeStudyVersion) &&
+        state.activeStudyVersion >= 1
+      );
 
     renderSelectedTags();
     renderLinkedScriptures();
@@ -1983,6 +2012,8 @@
         syncedVersion
       );
 
+    els.deleteButton.hidden = false;
+
     const remoteVersion =
       Number(state.remoteStudy?.version) ||
       0;
@@ -2064,7 +2095,8 @@
       !state.activeStudyId ||
       state.isSaving ||
       document.hidden ||
-      !Number.isInteger(state.activeStudyVersion)
+      !Number.isInteger(state.activeStudyVersion) ||
+      state.activeStudyVersion < 1
     ) {
       return;
     }
@@ -2504,9 +2536,47 @@
         window.UserData?.cacheStudiesFromServer
       ) {
         try {
+          const userId =
+            window.UserData.getLiveAuthenticatedUserId();
+
           await window.UserData.cacheStudiesFromServer(
-            window.UserData.getLiveAuthenticatedUserId(),
+            userId,
             state.studies
+          );
+
+          const cachedStudies =
+            await window.UserData.listCachedStudies(
+              userId
+            );
+
+          cachedStudies
+            .filter(
+              (record) =>
+                record?.study &&
+                record.deleted !== true &&
+                Number(record.serverVersion) === 0 &&
+                ["pending", "sending"].includes(
+                  record.syncStatus
+                )
+            )
+            .forEach((record) => {
+              if (
+                !state.studies.some(
+                  (study) =>
+                    String(study?.id || "") ===
+                    String(record.studyId || "")
+                )
+              ) {
+                state.studies.push(
+                  record.study
+                );
+              }
+            });
+
+          state.studies.sort(
+            (a, b) =>
+              new Date(b.updatedAt || 0) -
+              new Date(a.updatedAt || 0)
           );
         } catch (error) {
           console.warn(
@@ -2550,6 +2620,34 @@
     setStatus("Loading study...");
 
     try {
+      const trustedUserId =
+        await getTrustedStudyUserId();
+
+      const locallyCreated =
+        trustedUserId &&
+        window.UserData?.getCachedStudy
+          ? await window.UserData.getCachedStudy(
+              trustedUserId,
+              id
+            )
+          : null;
+
+      if (
+        locallyCreated?.study &&
+        locallyCreated.deleted !== true &&
+        Number(locallyCreated.serverVersion) === 0 &&
+        ["pending", "sending"].includes(
+          locallyCreated.syncStatus
+        )
+      ) {
+        applyStudyToForm(
+          locallyCreated.study
+        );
+        renderStudyList();
+        setStatus("");
+        return;
+      }
+
       if (sharedAuthIsSignedInOffline()) {
         const userId =
           await getTrustedStudyUserId();
@@ -2601,6 +2699,40 @@
     } catch (error) {
       setStatus(error.message, "error");
     }
+  }
+
+  function getNewStudySyncInput(data) {
+    const requestedCategoryId =
+      data.categoryId || null;
+
+    const selectedCategory =
+      state.categories.find(
+        (category) =>
+          String(category?.id || "") ===
+          String(requestedCategoryId || "")
+      ) || null;
+
+    const {
+      expectedVersion: _expectedVersion,
+      ...localData
+    } = data;
+
+    return {
+      ...localData,
+      id: null,
+      version: 0,
+      categoryId: requestedCategoryId,
+      category: selectedCategory,
+      tags: state.selectedTags.map(
+        (tag) => ({ ...tag })
+      ),
+      linkedScriptures:
+        state.linkedScriptures.map(
+          (item) => ({ ...item })
+        ),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
   }
 
   function getExistingStudySyncInput(data) {
@@ -2745,17 +2877,27 @@
       Boolean(state.activeStudyId);
 
     /*
-     * New Study creation still uses the existing server path for now. Existing
-     * Studies use the proven local-first outbox pipeline below.
+     * A new Study receives its permanent UUID on this device first. The same
+     * ID is later inserted into PostgreSQL so reconnect never swaps identities.
      */
     if (!isExisting) {
-      const localDraftKeyBeforeServerSave =
+      const userId =
+        await getTrustedStudyUserId();
+
+      if (!userId) {
+        setStatus(
+          "A verified signed-in user is required before this Study can be saved.",
+          "error",
+          0
+        );
+        setSaveState("Save failed");
+        return;
+      }
+
+      const localDraftKeyBeforeSave =
         ensureLocalStudyDraftKey();
 
       cancelLocalStudyAutosave();
-      await saveCurrentStudyDraftNow({
-        showStatus: false
-      });
 
       setStatus("Saving...");
       setSaveState("Saving...");
@@ -2763,19 +2905,103 @@
       updateStudyActionAvailability();
 
       try {
-        const result = await fetchJson(
-          "/api/studies",
-          {
-            method: "POST",
-            body: JSON.stringify(data)
-          }
+        const createInput =
+          getNewStudySyncInput(data);
+
+        const queued =
+          await window.UserData
+            .queueStudyCreateForSync(
+              userId,
+              createInput
+            );
+
+        const localStudy =
+          queued?.study?.study ||
+          null;
+
+        if (!localStudy?.id) {
+          throw new Error(
+            "The new Study could not be created locally."
+          );
+        }
+
+        /*
+         * Make the local Study a normal selectable Study immediately. Version
+         * 0 means it exists on this device but has not reached PostgreSQL yet.
+         */
+        state.activeStudyId =
+          localStudy.id;
+        state.activeStudyVersion = 0;
+
+        upsertStudyInState(localStudy);
+        applyStudyToForm(localStudy);
+        renderStudyList();
+
+        await deleteLocalStudyDraftForUser(
+          userId,
+          localDraftKeyBeforeSave
         );
 
-        const savedStudy = result.study;
+        if (
+          studyDeskConnectionUnavailable()
+        ) {
+          setStatus(
+            "Study saved on this device. It will sync when you are back online.",
+            "success"
+          );
+          markClean(
+            "Saved on this device"
+          );
+          return;
+        }
 
-        await deleteLocalStudyDraft(
-          localDraftKeyBeforeServerSave
-        );
+        await window.UserData.flushOutbox();
+
+        const cached =
+          await window.UserData.getCachedStudy(
+            userId,
+            localStudy.id
+          );
+
+        if (
+          cached?.syncStatus === "pending" ||
+          cached?.syncStatus === "sending"
+        ) {
+          setStatus(
+            "Study saved on this device. Synchronization will retry automatically.",
+            "success"
+          );
+          markClean(
+            "Saved on this device"
+          );
+          return;
+        }
+
+        if (
+          cached?.syncStatus === "conflict"
+        ) {
+          setStatus(
+            "The new Study could not be synchronized because its ID conflicts with another Study.",
+            "error",
+            0
+          );
+          setSaveState(
+            "Sync conflict"
+          );
+          return;
+        }
+
+        if (
+          cached?.syncStatus !== "clean" ||
+          !cached?.study
+        ) {
+          throw new Error(
+            "The Study was saved locally, but its synchronized state could not be confirmed."
+          );
+        }
+
+        const savedStudy =
+          cached.study;
 
         state.activeStudyId =
           savedStudy.id;
@@ -2788,13 +3014,15 @@
           "success"
         );
         markClean("Saved just now");
-        publishStudySync(
-          "study-updated",
-          { study: savedStudy }
-        );
       } catch (error) {
+        console.error(
+          "Create Study error:",
+          error
+        );
+
         setStatus(
-          error.message,
+          error.message ||
+            "The Study could not be saved.",
           "error"
         );
         setSaveState("Save failed");
@@ -2962,8 +3190,15 @@
   async function deleteStudy() {
     if (!state.activeStudyId) return;
 
-    if (!Number.isInteger(state.activeStudyVersion)) {
-      setStatus("This study needs to be reloaded before it can be deleted safely.", "error", 0);
+    if (
+      !Number.isInteger(state.activeStudyVersion) ||
+      state.activeStudyVersion < 1
+    ) {
+      setStatus(
+        "This Study must finish synchronizing before it can be deleted.",
+        "error",
+        0
+      );
       return;
     }
 
