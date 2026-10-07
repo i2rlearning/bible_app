@@ -1059,16 +1059,31 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
     };
   }
 
-  if (operation !== "update") {
+  if (!["create", "update"].includes(operation)) {
     return {
       mutationId,
       status: "error",
       code: "SYNC_STUDY_OPERATION_UNSUPPORTED",
-      message: "Only existing Study updates are supported by this sync path right now."
+      message: "This Study operation is not supported by the sync endpoint yet."
     };
   }
 
-  if (!Number.isInteger(baseVersion) || baseVersion < 1) {
+  if (
+    operation === "create" &&
+    (!Number.isInteger(baseVersion) || baseVersion !== 0)
+  ) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_NEW_VERSION_INVALID",
+      message: "A new Study must start from server version 0."
+    };
+  }
+
+  if (
+    operation === "update" &&
+    (!Number.isInteger(baseVersion) || baseVersion < 1)
+  ) {
     return {
       mutationId,
       status: "error",
@@ -1183,72 +1198,151 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
         categoryResult.rows[0].name || "Study";
     }
 
-    const updated = await client.query(
-      `
-      UPDATE saved_studies
-      SET
-        title = $3,
-        category_id = $4,
-        study_type = $5,
-        speaker = $6,
-        location = $7,
-        study_date = $8,
-        main_scripture = $9,
-        linked_scriptures = $10::jsonb,
-        content_html = $11,
-        preview_text = $12,
-        version = version + 1,
-        updated_at = NOW()
-      WHERE user_id = $1
-        AND id = $2
-        AND version = $13
-      RETURNING id, version
-      `,
-      [
-        userId,
-        entityKey,
-        title,
-        categoryId,
-        categoryName,
-        normalizeOptionalText(payload.speaker),
-        normalizeOptionalText(payload.location),
-        normalizeStudyDate(payload.studyDate),
-        normalizeOptionalText(payload.mainScripture),
-        JSON.stringify(
-          normalizeJsonArray(payload.linkedScriptures)
-        ),
-        contentHtml,
-        previewText,
-        baseVersion
-      ]
-    );
+    let writtenVersion = 0;
 
-    if (!updated.rows.length) {
-      const latestStudy = await getStudyById(
-        userId,
-        entityKey,
-        client
+    if (operation === "create") {
+      const created = await client.query(
+        `
+        INSERT INTO saved_studies (
+          id,
+          user_id,
+          title,
+          category_id,
+          study_type,
+          speaker,
+          location,
+          study_date,
+          main_scripture,
+          linked_scriptures,
+          content_html,
+          preview_text,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $2,
+          $1,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10::jsonb,
+          $11,
+          $12,
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (id)
+        DO NOTHING
+        RETURNING id, version
+        `,
+        [
+          userId,
+          entityKey,
+          title,
+          categoryId,
+          categoryName,
+          normalizeOptionalText(payload.speaker),
+          normalizeOptionalText(payload.location),
+          normalizeStudyDate(payload.studyDate),
+          normalizeOptionalText(payload.mainScripture),
+          JSON.stringify(
+            normalizeJsonArray(payload.linkedScriptures)
+          ),
+          contentHtml,
+          previewText
+        ]
       );
 
-      await client.query("ROLLBACK");
+      if (!created.rows.length) {
+        await client.query("ROLLBACK");
 
-      if (!latestStudy) {
         return {
           mutationId,
-          status: "error",
-          code: "SYNC_STUDY_NOT_FOUND",
-          message: "Study not found."
+          status: "conflict",
+          code: "STUDY_CREATE_ID_CONFLICT",
+          message:
+            "This Study could not be created because its ID is already in use."
         };
       }
 
-      return {
-        mutationId,
-        status: "conflict",
-        code: "STUDY_VERSION_CONFLICT",
-        message:
-          "This Study changed since this device last synchronized.",
-        latestStudy
-      };
+      writtenVersion =
+        Number(created.rows[0]?.version) || 1;
+    } else {
+      const updated = await client.query(
+        `
+        UPDATE saved_studies
+        SET
+          title = $3,
+          category_id = $4,
+          study_type = $5,
+          speaker = $6,
+          location = $7,
+          study_date = $8,
+          main_scripture = $9,
+          linked_scriptures = $10::jsonb,
+          content_html = $11,
+          preview_text = $12,
+          version = version + 1,
+          updated_at = NOW()
+        WHERE user_id = $1
+          AND id = $2
+          AND version = $13
+        RETURNING id, version
+        `,
+        [
+          userId,
+          entityKey,
+          title,
+          categoryId,
+          categoryName,
+          normalizeOptionalText(payload.speaker),
+          normalizeOptionalText(payload.location),
+          normalizeStudyDate(payload.studyDate),
+          normalizeOptionalText(payload.mainScripture),
+          JSON.stringify(
+            normalizeJsonArray(payload.linkedScriptures)
+          ),
+          contentHtml,
+          previewText,
+          baseVersion
+        ]
+      );
+
+      if (!updated.rows.length) {
+        const latestStudy = await getStudyById(
+          userId,
+          entityKey,
+          client
+        );
+
+        await client.query("ROLLBACK");
+
+        if (!latestStudy) {
+          return {
+            mutationId,
+            status: "error",
+            code: "SYNC_STUDY_NOT_FOUND",
+            message: "Study not found."
+          };
+        }
+
+        return {
+          mutationId,
+          status: "conflict",
+          code: "STUDY_VERSION_CONFLICT",
+          message:
+            "This Study changed since this device last synchronized.",
+          latestStudy
+        };
+      }
+
+      writtenVersion =
+        Number(updated.rows[0]?.version) ||
+        baseVersion + 1;
     }
 
     await replaceStudyTags(
@@ -1266,8 +1360,7 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
 
     const resultVersion =
       Number(study?.version) ||
-      Number(updated.rows[0]?.version) ||
-      baseVersion + 1;
+      writtenVersion;
 
     const resultJson = { study };
 
