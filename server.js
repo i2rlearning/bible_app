@@ -1059,7 +1059,7 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
     };
   }
 
-  if (!["create", "update"].includes(operation)) {
+  if (!["create", "update", "delete"].includes(operation)) {
     return {
       mutationId,
       status: "error",
@@ -1081,14 +1081,14 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
   }
 
   if (
-    operation === "update" &&
+    ["update", "delete"].includes(operation) &&
     (!Number.isInteger(baseVersion) || baseVersion < 1)
   ) {
     return {
       mutationId,
       status: "error",
       code: "SYNC_EXISTING_VERSION_REQUIRED",
-      message: "A Study update requires an existing server version."
+      message: "A Study update or delete requires an existing server version."
     };
   }
 
@@ -1102,7 +1102,10 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
     normalizeOptionalText(payload?.previewText) ||
     buildPreviewText(contentHtml);
 
-  if (!payload || !title) {
+  if (
+    operation !== "delete" &&
+    (!payload || !title)
+  ) {
     return {
       mutationId,
       status: "error",
@@ -1171,7 +1174,7 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
 
     let categoryName = "Study";
 
-    if (categoryId) {
+    if (operation !== "delete" && categoryId) {
       const categoryResult = await client.query(
         `
         SELECT name
@@ -1199,6 +1202,8 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
     }
 
     let writtenVersion = 0;
+    let resultVersion = null;
+    let resultJson = null;
 
     if (operation === "create") {
       const created = await client.query(
@@ -1271,7 +1276,9 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
 
       writtenVersion =
         Number(created.rows[0]?.version) || 1;
-    } else {
+    }
+
+    if (operation === "update") {
       const updated = await client.query(
         `
         UPDATE saved_studies
@@ -1345,24 +1352,68 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
         baseVersion + 1;
     }
 
-    await replaceStudyTags(
-      client,
-      userId,
-      entityKey,
-      payload.tagIds
-    );
+    if (operation === "delete") {
+      const deleted = await client.query(
+        `
+        DELETE FROM saved_studies
+        WHERE user_id = $1
+          AND id = $2
+          AND version = $3
+        RETURNING id, version
+        `,
+        [
+          userId,
+          entityKey,
+          baseVersion
+        ]
+      );
 
-    const study = await getStudyById(
-      userId,
-      entityKey,
-      client
-    );
+      if (!deleted.rows.length) {
+        const latestStudy = await getStudyById(
+          userId,
+          entityKey,
+          client
+        );
 
-    const resultVersion =
-      Number(study?.version) ||
-      writtenVersion;
+        if (latestStudy) {
+          await client.query("ROLLBACK");
 
-    const resultJson = { study };
+          return {
+            mutationId,
+            status: "conflict",
+            code: "STUDY_VERSION_CONFLICT",
+            message:
+              "This Study changed before it could be deleted.",
+            latestStudy
+          };
+        }
+      }
+
+      resultVersion = null;
+      resultJson = {
+        deleted: true,
+        studyId: entityKey
+      };
+    } else {
+      await replaceStudyTags(
+        client,
+        userId,
+        entityKey,
+        payload.tagIds
+      );
+
+      const study = await getStudyById(
+        userId,
+        entityKey,
+        client
+      );
+
+      resultVersion =
+        Number(study?.version) ||
+        writtenVersion;
+
+      resultJson = { study };
+    }
 
     await client.query(
       `
