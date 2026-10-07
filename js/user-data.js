@@ -1736,6 +1736,100 @@ window.UserData = (() => {
   }
 
 
+  async function queueStudyDeleteForSync(
+    userId,
+    studyId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedStudyId =
+      String(studyId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedStudyId
+    ) {
+      throw new Error(
+        "A verified userId and Study ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const existing =
+      await db.getStudy(
+        verifiedUserId,
+        verifiedStudyId
+      );
+
+    if (!existing) {
+      throw new Error(
+        "This Study is not available in the local cache."
+      );
+    }
+
+    const serverVersion =
+      Number(existing.serverVersion) || 0;
+
+    if (serverVersion < 1) {
+      throw new Error(
+        "This Study must finish synchronizing before it can be deleted."
+      );
+    }
+
+    /*
+     * Keep a local tombstone until the server accepts the delete. This lets
+     * version-conflict handling preserve both the local delete intention and
+     * the newer remote Study instead of silently losing either side.
+     */
+    const tombstone = {
+      ...existing,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      studyId: verifiedStudyId,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: true
+    };
+
+    await db.putStudy(tombstone);
+
+    const mutation =
+      await putStudyOutboxMutation(
+        verifiedUserId,
+        tombstone,
+        "delete"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-local-save",
+      {
+        userId: verifiedUserId,
+        entityType: ENTITY_STUDY,
+        entityKey: verifiedStudyId,
+        mutationId:
+          mutation.mutationId,
+        deleted: true
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      studyId: verifiedStudyId,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      deleted: true
+    };
+  }
+
+
   async function listPendingOutboxForUser(userId) {
     const db = requireUserOfflineDB();
     const verifiedUserId = String(userId || "");
@@ -2080,6 +2174,52 @@ window.UserData = (() => {
     result
   ) {
     const db = requireUserOfflineDB();
+
+    if (mutation.operation === "delete") {
+      const deletedStudyId =
+        String(
+          result?.studyId ||
+          mutation.entityKey ||
+          ""
+        );
+
+      if (
+        !result?.deleted ||
+        !deletedStudyId ||
+        deletedStudyId !==
+          String(mutation.entityKey)
+      ) {
+        throw new Error(
+          "The server did not confirm the synchronized Study deletion."
+        );
+      }
+
+      await db.deleteStudy(
+        mutation.userId,
+        mutation.entityKey
+      );
+
+      await db.deleteOutboxMutation(
+        mutation.mutationId
+      );
+
+      dispatchUserDataEvent(
+        "user-data-synced",
+        {
+          userId: mutation.userId,
+          entityType: ENTITY_STUDY,
+          entityKey:
+            String(mutation.entityKey),
+          version: null,
+          study: null,
+          deleted: true,
+          operation: "delete"
+        }
+      );
+
+      return;
+    }
+
     const serverStudy =
       result?.study || null;
 
@@ -3361,6 +3501,7 @@ window.UserData = (() => {
     queueMiniEditorDeleteForSync,
     queueStudyCreateForSync,
     queueStudyUpdateForSync,
+    queueStudyDeleteForSync,
     listPendingOutboxForUser,
     flushOutbox,
     scheduleFlush,
