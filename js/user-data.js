@@ -1938,6 +1938,162 @@ window.UserData = (() => {
   }
 
 
+  async function resolveStudyConflictKeepThisDevice(
+    userId,
+    studyId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedStudyId =
+      String(studyId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedStudyId
+    ) {
+      throw new Error(
+        "A verified userId and Study ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const current =
+      await db.getStudy(
+        verifiedUserId,
+        verifiedStudyId
+      );
+
+    if (
+      !current ||
+      current.syncStatus !== "conflict"
+    ) {
+      throw new Error(
+        "This Study does not currently have a synchronization conflict."
+      );
+    }
+
+    const localStudy =
+      current.study
+        ? cloneLocalValue(
+            current.study
+          )
+        : null;
+
+    const remote =
+      current.conflictRemote
+        ? cloneLocalValue(
+            current.conflictRemote
+          )
+        : null;
+
+    const remoteVersion =
+      Number(remote?.version) || 0;
+
+    if (
+      !localStudy?.id ||
+      String(localStudy.id) !==
+        verifiedStudyId
+    ) {
+      throw new Error(
+        "The local Study version is not available."
+      );
+    }
+
+    if (
+      !remote?.id ||
+      String(remote.id) !==
+        verifiedStudyId ||
+      remoteVersion < 1
+    ) {
+      throw new Error(
+        "The newer synchronized Study version is not available."
+      );
+    }
+
+    /*
+     * Keeping this device means the local Study remains the desired content,
+     * but it must be rebased onto the newer synchronized version before it can
+     * be sent safely. The next mutation therefore uses the remote version as
+     * its base instead of retrying the stale version that caused the conflict.
+     */
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY,
+        verifiedStudyId
+      );
+
+    for (const item of outboxItems) {
+      await db.deleteOutboxMutation(
+        item.mutationId
+      );
+    }
+
+    const rebasedStudy = {
+      ...localStudy,
+      id: verifiedStudyId,
+      version: remoteVersion,
+      updatedAt: new Date().toISOString()
+    };
+
+    const rebasedRecord = {
+      ...current,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      studyId: verifiedStudyId,
+      study: rebasedStudy,
+      baseStudy: cloneLocalValue(remote),
+      baseVersion: remoteVersion,
+      serverVersion: remoteVersion,
+      serverUpdatedAt:
+        remote.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudy(rebasedRecord);
+
+    const mutation =
+      await putStudyOutboxMutation(
+        verifiedUserId,
+        rebasedRecord,
+        "update"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-conflict-resolved",
+      {
+        userId: verifiedUserId,
+        entityType: ENTITY_STUDY,
+        entityKey: verifiedStudyId,
+        resolution: "keep-device",
+        baseVersion: remoteVersion,
+        mutationId:
+          mutation.mutationId,
+        study: rebasedStudy
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      study: rebasedRecord,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      resolution: "keep-device"
+    };
+  }
+
+
   async function listPendingOutboxForUser(userId) {
     const db = requireUserOfflineDB();
     const verifiedUserId = String(userId || "");
@@ -3611,6 +3767,7 @@ window.UserData = (() => {
     queueStudyUpdateForSync,
     queueStudyDeleteForSync,
     resolveStudyConflictUseSyncedVersion,
+    resolveStudyConflictKeepThisDevice,
     listPendingOutboxForUser,
     flushOutbox,
     scheduleFlush,
