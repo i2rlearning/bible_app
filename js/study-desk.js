@@ -672,7 +672,7 @@
     const baseVersion = state.activeStudyVersion;
 
     if (showStatus) {
-      setSaveState("Saving on this device...");
+      setSaveState("Saving draft on this device...");
     }
 
     const runSave = async () => window.UserData.saveStudyDraft({
@@ -694,7 +694,7 @@
         draftKey === state.localDraftKey &&
         state.hasUnsavedChanges
       ) {
-        setSaveState("Saved on this device", "success");
+        setSaveState("Draft saved on this device", "success");
       }
 
       return draft;
@@ -706,7 +706,7 @@
         generation === localStudyAutoSaveGeneration &&
         state.hasUnsavedChanges
       ) {
-        setSaveState("Local save failed");
+        setSaveState("Draft save failed");
       }
 
       return null;
