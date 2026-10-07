@@ -1830,6 +1830,114 @@ window.UserData = (() => {
   }
 
 
+  async function resolveStudyConflictUseSyncedVersion(
+    userId,
+    studyId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedStudyId =
+      String(studyId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedStudyId
+    ) {
+      throw new Error(
+        "A verified userId and Study ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const current =
+      await db.getStudy(
+        verifiedUserId,
+        verifiedStudyId
+      );
+
+    if (
+      !current ||
+      current.syncStatus !== "conflict"
+    ) {
+      throw new Error(
+        "This Study does not currently have a synchronization conflict."
+      );
+    }
+
+    const remote =
+      current.conflictRemote
+        ? cloneLocalValue(
+            current.conflictRemote
+          )
+        : null;
+
+    const remoteVersion =
+      Number(remote?.version) || 0;
+
+    if (
+      !remote?.id ||
+      String(remote.id) !==
+        verifiedStudyId ||
+      remoteVersion < 1
+    ) {
+      throw new Error(
+        "The newer synchronized Study version is not available."
+      );
+    }
+
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY,
+        verifiedStudyId
+      );
+
+    for (const item of outboxItems) {
+      await db.deleteOutboxMutation(
+        item.mutationId
+      );
+    }
+
+    const cleanRecord = {
+      ...current,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      studyId: verifiedStudyId,
+      study: cloneLocalValue(remote),
+      baseStudy: cloneLocalValue(remote),
+      baseVersion: remoteVersion,
+      serverVersion: remoteVersion,
+      serverUpdatedAt:
+        remote.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "clean",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudy(cleanRecord);
+
+    dispatchUserDataEvent(
+      "user-data-conflict-resolved",
+      {
+        userId: verifiedUserId,
+        entityType: ENTITY_STUDY,
+        entityKey: verifiedStudyId,
+        resolution: "use-synced",
+        version: remoteVersion,
+        study: remote
+      }
+    );
+
+    return cleanRecord;
+  }
+
+
   async function listPendingOutboxForUser(userId) {
     const db = requireUserOfflineDB();
     const verifiedUserId = String(userId || "");
@@ -3502,6 +3610,7 @@ window.UserData = (() => {
     queueStudyCreateForSync,
     queueStudyUpdateForSync,
     queueStudyDeleteForSync,
+    resolveStudyConflictUseSyncedVersion,
     listPendingOutboxForUser,
     flushOutbox,
     scheduleFlush,
