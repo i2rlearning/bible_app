@@ -2022,6 +2022,11 @@
     updateReferencedScriptureRefreshNotice();
     updateStudyActionAvailability();
 
+    publishStudySync(
+      "study-updated",
+      { study: syncedStudy }
+    );
+
     if (!state.hasUnsavedChanges) {
       setStatus("", "");
       setSaveState("Synced", "success");
@@ -2598,6 +2603,100 @@
     }
   }
 
+  function getExistingStudySyncInput(data) {
+    const currentStudy =
+      state.studies.find(
+        (study) =>
+          String(study?.id || "") ===
+          String(state.activeStudyId || "")
+      ) || {};
+
+    const requestedCategoryId =
+      data.categoryId ||
+      currentStudy.categoryId ||
+      currentStudy.category?.id ||
+      null;
+
+    const selectedCategory =
+      state.categories.find(
+        (category) =>
+          String(category?.id || "") ===
+          String(requestedCategoryId || "")
+      ) ||
+      (
+        String(currentStudy.category?.id || "") ===
+        String(requestedCategoryId || "")
+          ? currentStudy.category
+          : null
+      );
+
+    const {
+      expectedVersion: _expectedVersion,
+      ...localData
+    } = data;
+
+    return {
+      ...currentStudy,
+      ...localData,
+      id: state.activeStudyId,
+      version: state.activeStudyVersion,
+      categoryId: requestedCategoryId,
+      category:
+        selectedCategory ||
+        currentStudy.category ||
+        null,
+      tags: state.selectedTags.map(
+        (tag) => ({ ...tag })
+      ),
+      linkedScriptures:
+        state.linkedScriptures.map(
+          (item) => ({ ...item })
+        ),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function studyDeskConnectionUnavailable() {
+    const connectivity =
+      window.AppShell?.getState?.() || {};
+
+    return (
+      sharedAuthIsSignedInOffline() ||
+      navigator.onLine === false ||
+      connectivity.browserOnline === false ||
+      connectivity.appReachable === false ||
+      connectivity.connectionIssue === true
+    );
+  }
+
+  async function deleteLocalStudyDraftForUser(
+    userId,
+    draftKey
+  ) {
+    const normalizedUserId =
+      String(userId || "");
+    const normalizedDraftKey =
+      String(draftKey || "");
+
+    if (
+      !normalizedUserId ||
+      !normalizedDraftKey
+    ) {
+      return;
+    }
+
+    /*
+     * The Study draft helper still relies on a live Clerk user. Manual local
+     * Save already has a verified user ID, so clear this exact IndexedDB draft
+     * directly to avoid leaving a stale draft behind after an offline Save.
+     */
+    await window.UserOfflineDB?.deleteStudyDraft?.(
+      normalizedUserId,
+      normalizedDraftKey
+    );
+  }
+
+
   async function saveStudy() {
     if (state.referencedScripturesStale) {
       setReferencedScriptureFeedback(
@@ -2610,66 +2709,249 @@
     }
 
     if (state.remoteStudy) {
-      renderStudyConflictNotice("another window or device");
+      renderStudyConflictNotice(
+        "another window or device"
+      );
       return;
     }
 
     const data = collectStudyData();
 
     if (!data.title) {
-      setStatus("Please enter a study title before saving.", "error");
+      setStatus(
+        "Please enter a study title before saving.",
+        "error"
+      );
       els.title.focus();
       return;
     }
 
-    if (state.activeStudyId && !Number.isInteger(state.activeStudyVersion)) {
-      setStatus("This study needs to be reloaded before it can be saved safely.", "error", 0);
+    if (
+      state.activeStudyId &&
+      !Number.isInteger(
+        state.activeStudyVersion
+      )
+    ) {
+      setStatus(
+        "This study needs to be reloaded before it can be saved safely.",
+        "error",
+        0
+      );
       setSaveState("Reload required");
       return;
     }
 
-    const localDraftKeyBeforeServerSave = ensureLocalStudyDraftKey();
+    const isExisting =
+      Boolean(state.activeStudyId);
+
+    /*
+     * New Study creation still uses the existing server path for now. Existing
+     * Studies use the proven local-first outbox pipeline below.
+     */
+    if (!isExisting) {
+      const localDraftKeyBeforeServerSave =
+        ensureLocalStudyDraftKey();
+
+      cancelLocalStudyAutosave();
+      await saveCurrentStudyDraftNow({
+        showStatus: false
+      });
+
+      setStatus("Saving...");
+      setSaveState("Saving...");
+      state.isSaving = true;
+      updateStudyActionAvailability();
+
+      try {
+        const result = await fetchJson(
+          "/api/studies",
+          {
+            method: "POST",
+            body: JSON.stringify(data)
+          }
+        );
+
+        const savedStudy = result.study;
+
+        await deleteLocalStudyDraft(
+          localDraftKeyBeforeServerSave
+        );
+
+        state.activeStudyId =
+          savedStudy.id;
+
+        upsertStudyInState(savedStudy);
+        applyStudyToForm(savedStudy);
+        renderStudyList();
+        setStatus(
+          "Study saved successfully.",
+          "success"
+        );
+        markClean("Saved just now");
+        publishStudySync(
+          "study-updated",
+          { study: savedStudy }
+        );
+      } catch (error) {
+        setStatus(
+          error.message,
+          "error"
+        );
+        setSaveState("Save failed");
+      } finally {
+        state.isSaving = false;
+        updateStudyActionAvailability();
+      }
+
+      return;
+    }
+
+    const userId =
+      await getTrustedStudyUserId();
+
+    if (!userId) {
+      setStatus(
+        "A verified signed-in user is required before this Study can be saved.",
+        "error",
+        0
+      );
+      setSaveState("Save failed");
+      return;
+    }
+
+    const localDraftKeyBeforeSave =
+      ensureLocalStudyDraftKey();
+
     cancelLocalStudyAutosave();
-    await saveCurrentStudyDraftNow({ showStatus: false });
 
     setStatus("Saving...");
     setSaveState("Saving...");
     state.isSaving = true;
     updateStudyActionAvailability();
 
-    const isExisting = !!state.activeStudyId;
-    const url = isExisting ? `/api/studies/${encodeURIComponent(state.activeStudyId)}` : "/api/studies";
-    const method = isExisting ? "PUT" : "POST";
-
     try {
-      const result = await fetchJson(url, {
-        method,
-        body: JSON.stringify(data)
-      });
+      const syncInput =
+        getExistingStudySyncInput(
+          data
+        );
 
-      const savedStudy = result.study;
-      await deleteLocalStudyDraft(localDraftKeyBeforeServerSave);
-      state.activeStudyId = savedStudy.id;
+      const queued =
+        await window.UserData
+          .queueStudyUpdateForSync(
+            userId,
+            syncInput
+          );
+
+      const localStudy =
+        queued?.study?.study ||
+        syncInput;
+
+      upsertStudyInState(localStudy);
+      renderStudyList();
+
+      await deleteLocalStudyDraftForUser(
+        userId,
+        localDraftKeyBeforeSave
+      );
+
+      if (
+        studyDeskConnectionUnavailable()
+      ) {
+        setStatus(
+          "Study saved on this device. It will sync when you are back online.",
+          "success"
+        );
+        markClean(
+          "Saved on this device"
+        );
+        return;
+      }
+
+      await window.UserData.flushOutbox();
+
+      const cached =
+        await window.UserData.getCachedStudy(
+          userId,
+          state.activeStudyId
+        );
+
+      if (
+        cached?.syncStatus ===
+        "conflict"
+      ) {
+        const latest =
+          cached.conflictRemote ||
+          null;
+
+        if (latest) {
+          state.remoteStudy = latest;
+          upsertStudyInState(latest);
+          renderStudyList();
+          renderStudyConflictNotice(
+            "another window or device"
+          );
+        } else {
+          setStatus(
+            "A newer Study version exists. Reload before saving again.",
+            "error",
+            0
+          );
+          setSaveState(
+            "Newer version available"
+          );
+        }
+
+        return;
+      }
+
+      if (
+        cached?.syncStatus === "pending" ||
+        cached?.syncStatus === "sending"
+      ) {
+        setStatus(
+          "Study saved on this device. Synchronization will retry automatically.",
+          "success"
+        );
+        markClean(
+          "Saved on this device"
+        );
+        return;
+      }
+
+      if (
+        cached?.syncStatus !== "clean" ||
+        !cached?.study
+      ) {
+        throw new Error(
+          "The Study was saved locally, but its synchronized state could not be confirmed."
+        );
+      }
+
+      const savedStudy =
+        cached.study;
+
+      state.activeStudyId =
+        savedStudy.id;
 
       upsertStudyInState(savedStudy);
       applyStudyToForm(savedStudy);
       renderStudyList();
-      setStatus("Study saved successfully.", "success");
+      setStatus(
+        "Study saved successfully.",
+        "success"
+      );
       markClean("Saved just now");
-      publishStudySync("study-updated", { study: savedStudy });
     } catch (error) {
-      if (error.status === 409 && error.data?.code === "STUDY_VERSION_CONFLICT") {
-        handleVersionConflict(error, "save");
-        return;
-      }
+      console.error(
+        "Save Study error:",
+        error
+      );
 
-      if (error.status === 428) {
-        setStatus("This study must be reloaded before it can be saved safely.", "error", 0);
-        setSaveState("Reload required");
-        return;
-      }
-
-      setStatus(error.message, "error");
+      setStatus(
+        error.message ||
+          "The Study could not be saved.",
+        "error"
+      );
       setSaveState("Save failed");
     } finally {
       state.isSaving = false;
