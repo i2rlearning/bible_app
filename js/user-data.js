@@ -1413,7 +1413,8 @@ window.UserData = (() => {
 
   async function putStudyOutboxMutation(
     userId,
-    studyRecord
+    studyRecord,
+    operation = "update"
   ) {
     const db = requireUserOfflineDB();
     const entityKey = String(
@@ -1440,11 +1441,15 @@ window.UserData = (() => {
       deviceId: getDeviceId(),
       entityType: ENTITY_STUDY,
       entityKey,
-      operation: "update",
+      operation,
       baseVersion:
-        Number(
-          studyRecord.serverVersion
-        ) || 0,
+        operation === "create"
+          ? 0
+          : (
+              Number(
+                studyRecord.serverVersion
+              ) || 0
+            ),
       payload: {
         title: String(
           study.title || ""
@@ -1507,6 +1512,103 @@ window.UserData = (() => {
     return mutation;
   }
 
+  async function queueStudyCreateForSync(
+    userId,
+    studyInput = {}
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+
+    if (!verifiedUserId) {
+      throw new Error(
+        "A verified userId is required to create a Study."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const studyId =
+      String(studyInput?.id || newUuid());
+
+    const existing =
+      await db.getStudy(
+        verifiedUserId,
+        studyId
+      );
+
+    if (existing) {
+      throw new Error(
+        "A local Study with this ID already exists."
+      );
+    }
+
+    const timestamp = now();
+    const localStudy = {
+      ...cloneLocalValue(
+        studyInput || {}
+      ),
+      id: studyId,
+      version: 0,
+      createdAt:
+        studyInput?.createdAt ||
+        new Date().toISOString(),
+      updatedAt:
+        new Date().toISOString()
+    };
+
+    const record = {
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      studyId,
+      study: localStudy,
+      baseStudy: null,
+      baseVersion: 0,
+      serverVersion: 0,
+      serverUpdatedAt: null,
+      localUpdatedAt: timestamp,
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudy(record);
+
+    const mutation =
+      await putStudyOutboxMutation(
+        verifiedUserId,
+        record,
+        "create"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-local-save",
+      {
+        userId: verifiedUserId,
+        entityType: ENTITY_STUDY,
+        entityKey: studyId,
+        mutationId:
+          mutation.mutationId,
+        deleted: false,
+        created: true
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      study: record,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      created: true
+    };
+  }
+
+
   async function queueStudyUpdateForSync(
     userId,
     studyInput = {}
@@ -1547,7 +1649,18 @@ window.UserData = (() => {
       Number(studyInput.version) ||
       0;
 
-    if (serverVersion < 1) {
+    const pendingStudyMutation =
+      await getReusablePendingMutation(
+        verifiedUserId,
+        ENTITY_STUDY,
+        studyId
+      );
+
+    const pendingCreate =
+      serverVersion === 0 &&
+      pendingStudyMutation?.operation === "create";
+
+    if (serverVersion < 1 && !pendingCreate) {
       throw new Error(
         "An existing server version is required before this Study can synchronize."
       );
@@ -1593,7 +1706,10 @@ window.UserData = (() => {
     const mutation =
       await putStudyOutboxMutation(
         verifiedUserId,
-        record
+        record,
+        pendingCreate
+          ? "create"
+          : "update"
       );
 
     dispatchUserDataEvent(
@@ -3243,6 +3359,7 @@ window.UserData = (() => {
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
     queueMiniEditorDeleteForSync,
+    queueStudyCreateForSync,
     queueStudyUpdateForSync,
     listPendingOutboxForUser,
     flushOutbox,
