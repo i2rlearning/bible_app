@@ -37,6 +37,7 @@ window.UserData = (() => {
   const ENTITY_QUILL_NOTE = "quill_note";
   const ENTITY_MINI_EDITOR_PAGE = "mini_editor_page";
   const ENTITY_STUDY = "study";
+  const ENTITY_STUDY_CATEGORY = "study_category";
   const DEVICE_ID_STORAGE_KEY = "BibleAppDeviceId";
   const LAST_VERIFIED_USER_META_KEY = "phase4LastVerifiedUserId";
   const PENDING_REMOTE_LOGOUT_META_KEY = "pendingRemoteLogoutUserId";
@@ -964,6 +965,280 @@ window.UserData = (() => {
       ok: true,
       count: cached.length,
       studies: cached
+    };
+  }
+
+
+  async function cacheStudyCategoryFromServer(
+    userId,
+    serverCategory
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const categoryId =
+      String(serverCategory?.id || "");
+
+    if (
+      !verifiedUserId ||
+      !categoryId
+    ) {
+      return null;
+    }
+
+    const existing =
+      await db.getStudyCategory(
+        verifiedUserId,
+        categoryId
+      );
+
+    const protectedLocalStatuses =
+      new Set([
+        "pending",
+        "sending",
+        "conflict"
+      ]);
+
+    /*
+     * A server refresh must never overwrite a Category that has local work
+     * waiting to synchronize or a conflict waiting for user resolution.
+     */
+    if (
+      existing &&
+      protectedLocalStatuses.has(
+        existing.syncStatus
+      )
+    ) {
+      return existing;
+    }
+
+    const normalizedCategory =
+      cloneLocalValue(
+        serverCategory
+      );
+
+    const version =
+      Number(
+        normalizedCategory.version
+      ) || 0;
+
+    const record = {
+      ...(existing || {}),
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      categoryId,
+      category:
+        cloneLocalValue(
+          normalizedCategory
+        ),
+      baseCategory:
+        cloneLocalValue(
+          normalizedCategory
+        ),
+      baseVersion: version,
+      serverVersion: version,
+      serverUpdatedAt:
+        normalizedCategory.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "clean",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudyCategory(
+      record
+    );
+
+    return record;
+  }
+
+  async function cacheStudyCategoriesFromServer(
+    userId,
+    serverCategories
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const categories =
+      Array.isArray(serverCategories)
+        ? serverCategories
+        : [];
+
+    if (!verifiedUserId) {
+      return [];
+    }
+
+    const cached = [];
+    const serverCategoryIds =
+      new Set();
+
+    for (const category of categories) {
+      const categoryId =
+        String(category?.id || "");
+
+      if (categoryId) {
+        serverCategoryIds.add(
+          categoryId
+        );
+      }
+
+      const record =
+        await cacheStudyCategoryFromServer(
+          verifiedUserId,
+          category
+        );
+
+      if (record) {
+        cached.push(record);
+      }
+    }
+
+    /*
+     * Remove only clean local records that no longer exist in the complete
+     * server snapshot. Pending, sending, and conflict records remain protected.
+     */
+    const localCategories =
+      await db.listStudyCategories(
+        verifiedUserId
+      );
+
+    for (
+      const record
+      of localCategories
+    ) {
+      if (
+        !serverCategoryIds.has(
+          String(record.categoryId || "")
+        ) &&
+        !["pending", "sending", "conflict"].includes(
+          record.syncStatus
+        )
+      ) {
+        await db.deleteStudyCategory(
+          verifiedUserId,
+          record.categoryId
+        );
+      }
+    }
+
+    return cached;
+  }
+
+  async function getCachedStudyCategory(
+    userId,
+    categoryId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedCategoryId =
+      String(categoryId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedCategoryId
+    ) {
+      return null;
+    }
+
+    return db.getStudyCategory(
+      verifiedUserId,
+      verifiedCategoryId
+    );
+  }
+
+  async function listCachedStudyCategories(
+    userId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+
+    if (!verifiedUserId) {
+      return [];
+    }
+
+    return db.listStudyCategories(
+      verifiedUserId
+    );
+  }
+
+  async function refreshStudyCategoryCacheFromServer() {
+    const userId =
+      getLiveAuthenticatedUserId();
+
+    if (!userId) {
+      throw new Error(
+        "A live authenticated user is required to refresh Study Categories."
+      );
+    }
+
+    if (!canTryServer()) {
+      return {
+        ok: false,
+        reason: "offline",
+        count: 0
+      };
+    }
+
+    const serverUserConfirmed =
+      await waitForServerAuthenticatedUser(
+        userId
+      );
+
+    if (!serverUserConfirmed) {
+      return {
+        ok: false,
+        reason: "auth_not_ready",
+        count: 0
+      };
+    }
+
+    const response = await fetch(
+      "/api/study-categories",
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store"
+      }
+    );
+
+    if (response.redirected) {
+      return {
+        ok: false,
+        reason: "auth_not_ready",
+        count: 0
+      };
+    }
+
+    const body =
+      await readJsonSafely(
+        response
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        body?.message ||
+        "Failed to load Study Categories."
+      );
+    }
+
+    const categories =
+      Array.isArray(body?.categories)
+        ? body.categories
+        : [];
+
+    const cached =
+      await cacheStudyCategoriesFromServer(
+        userId,
+        categories
+      );
+
+    return {
+      ok: true,
+      count: cached.length,
+      categories: cached
     };
   }
 
@@ -3873,6 +4148,7 @@ window.UserData = (() => {
     ENTITY_QUILL_NOTE,
     ENTITY_MINI_EDITOR_PAGE,
     ENTITY_STUDY,
+    ENTITY_STUDY_CATEGORY,
     DEVICE_ID_STORAGE_KEY,
     LAST_VERIFIED_USER_META_KEY,
     getDeviceId,
@@ -3894,6 +4170,11 @@ window.UserData = (() => {
     refreshStudyCacheFromServer,
     getCachedStudy,
     listCachedStudies,
+    cacheStudyCategoryFromServer,
+    cacheStudyCategoriesFromServer,
+    refreshStudyCategoryCacheFromServer,
+    getCachedStudyCategory,
+    listCachedStudyCategories,
     queueQuillNoteForSync,
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
