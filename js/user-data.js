@@ -1686,6 +1686,211 @@ window.UserData = (() => {
     };
   }
 
+  async function putStudyCategoryOutboxMutation(
+    userId,
+    categoryRecord,
+    operation = "create"
+  ) {
+    const db = requireUserOfflineDB();
+    const entityKey =
+      String(categoryRecord.categoryId || "");
+
+    const existing =
+      await getReusablePendingMutation(
+        userId,
+        ENTITY_STUDY_CATEGORY,
+        entityKey
+      );
+
+    const timestamp = now();
+    const category =
+      cloneLocalValue(
+        categoryRecord.category || {}
+      );
+
+    const mutation = {
+      ...(existing || {}),
+      mutationId:
+        existing?.mutationId ||
+        newUuid(),
+      userId: String(userId),
+      deviceId: getDeviceId(),
+      entityType:
+        ENTITY_STUDY_CATEGORY,
+      entityKey,
+      operation,
+      baseVersion:
+        operation === "create"
+          ? 0
+          : (
+              Number(
+                categoryRecord.serverVersion
+              ) || 0
+            ),
+      payload:
+        operation === "delete"
+          ? null
+          : {
+              name: String(
+                category.name || ""
+              ),
+              sortOrder:
+                Number.isFinite(
+                  Number(
+                    category.sortOrder
+                  )
+                )
+                  ? Number(
+                      category.sortOrder
+                    )
+                  : 100
+            },
+      status: "pending",
+      createdAt:
+        Number(existing?.createdAt) ||
+        timestamp,
+      updatedAt: timestamp,
+      attemptCount:
+        Number(
+          existing?.attemptCount
+        ) || 0,
+      lastError: ""
+    };
+
+    await db.putOutboxMutation(
+      mutation
+    );
+
+    return mutation;
+  }
+
+  async function queueStudyCategoryCreateForSync(
+    userId,
+    categoryInput = {}
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+
+    if (!verifiedUserId) {
+      throw new Error(
+        "A verified userId is required to create a Study Category."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const categoryId =
+      String(
+        categoryInput?.id ||
+        newUuid()
+      );
+
+    const existing =
+      await db.getStudyCategory(
+        verifiedUserId,
+        categoryId
+      );
+
+    if (existing) {
+      throw new Error(
+        "A local Study Category with this ID already exists."
+      );
+    }
+
+    const name =
+      String(
+        categoryInput?.name || ""
+      ).trim();
+
+    if (!name) {
+      throw new Error(
+        "A Study Category name is required."
+      );
+    }
+
+    const timestamp = now();
+    const localCategory = {
+      ...cloneLocalValue(
+        categoryInput || {}
+      ),
+      id: categoryId,
+      name,
+      sortOrder:
+        Number.isFinite(
+          Number(
+            categoryInput?.sortOrder
+          )
+        )
+          ? Number(
+              categoryInput.sortOrder
+            )
+          : 100,
+      version: 0,
+      createdAt:
+        categoryInput?.createdAt ||
+        new Date().toISOString(),
+      updatedAt:
+        new Date().toISOString()
+    };
+
+    const record = {
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      categoryId,
+      category:
+        localCategory,
+      baseCategory: null,
+      baseVersion: 0,
+      serverVersion: 0,
+      serverUpdatedAt: null,
+      localUpdatedAt: timestamp,
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudyCategory(
+      record
+    );
+
+    const mutation =
+      await putStudyCategoryOutboxMutation(
+        verifiedUserId,
+        record,
+        "create"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-local-save",
+      {
+        userId: verifiedUserId,
+        entityType:
+          ENTITY_STUDY_CATEGORY,
+        entityKey:
+          categoryId,
+        mutationId:
+          mutation.mutationId,
+        deleted: false,
+        created: true
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      category: record,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      created: true
+    };
+  }
+
+
   async function putStudyOutboxMutation(
     userId,
     studyRecord,
@@ -2574,7 +2779,9 @@ window.UserData = (() => {
           ? (result?.latestPage || null)
           : mutation.entityType === ENTITY_STUDY
             ? (result?.latestStudy || null)
-            : null;
+            : mutation.entityType === ENTITY_STUDY_CATEGORY
+              ? (result?.latestCategory || null)
+              : null;
 
     await db.putOutboxMutation({
       ...mutation,
@@ -2635,6 +2842,26 @@ window.UserData = (() => {
           localUpdatedAt: now()
         });
       }
+    } else if (
+      mutation.entityType === ENTITY_STUDY_CATEGORY
+    ) {
+      const current =
+        await db.getStudyCategory(
+          mutation.userId,
+          mutation.entityKey
+        );
+
+      if (current) {
+        await db.putStudyCategory({
+          ...current,
+          syncStatus: "conflict",
+          conflictRemote:
+            latest
+              ? cloneLocalValue(latest)
+              : null,
+          localUpdatedAt: now()
+        });
+      }
     }
 
     dispatchUserDataEvent("user-data-conflict", {
@@ -2651,6 +2878,10 @@ window.UserData = (() => {
           : null,
       latestStudy:
         mutation.entityType === ENTITY_STUDY
+          ? latest
+          : null,
+      latestCategory:
+        mutation.entityType === ENTITY_STUDY_CATEGORY
           ? latest
           : null
     });
@@ -3007,11 +3238,136 @@ window.UserData = (() => {
   }
 
 
+  async function applyStudyCategorySyncSuccess(
+    mutation,
+    result
+  ) {
+    const db = requireUserOfflineDB();
+
+    const serverCategory =
+      result?.category || null;
+
+    if (
+      !serverCategory?.id ||
+      String(serverCategory.id) !==
+        String(mutation.entityKey)
+    ) {
+      throw new Error(
+        "The server did not return the synchronized Study Category."
+      );
+    }
+
+    const current =
+      await db.getStudyCategory(
+        mutation.userId,
+        mutation.entityKey
+      );
+
+    const serverVersion =
+      Number(serverCategory.version) ||
+      0;
+
+    if (serverVersion < 1) {
+      throw new Error(
+        "The synchronized Study Category did not include a valid version."
+      );
+    }
+
+    const hasNewerLocalWork =
+      Boolean(
+        current &&
+        Number(
+          current.localUpdatedAt || 0
+        ) >
+          Number(
+            mutation.updatedAt ||
+            mutation.createdAt ||
+            0
+          )
+      );
+
+    if (hasNewerLocalWork) {
+      await db.putStudyCategory({
+        ...current,
+        baseCategory:
+          cloneLocalValue(
+            serverCategory
+          ),
+        baseVersion:
+          serverVersion,
+        serverVersion,
+        serverUpdatedAt:
+          serverCategory.updatedAt ||
+          null,
+        syncStatus: "pending",
+        conflictRemote: null
+      });
+
+      await updatePendingMutationBaseVersions(
+        mutation.userId,
+        ENTITY_STUDY_CATEGORY,
+        mutation.entityKey,
+        serverVersion
+      );
+    } else {
+      await db.putStudyCategory({
+        ...(current || {}),
+        userId:
+          mutation.userId,
+        deviceId:
+          getDeviceId(),
+        categoryId:
+          String(serverCategory.id),
+        category:
+          cloneLocalValue(
+            serverCategory
+          ),
+        baseCategory:
+          cloneLocalValue(
+            serverCategory
+          ),
+        baseVersion:
+          serverVersion,
+        serverVersion,
+        serverUpdatedAt:
+          serverCategory.updatedAt ||
+          null,
+        localUpdatedAt:
+          now(),
+        syncStatus: "clean",
+        conflictRemote: null,
+        deleted: false
+      });
+    }
+
+    await db.deleteOutboxMutation(
+      mutation.mutationId
+    );
+
+    dispatchUserDataEvent(
+      "user-data-synced",
+      {
+        userId:
+          mutation.userId,
+        entityType:
+          ENTITY_STUDY_CATEGORY,
+        entityKey:
+          String(serverCategory.id),
+        version:
+          serverVersion,
+        category:
+          serverCategory
+      }
+    );
+  }
+
+
   async function sendOutboxMutation(mutation) {
     if (
       mutation.entityType !== ENTITY_QUILL_NOTE &&
       mutation.entityType !== ENTITY_MINI_EDITOR_PAGE &&
-      mutation.entityType !== ENTITY_STUDY
+      mutation.entityType !== ENTITY_STUDY &&
+      mutation.entityType !== ENTITY_STUDY_CATEGORY
     ) {
       throw new Error(
         `Unsupported outbox entity type: ${mutation.entityType}`
@@ -3224,6 +3580,13 @@ window.UserData = (() => {
             mutation.entityType === ENTITY_STUDY
           ) {
             await applyStudySyncSuccess(
+              mutation,
+              result
+            );
+          } else if (
+            mutation.entityType === ENTITY_STUDY_CATEGORY
+          ) {
+            await applyStudyCategorySyncSuccess(
               mutation,
               result
             );
@@ -4175,6 +4538,7 @@ window.UserData = (() => {
     refreshStudyCategoryCacheFromServer,
     getCachedStudyCategory,
     listCachedStudyCategories,
+    queueStudyCategoryCreateForSync,
     queueQuillNoteForSync,
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
