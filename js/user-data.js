@@ -2063,6 +2063,112 @@ window.UserData = (() => {
   }
 
 
+  async function queueStudyCategoryDeleteForSync(
+    userId,
+    categoryId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedCategoryId =
+      String(categoryId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedCategoryId
+    ) {
+      throw new Error(
+        "A verified userId and Study Category ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const existing =
+      await db.getStudyCategory(
+        verifiedUserId,
+        verifiedCategoryId
+      );
+
+    if (!existing) {
+      throw new Error(
+        "This Study Category is not available in the local cache."
+      );
+    }
+
+    if (existing.syncStatus === "conflict") {
+      throw new Error(
+        "This Study Category has a synchronization conflict that must be resolved first."
+      );
+    }
+
+    const serverVersion =
+      Number(existing.serverVersion) ||
+      0;
+
+    if (serverVersion < 1) {
+      throw new Error(
+        "This Study Category must finish synchronizing before it can be deleted."
+      );
+    }
+
+    /*
+     * Keep a local tombstone until the server accepts the delete. This lets
+     * version-conflict handling preserve both the local delete intention and
+     * a newer remote Category instead of silently losing either side.
+     */
+    const tombstone = {
+      ...existing,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      categoryId: verifiedCategoryId,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: true
+    };
+
+    await db.putStudyCategory(
+      tombstone
+    );
+
+    const mutation =
+      await putStudyCategoryOutboxMutation(
+        verifiedUserId,
+        tombstone,
+        "delete"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-local-save",
+      {
+        userId: verifiedUserId,
+        entityType:
+          ENTITY_STUDY_CATEGORY,
+        entityKey:
+          verifiedCategoryId,
+        mutationId:
+          mutation.mutationId,
+        deleted: true
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      categoryId:
+        verifiedCategoryId,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      deleted: true
+    };
+  }
+
+
   async function putStudyOutboxMutation(
     userId,
     studyRecord,
@@ -3416,6 +3522,48 @@ window.UserData = (() => {
   ) {
     const db = requireUserOfflineDB();
 
+    if (mutation.operation === "delete") {
+      if (
+        result?.deleted !== true ||
+        String(result?.categoryId || "") !==
+          String(mutation.entityKey)
+      ) {
+        throw new Error(
+          "The server did not confirm the Study Category deletion."
+        );
+      }
+
+      await db.deleteStudyCategory(
+        mutation.userId,
+        mutation.entityKey
+      );
+
+      await db.deleteOutboxMutation(
+        mutation.mutationId
+      );
+
+      dispatchUserDataEvent(
+        "user-data-synced",
+        {
+          userId:
+            mutation.userId,
+          entityType:
+            ENTITY_STUDY_CATEGORY,
+          entityKey:
+            String(mutation.entityKey),
+          deleted: true,
+          affectedStudyIds:
+            Array.isArray(
+              result?.affectedStudyIds
+            )
+              ? result.affectedStudyIds
+              : []
+        }
+      );
+
+      return;
+    }
+
     const serverCategory =
       result?.category || null;
 
@@ -3532,7 +3680,6 @@ window.UserData = (() => {
       }
     );
   }
-
 
   async function sendOutboxMutation(mutation) {
     if (
@@ -4712,6 +4859,7 @@ window.UserData = (() => {
     listCachedStudyCategories,
     queueStudyCategoryCreateForSync,
     queueStudyCategoryUpdateForSync,
+    queueStudyCategoryDeleteForSync,
     queueQuillNoteForSync,
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
