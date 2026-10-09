@@ -1480,6 +1480,593 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
 }
 
 
+async function processStudyCategorySyncMutation(
+  userId,
+  deviceId,
+  mutation
+) {
+  const mutationId =
+    String(mutation?.mutationId || "").trim();
+  const entityType =
+    String(mutation?.entityType || "").trim();
+  const entityKey =
+    String(mutation?.entityKey || "").trim();
+  const operation =
+    String(mutation?.operation || "").trim();
+  const baseVersion =
+    Number(mutation?.baseVersion);
+  const payload =
+    mutation?.payload || null;
+
+  if (!isUuid(mutationId)) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_MUTATION_ID_INVALID",
+      message: "A valid mutationId is required."
+    };
+  }
+
+  if (entityType !== "study_category") {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_ENTITY_UNSUPPORTED",
+      message:
+        "This entity type is not supported by the sync endpoint yet."
+    };
+  }
+
+  if (!isUuid(entityKey)) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_ENTITY_KEY_INVALID",
+      message: "A valid Study Category ID is required."
+    };
+  }
+
+  if (
+    !["create", "update", "delete"].includes(
+      operation
+    )
+  ) {
+    return {
+      mutationId,
+      status: "error",
+      code:
+        "SYNC_STUDY_CATEGORY_OPERATION_UNSUPPORTED",
+      message:
+        "This Study Category operation is not supported by the sync endpoint yet."
+    };
+  }
+
+  if (
+    operation === "create" &&
+    (
+      !Number.isInteger(baseVersion) ||
+      baseVersion !== 0
+    )
+  ) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_NEW_VERSION_INVALID",
+      message:
+        "A new Study Category must start from server version 0."
+    };
+  }
+
+  if (
+    ["update", "delete"].includes(operation) &&
+    (
+      !Number.isInteger(baseVersion) ||
+      baseVersion < 1
+    )
+  ) {
+    return {
+      mutationId,
+      status: "error",
+      code: "SYNC_EXISTING_VERSION_REQUIRED",
+      message:
+        "A Study Category update or delete requires an existing server version."
+    };
+  }
+
+  const name =
+    normalizeText(payload?.name);
+
+  if (
+    operation !== "delete" &&
+    (!payload || !name)
+  ) {
+    return {
+      mutationId,
+      status: "error",
+      code:
+        "SYNC_STUDY_CATEGORY_PAYLOAD_INVALID",
+      message:
+        "The Study Category payload is incomplete."
+    };
+  }
+
+  const client =
+    await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const claim =
+      await client.query(
+        `
+        INSERT INTO sync_mutations (
+          user_id,
+          mutation_id,
+          device_id,
+          entity_type,
+          entity_key,
+          operation,
+          processed_at,
+          result_version,
+          result_json
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6,
+          NOW(), NULL, NULL
+        )
+        ON CONFLICT (
+          user_id,
+          mutation_id
+        )
+        DO NOTHING
+        RETURNING mutation_id
+        `,
+        [
+          userId,
+          mutationId,
+          deviceId,
+          entityType,
+          entityKey,
+          operation
+        ]
+      );
+
+    if (!claim.rows.length) {
+      const previous =
+        await client.query(
+          `
+          SELECT
+            result_version,
+            result_json
+          FROM sync_mutations
+          WHERE user_id = $1
+            AND mutation_id = $2
+          LIMIT 1
+          `,
+          [
+            userId,
+            mutationId
+          ]
+        );
+
+      await client.query("COMMIT");
+
+      return {
+        mutationId,
+        status: "ok",
+        duplicate: true,
+        resultVersion:
+          previous.rows[0]?.result_version ??
+          null,
+        result:
+          previous.rows[0]?.result_json ||
+          null
+      };
+    }
+
+    let resultVersion = null;
+    let resultJson = null;
+
+    if (operation === "create") {
+      const duplicateName =
+        await client.query(
+          `
+          SELECT *
+          FROM user_study_categories
+          WHERE user_id = $1
+            AND LOWER(name) = LOWER($2)
+          LIMIT 1
+          `,
+          [
+            userId,
+            name
+          ]
+        );
+
+      if (duplicateName.rows.length) {
+        await client.query("ROLLBACK");
+
+        return {
+          mutationId,
+          status: "conflict",
+          code:
+            "STUDY_CATEGORY_NAME_CONFLICT",
+          message:
+            "A Study Category with this name already exists.",
+          latestCategory:
+            mapCategoryRow(
+              duplicateName.rows[0]
+            )
+        };
+      }
+
+      const created =
+        await client.query(
+          `
+          INSERT INTO user_study_categories (
+            id,
+            user_id,
+            name,
+            sort_order,
+            is_default,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            $2,
+            $1,
+            $3,
+            $4,
+            FALSE,
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (id)
+          DO NOTHING
+          RETURNING *
+          `,
+          [
+            userId,
+            entityKey,
+            name,
+            normalizeSortOrder(
+              payload.sortOrder,
+              100
+            )
+          ]
+        );
+
+      if (!created.rows.length) {
+        await client.query("ROLLBACK");
+
+        return {
+          mutationId,
+          status: "conflict",
+          code:
+            "STUDY_CATEGORY_CREATE_ID_CONFLICT",
+          message:
+            "This Study Category could not be created because its ID is already in use."
+        };
+      }
+
+      const category =
+        mapCategoryRow(
+          created.rows[0]
+        );
+
+      resultVersion =
+        category.version;
+
+      resultJson = {
+        category
+      };
+    }
+
+    if (operation === "update") {
+      const duplicateName =
+        await client.query(
+          `
+          SELECT *
+          FROM user_study_categories
+          WHERE user_id = $1
+            AND id <> $2
+            AND LOWER(name) = LOWER($3)
+          LIMIT 1
+          `,
+          [
+            userId,
+            entityKey,
+            name
+          ]
+        );
+
+      if (duplicateName.rows.length) {
+        await client.query("ROLLBACK");
+
+        return {
+          mutationId,
+          status: "conflict",
+          code:
+            "STUDY_CATEGORY_NAME_CONFLICT",
+          message:
+            "A Study Category with this name already exists.",
+          latestCategory:
+            mapCategoryRow(
+              duplicateName.rows[0]
+            )
+        };
+      }
+
+      const updated =
+        await client.query(
+          `
+          UPDATE user_study_categories
+          SET
+            name = $3,
+            sort_order = $4,
+            version = version + 1,
+            updated_at = NOW()
+          WHERE user_id = $1
+            AND id = $2
+            AND version = $5
+          RETURNING *
+          `,
+          [
+            userId,
+            entityKey,
+            name,
+            normalizeSortOrder(
+              payload.sortOrder
+            ),
+            baseVersion
+          ]
+        );
+
+      if (!updated.rows.length) {
+        const latest =
+          await client.query(
+            `
+            SELECT *
+            FROM user_study_categories
+            WHERE user_id = $1
+              AND id = $2
+            LIMIT 1
+            `,
+            [
+              userId,
+              entityKey
+            ]
+          );
+
+        await client.query("ROLLBACK");
+
+        if (!latest.rows.length) {
+          return {
+            mutationId,
+            status: "error",
+            code:
+              "SYNC_STUDY_CATEGORY_NOT_FOUND",
+            message:
+              "Study Category not found."
+          };
+        }
+
+        return {
+          mutationId,
+          status: "conflict",
+          code:
+            "STUDY_CATEGORY_VERSION_CONFLICT",
+          message:
+            "This Study Category changed since this device last synchronized.",
+          latestCategory:
+            mapCategoryRow(
+              latest.rows[0]
+            )
+        };
+      }
+
+      const category =
+        mapCategoryRow(
+          updated.rows[0]
+        );
+
+      resultVersion =
+        category.version;
+
+      resultJson = {
+        category
+      };
+    }
+
+    if (operation === "delete") {
+      const current =
+        await client.query(
+          `
+          SELECT *
+          FROM user_study_categories
+          WHERE user_id = $1
+            AND id = $2
+          FOR UPDATE
+          `,
+          [
+            userId,
+            entityKey
+          ]
+        );
+
+      if (!current.rows.length) {
+        resultVersion = null;
+        resultJson = {
+          deleted: true,
+          categoryId: entityKey
+        };
+      } else {
+        const category =
+          mapCategoryRow(
+            current.rows[0]
+          );
+
+        if (
+          category.version !==
+          baseVersion
+        ) {
+          await client.query("ROLLBACK");
+
+          return {
+            mutationId,
+            status: "conflict",
+            code:
+              "STUDY_CATEGORY_VERSION_CONFLICT",
+            message:
+              "This Study Category changed before it could be deleted.",
+            latestCategory:
+              category
+          };
+        }
+
+        const affectedStudies =
+          await client.query(
+            `
+            UPDATE saved_studies
+            SET
+              category_id = NULL,
+              version = version + 1,
+              updated_at = NOW()
+            WHERE user_id = $1
+              AND category_id = $2
+            RETURNING id, version
+            `,
+            [
+              userId,
+              entityKey
+            ]
+          );
+
+        for (
+          const studyRow
+          of affectedStudies.rows
+        ) {
+          await client.query(
+            `
+            INSERT INTO sync_change_log (
+              user_id,
+              entity_type,
+              entity_key,
+              operation,
+              resulting_version,
+              source_device_id,
+              source_mutation_id,
+              changed_at
+            )
+            VALUES (
+              $1, 'study', $2, 'update',
+              $3, $4, $5, NOW()
+            )
+            `,
+            [
+              userId,
+              studyRow.id,
+              Number(studyRow.version) ||
+                null,
+              deviceId,
+              mutationId
+            ]
+          );
+        }
+
+        await client.query(
+          `
+          DELETE FROM user_study_categories
+          WHERE user_id = $1
+            AND id = $2
+          `,
+          [
+            userId,
+            entityKey
+          ]
+        );
+
+        resultVersion = null;
+        resultJson = {
+          deleted: true,
+          categoryId: entityKey,
+          affectedStudyIds:
+            affectedStudies.rows.map(
+              (row) =>
+                String(row.id)
+            )
+        };
+      }
+    }
+
+    await client.query(
+      `
+      UPDATE sync_mutations
+      SET
+        result_version = $3,
+        result_json = $4
+      WHERE user_id = $1
+        AND mutation_id = $2
+      `,
+      [
+        userId,
+        mutationId,
+        resultVersion,
+        resultJson
+      ]
+    );
+
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id,
+        entity_type,
+        entity_key,
+        operation,
+        resulting_version,
+        source_device_id,
+        source_mutation_id,
+        changed_at
+      )
+      VALUES (
+        $1, $2, $3, $4,
+        $5, $6, $7, NOW()
+      )
+      `,
+      [
+        userId,
+        entityType,
+        entityKey,
+        operation,
+        resultVersion,
+        deviceId,
+        mutationId
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      mutationId,
+      status: "ok",
+      duplicate: false,
+      resultVersion,
+      result: resultJson
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_rollbackError) {
+      // Preserve the original database error for logging.
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+
 app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
@@ -1517,6 +2104,17 @@ app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
 
       if (mutation?.entityType === "study") {
         results.push(await processStudySyncMutation(userId, deviceId, mutation));
+        continue;
+      }
+
+      if (mutation?.entityType === "study_category") {
+        results.push(
+          await processStudyCategorySyncMutation(
+            userId,
+            deviceId,
+            mutation
+          )
+        );
         continue;
       }
 
