@@ -2094,6 +2094,141 @@ window.UserData = (() => {
   }
 
 
+  async function resolveStudyDeleteConflictKeepDelete(
+    userId,
+    studyId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedStudyId =
+      String(studyId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedStudyId
+    ) {
+      throw new Error(
+        "A verified userId and Study ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const current =
+      await db.getStudy(
+        verifiedUserId,
+        verifiedStudyId
+      );
+
+    if (
+      !current ||
+      current.syncStatus !== "conflict" ||
+      current.deleted !== true
+    ) {
+      throw new Error(
+        "This Study does not currently have a delete conflict."
+      );
+    }
+
+    const remote =
+      current.conflictRemote
+        ? cloneLocalValue(
+            current.conflictRemote
+          )
+        : null;
+
+    const remoteVersion =
+      Number(remote?.version) || 0;
+
+    if (
+      !remote?.id ||
+      String(remote.id) !==
+        verifiedStudyId ||
+      remoteVersion < 1
+    ) {
+      throw new Error(
+        "The newer synchronized Study version is not available."
+      );
+    }
+
+    /*
+     * Keeping the delete means rebasing the deletion intention onto the
+     * newest synchronized Study version before sending a fresh delete
+     * mutation. This preserves version protection and prevents a stale delete
+     * from silently removing newer work.
+     */
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY,
+        verifiedStudyId
+      );
+
+    for (const item of outboxItems) {
+      await db.deleteOutboxMutation(
+        item.mutationId
+      );
+    }
+
+    const rebasedRecord = {
+      ...current,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      studyId: verifiedStudyId,
+      study: cloneLocalValue(remote),
+      baseStudy: cloneLocalValue(remote),
+      baseVersion: remoteVersion,
+      serverVersion: remoteVersion,
+      serverUpdatedAt:
+        remote.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: true
+    };
+
+    await db.putStudy(rebasedRecord);
+
+    const mutation =
+      await putStudyOutboxMutation(
+        verifiedUserId,
+        rebasedRecord,
+        "delete"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-conflict-resolved",
+      {
+        userId: verifiedUserId,
+        entityType: ENTITY_STUDY,
+        entityKey: verifiedStudyId,
+        resolution: "keep-delete",
+        baseVersion: remoteVersion,
+        mutationId:
+          mutation.mutationId,
+        deleted: true
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      studyId: verifiedStudyId,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      resolution: "keep-delete",
+      baseVersion: remoteVersion,
+      deleted: true
+    };
+  }
+
+
   async function listPendingOutboxForUser(userId) {
     const db = requireUserOfflineDB();
     const verifiedUserId = String(userId || "");
@@ -3768,6 +3903,7 @@ window.UserData = (() => {
     queueStudyDeleteForSync,
     resolveStudyConflictUseSyncedVersion,
     resolveStudyConflictKeepThisDevice,
+    resolveStudyDeleteConflictKeepDelete,
     listPendingOutboxForUser,
     flushOutbox,
     scheduleFlush,
