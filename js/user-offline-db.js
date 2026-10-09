@@ -19,7 +19,7 @@
 
 window.UserOfflineDB = (() => {
   const DB_NAME = "UserOfflineDB";
-  const DB_VERSION = 4;
+  const DB_VERSION = 5;
 
   const STORES = Object.freeze({
     meta: "meta",
@@ -27,6 +27,7 @@ window.UserOfflineDB = (() => {
     quillNotes: "quillNotes",
     studyDrafts: "studyDrafts",
     studies: "studies",
+    studyCategories: "studyCategories",
     miniEditorPages: "miniEditorPages",
     outbox: "outbox"
   });
@@ -96,6 +97,33 @@ window.UserOfflineDB = (() => {
           studies.createIndex("by_user_study", ["userId", "studyId"], { unique: true });
           studies.createIndex("by_user_updated", ["userId", "localUpdatedAt"], { unique: false });
           studies.createIndex("by_user_sync", ["userId", "syncStatus"], { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains(STORES.studyCategories)) {
+          const categories = db.createObjectStore(
+            STORES.studyCategories,
+            { keyPath: "localKey" }
+          );
+          categories.createIndex(
+            "by_user",
+            "userId",
+            { unique: false }
+          );
+          categories.createIndex(
+            "by_user_category",
+            ["userId", "categoryId"],
+            { unique: true }
+          );
+          categories.createIndex(
+            "by_user_updated",
+            ["userId", "localUpdatedAt"],
+            { unique: false }
+          );
+          categories.createIndex(
+            "by_user_sync",
+            ["userId", "syncStatus"],
+            { unique: false }
+          );
         }
 
         if (!db.objectStoreNames.contains(STORES.miniEditorPages)) {
@@ -336,6 +364,89 @@ window.UserOfflineDB = (() => {
     );
   }
 
+  function buildStudyCategoryLocalKey(userId, categoryId) {
+    return `${userId}::study_category::${categoryId}`;
+  }
+
+  async function getStudyCategory(userId, categoryId) {
+    if (!userId || !categoryId) return null;
+
+    const db = await open();
+    const transaction = db.transaction(
+      STORES.studyCategories,
+      "readonly"
+    );
+    const index = transaction
+      .objectStore(STORES.studyCategories)
+      .index("by_user_category");
+    const result = await requestToPromise(
+      index.get([userId, categoryId])
+    );
+    await transactionToPromise(transaction);
+    return result || null;
+  }
+
+  async function putStudyCategory(category) {
+    if (!category?.userId || !category?.categoryId) {
+      throw new Error(
+        "Cannot store a Study Category without userId and categoryId."
+      );
+    }
+
+    const record = {
+      ...category,
+      localKey:
+        category.localKey ||
+        buildStudyCategoryLocalKey(
+          category.userId,
+          category.categoryId
+        )
+    };
+
+    return put(
+      STORES.studyCategories,
+      record
+    );
+  }
+
+  async function deleteStudyCategory(userId, categoryId) {
+    if (!userId || !categoryId) return;
+
+    return remove(
+      STORES.studyCategories,
+      buildStudyCategoryLocalKey(
+        userId,
+        categoryId
+      )
+    );
+  }
+
+  async function listStudyCategories(userId) {
+    if (!userId) return [];
+
+    const db = await open();
+    const transaction = db.transaction(
+      STORES.studyCategories,
+      "readonly"
+    );
+    const index = transaction
+      .objectStore(STORES.studyCategories)
+      .index("by_user");
+    const results = await requestToPromise(
+      index.getAll(userId)
+    );
+    await transactionToPromise(transaction);
+
+    return (results || []).sort(
+      (a, b) =>
+        Number(a.category?.sortOrder ?? 0) -
+          Number(b.category?.sortOrder ?? 0) ||
+        String(a.category?.name || "").localeCompare(
+          String(b.category?.name || "")
+        )
+    );
+  }
+
   function buildMiniEditorLocalKey(userId, pageKey) {
     return `${userId}::mini_editor_page::${pageKey}`;
   }
@@ -466,6 +577,10 @@ window.UserOfflineDB = (() => {
     putStudy,
     deleteStudy,
     listStudies,
+    getStudyCategory,
+    putStudyCategory,
+    deleteStudyCategory,
+    listStudyCategories,
     getMiniEditorPage,
     getMiniEditorPageByBibleChapter,
     putMiniEditorPage,
@@ -479,6 +594,7 @@ window.UserOfflineDB = (() => {
     buildQuillLocalKey,
     buildStudyDraftLocalKey,
     buildStudyLocalKey,
+    buildStudyCategoryLocalKey,
     buildMiniEditorLocalKey
   });
 })();
