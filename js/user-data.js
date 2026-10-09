@@ -1891,6 +1891,178 @@ window.UserData = (() => {
   }
 
 
+  async function queueStudyCategoryUpdateForSync(
+    userId,
+    categoryInput = {}
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const categoryId =
+      String(categoryInput?.id || "");
+
+    if (
+      !verifiedUserId ||
+      !categoryId
+    ) {
+      throw new Error(
+        "A verified userId and existing Study Category ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const existing =
+      await db.getStudyCategory(
+        verifiedUserId,
+        categoryId
+      );
+
+    if (!existing) {
+      throw new Error(
+        "This Study Category is not available in the local cache."
+      );
+    }
+
+    if (existing.syncStatus === "conflict") {
+      throw new Error(
+        "This Study Category has a synchronization conflict that must be resolved first."
+      );
+    }
+
+    const name =
+      String(
+        categoryInput?.name ??
+        existing.category?.name ??
+        ""
+      ).trim();
+
+    if (!name) {
+      throw new Error(
+        "A Study Category name is required."
+      );
+    }
+
+    const serverVersion =
+      Number(existing.serverVersion) ||
+      Number(categoryInput?.version) ||
+      0;
+
+    const pendingMutation =
+      await getReusablePendingMutation(
+        verifiedUserId,
+        ENTITY_STUDY_CATEGORY,
+        categoryId
+      );
+
+    /*
+     * A Category created offline can be edited again before its first sync.
+     * In that case keep one create mutation and replace its payload instead
+     * of producing an invalid update against server version 0.
+     */
+    const pendingCreate =
+      serverVersion === 0 &&
+      pendingMutation?.operation === "create";
+
+    if (
+      serverVersion < 1 &&
+      !pendingCreate
+    ) {
+      throw new Error(
+        "An existing server version is required before this Study Category can synchronize."
+      );
+    }
+
+    const localCategory = {
+      ...cloneLocalValue(
+        existing.category || {}
+      ),
+      ...cloneLocalValue(
+        categoryInput || {}
+      ),
+      id: categoryId,
+      name,
+      sortOrder:
+        Number.isFinite(
+          Number(
+            categoryInput?.sortOrder ??
+            existing.category?.sortOrder
+          )
+        )
+          ? Number(
+              categoryInput?.sortOrder ??
+              existing.category?.sortOrder
+            )
+          : 100,
+      version: serverVersion,
+      updatedAt:
+        new Date().toISOString()
+    };
+
+    const record = {
+      ...existing,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      categoryId,
+      category:
+        localCategory,
+      baseCategory:
+        cloneLocalValue(
+          existing.baseCategory ||
+          existing.category ||
+          localCategory
+        ),
+      baseVersion:
+        Number(existing.baseVersion) ||
+        serverVersion,
+      serverVersion,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudyCategory(
+      record
+    );
+
+    const mutation =
+      await putStudyCategoryOutboxMutation(
+        verifiedUserId,
+        record,
+        pendingCreate
+          ? "create"
+          : "update"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-local-save",
+      {
+        userId: verifiedUserId,
+        entityType:
+          ENTITY_STUDY_CATEGORY,
+        entityKey:
+          categoryId,
+        mutationId:
+          mutation.mutationId,
+        deleted: false
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      category: record,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending"
+    };
+  }
+
+
   async function putStudyOutboxMutation(
     userId,
     studyRecord,
@@ -4539,6 +4711,7 @@ window.UserData = (() => {
     getCachedStudyCategory,
     listCachedStudyCategories,
     queueStudyCategoryCreateForSync,
+    queueStudyCategoryUpdateForSync,
     queueQuillNoteForSync,
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
