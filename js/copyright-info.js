@@ -92,7 +92,6 @@
       ["Name", name],
       ["Abbreviation", abbreviation],
       ["Language", language],
-      ["Bible ID", bibleId],
       ["Updated", updatedAt]
     ].filter(([, value]) => Boolean(value));
 
