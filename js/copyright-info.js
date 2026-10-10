@@ -88,6 +88,7 @@
     const description = details.description || "";
     const updatedAt = details.updatedAt || "";
 
+    // removed ["Bible ID", bibleId], this list - I do not believe it is needed  
     const metaRows = [
       ["Name", name],
       ["Abbreviation", abbreviation],
