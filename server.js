@@ -1843,11 +1843,13 @@ async function processStudyCategorySyncMutation(
         if (!latest.rows.length) {
           return {
             mutationId,
-            status: "error",
+            status: "conflict",
             code:
-              "SYNC_STUDY_CATEGORY_NOT_FOUND",
+              "STUDY_CATEGORY_REMOTE_DELETE_CONFLICT",
             message:
-              "Study Category not found."
+              "This Study Category was deleted on another device while this device had local changes.",
+            latestCategory: null,
+            remoteDeleted: true
           };
         }
 
