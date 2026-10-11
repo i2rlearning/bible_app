@@ -2169,6 +2169,291 @@ window.UserData = (() => {
   }
 
 
+  async function resolveStudyCategoryConflictUseSyncedVersion(
+    userId,
+    categoryId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedCategoryId =
+      String(categoryId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedCategoryId
+    ) {
+      throw new Error(
+        "A verified userId and Study Category ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const current =
+      await db.getStudyCategory(
+        verifiedUserId,
+        verifiedCategoryId
+      );
+
+    if (
+      !current ||
+      current.syncStatus !== "conflict"
+    ) {
+      throw new Error(
+        "This Study Category does not currently have a synchronization conflict."
+      );
+    }
+
+    const remote =
+      current.conflictRemote
+        ? cloneLocalValue(
+            current.conflictRemote
+          )
+        : null;
+
+    const remoteVersion =
+      Number(remote?.version) || 0;
+
+    if (
+      !remote?.id ||
+      String(remote.id) !==
+        verifiedCategoryId ||
+      remoteVersion < 1
+    ) {
+      throw new Error(
+        "The newer synchronized Study Category version is not available."
+      );
+    }
+
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY_CATEGORY,
+        verifiedCategoryId
+      );
+
+    for (const item of outboxItems) {
+      await db.deleteOutboxMutation(
+        item.mutationId
+      );
+    }
+
+    const cleanRecord = {
+      ...current,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      categoryId:
+        verifiedCategoryId,
+      category:
+        cloneLocalValue(remote),
+      baseCategory:
+        cloneLocalValue(remote),
+      baseVersion:
+        remoteVersion,
+      serverVersion:
+        remoteVersion,
+      serverUpdatedAt:
+        remote.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "clean",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudyCategory(
+      cleanRecord
+    );
+
+    dispatchUserDataEvent(
+      "user-data-conflict-resolved",
+      {
+        userId: verifiedUserId,
+        entityType:
+          ENTITY_STUDY_CATEGORY,
+        entityKey:
+          verifiedCategoryId,
+        resolution: "use-synced",
+        version: remoteVersion,
+        category: remote
+      }
+    );
+
+    return cleanRecord;
+  }
+
+
+  async function resolveStudyCategoryConflictKeepThisDevice(
+    userId,
+    categoryId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedCategoryId =
+      String(categoryId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedCategoryId
+    ) {
+      throw new Error(
+        "A verified userId and Study Category ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const current =
+      await db.getStudyCategory(
+        verifiedUserId,
+        verifiedCategoryId
+      );
+
+    if (
+      !current ||
+      current.syncStatus !== "conflict"
+    ) {
+      throw new Error(
+        "This Study Category does not currently have a synchronization conflict."
+      );
+    }
+
+    const localCategory =
+      current.category
+        ? cloneLocalValue(
+            current.category
+          )
+        : null;
+
+    const remote =
+      current.conflictRemote
+        ? cloneLocalValue(
+            current.conflictRemote
+          )
+        : null;
+
+    const remoteVersion =
+      Number(remote?.version) || 0;
+
+    if (
+      !localCategory?.id ||
+      String(localCategory.id) !==
+        verifiedCategoryId
+    ) {
+      throw new Error(
+        "The local Study Category version is not available."
+      );
+    }
+
+    if (
+      !remote?.id ||
+      String(remote.id) !==
+        verifiedCategoryId ||
+      remoteVersion < 1
+    ) {
+      throw new Error(
+        "The newer synchronized Study Category version is not available."
+      );
+    }
+
+    /*
+     * Keeping this device preserves the local Category values while rebasing
+     * the next mutation onto the newer synchronized version. This prevents a
+     * stale retry from silently overwriting remote work without an explicit
+     * conflict-resolution choice.
+     */
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY_CATEGORY,
+        verifiedCategoryId
+      );
+
+    for (const item of outboxItems) {
+      await db.deleteOutboxMutation(
+        item.mutationId
+      );
+    }
+
+    const rebasedCategory = {
+      ...localCategory,
+      id: verifiedCategoryId,
+      version: remoteVersion,
+      updatedAt:
+        new Date().toISOString()
+    };
+
+    const rebasedRecord = {
+      ...current,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      categoryId:
+        verifiedCategoryId,
+      category:
+        rebasedCategory,
+      baseCategory:
+        cloneLocalValue(remote),
+      baseVersion:
+        remoteVersion,
+      serverVersion:
+        remoteVersion,
+      serverUpdatedAt:
+        remote.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: false
+    };
+
+    await db.putStudyCategory(
+      rebasedRecord
+    );
+
+    const mutation =
+      await putStudyCategoryOutboxMutation(
+        verifiedUserId,
+        rebasedRecord,
+        "update"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-conflict-resolved",
+      {
+        userId: verifiedUserId,
+        entityType:
+          ENTITY_STUDY_CATEGORY,
+        entityKey:
+          verifiedCategoryId,
+        resolution: "keep-device",
+        baseVersion:
+          remoteVersion,
+        mutationId:
+          mutation.mutationId,
+        category:
+          rebasedCategory
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      category: rebasedRecord,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      resolution: "keep-device"
+    };
+  }
+
+
   async function putStudyOutboxMutation(
     userId,
     studyRecord,
@@ -4860,6 +5145,8 @@ window.UserData = (() => {
     queueStudyCategoryCreateForSync,
     queueStudyCategoryUpdateForSync,
     queueStudyCategoryDeleteForSync,
+    resolveStudyCategoryConflictUseSyncedVersion,
+    resolveStudyCategoryConflictKeepThisDevice,
     queueQuillNoteForSync,
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
