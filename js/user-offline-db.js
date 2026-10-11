@@ -371,19 +371,18 @@ window.UserOfflineDB = (() => {
   async function getStudyCategory(userId, categoryId) {
     if (!userId || !categoryId) return null;
 
-    const db = await open();
-    const transaction = db.transaction(
+    /*
+     * Category records already use a deterministic primary key made from the
+     * user ID and Category ID. Reading by that primary key avoids depending
+     * on a secondary compound index for an exact single-record lookup.
+     */
+    return get(
       STORES.studyCategories,
-      "readonly"
+      buildStudyCategoryLocalKey(
+        String(userId),
+        String(categoryId)
+      )
     );
-    const index = transaction
-      .objectStore(STORES.studyCategories)
-      .index("by_user_category");
-    const result = await requestToPromise(
-      index.get([userId, categoryId])
-    );
-    await transactionToPromise(transaction);
-    return result || null;
   }
 
   async function putStudyCategory(category) {
