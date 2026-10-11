@@ -1043,6 +1043,7 @@ window.UserData = (() => {
       localUpdatedAt: now(),
       syncStatus: "clean",
       conflictRemote: null,
+      conflictRemoteDeleted: false,
       deleted: false
     };
 
@@ -1849,6 +1850,7 @@ window.UserData = (() => {
       localUpdatedAt: timestamp,
       syncStatus: "pending",
       conflictRemote: null,
+      conflictRemoteDeleted: false,
       deleted: false
     };
 
@@ -2021,6 +2023,7 @@ window.UserData = (() => {
       localUpdatedAt: now(),
       syncStatus: "pending",
       conflictRemote: null,
+      conflictRemoteDeleted: false,
       deleted: false
     };
 
@@ -2127,6 +2130,7 @@ window.UserData = (() => {
       localUpdatedAt: now(),
       syncStatus: "pending",
       conflictRemote: null,
+      conflictRemoteDeleted: false,
       deleted: true
     };
 
@@ -2207,6 +2211,55 @@ window.UserData = (() => {
       );
     }
 
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY_CATEGORY,
+        verifiedCategoryId
+      );
+
+    /*
+     * When the synchronized state is a deletion, choosing the synced version
+     * means explicitly accepting that deletion. Local work is removed only
+     * after this resolver is called by the user.
+     */
+    if (current.conflictRemoteDeleted === true) {
+      for (const item of outboxItems) {
+        await db.deleteOutboxMutation(
+          item.mutationId
+        );
+      }
+
+      await db.deleteStudyCategory(
+        verifiedUserId,
+        verifiedCategoryId
+      );
+
+      dispatchUserDataEvent(
+        "user-data-conflict-resolved",
+        {
+          userId: verifiedUserId,
+          entityType:
+            ENTITY_STUDY_CATEGORY,
+          entityKey:
+            verifiedCategoryId,
+          resolution:
+            "accept-remote-delete",
+          deleted: true
+        }
+      );
+
+      return {
+        userId: verifiedUserId,
+        categoryId:
+          verifiedCategoryId,
+        syncStatus: "clean",
+        resolution:
+          "accept-remote-delete",
+        deleted: true
+      };
+    }
+
     const remote =
       current.conflictRemote
         ? cloneLocalValue(
@@ -2227,13 +2280,6 @@ window.UserData = (() => {
         "The newer synchronized Study Category version is not available."
       );
     }
-
-    const outboxItems =
-      await db.listOutboxForEntity(
-        verifiedUserId,
-        ENTITY_STUDY_CATEGORY,
-        verifiedCategoryId
-      );
 
     for (const item of outboxItems) {
       await db.deleteOutboxMutation(
@@ -2261,6 +2307,7 @@ window.UserData = (() => {
       localUpdatedAt: now(),
       syncStatus: "clean",
       conflictRemote: null,
+      conflictRemoteDeleted: false,
       deleted: false
     };
 
@@ -2284,7 +2331,6 @@ window.UserData = (() => {
 
     return cleanRecord;
   }
-
 
   async function resolveStudyCategoryConflictKeepThisDevice(
     userId,
@@ -2331,16 +2377,6 @@ window.UserData = (() => {
           )
         : null;
 
-    const remote =
-      current.conflictRemote
-        ? cloneLocalValue(
-            current.conflictRemote
-          )
-        : null;
-
-    const remoteVersion =
-      Number(remote?.version) || 0;
-
     if (
       !localCategory?.id ||
       String(localCategory.id) !==
@@ -2350,6 +2386,105 @@ window.UserData = (() => {
         "The local Study Category version is not available."
       );
     }
+
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY_CATEGORY,
+        verifiedCategoryId
+      );
+
+    /*
+     * If the Category was deleted remotely, keeping this device restores the
+     * preserved local Category as a fresh create using the same Category ID.
+     * The deleted server row has no version to rebase onto, so the new create
+     * correctly starts from version 0.
+     */
+    if (current.conflictRemoteDeleted === true) {
+      for (const item of outboxItems) {
+        await db.deleteOutboxMutation(
+          item.mutationId
+        );
+      }
+
+      const restoredCategory = {
+        ...localCategory,
+        id: verifiedCategoryId,
+        version: 0,
+        updatedAt:
+          new Date().toISOString()
+      };
+
+      const restoredRecord = {
+        ...current,
+        userId: verifiedUserId,
+        deviceId: getDeviceId(),
+        categoryId:
+          verifiedCategoryId,
+        category:
+          restoredCategory,
+        baseCategory: null,
+        baseVersion: 0,
+        serverVersion: 0,
+        serverUpdatedAt: null,
+        localUpdatedAt: now(),
+        syncStatus: "pending",
+        conflictRemote: null,
+        conflictRemoteDeleted: false,
+        deleted: false
+      };
+
+      await db.putStudyCategory(
+        restoredRecord
+      );
+
+      const mutation =
+        await putStudyCategoryOutboxMutation(
+          verifiedUserId,
+          restoredRecord,
+          "create"
+        );
+
+      dispatchUserDataEvent(
+        "user-data-conflict-resolved",
+        {
+          userId: verifiedUserId,
+          entityType:
+            ENTITY_STUDY_CATEGORY,
+          entityKey:
+            verifiedCategoryId,
+          resolution:
+            "restore-device",
+          baseVersion: 0,
+          mutationId:
+            mutation.mutationId,
+          category:
+            restoredCategory
+        }
+      );
+
+      scheduleFlush(0);
+
+      return {
+        userId: verifiedUserId,
+        category: restoredRecord,
+        mutationId:
+          mutation.mutationId,
+        syncStatus: "pending",
+        resolution:
+          "restore-device"
+      };
+    }
+
+    const remote =
+      current.conflictRemote
+        ? cloneLocalValue(
+            current.conflictRemote
+          )
+        : null;
+
+    const remoteVersion =
+      Number(remote?.version) || 0;
 
     if (
       !remote?.id ||
@@ -2368,13 +2503,6 @@ window.UserData = (() => {
      * stale retry from silently overwriting remote work without an explicit
      * conflict-resolution choice.
      */
-    const outboxItems =
-      await db.listOutboxForEntity(
-        verifiedUserId,
-        ENTITY_STUDY_CATEGORY,
-        verifiedCategoryId
-      );
-
     for (const item of outboxItems) {
       await db.deleteOutboxMutation(
         item.mutationId
@@ -2409,6 +2537,7 @@ window.UserData = (() => {
       localUpdatedAt: now(),
       syncStatus: "pending",
       conflictRemote: null,
+      conflictRemoteDeleted: false,
       deleted: false
     };
 
@@ -2452,7 +2581,6 @@ window.UserData = (() => {
       resolution: "keep-device"
     };
   }
-
 
   async function resolveStudyCategoryDeleteConflictKeepDelete(
     userId,
@@ -2552,6 +2680,7 @@ window.UserData = (() => {
       localUpdatedAt: now(),
       syncStatus: "pending",
       conflictRemote: null,
+      conflictRemoteDeleted: false,
       deleted: true
     };
 
@@ -3568,6 +3697,8 @@ window.UserData = (() => {
             latest
               ? cloneLocalValue(latest)
               : null,
+          conflictRemoteDeleted:
+            result?.remoteDeleted === true,
           localUpdatedAt: now()
         });
       }
@@ -3592,7 +3723,11 @@ window.UserData = (() => {
       latestCategory:
         mutation.entityType === ENTITY_STUDY_CATEGORY
           ? latest
-          : null
+          : null,
+      remoteDeleted:
+        mutation.entityType === ENTITY_STUDY_CATEGORY
+          ? result?.remoteDeleted === true
+          : false
     });
   }
 
@@ -4051,7 +4186,8 @@ window.UserData = (() => {
           serverCategory.updatedAt ||
           null,
         syncStatus: "pending",
-        conflictRemote: null
+        conflictRemote: null,
+        conflictRemoteDeleted: false
       });
 
       await updatePendingMutationBaseVersions(
@@ -4087,6 +4223,7 @@ window.UserData = (() => {
           now(),
         syncStatus: "clean",
         conflictRemote: null,
+        conflictRemoteDeleted: false,
         deleted: false
       });
     }
