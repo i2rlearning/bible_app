@@ -23,6 +23,7 @@
   const state = {
     studies: [],
     categories: [],
+    categorySyncRecords: [],
     availableTags: [],
     activeStudyId: null,
     activeStudyVersion: null,
@@ -2064,10 +2065,118 @@
     }
   }
 
+  async function handleOwnStudyCategorySyncSuccess(
+    event
+  ) {
+    const detail =
+      event?.detail || {};
+
+    if (
+      detail.entityType !==
+      "study_category"
+    ) {
+      return;
+    }
+
+    await refreshCategoryStateFromLocalData({
+      refreshOnline: false
+    });
+
+    if (detail.deleted === true) {
+      const affectedStudyIds =
+        new Set(
+          Array.isArray(
+            detail.affectedStudyIds
+          )
+            ? detail.affectedStudyIds.map(
+                (id) => String(id)
+              )
+            : []
+        );
+
+      state.studies =
+        state.studies.map(
+          (study) => {
+            const shouldClear =
+              affectedStudyIds.size
+                ? affectedStudyIds.has(
+                    String(
+                      study.id || ""
+                    )
+                  )
+                : String(
+                    study.categoryId || ""
+                  ) ===
+                  String(
+                    detail.entityKey || ""
+                  );
+
+            if (!shouldClear) {
+              return study;
+            }
+
+            return {
+              ...study,
+              categoryId: null,
+              category: null
+            };
+          }
+        );
+    } else if (detail.category) {
+      updateSelectedCategoryReferences(
+        detail.category
+      );
+    }
+
+    renderCategoryDropdown();
+    renderCategoryManager();
+    renderStudyList();
+  }
+
+  async function handleStudyCategoryConflict(
+    event
+  ) {
+    const detail =
+      event?.detail || {};
+
+    if (
+      detail.entityType !==
+      "study_category" ||
+      !detail.entityKey
+    ) {
+      return;
+    }
+
+    await refreshCategoryStateFromLocalData({
+      refreshOnline: false
+    });
+
+    const record =
+      getStudyCategoryConflictRecord(
+        detail.entityKey
+      );
+
+    if (record) {
+      showStudyCategoryConflict(
+        record
+      );
+    }
+  }
+
   function initStudySync() {
     window.addEventListener(
       "user-data-synced",
       handleOwnStudySyncSuccess
+    );
+
+    window.addEventListener(
+      "user-data-synced",
+      handleOwnStudyCategorySyncSuccess
+    );
+
+    window.addEventListener(
+      "user-data-conflict",
+      handleStudyCategoryConflict
     );
 
     if ("BroadcastChannel" in window) {
@@ -2307,10 +2416,319 @@
     });
   }
 
-  async function loadCategories() {
-    const result = await fetchJson("/api/study-categories");
-    state.categories = Array.isArray(result.categories) ? result.categories : [];
+  function getVisibleCategoryFromSyncRecord(record) {
+    if (
+      !record ||
+      record.deleted === true ||
+      !record.category
+    ) {
+      return null;
+    }
+
+    return record.category;
+  }
+
+  async function refreshCategoryStateFromLocalData({
+    refreshOnline = false
+  } = {}) {
+    const userId =
+      await getTrustedStudyUserId();
+
+    if (
+      !userId ||
+      !window.UserData?.listCachedStudyCategories
+    ) {
+      return false;
+    }
+
+    if (
+      refreshOnline &&
+      navigator.onLine &&
+      window.UserData?.refreshStudyCategoryCacheFromServer
+    ) {
+      try {
+        await window.UserData.refreshStudyCategoryCacheFromServer();
+      } catch (error) {
+        console.warn(
+          "Could not refresh Study Categories from the server; using the local cache.",
+          error
+        );
+      }
+    }
+
+    const records =
+      await window.UserData.listCachedStudyCategories(
+        userId
+      );
+
+    state.categorySyncRecords =
+      Array.isArray(records)
+        ? records
+        : [];
+
+    state.categories =
+      state.categorySyncRecords
+        .map(getVisibleCategoryFromSyncRecord)
+        .filter(Boolean);
+
+    sortByOrderAndName(state.categories);
+
+    if (
+      state.managedCategoryId &&
+      !state.categories.some(
+        (category) =>
+          String(category.id) ===
+          String(state.managedCategoryId)
+      )
+    ) {
+      state.managedCategoryId =
+        state.categories[0]?.id || "";
+    }
+
     renderCategoryDropdown();
+    return true;
+  }
+
+  async function loadCategories() {
+    if (
+      await refreshCategoryStateFromLocalData({
+        refreshOnline: true
+      })
+    ) {
+      window.setTimeout(
+        () => showFirstStudyCategoryConflict(),
+        0
+      );
+      return;
+    }
+
+    const result =
+      await fetchJson("/api/study-categories");
+
+    state.categories =
+      Array.isArray(result.categories)
+        ? result.categories
+        : [];
+
+    renderCategoryDropdown();
+  }
+
+  function getStudyCategoryConflictRecord(categoryId) {
+    return state.categorySyncRecords.find(
+      (record) =>
+        record?.syncStatus === "conflict" &&
+        String(record.categoryId || "") ===
+          String(categoryId || "")
+    ) || null;
+  }
+
+  async function resolveStudyCategoryConflict(
+    record,
+    resolution
+  ) {
+    if (!record?.categoryId) return;
+
+    const userId =
+      await getTrustedStudyUserId();
+
+    if (!userId) {
+      setStatus(
+        "Sign in before resolving this Category conflict.",
+        "error"
+      );
+      return;
+    }
+
+    const categoryId =
+      String(record.categoryId);
+
+    try {
+      if (resolution === "use-synced") {
+        await window.UserData
+          .resolveStudyCategoryConflictUseSyncedVersion(
+            userId,
+            categoryId
+          );
+      } else if (resolution === "keep-device") {
+        await window.UserData
+          .resolveStudyCategoryConflictKeepThisDevice(
+            userId,
+            categoryId
+          );
+      } else if (resolution === "keep-delete") {
+        await window.UserData
+          .resolveStudyCategoryDeleteConflictKeepDelete(
+            userId,
+            categoryId
+          );
+      } else {
+        return;
+      }
+
+      await refreshCategoryStateFromLocalData({
+        refreshOnline: false
+      });
+
+      renderCategoryManager();
+      renderStudyList();
+
+      if (
+        record.conflictRemoteDeleted === true &&
+        resolution === "use-synced"
+      ) {
+        setStatus(
+          "The deletion from the other device was accepted.",
+          "success"
+        );
+      } else if (
+        record.conflictRemoteDeleted === true &&
+        resolution === "keep-device"
+      ) {
+        setStatus(
+          "This device's Category was restored and is syncing.",
+          "success"
+        );
+      } else if (
+        record.deleted === true &&
+        resolution === "keep-delete"
+      ) {
+        setStatus(
+          "The Category deletion was kept and is syncing.",
+          "success"
+        );
+      } else if (
+        record.deleted === true &&
+        resolution === "use-synced"
+      ) {
+        setStatus(
+          "The synced Category was kept.",
+          "success"
+        );
+      } else if (resolution === "keep-device") {
+        setStatus(
+          "This device's Category was kept and is syncing.",
+          "success"
+        );
+      } else {
+        setStatus(
+          "The synced Category was loaded.",
+          "success"
+        );
+      }
+    } catch (error) {
+      setStatus(
+        error?.message ||
+          "Could not resolve the Category conflict.",
+        "error"
+      );
+
+      window.setTimeout(
+        () => showFirstStudyCategoryConflict(),
+        0
+      );
+    }
+  }
+
+  function showStudyCategoryConflict(record) {
+    if (
+      !record ||
+      record.syncStatus !== "conflict" ||
+      !window.AppConflictDialog?.show
+    ) {
+      return;
+    }
+
+    const localName =
+      normalizeName(record.category?.name) ||
+      "this Category";
+
+    const remoteName =
+      normalizeName(record.conflictRemote?.name) ||
+      "the synced Category";
+
+    if (record.conflictRemoteDeleted === true) {
+      window.AppConflictDialog.show({
+        key:
+          `category-remote-delete:${record.categoryId}:${record.localUpdatedAt || ""}`,
+        title: "Category deleted on another device",
+        message:
+          `“${localName}” was deleted elsewhere while this device had changes.`,
+        detail:
+          "Your work on this device has been preserved. Choose whether to accept the deletion or restore this Category.",
+        secondaryLabel: "Accept deletion",
+        primaryLabel: "Restore Category",
+        onSecondary: () =>
+          resolveStudyCategoryConflict(
+            record,
+            "use-synced"
+          ),
+        onPrimary: () =>
+          resolveStudyCategoryConflict(
+            record,
+            "keep-device"
+          )
+      });
+      return;
+    }
+
+    if (record.deleted === true) {
+      window.AppConflictDialog.show({
+        key:
+          `category-delete-conflict:${record.categoryId}:${record.conflictRemote?.version || ""}`,
+        title: "Category changed on another device",
+        message:
+          `You deleted “${localName}” on this device, but a newer synced version now exists as “${remoteName}”.`,
+        detail:
+          "Neither change has been applied automatically. Choose whether to keep the synced Category or delete it anyway.",
+        secondaryLabel: "Use synced version",
+        primaryLabel: "Delete anyway",
+        onSecondary: () =>
+          resolveStudyCategoryConflict(
+            record,
+            "use-synced"
+          ),
+        onPrimary: () =>
+          resolveStudyCategoryConflict(
+            record,
+            "keep-delete"
+          )
+      });
+      return;
+    }
+
+    window.AppConflictDialog.show({
+      key:
+        `category-update-conflict:${record.categoryId}:${record.conflictRemote?.version || ""}`,
+      title: "Category changed on another device",
+      message:
+        `This device has “${localName}”, while the synced version is “${remoteName}”.`,
+      detail:
+        "Both versions are preserved until you choose which Category should win.",
+      secondaryLabel: "Use synced version",
+      primaryLabel: "Keep this device",
+      onSecondary: () =>
+        resolveStudyCategoryConflict(
+          record,
+          "use-synced"
+        ),
+      onPrimary: () =>
+        resolveStudyCategoryConflict(
+          record,
+          "keep-device"
+        )
+    });
+  }
+
+  function showFirstStudyCategoryConflict() {
+    const record =
+      state.categorySyncRecords.find(
+        (item) =>
+          item?.syncStatus === "conflict"
+      );
+
+    if (record) {
+      showStudyCategoryConflict(record);
+    }
   }
 
   async function loadAvailableTags() {
@@ -5317,6 +5735,7 @@
     hideCategoryColorControls();
     renderCategoryManager();
     els.categoryModal.hidden = false;
+    showFirstStudyCategoryConflict();
     if (els.newCategoryName) els.newCategoryName.focus();
   }
 
@@ -7657,7 +8076,10 @@
   }
 
   async function addCategory() {
-    const name = normalizeName(els.newCategoryName.value);
+    const name =
+      normalizeName(
+        els.newCategoryName.value
+      );
 
     if (!name) {
       els.newCategoryName.focus();
@@ -7665,29 +8087,128 @@
     }
 
     try {
-      const result = await fetchJson("/api/study-categories", {
-        method: "POST",
-        body: JSON.stringify({ name, sortOrder: state.categories.length * 10 + 100 })
-      });
+      const userId =
+        await getTrustedStudyUserId();
 
-      const category = result.category;
-      const index = state.categories.findIndex((item) => item.id === category.id);
+      if (
+        userId &&
+        window.UserData
+          ?.queueStudyCategoryCreateForSync
+      ) {
+        const result =
+          await window.UserData
+            .queueStudyCategoryCreateForSync(
+              userId,
+              {
+                name,
+                sortOrder:
+                  state.categories.length *
+                    10 +
+                  100
+              }
+            );
 
-      if (index >= 0) {
-        state.categories[index] = category;
-      } else {
-        state.categories.push(category);
+        const category =
+          result?.category?.category;
+
+        if (!category?.id) {
+          throw new Error(
+            "The Category was saved locally but could not be displayed."
+          );
+        }
+
+        const index =
+          state.categories.findIndex(
+            (item) =>
+              item.id === category.id
+          );
+
+        if (index >= 0) {
+          state.categories[index] =
+            category;
+        } else {
+          state.categories.push(
+            category
+          );
+        }
+
+        sortByOrderAndName(
+          state.categories
+        );
+
+        state.managedCategoryId =
+          category.id;
+
+        els.newCategoryName.value =
+          "";
+
+        renderCategoryDropdown();
+        renderCategoryManager();
+        renderStudyList();
+
+        setStatus(
+          navigator.onLine
+            ? "Category saved on this device and is syncing."
+            : "Category saved offline. It will sync when this device reconnects.",
+          "success"
+        );
+        return;
       }
 
-      sortByOrderAndName(state.categories);
-      state.managedCategoryId = category.id;
+      const result =
+        await fetchJson(
+          "/api/study-categories",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              name,
+              sortOrder:
+                state.categories.length *
+                  10 +
+                100
+            })
+          }
+        );
+
+      const category =
+        result.category;
+
+      const index =
+        state.categories.findIndex(
+          (item) =>
+            item.id === category.id
+        );
+
+      if (index >= 0) {
+        state.categories[index] =
+          category;
+      } else {
+        state.categories.push(
+          category
+        );
+      }
+
+      sortByOrderAndName(
+        state.categories
+      );
+
+      state.managedCategoryId =
+        category.id;
+
       els.newCategoryName.value = "";
+
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-      setStatus("Category saved.", "success");
+      setStatus(
+        "Category saved.",
+        "success"
+      );
     } catch (error) {
-      setStatus(error.message, "error");
+      setStatus(
+        error.message,
+        "error"
+      );
     }
   }
 
@@ -7735,39 +8256,136 @@
     }
   }
 
-  async function updateCategory(category, rawName) {
-    if (!category || !category.id) return;
+  async function updateCategory(
+    category,
+    rawName
+  ) {
+    if (!category || !category.id) {
+      return;
+    }
 
-    const name = normalizeName(rawName);
+    const name =
+      normalizeName(rawName);
 
     if (!name) return;
 
     try {
-      const result = await fetchJson(`/api/study-categories/${encodeURIComponent(category.id)}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name,
-          sortOrder: category.sortOrder || 0,
-          expectedVersion: getExpectedVersion(category.version)
-        })
-      });
+      const userId =
+        await getTrustedStudyUserId();
 
-      const updated = result.category;
-      const index = state.categories.findIndex((item) => item.id === updated.id);
+      if (
+        userId &&
+        window.UserData
+          ?.queueStudyCategoryUpdateForSync
+      ) {
+        const result =
+          await window.UserData
+            .queueStudyCategoryUpdateForSync(
+              userId,
+              {
+                id: category.id,
+                name,
+                sortOrder:
+                  category.sortOrder || 0
+              }
+            );
 
-      if (index >= 0) {
-        state.categories[index] = updated;
+        const updated =
+          result?.category?.category;
+
+        if (!updated?.id) {
+          throw new Error(
+            "The Category was saved locally but could not be displayed."
+          );
+        }
+
+        const index =
+          state.categories.findIndex(
+            (item) =>
+              item.id === updated.id
+          );
+
+        if (index >= 0) {
+          state.categories[index] =
+            updated;
+        }
+
+        updateSelectedCategoryReferences(
+          updated
+        );
+
+        sortByOrderAndName(
+          state.categories
+        );
+
+        renderCategoryDropdown();
+        renderCategoryManager();
+        renderStudyList();
+
+        setStatus(
+          navigator.onLine
+            ? "Category changes saved on this device and are syncing."
+            : "Category changes saved offline. They will sync when this device reconnects.",
+          "success"
+        );
+        return;
       }
 
-      updateSelectedCategoryReferences(updated);
-      sortByOrderAndName(state.categories);
+      const result =
+        await fetchJson(
+          `/api/study-categories/${encodeURIComponent(category.id)}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              name,
+              sortOrder:
+                category.sortOrder || 0,
+              expectedVersion:
+                getExpectedVersion(
+                  category.version
+                )
+            })
+          }
+        );
+
+      const updated =
+        result.category;
+
+      const index =
+        state.categories.findIndex(
+          (item) =>
+            item.id === updated.id
+        );
+
+      if (index >= 0) {
+        state.categories[index] =
+          updated;
+      }
+
+      updateSelectedCategoryReferences(
+        updated
+      );
+
+      sortByOrderAndName(
+        state.categories
+      );
+
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-      setStatus("Category updated.", "success");
+      setStatus(
+        "Category updated.",
+        "success"
+      );
     } catch (error) {
-      setStatus(error.message, "error");
-      showStudyDataConflict(error, "Category");
+      setStatus(
+        error.message,
+        "error"
+      );
+      showStudyDataConflict(
+        error,
+        "Category"
+      );
     }
   }
 
@@ -7812,49 +8430,139 @@
     }
   }
 
-  async function deleteCategory(category) {
-    if (!category || !category.id) return;
+  async function deleteCategory(
+    category
+  ) {
+    if (!category || !category.id) {
+      return;
+    }
 
-    if (!confirm(`Delete category ${category.name}? Studies using it will no longer have a category.`)) {
+    if (
+      !confirm(
+        `Delete category ${category.name}? Studies using it will no longer have a category.`
+      )
+    ) {
       return;
     }
 
     try {
+      const userId =
+        await getTrustedStudyUserId();
+
+      if (
+        userId &&
+        window.UserData
+          ?.queueStudyCategoryDeleteForSync
+      ) {
+        await window.UserData
+          .queueStudyCategoryDeleteForSync(
+            userId,
+            category.id
+          );
+
+        state.categories =
+          state.categories.filter(
+            (item) =>
+              item.id !== category.id
+          );
+
+        if (
+          state.filter === category.id
+        ) {
+          state.filter = "all";
+        }
+
+        if (
+          els.category.value ===
+          category.id
+        ) {
+          els.category.value =
+            state.categories[0]?.id ||
+            "";
+        }
+
+        renderCategoryDropdown();
+        renderCategoryManager();
+        renderStudyList();
+
+        setStatus(
+          navigator.onLine
+            ? "Category deletion saved on this device and is syncing."
+            : "Category deleted on this device. The deletion will sync when this device reconnects.",
+          "success"
+        );
+        return;
+      }
+
       await fetchJson(
         withExpectedVersion(
           `/api/study-categories/${encodeURIComponent(category.id)}`,
           category.version
         ),
-        { method: "DELETE" }
+        {
+          method: "DELETE"
+        }
       );
 
-      state.categories = state.categories.filter((item) => item.id !== category.id);
+      state.categories =
+        state.categories.filter(
+          (item) =>
+            item.id !== category.id
+        );
 
-      if (state.filter === category.id) {
+      if (
+        state.filter === category.id
+      ) {
         state.filter = "all";
       }
 
-      if (els.category.value === category.id) {
-        els.category.value = state.categories[0]?.id || "";
+      if (
+        els.category.value ===
+        category.id
+      ) {
+        els.category.value =
+          state.categories[0]?.id ||
+          "";
       }
 
-      state.studies = state.studies.map((study) => {
-        if (study.categoryId !== category.id) return study;
-        return {
-          ...study,
-          categoryId: null,
-          category: null,
-          version: (Number(study.version) || 1) + 1
-        };
-      });
+      state.studies =
+        state.studies.map(
+          (study) => {
+            if (
+              study.categoryId !==
+              category.id
+            ) {
+              return study;
+            }
+
+            return {
+              ...study,
+              categoryId: null,
+              category: null,
+              version:
+                (Number(
+                  study.version
+                ) || 1) + 1
+            };
+          }
+        );
 
       renderCategoryDropdown();
       renderCategoryManager();
       renderStudyList();
-      setStatus("Category deleted.", "success");
+      setStatus(
+        "Category deleted.",
+        "success"
+      );
     } catch (error) {
-      setStatus(error.message, "error");
-      showStudyDataConflict(error, "Category");
+      setStatus(
+        error.message,
+        "error"
+      );
+      showStudyDataConflict(
+        error,
+        "Category"
+      );
     }
   }
 
