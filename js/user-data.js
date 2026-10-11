@@ -2454,6 +2454,152 @@ window.UserData = (() => {
   }
 
 
+  async function resolveStudyCategoryDeleteConflictKeepDelete(
+    userId,
+    categoryId
+  ) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId =
+      String(userId || "");
+    const verifiedCategoryId =
+      String(categoryId || "");
+
+    if (
+      !verifiedUserId ||
+      !verifiedCategoryId
+    ) {
+      throw new Error(
+        "A verified userId and Study Category ID are required."
+      );
+    }
+
+    await requirePreviouslyVerifiedLocalUser(
+      verifiedUserId
+    );
+
+    const current =
+      await db.getStudyCategory(
+        verifiedUserId,
+        verifiedCategoryId
+      );
+
+    if (
+      !current ||
+      current.syncStatus !== "conflict" ||
+      current.deleted !== true
+    ) {
+      throw new Error(
+        "This Study Category does not currently have a delete conflict."
+      );
+    }
+
+    const remote =
+      current.conflictRemote
+        ? cloneLocalValue(
+            current.conflictRemote
+          )
+        : null;
+
+    const remoteVersion =
+      Number(remote?.version) || 0;
+
+    if (
+      !remote?.id ||
+      String(remote.id) !==
+        verifiedCategoryId ||
+      remoteVersion < 1
+    ) {
+      throw new Error(
+        "The newer synchronized Study Category version is not available."
+      );
+    }
+
+    /*
+     * Keeping the delete rebases the deletion intention onto the newest
+     * synchronized Category version before sending a fresh delete mutation.
+     * This prevents a stale delete from silently removing newer remote work.
+     */
+    const outboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY_CATEGORY,
+        verifiedCategoryId
+      );
+
+    for (const item of outboxItems) {
+      await db.deleteOutboxMutation(
+        item.mutationId
+      );
+    }
+
+    const rebasedRecord = {
+      ...current,
+      userId: verifiedUserId,
+      deviceId: getDeviceId(),
+      categoryId:
+        verifiedCategoryId,
+      category:
+        cloneLocalValue(remote),
+      baseCategory:
+        cloneLocalValue(remote),
+      baseVersion:
+        remoteVersion,
+      serverVersion:
+        remoteVersion,
+      serverUpdatedAt:
+        remote.updatedAt ||
+        null,
+      localUpdatedAt: now(),
+      syncStatus: "pending",
+      conflictRemote: null,
+      deleted: true
+    };
+
+    await db.putStudyCategory(
+      rebasedRecord
+    );
+
+    const mutation =
+      await putStudyCategoryOutboxMutation(
+        verifiedUserId,
+        rebasedRecord,
+        "delete"
+      );
+
+    dispatchUserDataEvent(
+      "user-data-conflict-resolved",
+      {
+        userId: verifiedUserId,
+        entityType:
+          ENTITY_STUDY_CATEGORY,
+        entityKey:
+          verifiedCategoryId,
+        resolution: "keep-delete",
+        baseVersion:
+          remoteVersion,
+        mutationId:
+          mutation.mutationId,
+        deleted: true
+      }
+    );
+
+    scheduleFlush(0);
+
+    return {
+      userId: verifiedUserId,
+      categoryId:
+        verifiedCategoryId,
+      mutationId:
+        mutation.mutationId,
+      syncStatus: "pending",
+      resolution: "keep-delete",
+      baseVersion:
+        remoteVersion,
+      deleted: true
+    };
+  }
+
+
   async function putStudyOutboxMutation(
     userId,
     studyRecord,
@@ -5147,6 +5293,7 @@ window.UserData = (() => {
     queueStudyCategoryDeleteForSync,
     resolveStudyCategoryConflictUseSyncedVersion,
     resolveStudyCategoryConflictKeepThisDevice,
+    resolveStudyCategoryDeleteConflictKeepDelete,
     queueQuillNoteForSync,
     queueQuillDeleteForSync,
     queueMiniEditorPageForSync,
