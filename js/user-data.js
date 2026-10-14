@@ -4801,7 +4801,12 @@ window.UserData = (() => {
                 userId,
                 entityKey
               )
-            : null;
+            : entityType === ENTITY_STUDY_CATEGORY
+              ? await db.getStudyCategory(
+                  userId,
+                  entityKey
+                )
+              : null;
 
     return Boolean(
       local &&
@@ -4815,6 +4820,45 @@ window.UserData = (() => {
     entityType,
     entityKey
   ) {
+    if (entityType === ENTITY_STUDY_CATEGORY) {
+      /*
+       * The Category API supplies a complete authenticated snapshot rather
+       * than a single-Category endpoint. Match the requested ID within it.
+       * An absent Category represents a remote deletion.
+       */
+      const response = await fetch(
+        "/api/study-categories",
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store"
+        }
+      );
+
+      if (response.redirected) {
+        throw new Error(
+          "The authenticated server session is not ready."
+        );
+      }
+
+      const body = await readJsonSafely(response);
+
+      if (
+        !response.ok ||
+        body?.ok !== true ||
+        !Array.isArray(body.categories)
+      ) {
+        throw new Error(
+          body?.message ||
+          `Could not load synchronized Study Categories (${response.status}).`
+        );
+      }
+
+      return body.categories.find(
+        (category) => String(category?.id || "") === entityKey
+      ) || null;
+    }
+
     let url;
 
     if (entityType === ENTITY_QUILL_NOTE) {
@@ -4905,7 +4949,8 @@ window.UserData = (() => {
       ![
         ENTITY_QUILL_NOTE,
         ENTITY_MINI_EDITOR_PAGE,
-        ENTITY_STUDY
+        ENTITY_STUDY,
+        ENTITY_STUDY_CATEGORY
       ].includes(entityType)
     ) {
       return {
@@ -4942,8 +4987,13 @@ window.UserData = (() => {
           userId,
           entityKey
         );
-      } else {
+      } else if (entityType === ENTITY_STUDY) {
         await db.deleteStudy(
+          userId,
+          entityKey
+        );
+      } else {
+        await db.deleteStudyCategory(
           userId,
           entityKey
         );
@@ -5009,8 +5059,13 @@ window.UserData = (() => {
           userId,
           entityKey
         );
-      } else {
+      } else if (entityType === ENTITY_STUDY) {
         await db.deleteStudy(
+          userId,
+          entityKey
+        );
+      } else {
+        await db.deleteStudyCategory(
           userId,
           entityKey
         );
@@ -5068,12 +5123,30 @@ window.UserData = (() => {
           serverEntity,
           existing || { pageKey: entityKey }
         );
-    } else {
+    } else if (entityType === ENTITY_STUDY) {
       cached =
         await cacheStudyFromServer(
           userId,
           serverEntity
         );
+    } else {
+      cached =
+        await cacheStudyCategoryFromServer(
+          userId,
+          serverEntity
+        );
+
+      /*
+       * If another local edit appeared during the server request, leave the
+       * cursor behind this change rather than acknowledging an unapplied row.
+       */
+      if (cached?.syncStatus !== "clean") {
+        return {
+          applied: false,
+          blocked: true,
+          reason: "local_unsynced_work"
+        };
+      }
     }
 
     dispatchUserDataEvent(

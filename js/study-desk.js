@@ -2133,6 +2133,84 @@
     renderStudyList();
   }
 
+  async function handleRemoteStudyCategoryChange(event) {
+    const detail = event?.detail || {};
+
+    if (
+      detail.entityType !== "study_category" ||
+      !detail.entityKey
+    ) {
+      return;
+    }
+
+    const userId = await getTrustedStudyUserId();
+
+    if (
+      !userId ||
+      String(detail.userId || "") !== String(userId)
+    ) {
+      return;
+    }
+
+    const categoryId = String(detail.entityKey);
+    const previouslySelectedId = String(
+      els.category?.value || state.lastCategoryId || ""
+    );
+    const previousCategory = getCategoryById(categoryId);
+    const managerHasDraft = Boolean(
+      !els.categoryModal?.hidden &&
+      els.categoryList?.querySelector(".study-category-inline-row.is-dirty")
+    );
+
+    const refreshed = await refreshCategoryStateFromLocalData({
+      refreshOnline: false
+    });
+
+    if (!refreshed) return;
+
+    const category = getCategoryById(categoryId);
+
+    if (category) {
+      updateSelectedCategoryReferences(category);
+    } else {
+      if (state.filter === categoryId) {
+        state.filter = "all";
+        renderFilterTabs();
+      }
+
+      if (
+        previouslySelectedId === categoryId &&
+        (state.activeStudyId || state.hasUnsavedChanges)
+      ) {
+        /*
+         * Keep a deleted Category visibly unavailable until the user chooses
+         * another one. Never silently assign the open Study to the first
+         * Category while the user may still have unsaved work.
+         */
+        const unavailable = document.createElement("option");
+        unavailable.value = categoryId;
+        unavailable.textContent =
+          `${previousCategory?.name || "Selected Category"} (deleted on another device)`;
+        unavailable.disabled = true;
+        els.category.insertBefore(unavailable, els.category.firstChild);
+        els.category.value = categoryId;
+        state.lastCategoryId = categoryId;
+        setStatus(
+          "The selected Category was deleted on another device. Choose another Category before saving this Study.",
+          "error",
+          0
+        );
+      }
+    }
+
+    // A Category Manager rename may be typed but not yet saved.
+    if (!managerHasDraft) {
+      renderCategoryManager();
+    }
+
+    renderStudyList();
+  }
+
   async function handleStudyCategoryConflict(
     event
   ) {
@@ -2177,6 +2255,15 @@
     window.addEventListener(
       "user-data-conflict",
       handleStudyCategoryConflict
+    );
+
+    window.addEventListener(
+      "user-data-remote-change",
+      (event) => {
+        handleRemoteStudyCategoryChange(event).catch((error) => {
+          console.warn("Could not refresh remote Study Category changes:", error);
+        });
+      }
     );
 
     if ("BroadcastChannel" in window) {
