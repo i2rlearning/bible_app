@@ -3187,6 +3187,7 @@ app.get("/api/study-categories", requireAuth(), async (req, res) => {
 });
 
 app.post("/api/study-categories", requireAuth(), async (req, res) => {
+  let client = null;
   try {
     const userId = req.auth.userId;
     const name = normalizeText(req.body.name);
@@ -3198,7 +3199,10 @@ app.post("/api/study-categories", requireAuth(), async (req, res) => {
       });
     }
 
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const inserted = await client.query(
       `
       INSERT INTO user_study_categories (
         user_id,
@@ -3209,33 +3213,72 @@ app.post("/api/study-categories", requireAuth(), async (req, res) => {
         updated_at
       )
       VALUES ($1, $2, $3, FALSE, NOW(), NOW())
-      ON CONFLICT (user_id, name)
-      DO UPDATE SET
-        updated_at = NOW()
+      ON CONFLICT (user_id, name) DO NOTHING
       RETURNING *
       `,
-      [
-        userId,
-        name,
-        normalizeSortOrder(req.body.sortOrder, 100)
-      ]
+      [userId, name, normalizeSortOrder(req.body.sortOrder, 100)]
     );
 
+    let categoryRow = inserted.rows[0];
+
+    if (categoryRow) {
+      /*
+       * Every direct Category write must enter the change history so other
+       * devices can catch up even when this legacy endpoint is used.
+       */
+      await client.query(
+        `
+        INSERT INTO sync_change_log (
+          user_id, entity_type, entity_key, operation,
+          resulting_version, changed_at
+        )
+        VALUES ($1, 'study_category', $2, 'create', $3, NOW())
+        `,
+        [userId, categoryRow.id, Number(categoryRow.version) || 1]
+      );
+    } else {
+      // Existing names retain their previous ID and version without a new write.
+      const existing = await client.query(
+        `
+        SELECT *
+        FROM user_study_categories
+        WHERE user_id = $1 AND name = $2
+        LIMIT 1
+        `,
+        [userId, name]
+      );
+      categoryRow = existing.rows[0];
+    }
+
+    if (!categoryRow) {
+      throw new Error("The saved Study Category could not be retrieved.");
+    }
+
+    await client.query("COMMIT");
     res.status(201).json({
       ok: true,
-      category: mapCategoryRow(result.rows[0])
+      category: mapCategoryRow(categoryRow)
     });
   } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (_rollbackError) {
+        // Retain the original request error.
+      }
+    }
     console.error("Create study category error:", error);
-
     res.status(500).json({
       ok: false,
       message: "Failed to save category"
     });
+  } finally {
+    client?.release();
   }
 });
 
 app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
+  let client = null;
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
@@ -3257,14 +3300,17 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
       });
     }
 
-
     if (requireExpectedVersion(
       res,
       expectedVersion,
       "CATEGORY_VERSION_REQUIRED",
       "Reload Categories before changing this category so the current version can be verified."
     )) return;
-    const result = await pool.query(
+
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const result = await client.query(
       `
       UPDATE user_study_categories
       SET
@@ -3287,10 +3333,11 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
     );
 
     if (!result.rows.length) {
-      const latest = await pool.query(
+      const latest = await client.query(
         `SELECT * FROM user_study_categories WHERE user_id = $1 AND id = $2 LIMIT 1`,
         [userId, id]
       );
+      await client.query("ROLLBACK");
 
       if (!latest.rows.length) {
         return res.status(404).json({ ok: false, message: "Category not found" });
@@ -3304,17 +3351,36 @@ app.put("/api/study-categories/:id", requireAuth(), async (req, res) => {
       });
     }
 
-    res.json({
-      ok: true,
-      category: mapCategoryRow(result.rows[0])
-    });
-  } catch (error) {
-    console.error("Update study category error:", error);
+    const updated = mapCategoryRow(result.rows[0]);
 
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id, entity_type, entity_key, operation,
+        resulting_version, changed_at
+      )
+      VALUES ($1, 'study_category', $2, 'update', $3, NOW())
+      `,
+      [userId, id, updated.version]
+    );
+
+    await client.query("COMMIT");
+    res.json({ ok: true, category: updated });
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (_rollbackError) {
+        // Retain the original request error.
+      }
+    }
+    console.error("Update study category error:", error);
     res.status(500).json({
       ok: false,
       message: "Failed to update category"
     });
+  } finally {
+    client?.release();
   }
 });
 
@@ -3334,16 +3400,16 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
       });
     }
 
-
     if (requireExpectedVersion(
       res,
       expectedVersion,
       "CATEGORY_VERSION_REQUIRED",
       "Reload Categories before deleting this category so the current version can be verified."
     )) return;
+
     await client.query("BEGIN");
 
-    await client.query(
+    const affectedStudies = await client.query(
       `
       UPDATE saved_studies
       SET
@@ -3352,6 +3418,7 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
         updated_at = NOW()
       WHERE user_id = $1
         AND category_id = $2
+      RETURNING id, version
       `,
       [userId, id]
     );
@@ -3387,8 +3454,31 @@ app.delete("/api/study-categories/:id", requireAuth(), async (req, res) => {
       });
     }
 
-    await client.query("COMMIT");
+    for (const study of affectedStudies.rows) {
+      await client.query(
+        `
+        INSERT INTO sync_change_log (
+          user_id, entity_type, entity_key, operation,
+          resulting_version, changed_at
+        )
+        VALUES ($1, 'study', $2, 'update', $3, NOW())
+        `,
+        [userId, study.id, Number(study.version) || 1]
+      );
+    }
 
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id, entity_type, entity_key, operation,
+        resulting_version, changed_at
+      )
+      VALUES ($1, 'study_category', $2, 'delete', NULL, NOW())
+      `,
+      [userId, id]
+    );
+
+    await client.query("COMMIT");
     res.json({
       ok: true,
       message: "Category deleted"
