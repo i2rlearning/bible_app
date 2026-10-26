@@ -2576,10 +2576,12 @@
     return true;
   }
 
-  async function loadCategories() {
+  async function loadCategories({
+    refreshOnline = true
+  } = {}) {
     if (
       await refreshCategoryStateFromLocalData({
-        refreshOnline: true
+        refreshOnline
       })
     ) {
       window.setTimeout(
@@ -2985,6 +2987,10 @@
 
     try {
       if (sharedAuthIsSignedInOffline()) {
+        await loadCategories({
+          refreshOnline: false
+        });
+
         const userId =
           await getTrustedStudyUserId();
 
