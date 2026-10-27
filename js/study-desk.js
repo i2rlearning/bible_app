@@ -848,6 +848,7 @@
   let studyLoadPromise = null;
   let studyAuthRetryTimer = null;
   let studyAuthRetryCount = 0;
+  let activeStudyRemoteCheckPromise = null;
 
   const STUDY_AUTH_RETRY_LIMIT = 6;
 
@@ -2292,41 +2293,84 @@
       state.isSaving ||
       document.hidden ||
       !Number.isInteger(state.activeStudyVersion) ||
-      state.activeStudyVersion < 1
+      state.activeStudyVersion < 1 ||
+      !sharedAuthIsSignedInOnline() ||
+      studyDeskConnectionUnavailable()
     ) {
       return;
     }
 
-    try {
-      const result = await fetchJson(`/api/studies/${encodeURIComponent(state.activeStudyId)}`);
-      const freshStudy = result.study;
+    if (activeStudyRemoteCheckPromise) {
+      return activeStudyRemoteCheckPromise;
+    }
 
-      if (!freshStudy) return;
+    const requestedStudyId = String(state.activeStudyId);
+    const requestedUserId = String(
+      window.UserData?.getLiveAuthenticatedUserId?.() || ""
+    );
 
-      const freshVersion = Number(freshStudy.version) || 0;
-      const activeVersion = Number(state.activeStudyVersion) || 0;
+    if (!requestedUserId) {
+      return;
+    }
 
-      if (freshVersion > activeVersion) {
-        const scopedVersion =
-          Number(state.referencedScripturesRemoteStudy?.version) || 0;
+    const isCurrentRequest = () => (
+      sharedAuthIsSignedInOnline() &&
+      !studyDeskConnectionUnavailable() &&
+      String(state.activeStudyId || "") === requestedStudyId &&
+      String(
+        window.UserData?.getLiveAuthenticatedUserId?.() || ""
+      ) === requestedUserId
+    );
 
-        // A known Referenced Scriptures update waits for the section-level
-        // Refresh button. Do not escalate that same version into a whole-study
-        // conflict while polling.
-        if (
-          state.referencedScripturesStale &&
-          freshVersion <= scopedVersion
-        ) {
+    activeStudyRemoteCheckPromise = (async () => {
+      try {
+        const result = await fetchJson(
+          `/api/studies/${encodeURIComponent(requestedStudyId)}`
+        );
+
+        if (!isCurrentRequest()) {
           return;
         }
 
-        handleIncomingStudyUpdate(freshStudy, "another window or device");
+        const freshStudy = result.study;
+
+        if (!freshStudy) return;
+
+        const freshVersion = Number(freshStudy.version) || 0;
+        const activeVersion = Number(state.activeStudyVersion) || 0;
+
+        if (freshVersion > activeVersion) {
+          const scopedVersion =
+            Number(state.referencedScripturesRemoteStudy?.version) || 0;
+
+          // A known Referenced Scriptures update waits for the section-level
+          // Refresh button. Do not escalate that same version into a whole-study
+          // conflict while polling.
+          if (
+            state.referencedScripturesStale &&
+            freshVersion <= scopedVersion
+          ) {
+            return;
+          }
+
+          handleIncomingStudyUpdate(freshStudy, "another window or device");
+        }
+      } catch (error) {
+        if (
+          error.status === 404 &&
+          isCurrentRequest()
+        ) {
+          await handleIncomingStudyDelete(
+            requestedStudyId,
+            "another window or device"
+          );
+        }
+      } finally {
+        activeStudyRemoteCheckPromise = null;
       }
-    } catch (error) {
-      if (error.status === 404) {
-        await handleIncomingStudyDelete(state.activeStudyId, "another window or device");
-      }
-    }
+    })();
+
+    return activeStudyRemoteCheckPromise;
   }
 
   function startStudySyncPolling() {
