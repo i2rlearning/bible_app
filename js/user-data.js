@@ -38,6 +38,7 @@ window.UserData = (() => {
   const ENTITY_MINI_EDITOR_PAGE = "mini_editor_page";
   const ENTITY_STUDY = "study";
   const ENTITY_STUDY_CATEGORY = "study_category";
+  const ENTITY_STUDY_CONFLICT_CASE = "study_conflict_case";
   const DEVICE_ID_STORAGE_KEY = "BibleAppDeviceId";
   const LAST_VERIFIED_USER_META_KEY = "phase4LastVerifiedUserId";
   const PENDING_REMOTE_LOGOUT_META_KEY = "pendingRemoteLogoutUserId";
@@ -47,6 +48,7 @@ window.UserData = (() => {
   let flushTimer = null;
   let catchUpPromise = null;
   let catchUpTimer = null;
+  const studyConflictProfileWriteQueues = new Map();
 
   function now() {
     return Date.now();
@@ -1269,6 +1271,59 @@ window.UserData = (() => {
     );
 
     return items.find((item) => item.status === "pending") || null;
+  }
+
+  function createStudyConflictError(code, message, studyId) {
+    const error = new Error(message);
+    error.code = code;
+    error.studyId = String(studyId || "");
+    return error;
+  }
+
+  function getStudyDraftKey(studyId) {
+    return `study:${String(studyId || "")}`;
+  }
+
+  async function getConflictProtectedStudyDraftForUser(db, userId, studyId) {
+    const draft = await db.getStudyDraft(userId, getStudyDraftKey(studyId));
+
+    if (
+      !draft ||
+      draft.purpose !== "study-conflict-protected" ||
+      String(draft.studyId || "") !== String(studyId || "")
+    ) {
+      return null;
+    }
+
+    return draft;
+  }
+
+  async function requireTrustedStudyDraftUser(userId) {
+    const verifiedUserId = String(userId || "");
+    const liveUserId = String(getLiveAuthenticatedUserId() || "");
+
+    if (!verifiedUserId || (liveUserId && liveUserId !== verifiedUserId)) {
+      throw createStudyConflictError(
+        "STUDY_DRAFT_IDENTITY_INVALID",
+        "A matching verified user is required to protect this Study draft.",
+        ""
+      );
+    }
+
+    if (!liveUserId) {
+      const lastVerifiedUserId = await getLastVerifiedUserId();
+
+      if (!lastVerifiedUserId || lastVerifiedUserId !== verifiedUserId) {
+        throw createStudyConflictError(
+          "STUDY_DRAFT_IDENTITY_INVALID",
+          "A matching verified user is required to protect this Study draft.",
+          ""
+        );
+      }
+    }
+
+    await requirePreviouslyVerifiedLocalUser(verifiedUserId);
+    return verifiedUserId;
   }
 
   async function removePendingMutationsForEntity(userId, entityType, entityKey) {
@@ -2729,6 +2784,58 @@ window.UserData = (() => {
   }
 
 
+  function buildStudyOutboxMutationInput(
+    userId,
+    studyRecord,
+    operation = "update"
+  ) {
+    const entityKey = String(studyRecord.studyId || "");
+    const study = cloneLocalValue(studyRecord.study || {});
+    const timestamp = now();
+
+    return {
+      mutationId: newUuid(),
+      userId: String(userId),
+      deviceId: getDeviceId(),
+      entityType: ENTITY_STUDY,
+      entityKey,
+      operation,
+      baseVersion: operation === "create"
+        ? 0
+        : Number(studyRecord.serverVersion) || 0,
+      payload: {
+        /*
+         * The server needs the actual pre-edit Study to preserve immutable
+         * base evidence if this mutation later becomes a durable conflict.
+         * This is evidence only: the server continues to derive ownership
+         * from Clerk and validates the Study ID/version independently.
+         */
+        baseStudy: cloneLocalValue(
+          studyRecord.baseStudy || studyRecord.study || {}
+        ),
+        title: String(study.title || ""),
+        categoryId: study.categoryId || study.category?.id || null,
+        speaker: String(study.speaker || ""),
+        location: String(study.location || ""),
+        studyDate: study.studyDate || null,
+        mainScripture: String(study.mainScripture || ""),
+        tagIds: Array.isArray(study.tags)
+          ? study.tags.map((tag) => String(tag?.id || "")).filter(Boolean)
+          : [],
+        linkedScriptures: Array.isArray(study.linkedScriptures)
+          ? cloneLocalValue(study.linkedScriptures)
+          : [],
+        contentHtml: String(study.contentHtml || ""),
+        previewText: String(study.previewText || "")
+      },
+      status: "pending",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      attemptCount: 0,
+      lastError: ""
+    };
+  }
+
   async function putStudyOutboxMutation(
     userId,
     studyRecord,
@@ -2769,6 +2876,9 @@ window.UserData = (() => {
               ) || 0
             ),
       payload: {
+        baseStudy: cloneLocalValue(
+          studyRecord.baseStudy || studyRecord.study || {}
+        ),
         title: String(
           study.title || ""
         ),
@@ -2962,6 +3072,24 @@ window.UserData = (() => {
       );
     }
 
+    const studyOutboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY,
+        studyId
+      );
+
+    if (
+      existing.syncStatus === "conflict" ||
+      studyOutboxItems.some((item) => item.status === "conflict")
+    ) {
+      throw createStudyConflictError(
+        "STUDY_CONFLICT_OPEN",
+        "This Study has an unresolved synchronization conflict that must be resolved first.",
+        studyId
+      );
+    }
+
     const serverVersion =
       Number(existing.serverVersion) ||
       Number(studyInput.version) ||
@@ -3019,16 +3147,21 @@ window.UserData = (() => {
       deleted: false
     };
 
-    await db.putStudy(record);
-
-    const mutation =
-      await putStudyOutboxMutation(
-        verifiedUserId,
+    const queued =
+      await db.queueStudyMutationIfNoConflictAtomically({
+        userId: verifiedUserId,
+        studyId,
         record,
-        pendingCreate
-          ? "create"
-          : "update"
-      );
+        operation: pendingCreate ? "create" : "update",
+        mutation: buildStudyOutboxMutationInput(
+          verifiedUserId,
+          record,
+          pendingCreate ? "create" : "update"
+        ),
+        updatedAt: now()
+      });
+    const queuedRecord = queued.record;
+    const mutation = queued.mutation;
 
     dispatchUserDataEvent(
       "user-data-local-save",
@@ -3046,7 +3179,7 @@ window.UserData = (() => {
 
     return {
       userId: verifiedUserId,
-      study: record,
+      study: queuedRecord,
       mutationId:
         mutation.mutationId,
       syncStatus: "pending"
@@ -3089,6 +3222,24 @@ window.UserData = (() => {
       );
     }
 
+    const studyOutboxItems =
+      await db.listOutboxForEntity(
+        verifiedUserId,
+        ENTITY_STUDY,
+        verifiedStudyId
+      );
+
+    if (
+      existing.syncStatus === "conflict" ||
+      studyOutboxItems.some((item) => item.status === "conflict")
+    ) {
+      throw createStudyConflictError(
+        "STUDY_DELETE_CONFLICT_OPEN",
+        "This Study has an unresolved synchronization conflict that must be resolved before it can be deleted.",
+        verifiedStudyId
+      );
+    }
+
     const serverVersion =
       Number(existing.serverVersion) || 0;
 
@@ -3114,14 +3265,20 @@ window.UserData = (() => {
       deleted: true
     };
 
-    await db.putStudy(tombstone);
-
-    const mutation =
-      await putStudyOutboxMutation(
-        verifiedUserId,
-        tombstone,
-        "delete"
-      );
+    const queued =
+      await db.queueStudyMutationIfNoConflictAtomically({
+        userId: verifiedUserId,
+        studyId: verifiedStudyId,
+        record: tombstone,
+        operation: "delete",
+        mutation: buildStudyOutboxMutationInput(
+          verifiedUserId,
+          tombstone,
+          "delete"
+        ),
+        updatedAt: now()
+      });
+    const mutation = queued.mutation;
 
     dispatchUserDataEvent(
       "user-data-local-save",
@@ -3148,11 +3305,63 @@ window.UserData = (() => {
   }
 
 
+  async function resolveStudyConflictAtomicallyForUser(
+    userId,
+    studyId,
+    resolution
+  ) {
+    const db = requireUserOfflineDB();
+    const result = await db.resolveStudyConflictAtomically({
+      userId,
+      studyId,
+      resolution,
+      deviceId: getDeviceId(),
+      mutation: resolution === "use-synced"
+        ? null
+        : { mutationId: newUuid(), deviceId: getDeviceId() },
+      updatedAt: now()
+    });
+
+    const record = result.record;
+    const mutation = result.mutation;
+    const remoteVersion = Number(result.remote?.version) || 0;
+
+    dispatchUserDataEvent("user-data-conflict-resolved", {
+      userId,
+      entityType: ENTITY_STUDY,
+      entityKey: studyId,
+      resolution,
+      version: resolution === "use-synced" ? remoteVersion : undefined,
+      baseVersion: resolution === "use-synced" ? undefined : remoteVersion,
+      mutationId: mutation?.mutationId,
+      study: record.study,
+      deleted: record.deleted === true
+    });
+
+    if (mutation) {
+      scheduleFlush(0);
+    }
+
+    if (resolution === "use-synced") {
+      return record;
+    }
+
+    return {
+      userId,
+      study: record,
+      studyId,
+      mutationId: mutation.mutationId,
+      syncStatus: "pending",
+      resolution,
+      baseVersion: remoteVersion,
+      deleted: record.deleted === true
+    };
+  }
+
   async function resolveStudyConflictUseSyncedVersion(
     userId,
     studyId
   ) {
-    const db = requireUserOfflineDB();
     const verifiedUserId =
       String(userId || "");
     const verifiedStudyId =
@@ -3171,88 +3380,11 @@ window.UserData = (() => {
       verifiedUserId
     );
 
-    const current =
-      await db.getStudy(
-        verifiedUserId,
-        verifiedStudyId
-      );
-
-    if (
-      !current ||
-      current.syncStatus !== "conflict"
-    ) {
-      throw new Error(
-        "This Study does not currently have a synchronization conflict."
-      );
-    }
-
-    const remote =
-      current.conflictRemote
-        ? cloneLocalValue(
-            current.conflictRemote
-          )
-        : null;
-
-    const remoteVersion =
-      Number(remote?.version) || 0;
-
-    if (
-      !remote?.id ||
-      String(remote.id) !==
-        verifiedStudyId ||
-      remoteVersion < 1
-    ) {
-      throw new Error(
-        "The newer synchronized Study version is not available."
-      );
-    }
-
-    const outboxItems =
-      await db.listOutboxForEntity(
-        verifiedUserId,
-        ENTITY_STUDY,
-        verifiedStudyId
-      );
-
-    for (const item of outboxItems) {
-      await db.deleteOutboxMutation(
-        item.mutationId
-      );
-    }
-
-    const cleanRecord = {
-      ...current,
-      userId: verifiedUserId,
-      deviceId: getDeviceId(),
-      studyId: verifiedStudyId,
-      study: cloneLocalValue(remote),
-      baseStudy: cloneLocalValue(remote),
-      baseVersion: remoteVersion,
-      serverVersion: remoteVersion,
-      serverUpdatedAt:
-        remote.updatedAt ||
-        null,
-      localUpdatedAt: now(),
-      syncStatus: "clean",
-      conflictRemote: null,
-      deleted: false
-    };
-
-    await db.putStudy(cleanRecord);
-
-    dispatchUserDataEvent(
-      "user-data-conflict-resolved",
-      {
-        userId: verifiedUserId,
-        entityType: ENTITY_STUDY,
-        entityKey: verifiedStudyId,
-        resolution: "use-synced",
-        version: remoteVersion,
-        study: remote
-      }
+    return resolveStudyConflictAtomicallyForUser(
+      verifiedUserId,
+      verifiedStudyId,
+      "use-synced"
     );
-
-    return cleanRecord;
   }
 
 
@@ -3260,7 +3392,6 @@ window.UserData = (() => {
     userId,
     studyId
   ) {
-    const db = requireUserOfflineDB();
     const verifiedUserId =
       String(userId || "");
     const verifiedStudyId =
@@ -3279,136 +3410,11 @@ window.UserData = (() => {
       verifiedUserId
     );
 
-    const current =
-      await db.getStudy(
-        verifiedUserId,
-        verifiedStudyId
-      );
-
-    if (
-      !current ||
-      current.syncStatus !== "conflict"
-    ) {
-      throw new Error(
-        "This Study does not currently have a synchronization conflict."
-      );
-    }
-
-    const localStudy =
-      current.study
-        ? cloneLocalValue(
-            current.study
-          )
-        : null;
-
-    const remote =
-      current.conflictRemote
-        ? cloneLocalValue(
-            current.conflictRemote
-          )
-        : null;
-
-    const remoteVersion =
-      Number(remote?.version) || 0;
-
-    if (
-      !localStudy?.id ||
-      String(localStudy.id) !==
-        verifiedStudyId
-    ) {
-      throw new Error(
-        "The local Study version is not available."
-      );
-    }
-
-    if (
-      !remote?.id ||
-      String(remote.id) !==
-        verifiedStudyId ||
-      remoteVersion < 1
-    ) {
-      throw new Error(
-        "The newer synchronized Study version is not available."
-      );
-    }
-
-    /*
-     * Keeping this device means the local Study remains the desired content,
-     * but it must be rebased onto the newer synchronized version before it can
-     * be sent safely. The next mutation therefore uses the remote version as
-     * its base instead of retrying the stale version that caused the conflict.
-     */
-    const outboxItems =
-      await db.listOutboxForEntity(
-        verifiedUserId,
-        ENTITY_STUDY,
-        verifiedStudyId
-      );
-
-    for (const item of outboxItems) {
-      await db.deleteOutboxMutation(
-        item.mutationId
-      );
-    }
-
-    const rebasedStudy = {
-      ...localStudy,
-      id: verifiedStudyId,
-      version: remoteVersion,
-      updatedAt: new Date().toISOString()
-    };
-
-    const rebasedRecord = {
-      ...current,
-      userId: verifiedUserId,
-      deviceId: getDeviceId(),
-      studyId: verifiedStudyId,
-      study: rebasedStudy,
-      baseStudy: cloneLocalValue(remote),
-      baseVersion: remoteVersion,
-      serverVersion: remoteVersion,
-      serverUpdatedAt:
-        remote.updatedAt ||
-        null,
-      localUpdatedAt: now(),
-      syncStatus: "pending",
-      conflictRemote: null,
-      deleted: false
-    };
-
-    await db.putStudy(rebasedRecord);
-
-    const mutation =
-      await putStudyOutboxMutation(
-        verifiedUserId,
-        rebasedRecord,
-        "update"
-      );
-
-    dispatchUserDataEvent(
-      "user-data-conflict-resolved",
-      {
-        userId: verifiedUserId,
-        entityType: ENTITY_STUDY,
-        entityKey: verifiedStudyId,
-        resolution: "keep-device",
-        baseVersion: remoteVersion,
-        mutationId:
-          mutation.mutationId,
-        study: rebasedStudy
-      }
+    return resolveStudyConflictAtomicallyForUser(
+      verifiedUserId,
+      verifiedStudyId,
+      "keep-device"
     );
-
-    scheduleFlush(0);
-
-    return {
-      userId: verifiedUserId,
-      study: rebasedRecord,
-      mutationId:
-        mutation.mutationId,
-      syncStatus: "pending",
-      resolution: "keep-device"
-    };
   }
 
 
@@ -3416,7 +3422,6 @@ window.UserData = (() => {
     userId,
     studyId
   ) {
-    const db = requireUserOfflineDB();
     const verifiedUserId =
       String(userId || "");
     const verifiedStudyId =
@@ -3435,115 +3440,11 @@ window.UserData = (() => {
       verifiedUserId
     );
 
-    const current =
-      await db.getStudy(
-        verifiedUserId,
-        verifiedStudyId
-      );
-
-    if (
-      !current ||
-      current.syncStatus !== "conflict" ||
-      current.deleted !== true
-    ) {
-      throw new Error(
-        "This Study does not currently have a delete conflict."
-      );
-    }
-
-    const remote =
-      current.conflictRemote
-        ? cloneLocalValue(
-            current.conflictRemote
-          )
-        : null;
-
-    const remoteVersion =
-      Number(remote?.version) || 0;
-
-    if (
-      !remote?.id ||
-      String(remote.id) !==
-        verifiedStudyId ||
-      remoteVersion < 1
-    ) {
-      throw new Error(
-        "The newer synchronized Study version is not available."
-      );
-    }
-
-    /*
-     * Keeping the delete means rebasing the deletion intention onto the
-     * newest synchronized Study version before sending a fresh delete
-     * mutation. This preserves version protection and prevents a stale delete
-     * from silently removing newer work.
-     */
-    const outboxItems =
-      await db.listOutboxForEntity(
-        verifiedUserId,
-        ENTITY_STUDY,
-        verifiedStudyId
-      );
-
-    for (const item of outboxItems) {
-      await db.deleteOutboxMutation(
-        item.mutationId
-      );
-    }
-
-    const rebasedRecord = {
-      ...current,
-      userId: verifiedUserId,
-      deviceId: getDeviceId(),
-      studyId: verifiedStudyId,
-      study: cloneLocalValue(remote),
-      baseStudy: cloneLocalValue(remote),
-      baseVersion: remoteVersion,
-      serverVersion: remoteVersion,
-      serverUpdatedAt:
-        remote.updatedAt ||
-        null,
-      localUpdatedAt: now(),
-      syncStatus: "pending",
-      conflictRemote: null,
-      deleted: true
-    };
-
-    await db.putStudy(rebasedRecord);
-
-    const mutation =
-      await putStudyOutboxMutation(
-        verifiedUserId,
-        rebasedRecord,
-        "delete"
-      );
-
-    dispatchUserDataEvent(
-      "user-data-conflict-resolved",
-      {
-        userId: verifiedUserId,
-        entityType: ENTITY_STUDY,
-        entityKey: verifiedStudyId,
-        resolution: "keep-delete",
-        baseVersion: remoteVersion,
-        mutationId:
-          mutation.mutationId,
-        deleted: true
-      }
+    return resolveStudyConflictAtomicallyForUser(
+      verifiedUserId,
+      verifiedStudyId,
+      "keep-delete"
     );
-
-    scheduleFlush(0);
-
-    return {
-      userId: verifiedUserId,
-      studyId: verifiedStudyId,
-      mutationId:
-        mutation.mutationId,
-      syncStatus: "pending",
-      resolution: "keep-delete",
-      baseVersion: remoteVersion,
-      deleted: true
-    };
   }
 
 
@@ -3592,6 +3493,354 @@ window.UserData = (() => {
     );
   }
 
+  function normalizeStudyConflictCase(conflictCase, expectedUserId = "") {
+    const userId = String(conflictCase?.userId || "");
+    const studyId = String(conflictCase?.studyId || "");
+    const caseId = String(conflictCase?.id || "");
+
+    if (!userId || !studyId || !caseId || (expectedUserId && userId !== expectedUserId)) {
+      throw new Error("The server returned a Study conflict case for a different user or Study.");
+    }
+
+    const verifySnapshot = (snapshot, label) => {
+      if (!snapshot) return null;
+      if (snapshot.userId && String(snapshot.userId) !== userId) {
+        throw new Error(`The ${label} conflict snapshot belongs to a different user.`);
+      }
+      if (snapshot.id && String(snapshot.id) !== studyId) {
+        throw new Error(`The ${label} conflict snapshot belongs to a different Study.`);
+      }
+      return cloneLocalValue(snapshot);
+    };
+    const resolutionDuplicateStudy = normalizeStudyConflictDuplicateStudy(
+      conflictCase.resolutionDuplicateStudy,
+      userId,
+      studyId
+    );
+    if (
+      conflictCase.resolutionDuplicateStudyId &&
+      String(conflictCase.resolutionDuplicateStudyId) !== String(resolutionDuplicateStudy?.id || "")
+    ) {
+      throw new Error("The Keep Both case returned inconsistent duplicate Study identifiers.");
+    }
+
+    return {
+      ...cloneLocalValue(conflictCase),
+      id: caseId,
+      userId,
+      studyId,
+      caseVersion: Number(conflictCase.caseVersion),
+      baseStudy: verifySnapshot(conflictCase.baseStudy, "base"),
+      localStudy: verifySnapshot(conflictCase.localStudy, "local"),
+      remoteStudy: verifySnapshot(conflictCase.remoteStudy, "remote"),
+      resolutionStudy: verifySnapshot(conflictCase.resolutionStudy, "resolution"),
+      resolutionDuplicateStudy,
+      resolutionDuplicateStudyId: conflictCase.resolutionDuplicateStudyId
+        ? String(conflictCase.resolutionDuplicateStudyId)
+        : null,
+      revisionHistory: Array.isArray(conflictCase.revisionHistory)
+        ? conflictCase.revisionHistory.map((revision) => ({ ...cloneLocalValue(revision) }))
+        : []
+    };
+  }
+
+  function normalizeStudyConflictDuplicateStudy(study, userId, caseStudyId) {
+    if (!study) return null;
+    const duplicateId = String(study.id || "");
+    if (!duplicateId || duplicateId === String(caseStudyId || "")) {
+      throw new Error("The Keep Both result did not identify a separate Study.");
+    }
+    if (String(study.userId || "") !== String(userId || "")) {
+      throw new Error("The Keep Both result belongs to a different user.");
+    }
+    return cloneLocalValue(study);
+  }
+
+  async function requireLiveServerConflictUser(expectedUserId = "") {
+    const liveUserId = getLiveAuthenticatedUserId();
+    const requestedUserId = String(expectedUserId || liveUserId || "");
+
+    if (!requestedUserId || liveUserId !== requestedUserId) {
+      throw new Error("A live authenticated user is required to access Study conflict cases.");
+    }
+
+    if (!canTryServer() || !(await waitForServerAuthenticatedUser(requestedUserId))) {
+      throw new Error("Study conflict cases cannot be contacted until authenticated connectivity is available.");
+    }
+
+    return requestedUserId;
+  }
+
+  async function fetchStudyConflictCases(userId = "") {
+    const verifiedUserId = await requireLiveServerConflictUser(userId);
+    const response = await fetch("/api/study-conflict-cases", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store"
+    });
+    const body = await readJsonSafely(response);
+
+    if (!response.ok || body?.ok !== true) {
+      throw new Error(body?.message || `Could not load Study conflict cases (${response.status}).`);
+    }
+
+    const cases = (Array.isArray(body.cases) ? body.cases : [])
+      .map((conflictCase) => normalizeStudyConflictCase(conflictCase, verifiedUserId));
+    try {
+      await cacheStudyConflictCases(verifiedUserId, cases);
+    } catch (error) {
+      console.warn("Could not cache Study conflict cases on this device:", error);
+    }
+    return cases;
+  }
+
+  async function fetchStudyConflictCase(userId, caseId) {
+    const verifiedUserId = await requireLiveServerConflictUser(userId);
+    const normalizedCaseId = String(caseId || "");
+
+    if (!normalizedCaseId) {
+      throw new Error("A Study conflict case ID is required.");
+    }
+
+    const response = await fetch(
+      `/api/study-conflict-cases/${encodeURIComponent(normalizedCaseId)}`,
+      { method: "GET", credentials: "include", cache: "no-store" }
+    );
+    const body = await readJsonSafely(response);
+
+    if (!response.ok || body?.ok !== true) {
+      const error = new Error(body?.message || `Could not load Study conflict case (${response.status}).`);
+      error.status = response.status;
+      error.code = body?.code || "";
+      error.data = body;
+      throw error;
+    }
+
+    const conflictCase = normalizeStudyConflictCase(body.conflictCase, verifiedUserId);
+    try {
+      const cached = await getCachedStudyConflictCases(verifiedUserId);
+      await cacheStudyConflictCases(
+        verifiedUserId,
+        [...cached.filter((item) => item.id !== conflictCase.id), conflictCase]
+      );
+    } catch (error) {
+      console.warn("Could not cache Study conflict evidence on this device:", error);
+    }
+    return conflictCase;
+  }
+
+  async function cacheStudyConflictCases(userId, cases) {
+    const verifiedUserId = String(userId || "");
+    if (!verifiedUserId) return [];
+    const normalized = (Array.isArray(cases) ? cases : [])
+      .map((conflictCase) => normalizeStudyConflictCase(conflictCase, verifiedUserId));
+    await updateStudyConflictProfile(verifiedUserId, (existing) => ({
+      ...existing,
+      studyConflictCases: normalized,
+      studyConflictCasesCachedAt: now(),
+      updatedAt: now()
+    }));
+    return normalized;
+  }
+
+  async function updateStudyConflictProfile(userId, update) {
+    const verifiedUserId = String(userId || "");
+    const previous = studyConflictProfileWriteQueues.get(verifiedUserId) || Promise.resolve();
+    const run = previous.then(async () => {
+      const db = requireUserOfflineDB();
+      const existing = await db.getProfile(verifiedUserId);
+      if (!existing || String(existing.userId || "") !== verifiedUserId) {
+        throw new Error("The Study conflict state cannot be stored for an unverified user.");
+      }
+      const next = await update(existing);
+      await db.putProfile(next);
+      return next;
+    });
+    studyConflictProfileWriteQueues.set(verifiedUserId, run.catch(() => null));
+    return run;
+  }
+
+  async function getCachedStudyConflictCases(userId) {
+    const verifiedUserId = String(userId || "");
+    if (!verifiedUserId) return [];
+    const profile = await requireUserOfflineDB().getProfile(verifiedUserId);
+    if (!profile || String(profile.userId || "") !== verifiedUserId) return [];
+    return (Array.isArray(profile.studyConflictCases) ? profile.studyConflictCases : [])
+      .map((conflictCase) => normalizeStudyConflictCase(conflictCase, verifiedUserId));
+  }
+
+  async function submitStudyConflictCaseOperation(userId, caseId, request) {
+    const verifiedUserId = await requireLiveServerConflictUser(userId);
+    const normalizedCaseId = String(caseId || "");
+    const operationId = String(request?.operationId || "");
+    const expectedCaseVersion = Number(request?.expectedCaseVersion);
+
+    if (!normalizedCaseId || !operationId || !Number.isInteger(expectedCaseVersion)) {
+      throw new Error("A stable operation ID and expected conflict version are required.");
+    }
+
+    const payload = {
+      operationId,
+      expectedCaseVersion,
+      operation: String(request?.operation || ""),
+      keepBothTitle: request?.keepBothTitle || undefined,
+      mergedStudy: request?.mergedStudy ? cloneLocalValue(request.mergedStudy) : undefined
+    };
+    const response = await fetch(
+      `/api/study-conflict-cases/${encodeURIComponent(normalizedCaseId)}/operations`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }
+    );
+    const body = await readJsonSafely(response);
+
+    if (!response.ok || body?.ok !== true) {
+      if (body?.conflictCase) {
+        body.conflictCase = normalizeStudyConflictCase(body.conflictCase, verifiedUserId);
+      }
+      const error = new Error(body?.message || `Could not resolve Study conflict (${response.status}).`);
+      error.status = response.status;
+      error.code = body?.code || "";
+      error.data = body;
+      throw error;
+    }
+
+    const returnedCase = body?.result?.conflictCase
+      ? normalizeStudyConflictCase(body.result.conflictCase, verifiedUserId)
+      : null;
+    if (returnedCase && returnedCase.id !== normalizedCaseId) {
+      throw new Error("The server returned a resolution result for a different Study conflict case.");
+    }
+    const returnedDuplicateStudy = body?.result?.duplicateStudy
+      ? normalizeStudyConflictDuplicateStudy(
+        body.result.duplicateStudy,
+        verifiedUserId,
+        returnedCase?.studyId || normalizedCaseId
+      )
+      : String(request?.operation || "") === "keep_both" && body?.result?.study
+        ? normalizeStudyConflictDuplicateStudy(
+          body.result.study,
+          verifiedUserId,
+          returnedCase?.studyId || normalizedCaseId
+        )
+        : null;
+    if (
+      body?.result?.duplicateStudyId &&
+      String(body.result.duplicateStudyId) !== String(returnedDuplicateStudy?.id || "")
+    ) {
+      throw new Error("The Keep Both result returned inconsistent duplicate Study identifiers.");
+    }
+
+    return {
+      ...body,
+      result: body?.result
+        ? {
+          ...body.result,
+          conflictCase: returnedCase,
+          duplicateStudy: returnedDuplicateStudy
+        }
+        : body?.result,
+      userId: verifiedUserId,
+      caseId: normalizedCaseId,
+      operationId
+    };
+  }
+
+  async function getStudyConflictOperationRequest(userId, operationKey) {
+    const verifiedUserId = String(userId || "");
+    if (!verifiedUserId || !operationKey) return null;
+    const profile = await requireUserOfflineDB().getProfile(verifiedUserId);
+    const ledger = profile?.studyConflictOperationLedger;
+    const value = ledger && typeof ledger === "object" ? ledger[String(operationKey)] : null;
+    return value ? cloneLocalValue(value) : null;
+  }
+
+  async function saveStudyConflictOperationRequest(userId, operationKey, request, metadata = {}) {
+    const verifiedUserId = String(userId || "");
+    if (!verifiedUserId || !operationKey || !request?.operationId) {
+      throw new Error("A verified owner and stable conflict operation ID are required.");
+    }
+
+    let stored = null;
+    await updateStudyConflictProfile(verifiedUserId, (existing) => {
+      const ledger = {
+        ...(existing.studyConflictOperationLedger && typeof existing.studyConflictOperationLedger === "object"
+          ? existing.studyConflictOperationLedger
+          : {})
+      };
+      const previous = ledger[String(operationKey)] || {};
+      ledger[String(operationKey)] = {
+        ...cloneLocalValue(request),
+        ownerId: verifiedUserId,
+        caseId: String(metadata.caseId || previous.caseId || ""),
+        studyId: String(metadata.studyId || previous.studyId || ""),
+        operationKey: String(operationKey),
+        recoveryStatus: String(metadata.recoveryStatus || previous.recoveryStatus || "pending"),
+        createdAt: Number(previous.createdAt) || now(),
+        updatedAt: now()
+      };
+      stored = ledger[String(operationKey)];
+      return {
+        ...existing,
+        studyConflictOperationLedger: ledger,
+        updatedAt: now()
+      };
+    });
+    return cloneLocalValue(stored);
+  }
+
+  async function listStudyConflictOperationRequests(userId) {
+    const verifiedUserId = String(userId || "");
+    if (!verifiedUserId) return [];
+    const profile = await requireUserOfflineDB().getProfile(verifiedUserId);
+    const ledger = profile?.studyConflictOperationLedger;
+    if (!ledger || typeof ledger !== "object") return [];
+    return Object.entries(ledger)
+      .map(([operationKey, value]) => ({
+        ...cloneLocalValue(value),
+        operationKey: String(value?.operationKey || operationKey)
+      }))
+      .filter((value) => (
+        String(value?.ownerId || "") === verifiedUserId &&
+        String(value?.caseId || "") &&
+        String(value?.studyId || "") &&
+        String(value?.operationId || "") &&
+        Number.isInteger(Number(value?.expectedCaseVersion))
+      ));
+  }
+
+  async function updateStudyConflictOperationRequest(userId, operationKey, update = {}) {
+    const verifiedUserId = String(userId || "");
+    if (!verifiedUserId || !operationKey) {
+      throw new Error("A verified owner and conflict operation key are required.");
+    }
+    let stored = null;
+    await updateStudyConflictProfile(verifiedUserId, (existing) => {
+      const ledger = {
+        ...(existing.studyConflictOperationLedger && typeof existing.studyConflictOperationLedger === "object"
+          ? existing.studyConflictOperationLedger
+          : {})
+      };
+      const previous = ledger[String(operationKey)];
+      if (!previous || String(previous.ownerId || "") !== verifiedUserId) {
+        throw new Error("The saved Study conflict operation is unavailable for this user.");
+      }
+      stored = {
+        ...previous,
+        ...cloneLocalValue(update),
+        ownerId: verifiedUserId,
+        operationKey: String(operationKey),
+        updatedAt: now()
+      };
+      ledger[String(operationKey)] = stored;
+      return { ...existing, studyConflictOperationLedger: ledger, updatedAt: now() };
+    });
+    return cloneLocalValue(stored);
+  }
+
   async function markMutationPending(mutation, error) {
     const db = requireUserOfflineDB();
 
@@ -3620,6 +3869,29 @@ window.UserData = (() => {
             : mutation.entityType === ENTITY_STUDY_CATEGORY
               ? (result?.latestCategory || null)
               : null;
+
+    if (mutation.entityType === ENTITY_STUDY) {
+      await db.markStudyMutationConflictAtomically({
+        userId: mutation.userId,
+        studyId: mutation.entityKey,
+        mutationId: mutation.mutationId,
+        latestStudy: latest ? cloneLocalValue(latest) : null,
+        message: result?.message || "A newer server version exists.",
+        updatedAt: now()
+      });
+
+      dispatchUserDataEvent("user-data-conflict", {
+        userId: mutation.userId,
+        entityType: ENTITY_STUDY,
+        entityKey: mutation.entityKey,
+        latestNote: null,
+        latestPage: null,
+        latestStudy: latest,
+        latestCategory: null,
+        remoteDeleted: result?.remoteDeleted === true
+      });
+      return;
+    }
 
     await db.putOutboxMutation({
       ...mutation,
@@ -3658,25 +3930,6 @@ window.UserData = (() => {
           ...current,
           syncStatus: "conflict",
           conflictRemote: latest,
-          localUpdatedAt: now()
-        });
-      }
-    } else if (
-      mutation.entityType === ENTITY_STUDY
-    ) {
-      const current = await db.getStudy(
-        mutation.userId,
-        mutation.entityKey
-      );
-
-      if (current) {
-        await db.putStudy({
-          ...current,
-          syncStatus: "conflict",
-          conflictRemote:
-            latest
-              ? cloneLocalValue(latest)
-              : null,
           localUpdatedAt: now()
         });
       }
@@ -4625,6 +4878,13 @@ window.UserData = (() => {
     await rememberVerifiedAuthenticatedUser(userId);
 
     const existing = await db.getStudyDraft(userId, draftKey);
+    if (existing?.purpose === "study-conflict-protected") {
+      throw createStudyConflictError(
+        "STUDY_PROTECTED_DRAFT_CANNOT_OVERWRITE",
+        "An ordinary local draft cannot replace a protected Study conflict draft.",
+        existing.studyId
+      );
+    }
     const timestamp = now();
 
     const record = {
@@ -4647,6 +4907,78 @@ window.UserData = (() => {
 
     await db.putStudyDraft(record);
     return record;
+  }
+
+  async function saveConflictProtectedStudyDraft(userId, input = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = await requireTrustedStudyDraftUser(userId);
+    const studyId = String(input.studyId || "");
+    const draftKey = getStudyDraftKey(studyId);
+
+    if (!studyId || String(input.draftKey || draftKey) !== draftKey) {
+      throw createStudyConflictError(
+        "STUDY_DRAFT_INVALID",
+        "A matching Study draft key is required to protect this edit.",
+        studyId
+      );
+    }
+
+    const durableConflictCase = input.durableConflictCase || null;
+    const hasValidatedDurableCase = Boolean(
+      durableConflictCase &&
+      String(durableConflictCase.userId || "") === verifiedUserId &&
+      String(durableConflictCase.studyId || "") === studyId &&
+      String(durableConflictCase.id || "") &&
+      ["open", "deferred"].includes(String(durableConflictCase.status || "")) &&
+      Number.isInteger(Number(durableConflictCase.caseVersion))
+    );
+
+    if (durableConflictCase && !hasValidatedDurableCase) {
+      throw createStudyConflictError(
+        "STUDY_CONFLICT_CASE_INVALID",
+        "The protected draft does not match the active Study conflict case.",
+        studyId
+      );
+    }
+
+    const timestamp = now();
+    const conflictBaseVersion = Number(input.conflictBaseVersion);
+    return db.saveStudyConflictProtectedDraftAtomically({
+      userId: verifiedUserId,
+      studyId,
+      draftKey,
+      deviceId: getDeviceId(),
+      conflictBaseVersion:
+        Number.isInteger(conflictBaseVersion)
+          ? conflictBaseVersion
+          : null,
+      data: cloneLocalValue(input.data || {}),
+      allowDurableServerConflict: hasValidatedDurableCase,
+      updatedAt: timestamp
+    });
+  }
+
+  async function getConflictProtectedStudyDraft(userId, studyId) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = await requireTrustedStudyDraftUser(userId);
+    return getConflictProtectedStudyDraftForUser(
+      db,
+      verifiedUserId,
+      String(studyId || "")
+    );
+  }
+
+  async function getStudyConflictState(userId, studyId) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = await requireTrustedStudyDraftUser(userId);
+    const verifiedStudyId = String(studyId || "");
+    return db.readStudyConflictBundle(verifiedUserId, verifiedStudyId);
+  }
+
+  async function listStudyConflictSummaries(userId) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = await requireTrustedStudyDraftUser(userId);
+    return db.listStudyConflictSummaries(verifiedUserId);
   }
 
   async function getStudyDraft(draftKey) {
@@ -4679,7 +5011,10 @@ window.UserData = (() => {
       return;
     }
 
-    await db.deleteStudyDraft(userId, String(draftKey));
+    await db.discardOrdinaryStudyDraftAtomically(
+      userId,
+      String(draftKey)
+    );
   }
 
   function getSyncCursorMetaKey(userId) {
@@ -4944,6 +5279,39 @@ window.UserData = (() => {
     const entityKey = String(
       change?.entityKey || ""
     );
+
+    /*
+     * Conflict cases are server-authoritative evidence, not cached Study
+     * records. Reconcile the case and notify the UI without touching a local
+     * Study, outbox mutation, or protected draft. This also means a deleted
+     * Study with an outbox-only conflict remains discoverable.
+     */
+    if (entityType === ENTITY_STUDY_CONFLICT_CASE) {
+      try {
+        const conflictCase = await fetchStudyConflictCase(userId, entityKey);
+        dispatchUserDataEvent("user-data-study-conflict-case", {
+          userId,
+          caseId: entityKey,
+          operation: String(change?.operation || "update"),
+          changeSequence: String(change?.changeSequence || ""),
+          conflictCase
+        });
+      } catch (error) {
+        if (error?.status !== 404) {
+          throw error;
+        }
+
+        dispatchUserDataEvent("user-data-study-conflict-case", {
+          userId,
+          caseId: entityKey,
+          operation: "delete",
+          changeSequence: String(change?.changeSequence || ""),
+          conflictCase: null
+        });
+      }
+
+      return { applied: true, deleted: false, version: null };
+    }
 
     if (
       ![
@@ -5472,6 +5840,7 @@ window.UserData = (() => {
     ENTITY_MINI_EDITOR_PAGE,
     ENTITY_STUDY,
     ENTITY_STUDY_CATEGORY,
+    ENTITY_STUDY_CONFLICT_CASE,
     DEVICE_ID_STORAGE_KEY,
     LAST_VERIFIED_USER_META_KEY,
     getDeviceId,
@@ -5518,12 +5887,24 @@ window.UserData = (() => {
     flushOutbox,
     scheduleFlush,
     saveStudyDraft,
+    saveConflictProtectedStudyDraft,
+    getConflictProtectedStudyDraft,
+    getStudyConflictState,
+    listStudyConflictSummaries,
     getStudyDraft,
     listStudyDrafts,
     deleteStudyDraft,
     getSyncCursor,
     setSyncCursor,
     catchUpSyncChanges,
+    fetchStudyConflictCases,
+    fetchStudyConflictCase,
+    getCachedStudyConflictCases,
+    submitStudyConflictCaseOperation,
+    getStudyConflictOperationRequest,
+    saveStudyConflictOperationRequest,
+    listStudyConflictOperationRequests,
+    updateStudyConflictOperationRequest,
     getStoredProfile,
     getLastVerifiedUserId,
     getIdentitySnapshot

@@ -1161,6 +1161,20 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
 
       await client.query("COMMIT");
 
+      const previousResult = previous.rows[0]?.result_json || null;
+      if (previousResult?._syncStatus === "conflict") {
+        return {
+          mutationId,
+          status: "conflict",
+          duplicate: true,
+          code: previousResult.code || "STUDY_VERSION_CONFLICT",
+          message: previousResult.message || "This Study has an unresolved synchronization conflict.",
+          latestStudy: previousResult.latestStudy || null,
+          remoteDeleted: previousResult.remoteDeleted === true,
+          conflictCase: previousResult.conflictCase || null
+        };
+      }
+
       return {
         mutationId,
         status: "ok",
@@ -1325,6 +1339,29 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
           entityKey,
           client
         );
+        const conflictCase = await openOrRefreshStudyConflictCase(client, {
+          userId,
+          studyId: entityKey,
+          deviceId,
+          mutationId,
+          operation,
+          baseVersion,
+          baseStudy: payload?.baseStudy,
+          payload,
+          remoteStudy: latestStudy
+        });
+
+        if (conflictCase) {
+          return completeStudySyncConflict(client, {
+            userId,
+            mutationId,
+            message: latestStudy
+              ? "This Study changed since this device last synchronized."
+              : "This Study was deleted on another device while this device had local changes.",
+            latestStudy,
+            conflictCase
+          });
+        }
 
         await client.query("ROLLBACK");
 
@@ -1376,6 +1413,28 @@ async function processStudySyncMutation(userId, deviceId, mutation) {
         );
 
         if (latestStudy) {
+          const conflictCase = await openOrRefreshStudyConflictCase(client, {
+            userId,
+            studyId: entityKey,
+            deviceId,
+            mutationId,
+            operation,
+            baseVersion,
+            baseStudy: payload?.baseStudy,
+            payload,
+            remoteStudy: latestStudy
+          });
+
+          if (conflictCase) {
+            return completeStudySyncConflict(client, {
+              userId,
+              mutationId,
+              message: "This Study changed before it could be deleted.",
+              latestStudy,
+              conflictCase
+            });
+          }
+
           await client.query("ROLLBACK");
 
           return {
@@ -2069,6 +2128,622 @@ async function processStudyCategorySyncMutation(
 }
 
 
+function normalizeConflictSnapshot(snapshot, studyId, expectedVersion = null) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return null;
+  }
+
+  if (String(snapshot.id || "") !== String(studyId || "")) {
+    return null;
+  }
+
+  const snapshotVersion = Number(snapshot.version);
+  if (
+    expectedVersion !== null &&
+    (!Number.isInteger(snapshotVersion) || snapshotVersion !== expectedVersion)
+  ) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(snapshot));
+  } catch (_error) {
+    return null;
+  }
+}
+
+function buildConflictSnapshotFromMutation(payload, studyId, version, deleted = false) {
+  if (deleted) {
+    return {
+      id: String(studyId),
+      version: Number.isInteger(Number(version)) ? Number(version) : null,
+      deleted: true
+    };
+  }
+
+  return {
+    id: String(studyId),
+    version: Number(version) || 0,
+    title: String(payload?.title || ""),
+    categoryId: payload?.categoryId || null,
+    speaker: String(payload?.speaker || ""),
+    location: String(payload?.location || ""),
+    studyDate: payload?.studyDate || null,
+    mainScripture: String(payload?.mainScripture || ""),
+    tagIds: normalizeUuidArray(payload?.tagIds),
+    linkedScriptures: normalizeJsonArray(payload?.linkedScriptures),
+    contentHtml: String(payload?.contentHtml || ""),
+    previewText: String(payload?.previewText || "")
+  };
+}
+
+function buildConflictRemoteTombstone(studyId) {
+  return {
+    id: String(studyId),
+    version: null,
+    deleted: true
+  };
+}
+
+async function insertStudyRevision(
+  client,
+  userId,
+  studyId,
+  revisionKind,
+  snapshot,
+  sourceDeviceId = null,
+  sourceMutationId = null
+) {
+  const result = await client.query(
+    `
+    INSERT INTO study_revisions (
+      user_id, study_id, revision_kind, snapshot,
+      source_device_id, source_mutation_id, created_at
+    )
+    VALUES ($1, $2, $3, $4::jsonb, $5, $6, NOW())
+    RETURNING id, created_at
+    `,
+    [
+      userId,
+      studyId,
+      revisionKind,
+      JSON.stringify(snapshot),
+      sourceDeviceId,
+      sourceMutationId
+    ]
+  );
+
+  return result.rows[0];
+}
+
+async function getStudyConflictCase(userId, caseId, client = pool) {
+  const result = await client.query(
+    `
+    SELECT
+      c.id,
+      c.user_id,
+      c.study_id,
+      c.status,
+      c.case_version,
+      c.opened_by_mutation_id,
+      c.resolved_by_operation_id,
+      c.opened_at,
+      c.deferred_at,
+      c.resolved_at,
+      c.updated_at,
+      base.snapshot AS base_snapshot,
+      local.snapshot AS local_snapshot,
+      remote.snapshot AS remote_snapshot,
+      resolution.snapshot AS resolution_snapshot
+    FROM study_conflict_cases c
+    INNER JOIN study_revisions base
+      ON base.user_id = c.user_id AND base.id = c.base_revision_id
+    INNER JOIN study_revisions local
+      ON local.user_id = c.user_id AND local.id = c.local_revision_id
+    INNER JOIN study_revisions remote
+      ON remote.user_id = c.user_id AND remote.id = c.remote_revision_id
+    LEFT JOIN study_revisions resolution
+      ON resolution.user_id = c.user_id AND resolution.id = c.resolution_revision_id
+    WHERE c.user_id = $1 AND c.id = $2
+    LIMIT 1
+    `,
+    [userId, caseId]
+  );
+
+  if (!result.rows.length) return null;
+
+  const row = result.rows[0];
+  let resolutionStudy = row.resolution_snapshot || null;
+  let resolutionDuplicateStudy = null;
+
+  /*
+   * Keep Both now stores original-Study resolution evidence. Preserve the
+   * strict client boundary for an older immutable ledger entry that stored
+   * the created copy as that evidence: only a matching, owner-scoped Keep
+   * Both operation may be re-serialized into the explicit duplicate field.
+   */
+  if (
+    resolutionStudy?.id &&
+    String(resolutionStudy.id) !== String(row.study_id || "") &&
+    row.resolved_by_operation_id
+  ) {
+    const legacyOperation = await client.query(
+      `
+      SELECT operation_type, result_json
+      FROM study_conflict_resolution_operations
+      WHERE user_id = $1 AND case_id = $2 AND operation_id = $3
+      LIMIT 1
+      `,
+      [row.user_id, row.id, row.resolved_by_operation_id]
+    );
+    const legacyRow = legacyOperation.rows[0];
+    const legacyDuplicate =
+      legacyRow?.result_json?.duplicateStudy ||
+      legacyRow?.result_json?.study ||
+      null;
+
+    if (
+      legacyRow?.operation_type === "keep_both" &&
+      legacyDuplicate?.id &&
+      String(legacyDuplicate.id) === String(resolutionStudy.id) &&
+      String(legacyDuplicate.userId || "") === String(row.user_id)
+    ) {
+      resolutionDuplicateStudy = legacyDuplicate;
+      resolutionStudy = row.remote_snapshot || null;
+    }
+  }
+
+  const historyResult = await client.query(
+    `
+    SELECT r.id, r.revision_kind, r.snapshot, r.source_device_id,
+           r.source_mutation_id, r.created_at
+    FROM study_conflict_case_revisions cr
+    INNER JOIN study_revisions r
+      ON r.user_id = cr.user_id AND r.id = cr.revision_id
+    WHERE cr.user_id = $1 AND cr.case_id = $2
+    ORDER BY cr.attached_at ASC, r.created_at ASC
+    `,
+    [userId, caseId]
+  );
+  return {
+    id: row.id,
+    userId: row.user_id,
+    studyId: row.study_id,
+    status: row.status,
+    caseVersion: Number(row.case_version),
+    openedByMutationId: row.opened_by_mutation_id,
+    resolvedByOperationId: row.resolved_by_operation_id,
+    openedAt: row.opened_at,
+    deferredAt: row.deferred_at,
+    resolvedAt: row.resolved_at,
+    updatedAt: row.updated_at,
+    baseStudy: row.base_snapshot,
+    localStudy: row.local_snapshot,
+    remoteStudy: row.remote_snapshot,
+    resolutionStudy,
+    resolutionDuplicateStudy,
+    resolutionDuplicateStudyId: resolutionDuplicateStudy?.id || null,
+    revisionHistory: historyResult.rows.map((revision) => ({
+      id: revision.id,
+      revisionKind: revision.revision_kind,
+      snapshot: revision.snapshot,
+      sourceDeviceId: revision.source_device_id,
+      sourceMutationId: revision.source_mutation_id,
+      createdAt: revision.created_at
+    }))
+  };
+}
+
+async function attachStudyConflictRevisions(client, userId, caseId, studyId, revisionIds) {
+  for (const revisionId of revisionIds) {
+    await client.query(
+      `
+      INSERT INTO study_conflict_case_revisions (
+        user_id, case_id, study_id, revision_id, attached_at
+      )
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (user_id, case_id, revision_id) DO NOTHING
+      `,
+      [userId, caseId, studyId, revisionId]
+    );
+  }
+}
+
+async function writeStudyConflictChangeLog(
+  client,
+  userId,
+  caseId,
+  operation,
+  caseVersion,
+  sourceMutationId = null
+) {
+  await client.query(
+    `
+    INSERT INTO sync_change_log (
+      user_id, entity_type, entity_key, operation,
+      resulting_version, source_device_id, source_mutation_id, changed_at
+    )
+    VALUES ($1, 'study_conflict_case', $2, $3, $4, NULL, $5, NOW())
+    `,
+    [userId, caseId, operation, caseVersion, sourceMutationId]
+  );
+}
+
+async function openOrRefreshStudyConflictCase(client, input) {
+  const userId = String(input.userId || "");
+  const studyId = String(input.studyId || "");
+  const baseStudy = normalizeConflictSnapshot(
+    input.baseStudy,
+    studyId,
+    Number(input.baseVersion)
+  );
+
+  if (!userId || !isUuid(studyId) || !baseStudy) {
+    return null;
+  }
+
+  const localStudy = buildConflictSnapshotFromMutation(
+    input.payload,
+    studyId,
+    input.baseVersion,
+    input.operation === "delete"
+  );
+  const remoteStudy = input.remoteStudy
+    ? normalizeConflictSnapshot(input.remoteStudy, studyId)
+    : buildConflictRemoteTombstone(studyId);
+
+  if (!remoteStudy) return null;
+
+  // Serializes case creation/refresh for one owner and Study without a live
+  // saved_studies row (which may have been deleted remotely).
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [`study-conflict:${userId}:${studyId}`]
+  );
+
+  const existingResult = await client.query(
+    `
+    SELECT id, case_version
+    FROM study_conflict_cases
+    WHERE user_id = $1
+      AND study_id = $2
+      AND status IN ('open', 'deferred')
+    FOR UPDATE
+    `,
+    [userId, studyId]
+  );
+
+  const baseRevision = await insertStudyRevision(
+    client,
+    userId,
+    studyId,
+    "base",
+    baseStudy,
+    input.deviceId,
+    input.mutationId
+  );
+  const localRevision = await insertStudyRevision(
+    client,
+    userId,
+    studyId,
+    "local",
+    localStudy,
+    input.deviceId,
+    input.mutationId
+  );
+  const remoteRevision = await insertStudyRevision(
+    client,
+    userId,
+    studyId,
+    "remote",
+    remoteStudy,
+    null,
+    null
+  );
+
+  let caseId;
+  let caseVersion;
+  let changeOperation;
+
+  if (existingResult.rows.length) {
+    caseId = existingResult.rows[0].id;
+    caseVersion = Number(existingResult.rows[0].case_version) + 1;
+    changeOperation = "update";
+    await client.query(
+      `
+      UPDATE study_conflict_cases
+      SET
+        status = 'open',
+        case_version = $3,
+        base_revision_id = $4,
+        local_revision_id = $5,
+        remote_revision_id = $6,
+        deferred_at = NULL,
+        updated_at = NOW()
+      WHERE user_id = $1 AND id = $2
+      `,
+      [
+        userId,
+        caseId,
+        caseVersion,
+        baseRevision.id,
+        localRevision.id,
+        remoteRevision.id
+      ]
+    );
+  } else {
+    changeOperation = "create";
+    const created = await client.query(
+      `
+      INSERT INTO study_conflict_cases (
+        user_id, study_id, status, case_version,
+        base_revision_id, local_revision_id, remote_revision_id,
+        opened_by_mutation_id, opened_at, updated_at
+      )
+      VALUES ($1, $2, 'open', 1, $3, $4, $5, $6, NOW(), NOW())
+      RETURNING id, case_version
+      `,
+      [
+        userId,
+        studyId,
+        baseRevision.id,
+        localRevision.id,
+        remoteRevision.id,
+        input.mutationId
+      ]
+    );
+    caseId = created.rows[0].id;
+    caseVersion = Number(created.rows[0].case_version);
+  }
+
+  await attachStudyConflictRevisions(client, userId, caseId, studyId, [
+    baseRevision.id,
+    localRevision.id,
+    remoteRevision.id
+  ]);
+
+  await writeStudyConflictChangeLog(
+    client,
+    userId,
+    caseId,
+    changeOperation,
+    caseVersion,
+    input.mutationId
+  );
+
+  return getStudyConflictCase(userId, caseId, client);
+}
+
+async function completeStudySyncConflict(client, input) {
+  const result = {
+    _syncStatus: "conflict",
+    code: "STUDY_VERSION_CONFLICT",
+    message: input.message,
+    latestStudy: input.latestStudy || null,
+    remoteDeleted: !input.latestStudy,
+    conflictCase: input.conflictCase
+  };
+
+  await client.query(
+    `
+    UPDATE sync_mutations
+    SET result_version = NULL, result_json = $3::jsonb
+    WHERE user_id = $1 AND mutation_id = $2
+    `,
+    [input.userId, input.mutationId, JSON.stringify(result)]
+  );
+  await client.query("COMMIT");
+
+  return {
+    mutationId: input.mutationId,
+    status: "conflict",
+    code: result.code,
+    message: result.message,
+    latestStudy: result.latestStudy,
+    remoteDeleted: result.remoteDeleted,
+    conflictCase: result.conflictCase
+  };
+}
+
+function getSnapshotTagIds(snapshot) {
+  if (Array.isArray(snapshot?.tagIds)) {
+    return normalizeUuidArray(snapshot.tagIds);
+  }
+
+  if (Array.isArray(snapshot?.tags)) {
+    return normalizeUuidArray(snapshot.tags.map((tag) => tag?.id));
+  }
+
+  return [];
+}
+
+async function writeResolvedStudySnapshot(client, userId, studyId, snapshot, options = {}) {
+  const normalized = normalizeConflictSnapshot(snapshot, studyId);
+  if (!normalized || normalized.deleted === true || !normalizeText(normalized.title)) {
+    const error = new Error("The selected Study revision is incomplete.");
+    error.code = "STUDY_CONFLICT_REVISION_INVALID";
+    throw error;
+  }
+
+  const categoryId = normalizeOptionalText(normalized.categoryId) || null;
+  if (categoryId && !(await categoryBelongsToUser(userId, categoryId, client))) {
+    const error = new Error("The selected revision references an unavailable Study Category.");
+    error.code = "STUDY_CONFLICT_CATEGORY_INVALID";
+    throw error;
+  }
+
+  const current = await client.query(
+    `
+    SELECT id, version
+    FROM saved_studies
+    WHERE user_id = $1 AND id = $2
+    FOR UPDATE
+    `,
+    [userId, studyId]
+  );
+  const expectedRemoteVersion = Number(options.expectedRemoteVersion);
+  let persistedStudyId = studyId;
+  let persistedVersion = null;
+  let changeOperation = "update";
+
+  if (options.createDuplicate) {
+    if (
+      !Number.isInteger(expectedRemoteVersion) ||
+      !current.rows.length ||
+      Number(current.rows[0].version) !== expectedRemoteVersion
+    ) {
+      const error = new Error("The synchronized Study changed while this conflict was being resolved.");
+      error.code = "STUDY_CONFLICT_REMOTE_CHANGED";
+      throw error;
+    }
+    persistedStudyId = null;
+  }
+
+  if (current.rows.length && !options.createDuplicate) {
+    if (
+      !Number.isInteger(expectedRemoteVersion) ||
+      Number(current.rows[0].version) !== expectedRemoteVersion
+    ) {
+      const error = new Error("The synchronized Study changed while this conflict was being resolved.");
+      error.code = "STUDY_CONFLICT_REMOTE_CHANGED";
+      throw error;
+    }
+
+    const updated = await client.query(
+      `
+      UPDATE saved_studies
+      SET
+        title = $3,
+        category_id = $4,
+        study_type = $5,
+        speaker = $6,
+        location = $7,
+        study_date = $8,
+        main_scripture = $9,
+        linked_scriptures = $10::jsonb,
+        content_html = $11,
+        preview_text = $12,
+        version = version + 1,
+        updated_at = NOW()
+      WHERE user_id = $1 AND id = $2
+      RETURNING id, version
+      `,
+      [
+        userId,
+        studyId,
+        normalizeText(normalized.title),
+        categoryId,
+        normalizeOptionalText(normalized.studyType) || "Study",
+        normalizeOptionalText(normalized.speaker),
+        normalizeOptionalText(normalized.location),
+        normalizeStudyDate(normalized.studyDate),
+        normalizeOptionalText(normalized.mainScripture),
+        JSON.stringify(normalizeJsonArray(normalized.linkedScriptures)),
+        String(normalized.contentHtml || ""),
+        normalizeOptionalText(normalized.previewText) || buildPreviewText(normalized.contentHtml)
+      ]
+    );
+    persistedVersion = Number(updated.rows[0].version);
+  } else {
+    if (
+      !options.createDuplicate &&
+      Number.isInteger(expectedRemoteVersion) &&
+      expectedRemoteVersion >= 1
+    ) {
+      const error = new Error("The synchronized Study is no longer available for this resolution.");
+      error.code = "STUDY_CONFLICT_REMOTE_CHANGED";
+      throw error;
+    }
+
+    const created = await client.query(
+      `
+      INSERT INTO saved_studies (
+        id, user_id, title, category_id, study_type, speaker, location,
+        study_date, main_scripture, linked_scriptures, content_html,
+        preview_text, created_at, updated_at
+      )
+      VALUES (
+        COALESCE($2::uuid, gen_random_uuid()), $1, $3, $4, $5, $6, $7,
+        $8, $9, $10::jsonb, $11, $12, NOW(), NOW()
+      )
+      RETURNING id, version
+      `,
+      [
+        userId,
+        persistedStudyId,
+        normalizeText(normalized.title),
+        categoryId,
+        normalizeOptionalText(normalized.studyType) || "Study",
+        normalizeOptionalText(normalized.speaker),
+        normalizeOptionalText(normalized.location),
+        normalizeStudyDate(normalized.studyDate),
+        normalizeOptionalText(normalized.mainScripture),
+        JSON.stringify(normalizeJsonArray(normalized.linkedScriptures)),
+        String(normalized.contentHtml || ""),
+        normalizeOptionalText(normalized.previewText) || buildPreviewText(normalized.contentHtml)
+      ]
+    );
+    persistedStudyId = created.rows[0].id;
+    persistedVersion = Number(created.rows[0].version);
+    changeOperation = "create";
+  }
+
+  await replaceStudyTags(client, userId, persistedStudyId, getSnapshotTagIds(normalized));
+  const study = await getStudyById(userId, persistedStudyId, client);
+  return { study, changeOperation, version: persistedVersion };
+}
+
+async function loadStudyConflictCaseForUpdate(client, userId, caseId) {
+  const locked = await client.query(
+    `
+    SELECT id, case_version, status
+    FROM study_conflict_cases
+    WHERE user_id = $1 AND id = $2
+    FOR UPDATE
+    `,
+    [userId, caseId]
+  );
+  if (!locked.rows.length) return null;
+  return getStudyConflictCase(userId, caseId, client);
+}
+
+async function getDuplicateResolutionOperation(client, userId, operationId, request) {
+  const result = await client.query(
+    `
+    SELECT case_id, expected_case_version, operation_type, request_json,
+           request_json = $3::jsonb AS request_matches,
+           status, result_json, resulting_case_version, error_code
+    FROM study_conflict_resolution_operations
+    WHERE user_id = $1 AND operation_id = $2
+    LIMIT 1
+    `,
+    [userId, operationId, JSON.stringify(request)]
+  );
+  return result.rows[0] || null;
+}
+
+async function writeResolutionOperation(client, input) {
+  await client.query(
+    `
+    INSERT INTO study_conflict_resolution_operations (
+      user_id, operation_id, case_id, expected_case_version, operation_type,
+      request_json, status, result_json, resulting_case_version, completed_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'completed', $7::jsonb, $8, NOW())
+    `,
+    [
+      input.userId,
+      input.operationId,
+      input.caseId,
+      input.expectedCaseVersion,
+      input.operationType,
+      JSON.stringify(input.request),
+      JSON.stringify(input.result),
+      input.resultingCaseVersion
+    ]
+  );
+}
+
 app.post("/api/sync/mutations", requireAuth(), async (req, res) => {
   try {
     const userId = req.auth.userId;
@@ -2233,6 +2908,276 @@ app.get("/api/sync/changes", requireAuth(), async (req, res) => {
       ok: false,
       message: "Failed to load synchronization changes"
     });
+  }
+});
+
+// ----------------------------------------------------
+// Durable Study conflict cases and idempotent resolutions
+// ----------------------------------------------------
+app.get("/api/study-conflict-cases", requireAuth(), async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const result = await pool.query(
+      `
+      SELECT id
+      FROM study_conflict_cases
+      WHERE user_id = $1 AND status IN ('open', 'deferred')
+      ORDER BY updated_at DESC
+      `,
+      [userId]
+    );
+    const cases = [];
+    for (const row of result.rows) {
+      const conflictCase = await getStudyConflictCase(userId, row.id);
+      if (conflictCase) cases.push(conflictCase);
+    }
+    return res.json({ ok: true, cases });
+  } catch (error) {
+    console.error("List Study conflict cases error:", error);
+    return res.status(500).json({ ok: false, message: "Failed to load Study conflicts." });
+  }
+});
+
+app.get("/api/study-conflict-cases/:caseId", requireAuth(), async (req, res) => {
+  const userId = req.auth.userId;
+  const caseId = String(req.params.caseId || "");
+  if (!isUuid(caseId)) {
+    return res.status(400).json({ ok: false, code: "STUDY_CONFLICT_CASE_ID_INVALID", message: "A valid conflict case ID is required." });
+  }
+
+  try {
+    const conflictCase = await getStudyConflictCase(userId, caseId);
+    if (!conflictCase) {
+      return res.status(404).json({ ok: false, message: "Study conflict case not found." });
+    }
+    return res.json({ ok: true, conflictCase });
+  } catch (error) {
+    console.error("Get Study conflict case error:", error);
+    return res.status(500).json({ ok: false, message: "Failed to load Study conflict." });
+  }
+});
+
+function normalizeStudyConflictOperationType(value) {
+  const raw = String(value || "").trim();
+  const aliases = {
+    decide_later: "defer",
+    use_other_version: "use_remote",
+    keep_my_changes: "keep_local",
+    keep_both: "keep_both",
+    merge_changes: "merge"
+  };
+  return aliases[raw] || raw;
+}
+
+app.post("/api/study-conflict-cases/:caseId/operations", requireAuth(), async (req, res) => {
+  const userId = req.auth.userId;
+  const caseId = String(req.params.caseId || "");
+  const operationId = String(req.body?.operationId || "");
+  const expectedCaseVersion = Number(req.body?.expectedCaseVersion);
+  const operationType = normalizeStudyConflictOperationType(req.body?.operation);
+
+  if (!isUuid(caseId) || !isUuid(operationId)) {
+    return res.status(400).json({ ok: false, code: "STUDY_CONFLICT_OPERATION_ID_INVALID", message: "Valid conflict case and operation IDs are required." });
+  }
+  if (!Number.isInteger(expectedCaseVersion) || expectedCaseVersion < 1) {
+    return res.status(400).json({ ok: false, code: "STUDY_CONFLICT_CASE_VERSION_INVALID", message: "A valid expected conflict case version is required." });
+  }
+  if (!['defer', 'use_remote', 'keep_local', 'keep_both', 'merge'].includes(operationType)) {
+    return res.status(400).json({ ok: false, code: "STUDY_CONFLICT_OPERATION_INVALID", message: "The requested Study conflict operation is not supported." });
+  }
+
+  const request = {
+    operation: operationType,
+    keepBothTitle: normalizeOptionalText(req.body?.keepBothTitle) || null,
+    mergedStudy: req.body?.mergedStudy || null
+  };
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    // The ledger has a composite key, but locking this key before the first
+    // read also makes two simultaneous same-key requests return one durable
+    // result instead of racing past an initially empty ledger row.
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`study-conflict-operation:${userId}:${operationId}`]
+    );
+    const duplicate = await getDuplicateResolutionOperation(client, userId, operationId, request);
+    if (duplicate) {
+      if (
+        duplicate.case_id !== caseId ||
+        Number(duplicate.expected_case_version) !== expectedCaseVersion ||
+        duplicate.operation_type !== operationType ||
+        duplicate.request_matches !== true
+      ) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({ ok: false, code: "STUDY_CONFLICT_OPERATION_KEY_REUSED", message: "This operation ID was already used for a different request." });
+      }
+      await client.query("COMMIT");
+      return res.json({
+        ok: true,
+        duplicate: true,
+        operationId,
+        result: duplicate.result_json,
+        resultingCaseVersion: duplicate.resulting_case_version
+      });
+    }
+
+    const conflictCase = await loadStudyConflictCaseForUpdate(client, userId, caseId);
+    if (!conflictCase) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ ok: false, message: "Study conflict case not found." });
+    }
+    if (!['open', 'deferred'].includes(conflictCase.status)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ ok: false, code: "STUDY_CONFLICT_CASE_CLOSED", message: "This Study conflict is already resolved." });
+    }
+    if (conflictCase.caseVersion !== expectedCaseVersion) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ ok: false, code: "STUDY_CONFLICT_CASE_STALE", message: "This Study conflict changed. Review the latest versions before resolving it.", conflictCase });
+    }
+
+    let resultingCaseVersion = conflictCase.caseVersion + 1;
+    let resolutionStudy = null;
+    let duplicateStudy = null;
+    let studyChange = null;
+
+    if (operationType === "defer") {
+      await client.query(
+        `
+        UPDATE study_conflict_cases
+        SET status = 'deferred', case_version = $3, deferred_at = NOW(), updated_at = NOW()
+        WHERE user_id = $1 AND id = $2
+        `,
+        [userId, caseId, resultingCaseVersion]
+      );
+    } else {
+      let selectedSnapshot = null;
+      if (operationType === "use_remote") {
+        selectedSnapshot = conflictCase.remoteStudy;
+      } else if (operationType === "keep_local") {
+        selectedSnapshot = conflictCase.localStudy;
+      } else if (operationType === "keep_both") {
+        if (!request.keepBothTitle) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ ok: false, code: "STUDY_CONFLICT_KEEP_BOTH_TITLE_REQUIRED", message: "Keep Both requires an explicit title for the additional Study." });
+        }
+        selectedSnapshot = { ...conflictCase.localStudy, title: request.keepBothTitle };
+      } else {
+        selectedSnapshot = normalizeConflictSnapshot(request.mergedStudy, conflictCase.studyId);
+        if (!selectedSnapshot || selectedSnapshot.deleted === true) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ ok: false, code: "STUDY_CONFLICT_MERGE_INVALID", message: "Merge Changes requires a complete Study snapshot for this conflict." });
+        }
+      }
+
+      if (operationType !== "use_remote") {
+        const write = await writeResolvedStudySnapshot(
+          client,
+          userId,
+          conflictCase.studyId,
+          selectedSnapshot,
+          {
+            expectedRemoteVersion: Number(conflictCase.remoteStudy?.version),
+            createDuplicate: operationType === "keep_both"
+          }
+        );
+        resolutionStudy = write.study;
+        studyChange = write;
+        if (operationType === "keep_both") {
+          /*
+           * The copy is a separate Study and is returned separately below.
+           * The case's resolution revision must remain evidence for the
+           * original Study, which Keep Both leaves at its remote version.
+           */
+          duplicateStudy = resolutionStudy;
+          selectedSnapshot = conflictCase.remoteStudy;
+        } else {
+          selectedSnapshot = resolutionStudy;
+        }
+      }
+
+      const resolutionRevision = await insertStudyRevision(
+        client,
+        userId,
+        conflictCase.studyId,
+        "resolution",
+        selectedSnapshot,
+        null,
+        operationId
+      );
+      await attachStudyConflictRevisions(client, userId, caseId, conflictCase.studyId, [
+        resolutionRevision.id
+      ]);
+      await client.query(
+        `
+        UPDATE study_conflict_cases
+        SET
+          status = 'resolved',
+          case_version = $3,
+          resolution_revision_id = $4,
+          resolved_by_operation_id = $5,
+          resolved_at = NOW(),
+          updated_at = NOW()
+        WHERE user_id = $1 AND id = $2
+        `,
+        [userId, caseId, resultingCaseVersion, resolutionRevision.id, operationId]
+      );
+    }
+
+    const resolvedCase = await getStudyConflictCase(userId, caseId, client);
+    const result = {
+      conflictCase: resolvedCase,
+      study: operationType === "keep_both" ? null : resolutionStudy,
+      duplicateStudy,
+      duplicateStudyId: duplicateStudy?.id || null,
+      deferred: operationType === "defer"
+    };
+    await writeResolutionOperation(client, {
+      userId,
+      operationId,
+      caseId,
+      expectedCaseVersion,
+      operationType,
+      request,
+      result,
+      resultingCaseVersion
+    });
+    await writeStudyConflictChangeLog(
+      client,
+      userId,
+      caseId,
+      "update",
+      resultingCaseVersion,
+      operationId
+    );
+    if (studyChange) {
+      await client.query(
+        `
+        INSERT INTO sync_change_log (
+          user_id, entity_type, entity_key, operation,
+          resulting_version, source_device_id, source_mutation_id, changed_at
+        )
+        VALUES ($1, 'study', $2, $3, $4, NULL, $5, NOW())
+        `,
+        [userId, studyChange.study.id, studyChange.changeOperation, studyChange.version, operationId]
+      );
+    }
+    await client.query("COMMIT");
+    return res.json({ ok: true, duplicate: false, operationId, result, resultingCaseVersion });
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_rollbackError) {
+      // Preserve the original operation error.
+    }
+    if (error?.code === "STUDY_CONFLICT_REMOTE_CHANGED" || error?.code === "STUDY_CONFLICT_CATEGORY_INVALID") {
+      return res.status(409).json({ ok: false, code: error.code, message: error.message });
+    }
+    console.error("Resolve Study conflict error:", error);
+    return res.status(500).json({ ok: false, message: "Failed to resolve Study conflict." });
+  } finally {
+    client.release();
   }
 });
 
@@ -3052,10 +3997,10 @@ async function getUserTags(userId) {
   return result.rows.map(mapTagRow);
 }
 
-async function categoryBelongsToUser(userId, categoryId) {
+async function categoryBelongsToUser(userId, categoryId, client = pool) {
   if (!categoryId) return true;
 
-  const result = await pool.query(
+  const result = await client.query(
     `
     SELECT id
     FROM user_study_categories
@@ -4755,6 +5700,17 @@ app.post("/api/studies", requireAuth(), async (req, res) => {
       client
     );
 
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id, entity_type, entity_key, operation,
+        resulting_version, changed_at
+      )
+      VALUES ($1, 'study', $2, 'create', $3, NOW())
+      `,
+      [userId, studyId, Number(study?.version) || 1]
+    );
+
     await client.query("COMMIT");
 
     res.status(201).json({
@@ -4909,6 +5865,17 @@ app.put("/api/studies/:id", requireAuth(), async (req, res) => {
       client
     );
 
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id, entity_type, entity_key, operation,
+        resulting_version, changed_at
+      )
+      VALUES ($1, 'study', $2, 'update', $3, NOW())
+      `,
+      [userId, id, Number(study?.version) || null]
+    );
+
     await client.query("COMMIT");
 
     res.json({
@@ -4930,6 +5897,8 @@ app.put("/api/studies/:id", requireAuth(), async (req, res) => {
 });
 
 app.delete("/api/studies/:id", requireAuth(), async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const userId = req.auth.userId;
     const { id } = req.params;
@@ -4943,7 +5912,9 @@ app.delete("/api/studies/:id", requireAuth(), async (req, res) => {
       });
     }
 
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    const result = await client.query(
       `
       DELETE FROM saved_studies
       WHERE user_id = $1
@@ -4961,8 +5932,11 @@ app.delete("/api/studies/:id", requireAuth(), async (req, res) => {
     if (result.rows.length === 0) {
       const latestStudy = await getStudyById(
         userId,
-        id
+        id,
+        client
       );
+
+      await client.query("ROLLBACK");
 
       if (!latestStudy) {
         return res.status(404).json({
@@ -4979,17 +5953,37 @@ app.delete("/api/studies/:id", requireAuth(), async (req, res) => {
       });
     }
 
+    await client.query(
+      `
+      INSERT INTO sync_change_log (
+        user_id, entity_type, entity_key, operation,
+        resulting_version, changed_at
+      )
+      VALUES ($1, 'study', $2, 'delete', $3, NOW())
+      `,
+      [userId, id, null]
+    );
+
+    await client.query("COMMIT");
+
     res.json({
       ok: true,
       message: "Study deleted"
     });
   } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_rollbackError) {
+      // Retain the original request error.
+    }
     console.error("Delete study error:", error);
 
     res.status(500).json({
       ok: false,
       message: "Failed to delete study"
     });
+  } finally {
+    client.release();
   }
 });
 

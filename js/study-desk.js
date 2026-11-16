@@ -64,6 +64,17 @@
     isApplying: false,
     hasUnsavedChanges: false,
     localDraftKey: "",
+    persistedStudyConflict: null,
+    protectedStudyDraft: null,
+    protectedStudyDraftError: "",
+    durableConflictCases: new Map(),
+    activeDurableConflictCaseId: "",
+    isResolvingDurableConflict: false,
+    durableConflictOperationRecoveries: new Map(),
+    loadedStudyUserId: "",
+    deleteConflictStudyIds: new Set(),
+    editorGeneration: 0,
+    studyLoadGeneration: 0,
     isSaving: false,
     syncPollTimer: null
   };
@@ -111,6 +122,7 @@
   let previewReferencedFitController = null;
   let lastQuillSelection = null;
   let lastStudyConflictDialogKey = "";
+  const durableConflictRecoveryPromises = new Map();
 
   const els = {};
   let statusClearTimer = null;
@@ -228,6 +240,12 @@
     if (!els.saveButton || !els.deleteButton) return;
 
     const blockedByRemoteChange = Boolean(state.remoteStudy);
+    const blockedByPersistedConflict = Boolean(
+      state.persistedStudyConflict
+    );
+    const blockedByDurableConflict = Boolean(getActiveDurableConflictCase());
+    const protectingConflictDraft =
+      blockedByPersistedConflict || blockedByDurableConflict;
     const blockedByReferencedRefresh = Boolean(state.referencedScripturesStale);
     const activeVersion = Number(state.activeStudyVersion);
     const hasLocalStudyVersion =
@@ -250,16 +268,721 @@
     els.saveButton.disabled =
       state.isPreview ||
       state.isSaving ||
-      blockedByRemoteChange ||
-      blockedByReferencedRefresh ||
-      blockedBySaveVersion;
+      (
+        !protectingConflictDraft &&
+        (
+          blockedByRemoteChange ||
+          blockedByReferencedRefresh ||
+          blockedBySaveVersion
+        )
+      );
 
     els.deleteButton.disabled =
       state.isPreview ||
       state.isSaving ||
+      blockedByPersistedConflict ||
+      blockedByDurableConflict ||
       blockedByRemoteChange ||
       blockedByReferencedRefresh ||
       blockedByDeleteVersion;
+
+    const saveLabel = protectingConflictDraft
+      ? state.protectedStudyDraft
+        ? "Update protected draft"
+        : "Protect local draft"
+      : "Save Study";
+    const saveTextNode = Array.from(els.saveButton.childNodes).find(
+      (node) => node.nodeType === 3 && node.nodeValue.trim()
+    );
+
+    if (saveTextNode) {
+      saveTextNode.nodeValue = `\n                  ${saveLabel}\n                `;
+    }
+
+    els.saveButton.setAttribute("aria-label", saveLabel);
+    els.saveButton.title = protectingConflictDraft
+      ? state.protectedStudyDraft
+        ? "Update the protected local draft without synchronizing it"
+        : "Protect the latest local draft without synchronizing it"
+      : "Save Study";
+  }
+
+  function durableConflictStudyKey(userId, studyId) {
+    return `${String(userId || "")}\u0000${String(studyId || "")}`;
+  }
+
+  function getActiveDurableConflictCase() {
+    const userId = String(state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.() || "");
+    const studyId = String(state.activeStudyId || "");
+    if (!userId || !studyId) return null;
+    const conflictCase = state.durableConflictCases.get(durableConflictStudyKey(userId, studyId)) || null;
+    return ["open", "deferred"].includes(String(conflictCase?.status || ""))
+      ? conflictCase
+      : null;
+  }
+
+  function getVerifiedActiveDurableConflictCaseForRemoteStudy() {
+    const conflictCase = getActiveDurableConflictCase();
+    const liveOwnerId = String(
+      window.UserData?.getLiveAuthenticatedUserId?.() || ""
+    );
+    const loadedOwnerId = String(state.loadedStudyUserId || "");
+    const activeStudyId = String(state.activeStudyId || "");
+    const remoteStudyId = String(state.remoteStudy?.id || "");
+
+    /*
+     * Only a case already verified for the live authenticated owner can
+     * replace the ordinary stale-editor warning. A pending case fetch, a
+     * failed authentication transition, or an event for another Study must
+     * continue through the normal safety warning.
+     */
+    if (
+      !conflictCase ||
+      !liveOwnerId ||
+      (loadedOwnerId && loadedOwnerId !== liveOwnerId) ||
+      String(conflictCase.userId || "") !== liveOwnerId ||
+      String(conflictCase.studyId || "") !== activeStudyId ||
+      remoteStudyId !== activeStudyId
+    ) {
+      return null;
+    }
+
+    return conflictCase;
+  }
+
+  function remoteStudyIsNewerThanDurableConflictEvidence(conflictCase) {
+    const remoteStudy = state.remoteStudy;
+    const knownRemoteStudy = conflictCase?.remoteStudy;
+
+    if (
+      !remoteStudy ||
+      !knownRemoteStudy ||
+      String(remoteStudy.id || "") !== String(conflictCase?.studyId || "") ||
+      String(knownRemoteStudy.id || "") !== String(conflictCase?.studyId || "")
+    ) {
+      return false;
+    }
+
+    if (Boolean(remoteStudy.deleted) !== Boolean(knownRemoteStudy.deleted)) {
+      return true;
+    }
+
+    const incomingVersion = Number(remoteStudy.version);
+    const knownVersion = Number(knownRemoteStudy.version);
+    return (
+      Number.isFinite(incomingVersion) &&
+      Number.isFinite(knownVersion) &&
+      incomingVersion > knownVersion
+    );
+  }
+
+  function durableConflictRemoteEvidenceAdvanced(previousCase, nextCase) {
+    if (
+      !previousCase ||
+      !nextCase ||
+      String(previousCase.id || "") !== String(nextCase.id || "") ||
+      String(previousCase.userId || "") !== String(nextCase.userId || "") ||
+      String(previousCase.studyId || "") !== String(nextCase.studyId || "")
+    ) {
+      return false;
+    }
+
+    const previousRemote = previousCase.remoteStudy;
+    const nextRemote = nextCase.remoteStudy;
+    if (!previousRemote || !nextRemote) return false;
+    if (Boolean(previousRemote.deleted) !== Boolean(nextRemote.deleted)) return true;
+
+    const previousVersion = Number(previousRemote.version);
+    const nextVersion = Number(nextRemote.version);
+    return (
+      Number.isFinite(previousVersion) &&
+      Number.isFinite(nextVersion) &&
+      nextVersion > previousVersion
+    );
+  }
+
+  function getDurableConflictDisplayStudy(conflictCase) {
+    const snapshot = conflictCase?.localStudy || conflictCase?.remoteStudy || conflictCase?.baseStudy || {};
+    return {
+      ...cloneStudyDraftData(snapshot),
+      id: String(conflictCase?.studyId || snapshot?.id || ""),
+      title: snapshot?.title || "Recovery needed: Study conflict",
+      previewText: snapshot?.previewText || "Server conflict evidence is available for review.",
+      durableConflictCaseId: String(conflictCase?.id || ""),
+      conflictRecoveryEntry: true
+    };
+  }
+
+  function mergeDurableConflictEntriesIntoStudyList() {
+    const userId = String(state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.() || "");
+    if (!userId) return;
+
+    state.studies = state.studies.filter((study) => {
+      if (!study?.durableConflictCaseId) return true;
+      return state.durableConflictCases.has(durableConflictStudyKey(userId, study.id));
+    });
+
+    const visibleIds = new Set(state.studies.map((study) => String(study?.id || "")));
+    state.durableConflictCases.forEach((conflictCase) => {
+      if (String(conflictCase?.userId || "") !== userId || !["open", "deferred"].includes(String(conflictCase?.status || ""))) return;
+      const entry = getDurableConflictDisplayStudy(conflictCase);
+      if (entry.id && !visibleIds.has(entry.id)) {
+        state.studies.push(entry);
+        visibleIds.add(entry.id);
+      }
+    });
+  }
+
+  async function refreshDurableStudyConflictCases() {
+    if (!sharedAuthIsSignedInOnline() || studyDeskConnectionUnavailable() || !window.UserData?.fetchStudyConflictCases) {
+      return [];
+    }
+
+    const ownerId = String(window.UserData.getLiveAuthenticatedUserId?.() || "");
+    if (!ownerId) return [];
+    const cases = await window.UserData.fetchStudyConflictCases(ownerId);
+    if (String(window.UserData.getLiveAuthenticatedUserId?.() || "") !== ownerId) return [];
+
+    const previouslyActiveCase = getActiveDurableConflictCase();
+    Array.from(state.durableConflictCases.entries()).forEach(([key, value]) => {
+      if (String(value?.userId || "") === ownerId) state.durableConflictCases.delete(key);
+    });
+    cases.forEach((conflictCase) => {
+      state.durableConflictCases.set(
+        durableConflictStudyKey(conflictCase.userId, conflictCase.studyId),
+        conflictCase
+      );
+    });
+    mergeDurableConflictEntriesIntoStudyList();
+    renderStudyList();
+    const refreshedActiveCase = getActiveDurableConflictCase();
+    if (
+      isOpenDurableConflictCenterForCurrentStudy() &&
+      durableConflictRemoteEvidenceAdvanced(previouslyActiveCase, refreshedActiveCase)
+    ) {
+      flagOpenDurableConflictCenterEvidenceChange();
+    }
+    if (refreshedActiveCase) renderDurableStudyConflictNotice();
+    return cases;
+  }
+
+  function makeConflictCenterButton(label, action, secondary = false) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `study-conflict-button${secondary ? " is-secondary" : ""}`;
+    button.textContent = label;
+    button.addEventListener("click", action);
+    return button;
+  }
+
+  function ensureConflictCenter() {
+    let modal = byId("study-conflict-center-modal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "study-conflict-center-modal";
+    modal.className = "study-modal study-conflict-center-modal";
+    modal.hidden = true;
+    const panel = document.createElement("div");
+    panel.className = "study-modal-panel study-conflict-center-panel";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "study-conflict-center-title");
+    modal.appendChild(panel);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal && !state.isResolvingDurableConflict) modal.hidden = true;
+    });
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function isOpenDurableConflictCenterForCurrentStudy() {
+    const modal = byId("study-conflict-center-modal");
+    const activeCase = getActiveDurableConflictCase();
+    const liveOwnerId = String(
+      window.UserData?.getLiveAuthenticatedUserId?.() || ""
+    );
+
+    return Boolean(
+      modal &&
+      !modal.hidden &&
+      activeCase &&
+      String(modal.dataset.ownerId || "") === liveOwnerId &&
+      String(modal.dataset.studyId || "") === String(state.activeStudyId || "") &&
+      String(modal.dataset.caseId || "") === String(activeCase.id || "") &&
+      String(modal.dataset.editorGeneration || "") === String(state.editorGeneration) &&
+      String(activeCase.userId || "") === liveOwnerId &&
+      String(activeCase.studyId || "") === String(state.activeStudyId || "")
+    );
+  }
+
+  function flagOpenDurableConflictCenterEvidenceChange() {
+    const modal = byId("study-conflict-center-modal");
+    const notice = modal?.querySelector?.(
+      "[data-conflict-center-evidence-stale]"
+    );
+
+    if (notice) {
+      notice.hidden = false;
+      notice.textContent =
+        "Newer Study data arrived while this review is open. Your review and entered choices are unchanged; refresh the evidence before resolving.";
+    }
+  }
+
+  function describeStudyDifferences(baseStudy, candidateStudy) {
+    const fields = ["title", "speaker", "location", "studyDate", "categoryId", "contentHtml", "tagIds", "linkedScriptures", "deleted"];
+    return fields.filter((field) => JSON.stringify(baseStudy?.[field] ?? null) !== JSON.stringify(candidateStudy?.[field] ?? null));
+  }
+
+  function appendConflictSnapshot(container, title, snapshot, baseStudy) {
+    const card = document.createElement("section");
+    card.className = "study-conflict-snapshot";
+    const heading = document.createElement("h3");
+    heading.textContent = title;
+    const meta = document.createElement("p");
+    if (!snapshot) {
+      meta.textContent = "Not available.";
+      card.append(heading, meta);
+      container.appendChild(card);
+      return;
+    }
+    if (snapshot.deleted === true) {
+      meta.textContent = "Deletion/tombstone evidence: this version represents a deleted Study.";
+    } else {
+      const differences = describeStudyDifferences(baseStudy || {}, snapshot);
+      meta.textContent = differences.length ? `Changed: ${differences.join(", ")}.` : "Matches the base version.";
+    }
+    const details = document.createElement("pre");
+    details.className = "study-conflict-snapshot-content";
+    details.textContent = JSON.stringify({
+      title: snapshot.title || "",
+      speaker: snapshot.speaker || "",
+      location: snapshot.location || "",
+      studyDate: snapshot.studyDate || null,
+      categoryId: snapshot.categoryId || null,
+      tags: snapshot.tagIds || [],
+      linkedScriptures: snapshot.linkedScriptures || [],
+      contentHtml: snapshot.contentHtml || "",
+      deleted: snapshot.deleted === true
+    }, null, 2);
+    card.append(heading, meta, details);
+    container.appendChild(card);
+  }
+
+  async function openDurableConflictCenter(caseId = "") {
+    const activeCase = getActiveDurableConflictCase();
+    const requestedId = String(caseId || activeCase?.id || "");
+    const ownerId = String(state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.() || "");
+    if (!requestedId || !ownerId || !window.UserData?.fetchStudyConflictCase) return;
+    const context = { ownerId, editorGeneration: state.editorGeneration, studyId: String(state.activeStudyId || "") };
+    try {
+      const conflictCase = await window.UserData.fetchStudyConflictCase(ownerId, requestedId);
+      if (
+        String(window.UserData.getLiveAuthenticatedUserId?.() || "") !== context.ownerId ||
+        String(conflictCase.userId) !== context.ownerId ||
+        state.editorGeneration !== context.editorGeneration ||
+        String(state.activeStudyId || "") !== context.studyId ||
+        String(conflictCase.studyId || "") !== context.studyId
+      ) return;
+      state.durableConflictCases.set(durableConflictStudyKey(conflictCase.userId, conflictCase.studyId), conflictCase);
+      state.activeDurableConflictCaseId = conflictCase.id;
+      renderDurableConflictCenter(conflictCase, context);
+    } catch (error) {
+      setStatus(error?.message || "Could not open the Study conflict evidence.", "error", 0);
+    }
+  }
+
+  async function renderDurableConflictCenter(conflictCase, context) {
+    const modal = ensureConflictCenter();
+    const panel = modal.firstElementChild;
+    panel.replaceChildren();
+    const header = document.createElement("div");
+    header.className = "study-modal-header";
+    const titleWrap = document.createElement("div");
+    const title = document.createElement("h2");
+    title.id = "study-conflict-center-title";
+    title.textContent = "Study conflict — review versions";
+    const summary = document.createElement("p");
+    summary.textContent = `Case ${conflictCase.id} • ${conflictCase.status} • version ${conflictCase.caseVersion}`;
+    const evidenceChangeNotice = document.createElement("p");
+    evidenceChangeNotice.hidden = true;
+    evidenceChangeNotice.dataset.conflictCenterEvidenceStale = "true";
+    evidenceChangeNotice.setAttribute("role", "status");
+    titleWrap.append(title, summary, evidenceChangeNotice);
+    header.append(titleWrap, makeConflictCenterButton("Close", () => { modal.hidden = true; }, true));
+    const snapshots = document.createElement("div");
+    snapshots.className = "study-conflict-snapshots";
+    appendConflictSnapshot(snapshots, "Base version", conflictCase.baseStudy, null);
+    appendConflictSnapshot(snapshots, "My Changes", conflictCase.localStudy, conflictCase.baseStudy);
+    appendConflictSnapshot(snapshots, "Other Version", conflictCase.remoteStudy, conflictCase.baseStudy);
+    const protectedDraft = await window.UserData?.getConflictProtectedStudyDraft?.(conflictCase.userId, conflictCase.studyId);
+    if (
+      String(window.UserData?.getLiveAuthenticatedUserId?.() || "") !== context.ownerId ||
+      state.editorGeneration !== context.editorGeneration ||
+      String(state.activeStudyId || "") !== context.studyId ||
+      String(conflictCase.studyId || "") !== context.studyId
+    ) return;
+    appendConflictSnapshot(snapshots, "Protected local draft", protectedDraft?.data || null, conflictCase.baseStudy);
+
+    const actions = document.createElement("div");
+    actions.className = "study-conflict-actions";
+    actions.append(
+      makeConflictCenterButton("Use Other Version", () => void submitDurableConflictOperation(conflictCase, "use_other_version")),
+      makeConflictCenterButton("Keep My Changes", () => void submitDurableConflictOperation(conflictCase, "keep_my_changes")),
+      makeConflictCenterButton("Decide Later", () => void submitDurableConflictOperation(conflictCase, "decide_later"), true)
+    );
+    const keepBothTitle = document.createElement("input");
+    keepBothTitle.type = "text";
+    keepBothTitle.placeholder = "Required duplicate title for Keep Both";
+    const keepBoth = makeConflictCenterButton("Keep Both", () => void submitDurableConflictOperation(conflictCase, "keep_both", { keepBothTitle: keepBothTitle.value.trim() }));
+    const merge = makeConflictCenterButton("Merge current editor snapshot", () => {
+      const current = collectStudyData();
+      if (String(state.activeStudyId || "") !== String(conflictCase.studyId) || !current.title) {
+        setStatus("Open this conflicted Study and provide a complete title before confirming a merged snapshot.", "error", 0);
+        return;
+      }
+      if (window.confirm("Send the complete currently visible Study snapshot as the explicit merge result?")) {
+        void submitDurableConflictOperation(conflictCase, "merge_changes", { mergedStudy: { ...current, id: conflictCase.studyId } });
+      }
+    });
+    panel.append(header, snapshots, keepBothTitle, actions, keepBoth, merge);
+    modal.dataset.ownerId = String(context.ownerId || "");
+    modal.dataset.studyId = String(context.studyId || "");
+    modal.dataset.caseId = String(conflictCase.id || "");
+    modal.dataset.editorGeneration = String(context.editorGeneration);
+    modal.hidden = false;
+  }
+
+  function conflictOperationKey(conflictCase, operation, extra) {
+    return `${conflictCase.id}:${conflictCase.caseVersion}:${operation}:${JSON.stringify(extra || {})}`;
+  }
+
+  function newClientOperationId() {
+    return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  }
+
+  function durableConflictRecoveryKey(ownerId, operationKey) {
+    return `${String(ownerId || "")}:${String(operationKey || "")}`;
+  }
+
+  function setDurableConflictRecovery(record) {
+    const ownerId = String(record?.ownerId || "");
+    const operationKey = String(record?.operationKey || "");
+    if (!ownerId || !operationKey) return;
+    state.durableConflictOperationRecoveries.set(
+      durableConflictRecoveryKey(ownerId, operationKey),
+      { ...record }
+    );
+  }
+
+  function getPendingDurableConflictRecovery(ownerId, caseId) {
+    const expectedOwnerId = String(ownerId || "");
+    const expectedCaseId = String(caseId || "");
+    return Array.from(state.durableConflictOperationRecoveries.values()).find((record) => (
+      String(record?.ownerId || "") === expectedOwnerId &&
+      String(record?.caseId || "") === expectedCaseId &&
+      !["reconciled", "abandoned"].includes(String(record?.recoveryStatus || "pending"))
+    )) || null;
+  }
+
+  function renderDurableConflictRecoveryNotice() {
+    if (!els.status) return;
+    const ownerId = String(state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.() || "");
+    const activeCase = getActiveDurableConflictCase();
+    const recovery = activeCase
+      ? getPendingDurableConflictRecovery(ownerId, activeCase.id)
+      : null;
+    const confirmed = recovery
+      ? null
+      : Array.from(state.durableConflictOperationRecoveries.values())
+        .filter((record) => (
+          String(record?.ownerId || "") === ownerId &&
+          String(record?.recoveryStatus || "") === "reconciled"
+        ))
+        .sort((left, right) => Number(right?.reconciledAt || 0) - Number(left?.reconciledAt || 0))[0] || null;
+    if (!recovery && !confirmed) return;
+    const waitingForConnection = !sharedAuthIsSignedInOnline() || studyDeskConnectionUnavailable();
+    els.status.classList.remove("is-success");
+    els.status.classList.add("is-conflict");
+    els.status.replaceChildren();
+    const copy = document.createElement("span");
+    copy.className = "study-conflict-copy";
+    copy.textContent = confirmed
+      ? "Your previous conflict resolution was completed successfully."
+      : waitingForConnection
+      ? "Your previous resolution request is preserved on this device. Study Desk will check again when the server is reachable."
+      : "Study Desk was interrupted before confirming your changes. We're checking whether they were saved.";
+    const actions = document.createElement("span");
+    actions.className = "study-conflict-actions";
+    if (recovery && activeCase) {
+      actions.appendChild(makeConflictCenterButton("Retry previous resolution", () => {
+        void reconcileDurableConflictOperations({ ownerId, caseId: activeCase.id, force: true });
+      }));
+    }
+    els.status.append(copy, actions);
+  }
+
+  async function markDurableConflictOperationRecovery(ownerId, operationKey, update) {
+    const next = await window.UserData?.updateStudyConflictOperationRequest?.(
+      ownerId,
+      operationKey,
+      update
+    );
+    if (next) setDurableConflictRecovery(next);
+    return next;
+  }
+
+  async function reconcileDurableConflictOperations(options = {}) {
+    if (!sharedAuthIsSignedInOnline() || studyDeskConnectionUnavailable()) return [];
+    const ownerId = String(options.ownerId || window.UserData?.getLiveAuthenticatedUserId?.() || "");
+    if (!ownerId || String(window.UserData?.getLiveAuthenticatedUserId?.() || "") !== ownerId) return [];
+    const promiseKey = `${ownerId}:${String(options.caseId || "*")}`;
+    if (durableConflictRecoveryPromises.has(promiseKey)) {
+      return durableConflictRecoveryPromises.get(promiseKey);
+    }
+    const run = (async () => {
+      const records = await window.UserData?.listStudyConflictOperationRequests?.(ownerId) || [];
+      records.forEach(setDurableConflictRecovery);
+      const candidates = records.filter((record) => (
+        !["reconciled", "abandoned"].includes(String(record?.recoveryStatus || "pending")) &&
+        (!options.caseId || String(record.caseId || "") === String(options.caseId))
+      ));
+      for (const record of candidates) {
+        if (String(window.UserData?.getLiveAuthenticatedUserId?.() || "") !== ownerId) break;
+        const context = {
+          ownerId,
+          studyId: String(record.studyId || ""),
+          editorGeneration: state.editorGeneration
+        };
+        try {
+          await markDurableConflictOperationRecovery(ownerId, record.operationKey, {
+            recoveryStatus: "checking",
+            lastError: ""
+          });
+          renderDurableConflictRecoveryNotice();
+          /* The server transaction checks its durable operation ledger before it may execute this exact request. */
+          const result = await window.UserData.submitStudyConflictCaseOperation(ownerId, record.caseId, record);
+          await markDurableConflictOperationRecovery(ownerId, record.operationKey, {
+            recoveryStatus: "reconciled",
+            reconciledAt: Date.now(),
+            lastError: "",
+            result: result?.result || null
+          });
+          if (String(window.UserData?.getLiveAuthenticatedUserId?.() || "") !== context.ownerId) continue;
+          const resolvedCase = result?.result?.conflictCase || null;
+          if (resolvedCase) {
+            state.durableConflictCases.set(
+              durableConflictStudyKey(resolvedCase.userId, resolvedCase.studyId),
+              resolvedCase
+            );
+          }
+          await refreshDurableStudyConflictCases();
+          if (String(window.UserData?.getLiveAuthenticatedUserId?.() || "") === context.ownerId) {
+            renderDurableConflictRecoveryNotice();
+          }
+          if (
+            String(window.UserData?.getLiveAuthenticatedUserId?.() || "") === context.ownerId &&
+            String(state.activeStudyId || "") === context.studyId
+          ) {
+            renderDurableConflictRecoveryNotice();
+          }
+        } catch (error) {
+          const status = error?.code === "STUDY_CONFLICT_CASE_STALE" || error?.code === "STUDY_CONFLICT_CASE_CLOSED"
+            ? "attention"
+            : "pending";
+          await markDurableConflictOperationRecovery(ownerId, record.operationKey, {
+            recoveryStatus: status,
+            lastError: String(error?.message || "Could not confirm the previous resolution.")
+          });
+          if (
+            String(window.UserData?.getLiveAuthenticatedUserId?.() || "") === context.ownerId &&
+            String(state.activeStudyId || "") === context.studyId
+          ) {
+            renderDurableConflictRecoveryNotice();
+          }
+        }
+      }
+      return candidates;
+    })();
+    durableConflictRecoveryPromises.set(promiseKey, run);
+    try {
+      return await run;
+    } finally {
+      durableConflictRecoveryPromises.delete(promiseKey);
+    }
+  }
+
+  async function submitDurableConflictOperation(conflictCase, operation, extra = {}) {
+    const ownerId = String(conflictCase?.userId || "");
+    const current = getActiveDurableConflictCase();
+    if (!ownerId || !current || current.id !== conflictCase.id || current.caseVersion !== conflictCase.caseVersion) {
+      await openDurableConflictCenter(conflictCase?.id);
+      return;
+    }
+    const editorContext = {
+      ownerId,
+      editorGeneration: state.editorGeneration,
+      studyId: String(state.activeStudyId || "")
+    };
+    const isCurrentContext = () => (
+      String(window.UserData?.getLiveAuthenticatedUserId?.() || "") === editorContext.ownerId &&
+      state.editorGeneration === editorContext.editorGeneration &&
+      String(state.activeStudyId || "") === editorContext.studyId &&
+      String(conflictCase.studyId || "") === editorContext.studyId
+    );
+    if (operation === "keep_both" && !extra.keepBothTitle) {
+      setStatus("Keep Both requires an explicit duplicate title.", "error", 0);
+      return;
+    }
+    if (state.isResolvingDurableConflict) return;
+    const key = conflictOperationKey(conflictCase, operation, extra);
+    const existingRecovery = getPendingDurableConflictRecovery(ownerId, conflictCase.id);
+    if (existingRecovery && String(existingRecovery.operationKey || "") !== key) {
+      setStatus("A previous resolution for this Study is still being recovered. Retry or wait for confirmation before choosing another resolution.", "error", 0);
+      return;
+    }
+    let request = await window.UserData?.getStudyConflictOperationRequest?.(ownerId, key);
+    if (!request) {
+      request = {
+        operationId: newClientOperationId(),
+        expectedCaseVersion: conflictCase.caseVersion,
+        operation,
+        ...cloneStudyDraftData(extra)
+      };
+      request = await window.UserData?.saveStudyConflictOperationRequest?.(ownerId, key, request, {
+        caseId: conflictCase.id,
+        studyId: conflictCase.studyId,
+        recoveryStatus: "pending"
+      }) || request;
+    } else if (!request.ownerId || !request.caseId || !request.studyId) {
+      request = await window.UserData?.saveStudyConflictOperationRequest?.(ownerId, key, request, {
+        caseId: conflictCase.id,
+        studyId: conflictCase.studyId,
+        recoveryStatus: "pending"
+      }) || request;
+    }
+    setDurableConflictRecovery(request);
+    await markDurableConflictOperationRecovery(ownerId, key, {
+      recoveryStatus: "submitted",
+      lastError: ""
+    });
+    state.isResolvingDurableConflict = true;
+    updateStudyActionAvailability();
+    try {
+      const result = await window.UserData.submitStudyConflictCaseOperation(ownerId, conflictCase.id, request);
+      await markDurableConflictOperationRecovery(ownerId, key, {
+        recoveryStatus: "reconciled",
+        reconciledAt: Date.now(),
+        lastError: "",
+        result: result?.result || null
+      });
+      const nextCase = result?.result?.conflictCase || null;
+      const resultingStudy = result?.result?.duplicateStudy || null;
+      if (
+        operation === "keep_both" &&
+        (
+          !resultingStudy?.id ||
+          String(resultingStudy.userId || "") !== ownerId ||
+          String(resultingStudy.id) === editorContext.studyId
+        )
+      ) {
+        throw new Error("The Keep Both result did not identify a separate Study for the current user.");
+      }
+      if (nextCase) {
+        state.durableConflictCases.set(durableConflictStudyKey(nextCase.userId, nextCase.studyId), nextCase);
+      }
+      await refreshDurableStudyConflictCases();
+      if (!isCurrentContext()) return;
+
+      if (operation === "keep_both" && resultingStudy?.id) {
+        /*
+         * Keep Both creates a separate Study on the server. Add that exact
+         * returned record to the visible list immediately, then replace the
+         * conflicted editor with the case's already-verified remote original.
+         * This both acknowledges the completed choice and prevents the stale
+         * local conflict snapshot from becoming an ordinary editable Study.
+         */
+        upsertStudyInState(resultingStudy);
+        const remoteOriginal = nextCase?.remoteStudy || conflictCase.remoteStudy;
+        if (remoteOriginal?.id && String(remoteOriginal.id) === editorContext.studyId) {
+          applyIncomingStudy(remoteOriginal, "");
+        } else {
+          renderStudyList();
+        }
+      }
+      ensureConflictCenter().hidden = true;
+      /* A protected draft is deliberately never discarded by a server resolution. */
+      setStatus(
+        operation === "keep_both"
+          ? "Keep Both created a separate Study. The original now shows the other version."
+          : operation === "decide_later"
+            ? "Conflict deferred. All versions and protected drafts remain available."
+            : "Conflict operation recorded. Any protected local draft remains available for review.",
+        "success",
+        0
+      );
+    } catch (error) {
+      await markDurableConflictOperationRecovery(ownerId, key, {
+        recoveryStatus: error?.code === "STUDY_CONFLICT_CASE_STALE" || error?.code === "STUDY_CONFLICT_CASE_CLOSED"
+          ? "attention"
+          : "pending",
+        lastError: String(error?.message || "Could not confirm the previous resolution.")
+      });
+      if (error?.code === "STUDY_CONFLICT_CASE_STALE") {
+        const latest = error?.data?.conflictCase;
+        if (latest?.id && isCurrentContext()) {
+          state.durableConflictCases.set(durableConflictStudyKey(latest.userId, latest.studyId), latest);
+          await renderDurableConflictCenter(latest, { ownerId, editorGeneration: state.editorGeneration, studyId: state.activeStudyId });
+        }
+        if (isCurrentContext()) {
+          setStatus("This conflict changed elsewhere. Review the latest evidence before choosing again.", "error", 0);
+        }
+      } else if (isCurrentContext()) {
+        setStatus(`${error?.message || "Conflict operation could not be confirmed."} Retrying the same choice will reuse its operation ID.`, "error", 0);
+      }
+    } finally {
+      state.isResolvingDurableConflict = false;
+      updateStudyActionAvailability();
+    }
+  }
+
+  function renderDurableStudyConflictNotice(remoteEvidenceAdvanced = false) {
+    const conflictCase = getActiveDurableConflictCase();
+    if (!conflictCase || !els.status) return false;
+    const pendingRecovery = getPendingDurableConflictRecovery(
+      conflictCase.userId,
+      conflictCase.id
+    );
+    if (pendingRecovery) {
+      renderDurableConflictRecoveryNotice();
+      setSaveState("Previous resolution confirmation pending");
+      updateStudyActionAvailability();
+      return true;
+    }
+    els.status.classList.remove("is-error", "is-success");
+    els.status.classList.add("is-conflict");
+    els.status.replaceChildren();
+    const text = document.createElement("span");
+    text.className = "study-conflict-copy";
+    text.textContent = state.protectedStudyDraftError
+      ? `${state.protectedStudyDraftError} Ordinary Save and Delete remain blocked.`
+      : state.protectedStudyDraft
+        ? "This device has a protected local draft. You may update it without synchronizing; ordinary Save and Delete remain blocked."
+        : remoteEvidenceAdvanced
+          ? "Newer conflict evidence is available. Review Differences before resolving; ordinary Save and Delete remain blocked."
+          : "This Study has a durable server conflict case. Ordinary Save and Delete are blocked; your local draft can be protected without synchronizing it.";
+    const actions = document.createElement("span");
+    actions.className = "study-conflict-actions";
+    actions.appendChild(makeConflictCenterButton("Review Differences", () => void openDurableConflictCenter(conflictCase.id)));
+    els.status.append(text, actions);
+    setSaveState(
+      state.protectedStudyDraftError
+        ? "Protected draft unavailable"
+        : state.protectedStudyDraft
+          ? "Protected draft saved on this device"
+          : "Conflict review required"
+    );
+    updateStudyActionAvailability();
+    return true;
   }
 
   function applyLatestRemoteStudy() {
@@ -350,7 +1073,39 @@
   }
 
   function renderStudyConflictNotice(sourceLabel = "another window or device", confirmDiscard = false) {
-    if (!els.status || !state.remoteStudy || state.remoteStudy.deleted) return;
+    if (!els.status || !state.remoteStudy) return;
+
+    const durableConflictCase = getVerifiedActiveDurableConflictCaseForRemoteStudy();
+    const remoteEvidenceAdvanced = durableConflictCase &&
+      remoteStudyIsNewerThanDurableConflictEvidence(durableConflictCase);
+
+    if (durableConflictCase) {
+      /*
+       * A verified durable case is the single recovery path for this exact
+       * owner and Study. It remains safer and clearer than stacking the
+       * generic stale-editor dialog, while the remote marker still blocks
+       * ordinary Save/Delete.
+       */
+      if (isOpenDurableConflictCenterForCurrentStudy() && remoteEvidenceAdvanced) {
+        flagOpenDurableConflictCenterEvidenceChange();
+      }
+      renderDurableStudyConflictNotice(remoteEvidenceAdvanced);
+      return;
+    }
+
+    if (state.remoteStudy.deleted) return;
+
+    if (isOpenDurableConflictCenterForCurrentStudy()) {
+      /*
+       * The durable Conflict Center is already the active review for this
+       * exact owner, Study, and editor generation. Keep its fields intact
+       * rather than placing the older generic newer-version dialog over it.
+       * The remote marker and action guards remain in state, so Save/Delete
+       * stay blocked until the user explicitly resolves the durable case.
+       */
+      renderDurableStudyConflictNotice();
+      return;
+    }
 
     if (statusClearTimer) {
       clearTimeout(statusClearTimer);
@@ -415,6 +1170,237 @@
 
     if (!confirmDiscard) {
       showStudyConflictDialog(sourceLabel);
+    }
+  }
+
+  function renderPersistedStudyConflictNotice() {
+    if (!els.status || !state.persistedStudyConflict) return;
+
+    if (statusClearTimer) {
+      clearTimeout(statusClearTimer);
+      statusClearTimer = null;
+    }
+
+    els.status.classList.remove("is-error", "is-success");
+    els.status.classList.add("is-conflict");
+    els.status.replaceChildren();
+
+    const text = document.createElement("span");
+    text.className = "study-conflict-copy";
+
+    const isDeleteConflict =
+      state.persistedStudyConflict.deleted === true;
+    const isOutboxOnlyConflict =
+      state.persistedStudyConflict.outboxOnlyConflict === true;
+
+    if (state.protectedStudyDraftError) {
+      text.textContent = state.protectedStudyDraftError;
+    } else if (isOutboxOnlyConflict) {
+      text.textContent =
+        "This recovery entry represents unresolved Study conflict evidence stored on this device. Ordinary Save and Delete remain blocked.";
+    } else if (isDeleteConflict && state.protectedStudyDraft) {
+      text.textContent =
+        "This Study has an unresolved deletion conflict. Your latest edit is protected locally. Choose an explicit conflict resolution only after handling the protected draft.";
+    } else if (isDeleteConflict) {
+      text.textContent =
+        "This Study has an unresolved deletion conflict. The local deletion remains pending until you explicitly resolve the conflict.";
+    } else if (state.protectedStudyDraft) {
+      text.textContent =
+        "This Study has an unresolved synchronization conflict. Your latest edit is protected locally. Ordinary Save cannot synchronize it until the conflict is resolved.";
+    } else {
+      text.textContent =
+        "This Study has an unresolved synchronization conflict. Ordinary Save cannot synchronize it until the conflict is resolved.";
+    }
+
+    const actions = document.createElement("span");
+    actions.className = "study-conflict-actions";
+
+    const durableConflictCase = getActiveDurableConflictCase();
+    if (durableConflictCase) {
+      actions.appendChild(makeConflictCenterButton(
+        "Review Differences",
+        () => void openDurableConflictCenter(durableConflictCase.id)
+      ));
+    }
+
+    if (state.protectedStudyDraft) {
+      const review = document.createElement("button");
+      review.type = "button";
+      review.className = "study-conflict-button";
+      review.textContent = "Review protected draft";
+      review.addEventListener("click", () => {
+        const record = state.persistedStudyConflict;
+        const draft = state.protectedStudyDraft;
+        const draftData = draft?.data;
+        const studyId = record?.studyId;
+
+        if (!draftData || !studyId) return;
+
+        applyStudyToForm({
+          ...draftData,
+          id: studyId,
+          version:
+            record?.study?.version ??
+            draft?.conflictBaseVersion ??
+            draft?.baseVersion ??
+            null
+        });
+        state.persistedStudyConflict = record;
+        state.protectedStudyDraft = draft;
+        state.hasUnsavedChanges = true;
+        setSaveState("Protected local draft open");
+        renderPersistedStudyConflictNotice();
+      });
+      actions.appendChild(review);
+    }
+
+    if (state.persistedStudyConflict?.study) {
+      const keepVisible = document.createElement("button");
+      keepVisible.type = "button";
+      keepVisible.className = "study-conflict-button is-secondary";
+      keepVisible.textContent = "Keep conflict version visible";
+      keepVisible.addEventListener("click", () => {
+        const record = state.persistedStudyConflict;
+        const draft = state.protectedStudyDraft;
+
+        if (!record?.study) return;
+
+        applyStudyToForm(record.study);
+        state.persistedStudyConflict = record;
+        state.protectedStudyDraft = draft;
+        renderPersistedStudyConflictNotice();
+      });
+      actions.appendChild(keepVisible);
+    }
+
+    if (isDeleteConflict && !state.protectedStudyDraft) {
+      const useSynced = document.createElement("button");
+      useSynced.type = "button";
+      useSynced.className = "study-conflict-button is-secondary";
+      useSynced.textContent = "Use synced version";
+      useSynced.addEventListener("click", () => {
+        void resolvePersistedStudyDeleteConflict("use-synced");
+      });
+      actions.appendChild(useSynced);
+
+      const keepDelete = document.createElement("button");
+      keepDelete.type = "button";
+      keepDelete.className = "study-conflict-button";
+      keepDelete.textContent = "Keep local deletion";
+      keepDelete.addEventListener("click", () => {
+        void resolvePersistedStudyDeleteConflict("keep-delete");
+      });
+      actions.appendChild(keepDelete);
+    }
+
+    els.status.append(text, actions);
+    updateStudyActionAvailability();
+  }
+
+  async function persistConflictProtectedStudyDraft(userId, context) {
+    const record = context?.conflictRecord;
+    const studyId = String(context?.studyId || record?.studyId || "");
+
+    if (!userId || !studyId || !window.UserData?.saveConflictProtectedStudyDraft) {
+      throw new Error("The latest Study edit could not be protected on this device.");
+    }
+
+    cancelLocalStudyAutosave();
+    const snapshot = cloneStudyDraftData(context?.data || {});
+    const runSave = () => window.UserData.saveConflictProtectedStudyDraft(
+      userId,
+      {
+        draftKey: `study:${studyId}`,
+        studyId,
+        conflictBaseVersion:
+          Number(record?.baseVersion) || Number(context?.studyVersion) || null,
+        data: snapshot,
+        durableConflictCase: context?.durableConflictCase || null
+      }
+    );
+    const queuedSave = localStudySaveQueue.then(runSave, runSave);
+    localStudySaveQueue = queuedSave.catch(() => null);
+    const draft = await queuedSave;
+
+    if (isCurrentEditorSaveContext(context)) {
+      state.protectedStudyDraft = draft;
+      state.protectedStudyDraftError = "";
+    }
+    return draft;
+  }
+
+  async function resolvePersistedStudyDeleteConflict(resolution) {
+    const record = state.persistedStudyConflict;
+    const studyId = String(record?.studyId || state.activeStudyId || "");
+    const userId = await getTrustedStudyUserId();
+
+    if (!record?.deleted || !studyId || !userId) {
+      setStatus(
+        "This deletion conflict cannot be resolved until the verified Study user is available.",
+        "error",
+        0
+      );
+      return;
+    }
+
+    if (state.protectedStudyDraft) {
+      state.protectedStudyDraftError =
+        "Handle the protected local draft before resolving this deletion conflict.";
+      renderPersistedStudyConflictNotice();
+      return;
+    }
+
+    const resolve = resolution === "keep-delete"
+      ? window.UserData?.resolveStudyDeleteConflictKeepDelete
+      : window.UserData?.resolveStudyConflictUseSyncedVersion;
+
+    if (typeof resolve !== "function") {
+      setStatus("Study conflict resolution is unavailable on this device.", "error", 0);
+      return;
+    }
+
+    state.isSaving = true;
+    updateStudyActionAvailability();
+
+    try {
+      const result = await resolve(userId, studyId);
+      state.deleteConflictStudyIds.delete(studyId);
+      state.persistedStudyConflict = null;
+      state.protectedStudyDraft = null;
+      state.protectedStudyDraftError = "";
+
+      if (resolution === "keep-delete") {
+        state.studies = state.studies.filter(
+          (study) => String(study?.id || "") !== studyId
+        );
+        applyStudyToForm(getEmptyStudy());
+        renderStudyList();
+        setStatus(
+          "The local deletion remains pending synchronization.",
+          "success"
+        );
+      } else {
+        const study = result?.study;
+
+        if (!study?.id) {
+          throw new Error("The synchronized Study version was not available after resolution.");
+        }
+
+        upsertStudyInState(study);
+        applyStudyToForm(study);
+        renderStudyList();
+        setStatus("Using the synchronized Study version.", "success");
+      }
+    } catch (error) {
+      console.error("Could not resolve Study deletion conflict:", error);
+      setStatus(
+        error?.message || "The deletion conflict could not be resolved.",
+        "error",
+        0
+      );
+    } finally {
+      state.isSaving = false;
+      updateStudyActionAvailability();
     }
   }
 
@@ -669,10 +1655,49 @@
     return JSON.parse(JSON.stringify(data));
   }
 
+  function captureEditorSaveContext(data) {
+    return {
+      editorGeneration: state.editorGeneration,
+      ownerId: String(
+        state.loadedStudyUserId ||
+        window.UserData?.getLiveAuthenticatedUserId?.() ||
+        ""
+      ),
+      studyId: String(state.activeStudyId || ""),
+      studyVersion: state.activeStudyVersion,
+      draftKey: String(state.localDraftKey || ""),
+      conflictRecord: state.persistedStudyConflict
+        ? cloneStudyDraftData(state.persistedStudyConflict)
+        : null,
+      data: cloneStudyDraftData(data),
+      studies: cloneStudyDraftData(state.studies),
+      categories: cloneStudyDraftData(state.categories),
+      selectedTags: cloneStudyDraftData(state.selectedTags),
+      linkedScriptures: cloneStudyDraftData(state.linkedScriptures)
+    };
+  }
+
+  function isCurrentEditorSaveContext(context) {
+    const liveOwnerId = String(
+      window.UserData?.getLiveAuthenticatedUserId?.() || ""
+    );
+
+    return Boolean(
+      context &&
+      context.editorGeneration === state.editorGeneration &&
+      String(state.activeStudyId || "") === context.studyId &&
+      (!context.ownerId || !liveOwnerId || context.ownerId === liveOwnerId) &&
+      (!state.loadedStudyUserId || !context.ownerId ||
+        context.ownerId === state.loadedStudyUserId)
+    );
+  }
+
   async function saveCurrentStudyDraftNow(options = {}) {
     const showStatus = options.showStatus !== false;
 
     if (
+      state.persistedStudyConflict ||
+      getActiveDurableConflictCase() ||
       !state.hasUnsavedChanges ||
       !window.UserData?.saveStudyDraft ||
       !window.UserData?.getLiveAuthenticatedUserId?.()
@@ -730,6 +1755,7 @@
 
   function scheduleLocalStudyAutosave() {
     if (
+      state.persistedStudyConflict ||
       !window.UserData?.saveStudyDraft ||
       !window.UserData?.getLiveAuthenticatedUserId?.()
     ) {
@@ -768,7 +1794,13 @@
   function discardCurrentLocalStudyDraft() {
     const draftKey = state.localDraftKey;
     cancelLocalStudyAutosave();
+
+    if (state.protectedStudyDraft || state.persistedStudyConflict) {
+      return false;
+    }
+
     void deleteLocalStudyDraft(draftKey);
+    return true;
   }
 
   function markDirty() {
@@ -785,7 +1817,11 @@
     const shouldDiscard = confirm("You have unsaved changes. Leave without saving?");
 
     if (shouldDiscard) {
-      discardCurrentLocalStudyDraft();
+      const discarded = discardCurrentLocalStudyDraft();
+
+      if (!discarded && state.protectedStudyDraft) {
+        setSaveState("Protected conflict draft remains on this device");
+      }
     }
 
     return shouldDiscard;
@@ -848,6 +1884,7 @@
   let studyLoadPromise = null;
   let studyAuthRetryTimer = null;
   let studyAuthRetryCount = 0;
+  let activeStudyRemoteCheckPromise = null;
 
   const STUDY_AUTH_RETRY_LIMIT = 6;
 
@@ -951,6 +1988,10 @@
       state.referencedScripturesDirty = false;
       state.keywordDataStale = false;
       state.hasLoaded = false;
+      state.durableConflictCases.clear();
+      state.durableConflictOperationRecoveries.clear();
+      state.activeDurableConflictCaseId = "";
+      state.loadedStudyUserId = "";
   
       showLoggedOut();
       return;
@@ -959,13 +2000,31 @@
     if (state.hasLoaded) {
       clearStudyAuthRetry();
       showApp();
+      if (sharedAuthIsSignedInOnline()) {
+        refreshDurableStudyConflictCases().catch((error) => {
+          console.warn("Could not refresh durable Study conflict cases after authentication changed:", error);
+        });
+        reconcileDurableConflictOperations().catch((error) => {
+          console.warn("Could not recover pending Study conflict resolutions after authentication changed:", error);
+        });
+      }
       return;
     }
   
     if (!studyLoadPromise) {
-      studyLoadPromise = loadStudies().finally(() => {
-        studyLoadPromise = null;
-      });
+      studyLoadPromise = loadStudies()
+        .then(async () => {
+          if (sharedAuthIsSignedInOnline()) {
+            try {
+              await reconcileDurableConflictOperations();
+            } catch (error) {
+              console.warn("Could not recover pending Study conflict resolutions during initialization:", error);
+            }
+          }
+        })
+        .finally(() => {
+          studyLoadPromise = null;
+        });
     }
   }
   
@@ -1674,6 +2733,9 @@
   function applyStudyToForm(study) {
     const data = study || getEmptyStudy();
 
+    state.editorGeneration += 1;
+    state.studyLoadGeneration += 1;
+
     state.activeStudyId = data.id || null;
     state.localDraftKey = state.activeStudyId
       ? `study:${state.activeStudyId}`
@@ -1691,6 +2753,10 @@
         ? loadedVersion
         : null;
     state.remoteStudy = null;
+    state.isSaving = false;
+    state.persistedStudyConflict = null;
+    state.protectedStudyDraft = null;
+    state.protectedStudyDraftError = "";
     lastStudyConflictDialogKey = "";
     state.referencedScripturesStale = false;
     state.referencedScripturesRemoteStudy = null;
@@ -2266,6 +3332,60 @@
       }
     );
 
+    window.addEventListener("user-data-study-conflict-case", (event) => {
+      const detail = event?.detail || {};
+      const activeUserId = String(
+        state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.() || ""
+      );
+      if (!activeUserId || String(detail.userId || "") !== activeUserId) return;
+
+      const conflictCase = detail.conflictCase || null;
+      if (conflictCase) {
+        const conflictKey = durableConflictStudyKey(
+          conflictCase.userId,
+          conflictCase.studyId
+        );
+        const previousCase = state.durableConflictCases.get(conflictKey) || null;
+        state.durableConflictCases.set(
+          conflictKey,
+          conflictCase
+        );
+        if (
+          isOpenDurableConflictCenterForCurrentStudy() &&
+          durableConflictRemoteEvidenceAdvanced(previousCase, conflictCase)
+        ) {
+          flagOpenDurableConflictCenterEvidenceChange();
+        }
+      } else {
+        Array.from(state.durableConflictCases.entries()).forEach(([key, value]) => {
+          if (String(value?.id || "") === String(detail.caseId || "")) {
+            state.durableConflictCases.delete(key);
+          }
+        });
+      }
+
+      mergeDurableConflictEntriesIntoStudyList();
+      renderStudyList();
+      if (getActiveDurableConflictCase()) renderDurableStudyConflictNotice();
+    });
+
+    window.addEventListener("app-connectivity-changed", (event) => {
+      const connectivity = event?.detail || {};
+      if (
+        sharedAuthIsSignedInOnline() &&
+        connectivity.browserOnline !== false &&
+        connectivity.appReachable !== false &&
+        connectivity.connectionIssue !== true
+      ) {
+        refreshDurableStudyConflictCases().catch((error) => {
+          console.warn("Could not reconcile durable Study conflict cases after reconnect:", error);
+        });
+        reconcileDurableConflictOperations().catch((error) => {
+          console.warn("Could not recover pending Study conflict resolutions after reconnect:", error);
+        });
+      }
+    });
+
     if ("BroadcastChannel" in window) {
       studySyncChannel = new BroadcastChannel(STUDY_SYNC_CHANNEL_NAME);
       studySyncChannel.addEventListener("message", (event) => {
@@ -2292,41 +3412,84 @@
       state.isSaving ||
       document.hidden ||
       !Number.isInteger(state.activeStudyVersion) ||
-      state.activeStudyVersion < 1
+      state.activeStudyVersion < 1 ||
+      !sharedAuthIsSignedInOnline() ||
+      studyDeskConnectionUnavailable()
     ) {
       return;
     }
 
-    try {
-      const result = await fetchJson(`/api/studies/${encodeURIComponent(state.activeStudyId)}`);
-      const freshStudy = result.study;
+    if (activeStudyRemoteCheckPromise) {
+      return activeStudyRemoteCheckPromise;
+    }
 
-      if (!freshStudy) return;
+    const requestedStudyId = String(state.activeStudyId);
+    const requestedUserId = String(
+      window.UserData?.getLiveAuthenticatedUserId?.() || ""
+    );
 
-      const freshVersion = Number(freshStudy.version) || 0;
-      const activeVersion = Number(state.activeStudyVersion) || 0;
+    if (!requestedUserId) {
+      return;
+    }
 
-      if (freshVersion > activeVersion) {
-        const scopedVersion =
-          Number(state.referencedScripturesRemoteStudy?.version) || 0;
+    const isCurrentRequest = () => (
+      sharedAuthIsSignedInOnline() &&
+      !studyDeskConnectionUnavailable() &&
+      String(state.activeStudyId || "") === requestedStudyId &&
+      String(
+        window.UserData?.getLiveAuthenticatedUserId?.() || ""
+      ) === requestedUserId
+    );
 
-        // A known Referenced Scriptures update waits for the section-level
-        // Refresh button. Do not escalate that same version into a whole-study
-        // conflict while polling.
-        if (
-          state.referencedScripturesStale &&
-          freshVersion <= scopedVersion
-        ) {
+    activeStudyRemoteCheckPromise = (async () => {
+      try {
+        const result = await fetchJson(
+          `/api/studies/${encodeURIComponent(requestedStudyId)}`
+        );
+
+        if (!isCurrentRequest()) {
           return;
         }
 
-        handleIncomingStudyUpdate(freshStudy, "another window or device");
+        const freshStudy = result.study;
+
+        if (!freshStudy) return;
+
+        const freshVersion = Number(freshStudy.version) || 0;
+        const activeVersion = Number(state.activeStudyVersion) || 0;
+
+        if (freshVersion > activeVersion) {
+          const scopedVersion =
+            Number(state.referencedScripturesRemoteStudy?.version) || 0;
+
+          // A known Referenced Scriptures update waits for the section-level
+          // Refresh button. Do not escalate that same version into a whole-study
+          // conflict while polling.
+          if (
+            state.referencedScripturesStale &&
+            freshVersion <= scopedVersion
+          ) {
+            return;
+          }
+
+          handleIncomingStudyUpdate(freshStudy, "another window or device");
+        }
+      } catch (error) {
+        if (
+          error.status === 404 &&
+          isCurrentRequest()
+        ) {
+          await handleIncomingStudyDelete(
+            requestedStudyId,
+            "another window or device"
+          );
+        }
+      } finally {
+        activeStudyRemoteCheckPromise = null;
       }
-    } catch (error) {
-      if (error.status === 404) {
-        await handleIncomingStudyDelete(state.activeStudyId, "another window or device");
-      }
-    }
+    })();
+
+    return activeStudyRemoteCheckPromise;
   }
 
   function startStudySyncPolling() {
@@ -2338,11 +3501,17 @@
 
     window.addEventListener("focus", () => {
       checkForRemoteStudyUpdate();
+      reconcileDurableConflictOperations().catch((error) => {
+        console.warn("Could not recover pending Study conflict resolutions after focus:", error);
+      });
     });
 
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
         checkForRemoteStudyUpdate();
+        reconcileDurableConflictOperations().catch((error) => {
+          console.warn("Could not recover pending Study conflict resolutions after visibility restoration:", error);
+        });
       }
     });
   }
@@ -2477,7 +3646,17 @@
       const meta = document.createElement("span");
       meta.textContent = [
         formatDate(study.studyDate || study.updatedAt),
-        study.category?.name || study.studyType
+        study.category?.name || study.studyType,
+        state.deleteConflictStudyIds.has(String(study.id || ""))
+          ? "Deletion conflict"
+          : getActiveDurableConflictCase()?.studyId === String(study.id || "")
+            ? "Conflict recovery"
+            : state.durableConflictCases.get(durableConflictStudyKey(
+                state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.(),
+                study.id
+              ))
+              ? "Conflict recovery"
+          : ""
       ]
         .filter(Boolean)
         .join(" • ");
@@ -2576,10 +3755,12 @@
     return true;
   }
 
-  async function loadCategories() {
+  async function loadCategories({
+    refreshOnline = true
+  } = {}) {
     if (
       await refreshCategoryStateFromLocalData({
-        refreshOnline: true
+        refreshOnline
       })
     ) {
       window.setTimeout(
@@ -2980,13 +4161,60 @@
     await loadAvailableTags();
   }
 
+  function isDeleteConflictedStudyRecord(record, conflictStudyIds = state.deleteConflictStudyIds) {
+    return Boolean(
+      record &&
+      record.deleted === true &&
+      (record.syncStatus === "conflict" ||
+        conflictStudyIds.has(String(record.studyId || ""))) &&
+      record.study
+    );
+  }
+
+  function getVisibleStudyFromCachedRecord(record) {
+    if (!record?.study) return null;
+
+    if (isDeleteConflictedStudyRecord(record)) {
+      return record.conflictRemote || record.study;
+    }
+
+    return record.deleted === true
+      ? null
+      : record.study;
+  }
+
+  function getVisibleOutboxOnlyConflictEntry(summary) {
+    const studyId = String(summary?.studyId || "");
+
+    if (!studyId || summary?.record) return null;
+
+    const mutation = summary?.conflictMutations?.[0] || {};
+    const isDelete = mutation.operation === "delete";
+
+    return {
+      id: studyId,
+      title: isDelete
+        ? "Recovery needed: deleted Study"
+        : "Recovery needed: Study conflict",
+      previewText: "Conflict evidence is stored on this device.",
+      updatedAt: mutation.updatedAt || mutation.createdAt || null,
+      outboxOnlyConflict: true,
+      outboxConflictOperation: mutation.operation || "update"
+    };
+  }
+
   async function loadStudies() {
     setListStatus("Loading...");
 
     try {
       if (sharedAuthIsSignedInOffline()) {
+        await loadCategories({
+          refreshOnline: false
+        });
+
         const userId =
           await getTrustedStudyUserId();
+        state.loadedStudyUserId = String(userId || "");
 
         const cachedRecords =
           userId &&
@@ -2996,14 +4224,51 @@
               )
             : [];
 
-        state.studies = cachedRecords
-          .filter(
-            (record) =>
-              record &&
-              record.deleted !== true &&
-              record.study
-          )
-          .map((record) => record.study);
+        const conflictSummaries =
+          userId && window.UserData?.listStudyConflictSummaries
+            ? await window.UserData.listStudyConflictSummaries(userId)
+            : [];
+
+        const durableCases =
+          userId && window.UserData?.getCachedStudyConflictCases
+            ? await window.UserData.getCachedStudyConflictCases(userId)
+            : [];
+        state.durableConflictCases.clear();
+        durableCases.forEach((conflictCase) => {
+          if (["open", "deferred"].includes(String(conflictCase?.status || ""))) {
+            state.durableConflictCases.set(
+              durableConflictStudyKey(conflictCase.userId, conflictCase.studyId),
+              conflictCase
+            );
+          }
+        });
+
+        state.deleteConflictStudyIds = new Set(
+          conflictSummaries
+            .filter((summary) => summary?.record?.deleted === true)
+            .map((summary) => String(summary.studyId || ""))
+            .filter(Boolean)
+        );
+
+        const visibleStudies = cachedRecords
+          .map(getVisibleStudyFromCachedRecord)
+          .filter(Boolean);
+        const visibleStudyIds = new Set(
+          visibleStudies.map((study) => String(study?.id || ""))
+        );
+
+        conflictSummaries.forEach((summary) => {
+          const entry = getVisibleOutboxOnlyConflictEntry(summary);
+
+          if (entry && !visibleStudyIds.has(entry.id)) {
+            visibleStudies.push(entry);
+            visibleStudyIds.add(entry.id);
+          }
+        });
+
+        state.studies = visibleStudies;
+        mergeDurableConflictEntriesIntoStudyList();
+        mergeDurableConflictEntriesIntoStudyList();
 
         state.hasLoaded = true;
         clearStudyAuthRetry();
@@ -3031,6 +4296,10 @@
       }
 
       await loadSetup();
+      const loadedUserId = String(
+        window.UserData?.getLiveAuthenticatedUserId?.() || ""
+      );
+      state.loadedStudyUserId = loadedUserId;
       const result = await fetchJson("/api/studies");
       state.studies =
         Array.isArray(result.studies)
@@ -3041,8 +4310,7 @@
         window.UserData?.cacheStudiesFromServer
       ) {
         try {
-          const userId =
-            window.UserData.getLiveAuthenticatedUserId();
+          const userId = loadedUserId;
 
           await window.UserData.cacheStudiesFromServer(
             userId,
@@ -3053,6 +4321,16 @@
             await window.UserData.listCachedStudies(
               userId
             );
+
+          const conflictSummaries =
+            await window.UserData.listStudyConflictSummaries?.(userId) || [];
+
+          state.deleteConflictStudyIds = new Set(
+            conflictSummaries
+              .filter((summary) => summary?.record?.deleted === true)
+              .map((summary) => String(summary.studyId || ""))
+              .filter(Boolean)
+          );
 
           const locallyDeletedStudyIds =
             new Set(
@@ -3102,6 +4380,23 @@
               }
             });
 
+          cachedStudies
+            .filter((record) => isDeleteConflictedStudyRecord(record))
+            .forEach((record) => {
+              const conflictStudy = getVisibleStudyFromCachedRecord(record);
+
+              if (
+                conflictStudy &&
+                !state.studies.some(
+                  (study) =>
+                    String(study?.id || "") ===
+                    String(conflictStudy.id || "")
+                )
+              ) {
+                state.studies.push(conflictStudy);
+              }
+            });
+
           state.studies.sort(
             (a, b) =>
               new Date(b.updatedAt || 0) -
@@ -3118,6 +4413,11 @@
       state.hasLoaded = true;
       clearStudyAuthRetry();
       showApp();
+      try {
+        await refreshDurableStudyConflictCases();
+      } catch (error) {
+        console.warn("Could not refresh durable Study conflict cases:", error);
+      }
       renderStudyList();
 
       if (state.studies.length && !state.activeStudyId) {
@@ -3146,6 +4446,9 @@
   async function loadStudy(id) {
     if (!id) return;
 
+    const loadGeneration = ++state.studyLoadGeneration;
+    const isCurrentLoad = () => loadGeneration === state.studyLoadGeneration;
+
     setStatus("Loading study...");
 
     try {
@@ -3160,6 +4463,92 @@
               id
             )
           : null;
+
+      const conflictState =
+        trustedUserId &&
+        window.UserData?.getStudyConflictState
+          ? await window.UserData.getStudyConflictState(
+              trustedUserId,
+              id
+            )
+          : null;
+
+      if (!isCurrentLoad()) return;
+
+      if (conflictState?.hasConflict && conflictState.record?.study) {
+        const protectedDraft =
+          window.UserData?.getConflictProtectedStudyDraft
+            ? await window.UserData.getConflictProtectedStudyDraft(
+                trustedUserId,
+                id
+              )
+            : null;
+
+        if (!isCurrentLoad()) return;
+
+        applyStudyToForm(
+          conflictState.record.deleted === true
+            ? conflictState.record.conflictRemote || conflictState.record.study
+            : conflictState.record.study
+        );
+        state.persistedStudyConflict = conflictState.record;
+        state.protectedStudyDraft = protectedDraft;
+        if (conflictState.record.deleted === true) {
+          state.deleteConflictStudyIds.add(String(id));
+        }
+        renderStudyList();
+        renderPersistedStudyConflictNotice();
+        return;
+      }
+
+      if (conflictState?.hasConflict && !conflictState.record) {
+        const protectedDraft =
+          window.UserData?.getConflictProtectedStudyDraft
+            ? await window.UserData.getConflictProtectedStudyDraft(
+                trustedUserId,
+                id
+              )
+            : null;
+
+        if (!isCurrentLoad()) return;
+
+        const mutation = conflictState.outboxItems?.[0] || {};
+        applyStudyToForm({
+          id,
+          title: mutation.operation === "delete"
+            ? "Recovery needed: deleted Study"
+            : "Recovery needed: Study conflict",
+          previewText: "Conflict evidence is stored on this device."
+        });
+        state.persistedStudyConflict = {
+          userId: trustedUserId,
+          studyId: String(id),
+          outboxOnlyConflict: true,
+          conflictMutations: conflictState.outboxItems || []
+        };
+        state.protectedStudyDraft = protectedDraft;
+        renderStudyList();
+        renderPersistedStudyConflictNotice();
+        return;
+      }
+
+      const durableConflictCase = state.durableConflictCases.get(
+        durableConflictStudyKey(trustedUserId, id)
+      ) || null;
+
+      if (durableConflictCase && ["open", "deferred"].includes(String(durableConflictCase.status || ""))) {
+        const protectedDraft = window.UserData?.getConflictProtectedStudyDraft
+          ? await window.UserData.getConflictProtectedStudyDraft(trustedUserId, id)
+          : null;
+        if (!isCurrentLoad()) return;
+        applyStudyToForm(getDurableConflictDisplayStudy(durableConflictCase));
+        state.activeDurableConflictCaseId = durableConflictCase.id;
+        state.protectedStudyDraft = protectedDraft;
+        state.hasUnsavedChanges = Boolean(protectedDraft);
+        renderStudyList();
+        renderDurableStudyConflictNotice();
+        return;
+      }
 
       if (
         locallyCreated?.study &&
@@ -3190,6 +4579,8 @@
               )
             : null;
 
+        if (!isCurrentLoad()) return;
+
         if (!cached?.study || cached.deleted === true) {
           throw new Error(
             "This Study is not available on this device while offline."
@@ -3205,6 +4596,8 @@
       const result = await fetchJson(
         `/api/studies/${encodeURIComponent(id)}`
       );
+
+      if (!isCurrentLoad()) return;
 
       if (
         window.UserData?.cacheStudyFromServer &&
@@ -3223,6 +4616,8 @@
         }
       }
 
+      if (!isCurrentLoad()) return;
+
       applyStudyToForm(result.study);
       renderStudyList();
     } catch (error) {
@@ -3230,12 +4625,16 @@
     }
   }
 
-  function getNewStudySyncInput(data) {
+  function getNewStudySyncInput(data, context = null) {
+    const snapshot = context?.data || data;
+    const categories = context?.categories || state.categories;
+    const selectedTags = context?.selectedTags || state.selectedTags;
+    const linkedScriptures = context?.linkedScriptures || state.linkedScriptures;
     const requestedCategoryId =
-      data.categoryId || null;
+      snapshot.categoryId || null;
 
     const selectedCategory =
-      state.categories.find(
+      categories.find(
         (category) =>
           String(category?.id || "") ===
           String(requestedCategoryId || "")
@@ -3244,7 +4643,7 @@
     const {
       expectedVersion: _expectedVersion,
       ...localData
-    } = data;
+    } = snapshot;
 
     return {
       ...localData,
@@ -3252,11 +4651,11 @@
       version: 0,
       categoryId: requestedCategoryId,
       category: selectedCategory,
-      tags: state.selectedTags.map(
+      tags: selectedTags.map(
         (tag) => ({ ...tag })
       ),
       linkedScriptures:
-        state.linkedScriptures.map(
+        linkedScriptures.map(
           (item) => ({ ...item })
         ),
       createdAt: new Date().toISOString(),
@@ -3264,12 +4663,17 @@
     };
   }
 
-  function getExistingStudySyncInput(data) {
+  function getExistingStudySyncInput(data, context = null) {
+    const activeStudyId = context?.studyId || state.activeStudyId;
+    const activeStudyVersion = context?.studyVersion ?? state.activeStudyVersion;
+    const studies = context?.studies || state.studies;
+    const selectedTags = context?.selectedTags || state.selectedTags;
+    const linkedScriptures = context?.linkedScriptures || state.linkedScriptures;
     const currentStudy =
-      state.studies.find(
+      studies.find(
         (study) =>
           String(study?.id || "") ===
-          String(state.activeStudyId || "")
+          String(activeStudyId || "")
       ) || {};
 
     const requestedCategoryId =
@@ -3299,18 +4703,18 @@
     return {
       ...currentStudy,
       ...localData,
-      id: state.activeStudyId,
-      version: state.activeStudyVersion,
+      id: activeStudyId,
+      version: activeStudyVersion,
       categoryId: requestedCategoryId,
       category:
         selectedCategory ||
         currentStudy.category ||
         null,
-      tags: state.selectedTags.map(
+      tags: selectedTags.map(
         (tag) => ({ ...tag })
       ),
       linkedScriptures:
-        state.linkedScriptures.map(
+        linkedScriptures.map(
           (item) => ({ ...item })
         ),
       updatedAt: new Date().toISOString()
@@ -3351,7 +4755,7 @@
      * Save already has a verified user ID, so clear this exact IndexedDB draft
      * directly to avoid leaving a stale draft behind after an offline Save.
      */
-    await window.UserOfflineDB?.deleteStudyDraft?.(
+    await window.UserOfflineDB?.discardOrdinaryStudyDraftAtomically?.(
       normalizedUserId,
       normalizedDraftKey
     );
@@ -3359,6 +4763,55 @@
 
 
   async function saveStudy() {
+    const data = collectStudyData();
+    const saveContext = captureEditorSaveContext(data);
+
+    const durableConflictCase = getActiveDurableConflictCase();
+    if (state.persistedStudyConflict || durableConflictCase) {
+      const userId = await getTrustedStudyUserId();
+
+      if (
+        !userId ||
+        (saveContext.ownerId && saveContext.ownerId !== String(userId))
+      ) {
+        if (!isCurrentEditorSaveContext(saveContext)) return;
+        state.protectedStudyDraftError =
+          "The latest edit could not be protected because the verified Study user is unavailable.";
+        if (durableConflictCase) {
+          renderDurableStudyConflictNotice();
+        } else {
+          renderPersistedStudyConflictNotice();
+        }
+        return;
+      }
+
+      try {
+        await persistConflictProtectedStudyDraft(userId, {
+          ...saveContext,
+          durableConflictCase
+        });
+        if (isCurrentEditorSaveContext(saveContext)) {
+          if (durableConflictCase) {
+            renderDurableStudyConflictNotice();
+          } else {
+            renderPersistedStudyConflictNotice();
+          }
+        }
+      } catch (error) {
+        console.error("Could not protect conflicted Study draft:", error);
+        if (!isCurrentEditorSaveContext(saveContext)) return;
+        state.protectedStudyDraftError =
+          "The latest edit could not be protected on this device. Synchronization was not attempted.";
+        if (durableConflictCase) {
+          renderDurableStudyConflictNotice();
+        } else {
+          renderPersistedStudyConflictNotice();
+        }
+      }
+
+      return;
+    }
+
     if (state.referencedScripturesStale) {
       setReferencedScriptureFeedback(
         "New Scripture changes are available. Refresh this section before saving.",
@@ -3375,8 +4828,6 @@
       );
       return;
     }
-
-    const data = collectStudyData();
 
     if (!data.title) {
       setStatus(
@@ -3410,10 +4861,18 @@
      * ID is later inserted into PostgreSQL so reconnect never swaps identities.
      */
     if (!isExisting) {
+      const createInput = getNewStudySyncInput(data, saveContext);
+      const localDraftKeyBeforeSave = saveContext.draftKey;
       const userId =
         await getTrustedStudyUserId();
 
-      if (!userId) {
+      if (
+        !userId ||
+        !saveContext.ownerId ||
+        saveContext.ownerId !== String(userId) ||
+        !isCurrentEditorSaveContext(saveContext)
+      ) {
+        if (!isCurrentEditorSaveContext(saveContext)) return;
         setStatus(
           "A verified signed-in user is required before this Study can be saved.",
           "error",
@@ -3423,9 +4882,6 @@
         return;
       }
 
-      const localDraftKeyBeforeSave =
-        ensureLocalStudyDraftKey();
-
       cancelLocalStudyAutosave();
 
       setStatus("Saving...");
@@ -3434,9 +4890,6 @@
       updateStudyActionAvailability();
 
       try {
-        const createInput =
-          getNewStudySyncInput(data);
-
         const queued =
           await window.UserData
             .queueStudyCreateForSync(
@@ -3454,26 +4907,25 @@
           );
         }
 
-        /*
-         * Make the local Study a normal selectable Study immediately. Version
-         * 0 means it exists on this device but has not reached PostgreSQL yet.
-         */
-        state.activeStudyId =
-          localStudy.id;
-        state.activeStudyVersion = 0;
-
-        upsertStudyInState(localStudy);
-        applyStudyToForm(localStudy);
-        renderStudyList();
+        if (!isCurrentEditorSaveContext(saveContext)) {
+          return;
+        }
 
         await deleteLocalStudyDraftForUser(
           userId,
           localDraftKeyBeforeSave
         );
 
+        if (!isCurrentEditorSaveContext(saveContext)) {
+          return;
+        }
+
         if (
           studyDeskConnectionUnavailable()
         ) {
+          upsertStudyInState(localStudy);
+          applyStudyToForm(localStudy);
+          renderStudyList();
           setStatus(
             "Study saved on this device. It will sync when you are back online.",
             "success"
@@ -3486,11 +4938,19 @@
 
         await window.UserData.flushOutbox();
 
+        if (!isCurrentEditorSaveContext(saveContext)) {
+          return;
+        }
+
         const cached =
           await window.UserData.getCachedStudy(
             userId,
             localStudy.id
           );
+
+        if (!isCurrentEditorSaveContext(saveContext)) {
+          return;
+        }
 
         if (
           cached?.syncStatus === "pending" ||
@@ -3549,6 +5009,7 @@
           error
         );
 
+        if (!isCurrentEditorSaveContext(saveContext)) return;
         setStatus(
           error.message ||
             "The Study could not be saved.",
@@ -3556,8 +5017,10 @@
         );
         setSaveState("Save failed");
       } finally {
-        state.isSaving = false;
-        updateStudyActionAvailability();
+        if (isCurrentEditorSaveContext(saveContext)) {
+          state.isSaving = false;
+          updateStudyActionAvailability();
+        }
       }
 
       return;
@@ -3566,7 +5029,11 @@
     const userId =
       await getTrustedStudyUserId();
 
-    if (!userId) {
+    if (
+      !userId ||
+      (saveContext.ownerId && saveContext.ownerId !== String(userId))
+    ) {
+      if (!isCurrentEditorSaveContext(saveContext)) return;
       setStatus(
         "A verified signed-in user is required before this Study can be saved.",
         "error",
@@ -3576,8 +5043,7 @@
       return;
     }
 
-    const localDraftKeyBeforeSave =
-      ensureLocalStudyDraftKey();
+    const localDraftKeyBeforeSave = saveContext.draftKey;
 
     cancelLocalStudyAutosave();
 
@@ -3587,10 +5053,7 @@
     updateStudyActionAvailability();
 
     try {
-      const syncInput =
-        getExistingStudySyncInput(
-          data
-        );
+      const syncInput = getExistingStudySyncInput(data, saveContext);
 
       const queued =
         await window.UserData
@@ -3603,13 +5066,17 @@
         queued?.study?.study ||
         syncInput;
 
-      upsertStudyInState(localStudy);
-      renderStudyList();
-
       await deleteLocalStudyDraftForUser(
         userId,
         localDraftKeyBeforeSave
       );
+
+      if (!isCurrentEditorSaveContext(saveContext)) {
+        return;
+      }
+
+      upsertStudyInState(localStudy);
+      renderStudyList();
 
       if (
         studyDeskConnectionUnavailable()
@@ -3626,10 +5093,14 @@
 
       await window.UserData.flushOutbox();
 
+      if (!isCurrentEditorSaveContext(saveContext)) {
+        return;
+      }
+
       const cached =
         await window.UserData.getCachedStudy(
           userId,
-          state.activeStudyId
+          saveContext.studyId
         );
 
       if (
@@ -3704,6 +5175,45 @@
         error
       );
 
+      if (error?.code === "STUDY_CONFLICT_OPEN") {
+        try {
+          const conflictState =
+            await window.UserData?.getStudyConflictState?.(
+              userId,
+          saveContext.studyId
+            );
+
+          const conflictContext = {
+            ...saveContext,
+            conflictRecord: conflictState?.record || saveContext.conflictRecord || {
+              studyId: saveContext.studyId,
+              baseVersion: saveContext.studyVersion,
+              study: saveContext.data
+            }
+          };
+          await persistConflictProtectedStudyDraft(userId, conflictContext);
+          if (isCurrentEditorSaveContext(saveContext)) {
+            state.persistedStudyConflict = conflictContext.conflictRecord;
+            renderPersistedStudyConflictNotice();
+          }
+        } catch (draftError) {
+          console.error("Could not protect Study after conflict detection:", draftError);
+          if (!isCurrentEditorSaveContext(saveContext)) return;
+          state.persistedStudyConflict =
+            state.persistedStudyConflict || {
+              studyId: saveContext.studyId,
+              baseVersion: saveContext.studyVersion,
+              study: saveContext.data
+            };
+          state.protectedStudyDraftError =
+            "The latest edit could not be protected on this device. Synchronization was not attempted.";
+          renderPersistedStudyConflictNotice();
+        }
+
+        return;
+      }
+
+      if (!isCurrentEditorSaveContext(saveContext)) return;
       setStatus(
         error.message ||
           "The Study could not be saved.",
@@ -3711,13 +5221,25 @@
       );
       setSaveState("Save failed");
     } finally {
-      state.isSaving = false;
-      updateStudyActionAvailability();
+      if (isCurrentEditorSaveContext(saveContext)) {
+        state.isSaving = false;
+        updateStudyActionAvailability();
+      }
     }
   }
 
   async function deleteStudy() {
     if (!state.activeStudyId) return;
+
+    if (state.persistedStudyConflict) {
+      renderPersistedStudyConflictNotice();
+      return;
+    }
+
+    if (getActiveDurableConflictCase()) {
+      renderDurableStudyConflictNotice();
+      return;
+    }
 
     if (
       !Number.isInteger(state.activeStudyVersion) ||
@@ -3733,6 +5255,11 @@
 
     const studyId =
       String(state.activeStudyId);
+    const deleteContext = {
+      editorGeneration: state.editorGeneration,
+      studyId,
+      ownerId: String(window.UserData?.getLiveAuthenticatedUserId?.() || "")
+    };
     const currentTitle =
       els.title.value.trim() ||
       "this study";
@@ -3748,7 +5275,10 @@
     const userId =
       await getTrustedStudyUserId();
 
-    if (!userId) {
+    if (
+      !userId ||
+      (deleteContext.ownerId && deleteContext.ownerId !== String(userId))
+    ) {
       setStatus(
         "A verified signed-in user is required before this Study can be deleted.",
         "error",
@@ -3767,6 +5297,10 @@
           userId,
           studyId
         );
+
+      if (!isCurrentEditorSaveContext(deleteContext)) {
+        return;
+      }
 
       /*
        * The local tombstone is already durable in IndexedDB. Remove the Study
@@ -3814,6 +5348,10 @@
       }
 
       await window.UserData.flushOutbox();
+
+      if (!isCurrentEditorSaveContext(deleteContext)) {
+        return;
+      }
 
       const cached =
         await window.UserData.getCachedStudy(
@@ -3887,14 +5425,17 @@
         error
       );
 
+      if (!isCurrentEditorSaveContext(deleteContext)) return;
       setStatus(
         error.message ||
           "The Study could not be deleted.",
         "error"
       );
     } finally {
-      state.isSaving = false;
-      updateStudyActionAvailability();
+      if (isCurrentEditorSaveContext(deleteContext)) {
+        state.isSaving = false;
+        updateStudyActionAvailability();
+      }
     }
   }
 

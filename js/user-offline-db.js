@@ -543,6 +543,476 @@ window.UserOfflineDB = (() => {
       .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
   }
 
+  function createStudyConflictError(code, message, studyId) {
+    const error = new Error(message);
+    error.code = code;
+    error.studyId = String(studyId || "");
+    return error;
+  }
+
+  function requireStudyScope(userId, studyId) {
+    const normalizedUserId = String(userId || "");
+    const normalizedStudyId = String(studyId || "");
+
+    if (!normalizedUserId || !normalizedStudyId) {
+      throw createStudyConflictError(
+        "STUDY_SCOPE_INVALID",
+        "A Study operation requires a user and Study ID.",
+        normalizedStudyId
+      );
+    }
+
+    return { userId: normalizedUserId, studyId: normalizedStudyId };
+  }
+
+  function isStudyConflict(record, outboxItems) {
+    return (
+      record?.syncStatus === "conflict" ||
+      (outboxItems || []).some((item) => item.status === "conflict")
+    );
+  }
+
+  function buildStudyMutationPayload(study = {}) {
+    return {
+      title: String(study.title || ""),
+      categoryId: study.categoryId || study.category?.id || null,
+      speaker: String(study.speaker || ""),
+      location: String(study.location || ""),
+      studyDate: study.studyDate || null,
+      mainScripture: String(study.mainScripture || ""),
+      tagIds: Array.isArray(study.tags)
+        ? study.tags.map((tag) => String(tag?.id || "")).filter(Boolean)
+        : [],
+      linkedScriptures: Array.isArray(study.linkedScriptures)
+        ? study.linkedScriptures
+        : [],
+      contentHtml: String(study.contentHtml || ""),
+      previewText: String(study.previewText || "")
+    };
+  }
+
+  function getStudyTransactionStores(includeDrafts = false) {
+    return includeDrafts
+      ? [STORES.studies, STORES.studyDrafts, STORES.outbox]
+      : [STORES.studies, STORES.outbox];
+  }
+
+  function getStudyTransactionRequests(transaction, userId, studyId, includeDraft = false) {
+    const studies = transaction.objectStore(STORES.studies);
+    const outbox = transaction.objectStore(STORES.outbox);
+    const requests = {
+      record: studies.index("by_user_study").get([userId, studyId]),
+      outboxItems: outbox.index("by_user_entity").getAll([userId, "study", studyId])
+    };
+
+    if (includeDraft) {
+      requests.draft = transaction
+        .objectStore(STORES.studyDrafts)
+        .index("by_user_draft")
+        .get([userId, `study:${studyId}`]);
+    }
+
+    return requests;
+  }
+
+  async function readStudyConflictBundle(userId, studyId) {
+    const scope = requireStudyScope(userId, studyId);
+    const db = await open();
+    const transaction = db.transaction(getStudyTransactionStores(true), "readonly");
+    const requests = getStudyTransactionRequests(
+      transaction,
+      scope.userId,
+      scope.studyId,
+      true
+    );
+    const [record, outboxItems, draft] = await Promise.all([
+      requestToPromise(requests.record),
+      requestToPromise(requests.outboxItems),
+      requestToPromise(requests.draft)
+    ]);
+    await transactionToPromise(transaction);
+
+    const items = (outboxItems || []).sort(
+      (a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0)
+    );
+
+    return {
+      userId: scope.userId,
+      studyId: scope.studyId,
+      record: record || null,
+      outboxItems: items,
+      protectedDraft:
+        draft?.purpose === "study-conflict-protected" &&
+        String(draft.studyId || "") === scope.studyId
+          ? draft
+          : null,
+      hasConflict: isStudyConflict(record, items)
+    };
+  }
+
+  async function listStudyConflictSummaries(userId) {
+    const normalizedUserId = String(userId || "");
+    if (!normalizedUserId) return [];
+
+    const db = await open();
+    const transaction = db.transaction([STORES.studies, STORES.outbox], "readonly");
+    const studiesRequest = transaction
+      .objectStore(STORES.studies)
+      .index("by_user")
+      .getAll(normalizedUserId);
+    const conflictsRequest = transaction
+      .objectStore(STORES.outbox)
+      .index("by_user_status")
+      .getAll([normalizedUserId, "conflict"]);
+    const [records, mutations] = await Promise.all([
+      requestToPromise(studiesRequest),
+      requestToPromise(conflictsRequest)
+    ]);
+    await transactionToPromise(transaction);
+
+    const recordsByStudyId = new Map(
+      (records || []).map((record) => [String(record.studyId || ""), record])
+    );
+    const summaries = new Map();
+
+    (records || [])
+      .filter((record) => record?.syncStatus === "conflict")
+      .forEach((record) => {
+        const studyId = String(record.studyId || "");
+        if (studyId) {
+          summaries.set(studyId, {
+            userId: normalizedUserId,
+            studyId,
+            record,
+            conflictMutations: []
+          });
+        }
+      });
+
+    (mutations || [])
+      .filter((mutation) => mutation?.entityType === "study")
+      .forEach((mutation) => {
+        const studyId = String(mutation.entityKey || "");
+        if (!studyId) return;
+        const summary = summaries.get(studyId) || {
+          userId: normalizedUserId,
+          studyId,
+          record: recordsByStudyId.get(studyId) || null,
+          conflictMutations: []
+        };
+        summary.conflictMutations.push(mutation);
+        summaries.set(studyId, summary);
+      });
+
+    return Array.from(summaries.values()).sort(
+      (a, b) =>
+        Number(b.record?.localUpdatedAt || b.conflictMutations[0]?.updatedAt || 0) -
+        Number(a.record?.localUpdatedAt || a.conflictMutations[0]?.updatedAt || 0)
+    );
+  }
+
+  async function markStudyMutationConflictAtomically(input = {}) {
+    const scope = requireStudyScope(input.userId, input.studyId || input.mutation?.entityKey);
+    const mutationId = String(input.mutationId || input.mutation?.mutationId || "");
+    if (!mutationId) {
+      throw createStudyConflictError("STUDY_MUTATION_INVALID", "A mutation ID is required.", scope.studyId);
+    }
+
+    const db = await open();
+    const transaction = db.transaction(getStudyTransactionStores(), "readwrite");
+    const requests = getStudyTransactionRequests(transaction, scope.userId, scope.studyId);
+    const [record, outboxItems] = await Promise.all([
+      requestToPromise(requests.record),
+      requestToPromise(requests.outboxItems)
+    ]);
+    const mutation = (outboxItems || []).find(
+      (item) => String(item.mutationId || "") === mutationId
+    );
+
+    if (!mutation || mutation.userId !== scope.userId || mutation.entityType !== "study" ||
+      String(mutation.entityKey || "") !== scope.studyId) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_MUTATION_NOT_FOUND", "The Study mutation is no longer available.", scope.studyId);
+    }
+
+    const timestamp = Number(input.updatedAt) || Date.now();
+    transaction.objectStore(STORES.outbox).put({
+      ...mutation,
+      status: "conflict",
+      updatedAt: timestamp,
+      lastError: String(input.message || "A newer server version exists.")
+    });
+
+    let updatedRecord = null;
+    if (record) {
+      updatedRecord = {
+        ...record,
+        localKey:
+          record.localKey ||
+          buildStudyLocalKey(scope.userId, scope.studyId),
+        syncStatus: "conflict",
+        conflictRemote: input.latestStudy ? input.latestStudy : null,
+        localUpdatedAt: timestamp
+      };
+      transaction.objectStore(STORES.studies).put(updatedRecord);
+    }
+
+    await transactionToPromise(transaction);
+    return { record: updatedRecord, mutationId, outboxConflictOnly: !updatedRecord };
+  }
+
+  async function saveStudyConflictProtectedDraftAtomically(input = {}) {
+    const scope = requireStudyScope(input.userId, input.studyId);
+    const draftKey = String(input.draftKey || `study:${scope.studyId}`);
+    if (draftKey !== `study:${scope.studyId}`) {
+      throw createStudyConflictError("STUDY_DRAFT_INVALID", "A matching Study draft key is required.", scope.studyId);
+    }
+
+    const db = await open();
+    const transaction = db.transaction(getStudyTransactionStores(true), "readwrite");
+    const requests = getStudyTransactionRequests(transaction, scope.userId, scope.studyId, true);
+    const [record, outboxItems, existingDraft] = await Promise.all([
+      requestToPromise(requests.record),
+      requestToPromise(requests.outboxItems),
+      requestToPromise(requests.draft)
+    ]);
+
+    /* A verified server-authoritative case may exist without a local Study
+     * row (for example after a remote deletion). The caller may opt in only
+     * after validating the owner and Study identity against that server case.
+     */
+    if (!isStudyConflict(record, outboxItems || []) && input.allowDurableServerConflict !== true) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_CONFLICT_STALE", "This Study no longer has an unresolved synchronization conflict.", scope.studyId);
+    }
+
+    const timestamp = Number(input.updatedAt) || Date.now();
+    const draft = {
+      ...(existingDraft || {}),
+      userId: scope.userId,
+      deviceId: String(input.deviceId || existingDraft?.deviceId || ""),
+      draftKey,
+      studyId: scope.studyId,
+      localKey: buildStudyDraftLocalKey(scope.userId, draftKey),
+      baseVersion: Number.isInteger(Number(input.conflictBaseVersion))
+        ? Number(input.conflictBaseVersion)
+        : null,
+      data: input.data || {},
+      purpose: "study-conflict-protected",
+      conflictBaseVersion: Number.isInteger(Number(input.conflictBaseVersion))
+        ? Number(input.conflictBaseVersion)
+        : null,
+      protectedAt: timestamp,
+      createdAt: Number(existingDraft?.createdAt) || timestamp,
+      localUpdatedAt: timestamp,
+      syncStatus: "local-draft"
+    };
+    transaction.objectStore(STORES.studyDrafts).put(draft);
+    await transactionToPromise(transaction);
+    return draft;
+  }
+
+  async function discardOrdinaryStudyDraftAtomically(userId, draftKey) {
+    const normalizedUserId = String(userId || "");
+    const normalizedDraftKey = String(draftKey || "");
+    if (!normalizedUserId || !normalizedDraftKey) return false;
+
+    const db = await open();
+    const transaction = db.transaction(STORES.studyDrafts, "readwrite");
+    const store = transaction.objectStore(STORES.studyDrafts);
+    const existing = await requestToPromise(
+      store.index("by_user_draft").get([normalizedUserId, normalizedDraftKey])
+    );
+
+    if (existing?.purpose === "study-conflict-protected") {
+      transaction.abort();
+      throw createStudyConflictError(
+        "STUDY_PROTECTED_DRAFT_CANNOT_DISCARD",
+        "A protected Study conflict draft cannot be discarded by ordinary navigation.",
+        existing.studyId
+      );
+    }
+
+    if (existing) {
+      store.delete(existing.localKey);
+    }
+    await transactionToPromise(transaction);
+    return Boolean(existing);
+  }
+
+  async function queueStudyMutationIfNoConflictAtomically(input = {}) {
+    const scope = requireStudyScope(input.userId, input.studyId || input.record?.studyId);
+    const operation = String(input.operation || "update");
+    const suppliedRecord = input.record;
+    if (!suppliedRecord || String(suppliedRecord.studyId || "") !== scope.studyId) {
+      throw createStudyConflictError("STUDY_RECORD_INVALID", "A matching Study record is required.", scope.studyId);
+    }
+
+    const db = await open();
+    const transaction = db.transaction(getStudyTransactionStores(), "readwrite");
+    const requests = getStudyTransactionRequests(transaction, scope.userId, scope.studyId);
+    const [current, outboxItems] = await Promise.all([
+      requestToPromise(requests.record),
+      requestToPromise(requests.outboxItems)
+    ]);
+
+    if (!current) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_NOT_FOUND", "This Study is not available in the local cache.", scope.studyId);
+    }
+    if (isStudyConflict(current, outboxItems || [])) {
+      transaction.abort();
+      throw createStudyConflictError(
+        operation === "delete" ? "STUDY_DELETE_CONFLICT_OPEN" : "STUDY_CONFLICT_OPEN",
+        "This Study has an unresolved synchronization conflict that must be resolved first.",
+        scope.studyId
+      );
+    }
+
+    const timestamp = Number(input.updatedAt) || Date.now();
+    const record = {
+      ...suppliedRecord,
+      userId: scope.userId,
+      studyId: scope.studyId,
+      localKey: buildStudyLocalKey(scope.userId, scope.studyId),
+      localUpdatedAt: timestamp
+    };
+    const existingMutation = (outboxItems || []).find((item) => item.status === "pending");
+    const mutation = {
+      ...(existingMutation || {}),
+      ...(input.mutation || {}),
+      mutationId: existingMutation?.mutationId || input.mutation?.mutationId,
+      userId: scope.userId,
+      entityType: "study",
+      entityKey: scope.studyId,
+      operation,
+      status: "pending",
+      createdAt: Number(existingMutation?.createdAt) || timestamp,
+      updatedAt: timestamp,
+      lastError: ""
+    };
+    if (!mutation.mutationId) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_MUTATION_INVALID", "A mutation ID is required.", scope.studyId);
+    }
+
+    transaction.objectStore(STORES.studies).put(record);
+    transaction.objectStore(STORES.outbox).put(mutation);
+    await transactionToPromise(transaction);
+    return { record, mutation };
+  }
+
+  async function resolveStudyConflictAtomically(input = {}) {
+    const scope = requireStudyScope(input.userId, input.studyId);
+    const resolution = String(input.resolution || "");
+    const db = await open();
+    const transaction = db.transaction(getStudyTransactionStores(true), "readwrite");
+    const requests = getStudyTransactionRequests(transaction, scope.userId, scope.studyId, true);
+    const [current, outboxItems, protectedDraft] = await Promise.all([
+      requestToPromise(requests.record),
+      requestToPromise(requests.outboxItems),
+      requestToPromise(requests.draft)
+    ]);
+
+    if (!current || !isStudyConflict(current, outboxItems || [])) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_CONFLICT_NOT_FOUND", "This Study does not currently have a synchronization conflict.", scope.studyId);
+    }
+    if (protectedDraft?.purpose === "study-conflict-protected") {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_PROTECTED_DRAFT_PENDING", "A newer protected Study draft must be handled before this conflict can be resolved.", scope.studyId);
+    }
+
+    const remote = current.conflictRemote || null;
+    const remoteVersion = Number(remote?.version) || 0;
+    if (!remote?.id || String(remote.id) !== scope.studyId || remoteVersion < 1) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_CONFLICT_REMOTE_UNAVAILABLE", "The newer synchronized Study version is not available.", scope.studyId);
+    }
+    if (resolution === "keep-delete" && current.deleted !== true) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_DELETE_CONFLICT_NOT_FOUND", "This Study does not currently have a delete conflict.", scope.studyId);
+    }
+
+    const timestamp = Number(input.updatedAt) || Date.now();
+    const studies = transaction.objectStore(STORES.studies);
+    const outbox = transaction.objectStore(STORES.outbox);
+    (outboxItems || []).forEach((item) => outbox.delete(item.mutationId));
+
+    let record;
+    let mutation = null;
+    if (resolution === "use-synced") {
+      record = {
+        ...current,
+        userId: scope.userId,
+        studyId: scope.studyId,
+        study: remote,
+        baseStudy: remote,
+        baseVersion: remoteVersion,
+        serverVersion: remoteVersion,
+        serverUpdatedAt: remote.updatedAt || null,
+        localUpdatedAt: timestamp,
+        syncStatus: "clean",
+        conflictRemote: null,
+        deleted: false
+      };
+    } else if (resolution === "keep-device" || resolution === "keep-delete") {
+      const deleted = resolution === "keep-delete";
+      const localStudy = deleted ? remote : current.study;
+      if (!localStudy?.id || String(localStudy.id) !== scope.studyId) {
+        transaction.abort();
+        throw createStudyConflictError("STUDY_LOCAL_VERSION_UNAVAILABLE", "The local Study version is not available.", scope.studyId);
+      }
+      const rebasedStudy = {
+        ...localStudy,
+        id: scope.studyId,
+        version: remoteVersion,
+        updatedAt: new Date().toISOString()
+      };
+      record = {
+        ...current,
+        userId: scope.userId,
+        studyId: scope.studyId,
+        study: rebasedStudy,
+        baseStudy: remote,
+        baseVersion: remoteVersion,
+        serverVersion: remoteVersion,
+        serverUpdatedAt: remote.updatedAt || null,
+        localUpdatedAt: timestamp,
+        syncStatus: "pending",
+        conflictRemote: null,
+        deleted
+      };
+      mutation = {
+        ...(input.mutation || {}),
+        mutationId: input.mutation?.mutationId,
+        userId: scope.userId,
+        entityType: "study",
+        entityKey: scope.studyId,
+        operation: deleted ? "delete" : "update",
+        baseVersion: remoteVersion,
+        deviceId: String(input.deviceId || input.mutation?.deviceId || ""),
+        payload: input.mutation?.payload || buildStudyMutationPayload(rebasedStudy),
+        status: "pending",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        lastError: ""
+      };
+      if (!mutation.mutationId) {
+        transaction.abort();
+        throw createStudyConflictError("STUDY_MUTATION_INVALID", "A mutation ID is required.", scope.studyId);
+      }
+    } else {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_RESOLUTION_INVALID", "This Study conflict resolution is not supported.", scope.studyId);
+    }
+
+    studies.put({ ...record, localKey: buildStudyLocalKey(scope.userId, scope.studyId) });
+    if (mutation) outbox.put(mutation);
+    await transactionToPromise(transaction);
+    return { record, mutation, remote };
+  }
+
   async function resetSendingMutations(userId) {
     const items = await listOutbox(userId, ["sending"]);
 
@@ -589,6 +1059,13 @@ window.UserOfflineDB = (() => {
     deleteOutboxMutation,
     listOutboxForEntity,
     listOutbox,
+    readStudyConflictBundle,
+    listStudyConflictSummaries,
+    markStudyMutationConflictAtomically,
+    saveStudyConflictProtectedDraftAtomically,
+    discardOrdinaryStudyDraftAtomically,
+    queueStudyMutationIfNoConflictAtomically,
+    resolveStudyConflictAtomically,
     resetSendingMutations,
     buildQuillLocalKey,
     buildStudyDraftLocalKey,
