@@ -66,7 +66,9 @@
     localDraftKey: "",
     persistedStudyConflict: null,
     protectedStudyDraft: null,
+    newerVersionProtectedDraft: null,
     protectedStudyDraftError: "",
+    editorStudySource: null,
     durableConflictCases: new Map(),
     activeDurableConflictCaseId: "",
     isResolvingDurableConflict: false,
@@ -246,6 +248,7 @@
     const blockedByDurableConflict = Boolean(getActiveDurableConflictCase());
     const protectingConflictDraft =
       blockedByPersistedConflict || blockedByDurableConflict;
+    const canUpdateProtectedDraft = canUpdateActiveProtectedDraft();
     const blockedByReferencedRefresh = Boolean(state.referencedScripturesStale);
     const activeVersion = Number(state.activeStudyVersion);
     const hasLocalStudyVersion =
@@ -268,6 +271,7 @@
     els.saveButton.disabled =
       state.isPreview ||
       state.isSaving ||
+      (protectingConflictDraft && Boolean(state.protectedStudyDraft) && !canUpdateProtectedDraft) ||
       (
         !protectingConflictDraft &&
         (
@@ -302,9 +306,48 @@
     els.saveButton.setAttribute("aria-label", saveLabel);
     els.saveButton.title = protectingConflictDraft
       ? state.protectedStudyDraft
-        ? "Update the protected local draft without synchronizing it"
+        ? canUpdateProtectedDraft
+          ? "Update the protected local draft without synchronizing it"
+          : "This protected draft can only be updated after reopening that draft."
         : "Protect the latest local draft without synchronizing it"
       : "Save Study";
+  }
+
+  function newProtectedDraftId() {
+    return window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  }
+
+  function setEditorStudySource(source) {
+    state.editorStudySource = source ? cloneStudyDraftData(source) : null;
+  }
+
+  function protectedDraftMatchesActiveContext(draft, conflictCase) {
+    const ownerId = String(state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.() || "");
+    return Boolean(
+      draft &&
+      ownerId &&
+      String(draft.userId || "") === ownerId &&
+      String(draft.studyId || "") === String(state.activeStudyId || "") &&
+      String(draft.purpose || "") === "study-conflict-protected" &&
+      (!conflictCase || !draft.conflictCaseId || String(draft.conflictCaseId) === String(conflictCase.id || ""))
+    );
+  }
+
+  function canUpdateActiveProtectedDraft() {
+    const conflictCase = getActiveDurableConflictCase();
+    const draft = state.protectedStudyDraft;
+    const source = state.editorStudySource;
+    return Boolean(
+      draft &&
+      source &&
+      source.kind === "protected-draft" &&
+      protectedDraftMatchesActiveContext(draft, conflictCase) &&
+      String(source.ownerId || "") === String(draft.userId || "") &&
+      String(source.studyId || "") === String(draft.studyId || "") &&
+      String(source.draftId || "") === String(draft.protectedDraftId || "") &&
+      Number(source.draftRevision) === Number(draft.draftRevision) &&
+      String(source.conflictCaseId || "") === String(draft.conflictCaseId || "")
+    );
   }
 
   function durableConflictStudyKey(userId, studyId) {
@@ -409,6 +452,70 @@
       title: snapshot?.title || "Recovery needed: Study conflict",
       previewText: snapshot?.previewText || "Server conflict evidence is available for review.",
       durableConflictCaseId: String(conflictCase?.id || ""),
+      conflictRecoveryEntry: true
+    };
+  }
+
+  function applyProtectedDraftToEditor(draft, conflictCase, fallbackStudy) {
+    const sourceStudy = draft?.data;
+    const liveOwnerId = String(window.UserData?.getLiveAuthenticatedUserId?.() || state.loadedStudyUserId || "");
+    if (
+      !sourceStudy ||
+      !liveOwnerId ||
+      String(draft.userId || "") !== liveOwnerId ||
+      String(draft.purpose || "") !== "study-conflict-protected" ||
+      (conflictCase && String(draft.conflictCaseId || conflictCase.id || "") !== String(conflictCase.id || ""))
+    ) {
+      return false;
+    }
+
+    const safeVersion =
+      fallbackStudy?.version ??
+      conflictCase?.localStudy?.version ??
+      conflictCase?.remoteStudy?.version ??
+      draft.conflictBaseVersion ??
+      draft.baseVersion ??
+      null;
+    applyStudyToForm({
+      ...cloneStudyDraftData(sourceStudy),
+      id: String(draft.studyId),
+      version: safeVersion
+    });
+    state.protectedStudyDraft = draft;
+    setEditorStudySource({
+      kind: "protected-draft",
+      ownerId: String(draft.userId || ""),
+      studyId: String(draft.studyId || ""),
+      conflictCaseId: String(draft.conflictCaseId || conflictCase?.id || ""),
+      draftId: String(draft.protectedDraftId || ""),
+      draftRevision: Number(draft.draftRevision),
+      editorGeneration: state.editorGeneration
+    });
+    state.hasUnsavedChanges = true;
+    setSaveState("Protected local draft open");
+    return true;
+  }
+
+  function overlayProtectedDraftInStudyList(draft) {
+    if (!draft?.data || String(draft.studyId || "") !== String(state.activeStudyId || "")) return;
+    const index = state.studies.findIndex((study) => String(study?.id || "") === String(draft.studyId));
+    if (index < 0) return;
+    const draftData = cloneStudyDraftData(draft.data);
+    // Legacy protected drafts predate previewText. Derive a display-only
+    // preview from their own content rather than retaining remote text.
+    const hasExplicitPreview = Object.prototype.hasOwnProperty.call(draftData, "previewText");
+    const previewSource = hasExplicitPreview
+      ? String(draftData.previewText || "")
+      : (() => {
+          const preview = document.createElement("div");
+          preview.innerHTML = String(draftData.contentHtml || "");
+          return (preview.textContent || "").replace(/\s+/g, " ").trim().slice(0, 500);
+        })();
+    state.studies[index] = {
+      ...state.studies[index],
+      ...draftData,
+      id: String(draft.studyId),
+      previewText: previewSource,
       conflictRecoveryEntry: true
     };
   }
@@ -612,9 +719,16 @@
     const snapshots = document.createElement("div");
     snapshots.className = "study-conflict-snapshots";
     appendConflictSnapshot(snapshots, "Base version", conflictCase.baseStudy, null);
-    appendConflictSnapshot(snapshots, "My Changes", conflictCase.localStudy, conflictCase.baseStudy);
-    appendConflictSnapshot(snapshots, "Other Version", conflictCase.remoteStudy, conflictCase.baseStudy);
-    const protectedDraft = await window.UserData?.getConflictProtectedStudyDraft?.(conflictCase.userId, conflictCase.studyId);
+    const attribution = document.createElement("p");
+    attribution.className = "study-conflict-copy";
+    attribution.textContent = "These immutable snapshots identify the change that produced the conflict and the saved server version at that time. They are not relative to the device currently viewing this case.";
+    snapshots.append(attribution);
+    appendConflictSnapshot(snapshots, "Conflict-originating change", conflictCase.localStudy, conflictCase.baseStudy);
+    appendConflictSnapshot(snapshots, "Saved server version at conflict", conflictCase.remoteStudy, conflictCase.baseStudy);
+    const [protectedDraft, newerVersionDraft] = await Promise.all([
+      window.UserData?.getConflictProtectedStudyDraft?.(conflictCase.userId, conflictCase.studyId),
+      window.UserData?.getNewerVersionProtectedStudyDraft?.(conflictCase.userId, conflictCase.studyId)
+    ]);
     if (
       String(window.UserData?.getLiveAuthenticatedUserId?.() || "") !== context.ownerId ||
       state.editorGeneration !== context.editorGeneration ||
@@ -622,6 +736,7 @@
       String(conflictCase.studyId || "") !== context.studyId
     ) return;
     appendConflictSnapshot(snapshots, "Protected local draft", protectedDraft?.data || null, conflictCase.baseStudy);
+    appendConflictSnapshot(snapshots, "Local-only newer-version draft", newerVersionDraft?.data || null, conflictCase.baseStudy);
 
     const actions = document.createElement("div");
     actions.className = "study-conflict-actions";
@@ -973,6 +1088,19 @@
     const actions = document.createElement("span");
     actions.className = "study-conflict-actions";
     actions.appendChild(makeConflictCenterButton("Review Differences", () => void openDurableConflictCenter(conflictCase.id)));
+    if (state.protectedStudyDraft?.data) {
+      actions.appendChild(makeConflictCenterButton("Review protected draft", () => {
+        if (!applyProtectedDraftToEditor(state.protectedStudyDraft, conflictCase, getDurableConflictDisplayStudy(conflictCase))) {
+          state.protectedStudyDraftError = "The protected draft no longer matches this conflict. It was not opened or changed.";
+          renderDurableStudyConflictNotice();
+          return;
+        }
+        state.activeDurableConflictCaseId = conflictCase.id;
+        overlayProtectedDraftInStudyList(state.protectedStudyDraft);
+        renderStudyList();
+        renderDurableStudyConflictNotice();
+      }));
+    }
     els.status.append(text, actions);
     setSaveState(
       state.protectedStudyDraftError
@@ -1012,7 +1140,7 @@
         ? "Your unsaved changes are still visible. Save is paused so they cannot overwrite the newer version."
         : "Saving is paused until you review or load the newer version.",
       secondaryLabel: "Keep this screen",
-      primaryLabel: "Review conflict",
+      primaryLabel: "Review newer version",
       onPrimary: () => {
         els.status?.scrollIntoView?.({ behavior: "smooth", block: "center" });
         els.status?.querySelector?.(".study-conflict-button")?.focus?.();
@@ -1128,6 +1256,12 @@
         (state.hasUnsavedChanges
           ? "Your unsaved changes are still here. Save is paused so nothing can be overwritten."
           : "Load it when you are ready.");
+      if (state.newerVersionProtectedDraft) {
+        text.textContent += " A separate local-only draft is protected on this device and will not be sent to the server.";
+      }
+      if (state.protectedStudyDraftError) {
+        text.textContent += ` ${state.protectedStudyDraftError}`;
+      }
     }
 
     const actions = document.createElement("span");
@@ -1148,6 +1282,23 @@
 
       actions.append(cancel, confirm);
     } else {
+      const protect = document.createElement("button");
+      protect.type = "button";
+      protect.className = "study-conflict-button is-secondary";
+      protect.textContent = state.newerVersionProtectedDraft
+        ? "Update local-only draft"
+        : "Protect local draft";
+      protect.addEventListener("click", () => {
+        void persistNewerVersionProtectedStudyDraft()
+          .then(() => {
+            renderStudyConflictNotice(sourceLabel, false);
+            setStatus("Your unsaved edit is protected only on this device. It was not sent to the server.", "success", 0);
+          })
+          .catch((error) => {
+            state.protectedStudyDraftError = String(error?.message || "The local-only draft could not be protected. Your edit remains in the editor.");
+            renderStudyConflictNotice(sourceLabel, false);
+          });
+      });
       const load = document.createElement("button");
       load.type = "button";
       load.className = "study-conflict-button";
@@ -1161,7 +1312,7 @@
         applyLatestRemoteStudy();
       });
 
-      actions.appendChild(load);
+      actions.append(protect, load);
     }
 
     els.status.append(text, actions);
@@ -1236,7 +1387,7 @@
 
         if (!draftData || !studyId) return;
 
-        applyStudyToForm({
+        if (!applyProtectedDraftToEditor(draft, null, {
           ...draftData,
           id: studyId,
           version:
@@ -1244,7 +1395,7 @@
             draft?.conflictBaseVersion ??
             draft?.baseVersion ??
             null
-        });
+        })) return;
         state.persistedStudyConflict = record;
         state.protectedStudyDraft = draft;
         state.hasUnsavedChanges = true;
@@ -1307,25 +1458,90 @@
 
     cancelLocalStudyAutosave();
     const snapshot = cloneStudyDraftData(context?.data || {});
-    const runSave = () => window.UserData.saveConflictProtectedStudyDraft(
-      userId,
-      {
+    const existingDraft = context?.protectedDraft || null;
+    const durableConflictCase = context?.durableConflictCase || null;
+    const isUpdate = Boolean(existingDraft);
+    const source = context?.editorStudySource || null;
+    const canUpdateContext = Boolean(
+      isUpdate &&
+      source?.kind === "protected-draft" &&
+      String(source.ownerId || "") === String(existingDraft.userId || "") &&
+      String(source.studyId || "") === String(existingDraft.studyId || "") &&
+      String(source.draftId || "") === String(existingDraft.protectedDraftId || "") &&
+      Number(source.draftRevision) === Number(existingDraft.draftRevision) &&
+      String(source.conflictCaseId || "") === String(existingDraft.conflictCaseId || "") &&
+      String(context.studyId || "") === String(existingDraft.studyId || "")
+    );
+    if (isUpdate && !canUpdateContext) {
+      throw new Error("This protected draft was not the source of the current editor. Reopen the protected draft before updating it.");
+    }
+    const runSave = () => {
+      if (!isCurrentEditorSaveContext(context)) {
+        throw new Error("The Study changed before its protected draft could be updated. The existing draft was left unchanged.");
+      }
+      return window.UserData.saveConflictProtectedStudyDraft(userId, {
         draftKey: `study:${studyId}`,
         studyId,
         conflictBaseVersion:
           Number(record?.baseVersion) || Number(context?.studyVersion) || null,
         data: snapshot,
-        durableConflictCase: context?.durableConflictCase || null
-      }
-    );
+        durableConflictCase,
+        conflictCaseId: String(durableConflictCase?.id || existingDraft?.conflictCaseId || ""),
+        protectedDraftId: isUpdate
+          ? String(existingDraft.protectedDraftId || "")
+          : newProtectedDraftId(),
+        expectedDraftId: isUpdate ? String(existingDraft.protectedDraftId || "") : "",
+        expectedDraftRevision: isUpdate ? Number(existingDraft.draftRevision) : null
+      });
+    };
     const queuedSave = localStudySaveQueue.then(runSave, runSave);
     localStudySaveQueue = queuedSave.catch(() => null);
     const draft = await queuedSave;
 
     if (isCurrentEditorSaveContext(context)) {
       state.protectedStudyDraft = draft;
+      setEditorStudySource({
+        kind: "protected-draft",
+        ownerId: String(draft.userId || ""),
+        studyId: String(draft.studyId || ""),
+        conflictCaseId: String(draft.conflictCaseId || ""),
+        draftId: String(draft.protectedDraftId || ""),
+        draftRevision: Number(draft.draftRevision),
+        editorGeneration: state.editorGeneration
+      });
+      overlayProtectedDraftInStudyList(draft);
+      renderStudyList();
       state.protectedStudyDraftError = "";
     }
+    return draft;
+  }
+
+  async function persistNewerVersionProtectedStudyDraft() {
+    const context = captureEditorSaveContext(collectStudyData());
+    const userId = await getTrustedStudyUserId();
+    if (!userId || !isCurrentEditorSaveContext(context)) {
+      throw new Error("The current Study user could not be verified. Your unsaved edit remains in the editor.");
+    }
+    const existing = state.newerVersionProtectedDraft;
+    const draft = await window.UserData?.saveNewerVersionProtectedStudyDraft?.(userId, {
+      studyId: context.studyId,
+      baseVersion: context.studyVersion,
+      data: context.data,
+      protectedDraftId: existing?.protectedDraftId || newProtectedDraftId(),
+      expectedDraftId: existing?.protectedDraftId || "",
+      expectedDraftRevision: existing ? Number(existing.draftRevision) : null
+    });
+    if (!draft) throw new Error("The local-only draft could not be protected on this device.");
+    if (!isCurrentEditorSaveContext(context)) return draft;
+    state.newerVersionProtectedDraft = draft;
+    setEditorStudySource({
+      kind: "newer-version-protected-draft",
+      ownerId: String(draft.userId || ""),
+      studyId: String(draft.studyId || ""),
+      draftId: String(draft.protectedDraftId || ""),
+      draftRevision: Number(draft.draftRevision),
+      editorGeneration: state.editorGeneration
+    });
     return draft;
   }
 
@@ -1668,6 +1884,12 @@
       draftKey: String(state.localDraftKey || ""),
       conflictRecord: state.persistedStudyConflict
         ? cloneStudyDraftData(state.persistedStudyConflict)
+        : null,
+      protectedDraft: state.protectedStudyDraft
+        ? cloneStudyDraftData(state.protectedStudyDraft)
+        : null,
+      editorStudySource: state.editorStudySource
+        ? cloneStudyDraftData(state.editorStudySource)
         : null,
       data: cloneStudyDraftData(data),
       studies: cloneStudyDraftData(state.studies),
@@ -2756,7 +2978,14 @@
     state.isSaving = false;
     state.persistedStudyConflict = null;
     state.protectedStudyDraft = null;
+    state.newerVersionProtectedDraft = null;
     state.protectedStudyDraftError = "";
+    setEditorStudySource({
+      kind: "saved-study",
+      ownerId: String(state.loadedStudyUserId || window.UserData?.getLiveAuthenticatedUserId?.() || ""),
+      studyId: String(data.id || ""),
+      editorGeneration: state.editorGeneration
+    });
     lastStudyConflictDialogKey = "";
     state.referencedScripturesStale = false;
     state.referencedScripturesRemoteStudy = null;
@@ -4448,12 +4677,24 @@
 
     const loadGeneration = ++state.studyLoadGeneration;
     const isCurrentLoad = () => loadGeneration === state.studyLoadGeneration;
+    let expectedOwnerId = "";
+    const isCurrentLoadContext = () => {
+      const liveOwnerId = String(window.UserData?.getLiveAuthenticatedUserId?.() || "");
+      const observedOwnerId = liveOwnerId || String(state.loadedStudyUserId || "");
+      return isCurrentLoad() && Boolean(
+        expectedOwnerId &&
+        observedOwnerId === expectedOwnerId &&
+        (!state.loadedStudyUserId || String(state.loadedStudyUserId) === expectedOwnerId)
+      );
+    };
 
     setStatus("Loading study...");
 
     try {
       const trustedUserId =
         await getTrustedStudyUserId();
+      expectedOwnerId = String(trustedUserId || "");
+      if (!isCurrentLoadContext()) return;
 
       const locallyCreated =
         trustedUserId &&
@@ -4473,7 +4714,7 @@
             )
           : null;
 
-      if (!isCurrentLoad()) return;
+      if (!isCurrentLoadContext()) return;
 
       if (conflictState?.hasConflict && conflictState.record?.study) {
         const protectedDraft =
@@ -4484,15 +4725,23 @@
               )
             : null;
 
-        if (!isCurrentLoad()) return;
+        if (!isCurrentLoadContext()) return;
 
-        applyStudyToForm(
-          conflictState.record.deleted === true
-            ? conflictState.record.conflictRemote || conflictState.record.study
-            : conflictState.record.study
-        );
+        const fallbackStudy = conflictState.record.deleted === true
+          ? conflictState.record.conflictRemote || conflictState.record.study
+          : conflictState.record.study;
+        if (!applyProtectedDraftToEditor(protectedDraft, null, fallbackStudy)) {
+          applyStudyToForm(fallbackStudy);
+          setEditorStudySource({
+            kind: "conflict-snapshot",
+            ownerId: String(trustedUserId || ""),
+            studyId: String(id),
+            editorGeneration: state.editorGeneration
+          });
+        }
         state.persistedStudyConflict = conflictState.record;
         state.protectedStudyDraft = protectedDraft;
+        overlayProtectedDraftInStudyList(protectedDraft);
         if (conflictState.record.deleted === true) {
           state.deleteConflictStudyIds.add(String(id));
         }
@@ -4510,16 +4759,20 @@
               )
             : null;
 
-        if (!isCurrentLoad()) return;
+        if (!isCurrentLoadContext()) return;
 
         const mutation = conflictState.outboxItems?.[0] || {};
-        applyStudyToForm({
+        const fallbackStudy = {
           id,
           title: mutation.operation === "delete"
             ? "Recovery needed: deleted Study"
             : "Recovery needed: Study conflict",
           previewText: "Conflict evidence is stored on this device."
-        });
+        };
+        if (!applyProtectedDraftToEditor(protectedDraft, null, fallbackStudy)) {
+          applyStudyToForm(fallbackStudy);
+          setEditorStudySource({ kind: "conflict-snapshot", ownerId: String(trustedUserId || ""), studyId: String(id), editorGeneration: state.editorGeneration });
+        }
         state.persistedStudyConflict = {
           userId: trustedUserId,
           studyId: String(id),
@@ -4537,16 +4790,58 @@
       ) || null;
 
       if (durableConflictCase && ["open", "deferred"].includes(String(durableConflictCase.status || ""))) {
-        const protectedDraft = window.UserData?.getConflictProtectedStudyDraft
-          ? await window.UserData.getConflictProtectedStudyDraft(trustedUserId, id)
-          : null;
-        if (!isCurrentLoad()) return;
-        applyStudyToForm(getDurableConflictDisplayStudy(durableConflictCase));
+        const [protectedDraft, newerVersionDraft] = await Promise.all([
+          window.UserData?.getConflictProtectedStudyDraft
+            ? window.UserData.getConflictProtectedStudyDraft(trustedUserId, id)
+            : null,
+          window.UserData?.getNewerVersionProtectedStudyDraft
+            ? window.UserData.getNewerVersionProtectedStudyDraft(trustedUserId, id)
+            : null
+        ]);
+        if (!isCurrentLoadContext()) return;
+        const fallbackStudy = getDurableConflictDisplayStudy(durableConflictCase);
+        if (!applyProtectedDraftToEditor(protectedDraft, durableConflictCase, fallbackStudy)) {
+          applyStudyToForm(fallbackStudy);
+          setEditorStudySource({
+            kind: "conflict-snapshot",
+            ownerId: String(trustedUserId || ""),
+            studyId: String(id),
+            conflictCaseId: String(durableConflictCase.id || ""),
+            editorGeneration: state.editorGeneration
+          });
+        }
         state.activeDurableConflictCaseId = durableConflictCase.id;
         state.protectedStudyDraft = protectedDraft;
+        state.newerVersionProtectedDraft = newerVersionDraft;
+        overlayProtectedDraftInStudyList(protectedDraft);
         state.hasUnsavedChanges = Boolean(protectedDraft);
         renderStudyList();
         renderDurableStudyConflictNotice();
+        return;
+      }
+
+      const newerVersionDraft = window.UserData?.getNewerVersionProtectedStudyDraft
+        ? await window.UserData.getNewerVersionProtectedStudyDraft(trustedUserId, id)
+        : null;
+      if (!isCurrentLoadContext()) return;
+      if (newerVersionDraft?.data) {
+        applyStudyToForm({
+          ...cloneStudyDraftData(newerVersionDraft.data),
+          id: String(id),
+          version: newerVersionDraft.baseVersion ?? locallyCreated?.study?.version ?? null
+        });
+        state.newerVersionProtectedDraft = newerVersionDraft;
+        setEditorStudySource({
+          kind: "newer-version-protected-draft",
+          ownerId: String(newerVersionDraft.userId || ""),
+          studyId: String(newerVersionDraft.studyId || ""),
+          draftId: String(newerVersionDraft.protectedDraftId || ""),
+          draftRevision: Number(newerVersionDraft.draftRevision),
+          editorGeneration: state.editorGeneration
+        });
+        state.hasUnsavedChanges = true;
+        renderStudyList();
+        setStatus("A local-only draft from before a newer server version is open. It is not a server conflict case and has not been synchronized.", "", 0);
         return;
       }
 
@@ -4579,7 +4874,7 @@
               )
             : null;
 
-        if (!isCurrentLoad()) return;
+        if (!isCurrentLoadContext()) return;
 
         if (!cached?.study || cached.deleted === true) {
           throw new Error(
@@ -4597,7 +4892,7 @@
         `/api/studies/${encodeURIComponent(id)}`
       );
 
-      if (!isCurrentLoad()) return;
+      if (!isCurrentLoadContext()) return;
 
       if (
         window.UserData?.cacheStudyFromServer &&
@@ -4616,7 +4911,7 @@
         }
       }
 
-      if (!isCurrentLoad()) return;
+      if (!isCurrentLoadContext()) return;
 
       applyStudyToForm(result.study);
       renderStudyList();
@@ -4784,6 +5079,7 @@
         }
         return;
       }
+      if (!isCurrentEditorSaveContext(saveContext)) return;
 
       try {
         await persistConflictProtectedStudyDraft(userId, {
