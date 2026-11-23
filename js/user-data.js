@@ -1298,6 +1298,22 @@ window.UserData = (() => {
     return draft;
   }
 
+  function getNewerVersionProtectedStudyDraftKey(studyId) {
+    return `study-newer-version:${String(studyId || "")}`;
+  }
+
+  async function getNewerVersionProtectedStudyDraftForUser(db, userId, studyId) {
+    const draft = await db.getStudyDraft(
+      userId,
+      getNewerVersionProtectedStudyDraftKey(studyId)
+    );
+    return draft &&
+      draft.purpose === "study-newer-version-protected" &&
+      String(draft.studyId || "") === String(studyId || "")
+      ? draft
+      : null;
+  }
+
   async function requireTrustedStudyDraftUser(userId) {
     const verifiedUserId = String(userId || "");
     const liveUserId = String(getLiveAuthenticatedUserId() || "");
@@ -4954,6 +4970,10 @@ window.UserData = (() => {
           : null,
       data: cloneLocalValue(input.data || {}),
       allowDurableServerConflict: hasValidatedDurableCase,
+      conflictCaseId: String(input.conflictCaseId || durableConflictCase?.id || ""),
+      protectedDraftId: String(input.protectedDraftId || ""),
+      expectedDraftId: String(input.expectedDraftId || ""),
+      expectedDraftRevision: input.expectedDraftRevision,
       updatedAt: timestamp
     });
   }
@@ -4966,6 +4986,33 @@ window.UserData = (() => {
       verifiedUserId,
       String(studyId || "")
     );
+  }
+
+  async function saveNewerVersionProtectedStudyDraft(userId, input = {}) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = await requireTrustedStudyDraftUser(userId);
+    const studyId = String(input.studyId || "");
+    if (!studyId) {
+      throw createStudyConflictError("STUDY_DRAFT_INVALID", "A Study ID is required to protect this local-only draft.", studyId);
+    }
+    return db.saveStudyNewerVersionProtectedDraftAtomically({
+      userId: verifiedUserId,
+      studyId,
+      draftKey: getNewerVersionProtectedStudyDraftKey(studyId),
+      deviceId: getDeviceId(),
+      baseVersion: input.baseVersion,
+      data: cloneLocalValue(input.data || {}),
+      protectedDraftId: String(input.protectedDraftId || ""),
+      expectedDraftId: String(input.expectedDraftId || ""),
+      expectedDraftRevision: input.expectedDraftRevision,
+      updatedAt: now()
+    });
+  }
+
+  async function getNewerVersionProtectedStudyDraft(userId, studyId) {
+    const db = requireUserOfflineDB();
+    const verifiedUserId = await requireTrustedStudyDraftUser(userId);
+    return getNewerVersionProtectedStudyDraftForUser(db, verifiedUserId, String(studyId || ""));
   }
 
   async function getStudyConflictState(userId, studyId) {
@@ -5889,6 +5936,8 @@ window.UserData = (() => {
     saveStudyDraft,
     saveConflictProtectedStudyDraft,
     getConflictProtectedStudyDraft,
+    saveNewerVersionProtectedStudyDraft,
+    getNewerVersionProtectedStudyDraft,
     getStudyConflictState,
     listStudyConflictSummaries,
     getStudyDraft,

@@ -786,6 +786,35 @@ window.UserOfflineDB = (() => {
       throw createStudyConflictError("STUDY_CONFLICT_STALE", "This Study no longer has an unresolved synchronization conflict.", scope.studyId);
     }
 
+    const expectedDraftId = String(input.expectedDraftId || "");
+    const expectedDraftRevision = input.expectedDraftRevision;
+    const protectedDraftId = String(input.protectedDraftId || "");
+    const conflictCaseId = String(input.conflictCaseId || "");
+
+    if (existingDraft) {
+      if (
+        !expectedDraftId ||
+        String(existingDraft.protectedDraftId || "") !== expectedDraftId ||
+        !Number.isInteger(Number(expectedDraftRevision)) ||
+        Number(existingDraft.draftRevision) !== Number(expectedDraftRevision) ||
+        String(existingDraft.conflictCaseId || "") !== conflictCaseId
+      ) {
+        transaction.abort();
+        throw createStudyConflictError(
+          "STUDY_PROTECTED_DRAFT_STALE",
+          "This protected draft changed on this device. Reopen it before updating it.",
+          scope.studyId
+        );
+      }
+    } else if (!protectedDraftId) {
+      transaction.abort();
+      throw createStudyConflictError(
+        "STUDY_PROTECTED_DRAFT_INVALID",
+        "A protected draft identity is required.",
+        scope.studyId
+      );
+    }
+
     const timestamp = Number(input.updatedAt) || Date.now();
     const draft = {
       ...(existingDraft || {}),
@@ -794,6 +823,9 @@ window.UserOfflineDB = (() => {
       draftKey,
       studyId: scope.studyId,
       localKey: buildStudyDraftLocalKey(scope.userId, draftKey),
+      protectedDraftId: existingDraft?.protectedDraftId || protectedDraftId,
+      draftRevision: Number(existingDraft?.draftRevision || 0) + 1,
+      conflictCaseId,
       baseVersion: Number.isInteger(Number(input.conflictBaseVersion))
         ? Number(input.conflictBaseVersion)
         : null,
@@ -808,6 +840,55 @@ window.UserOfflineDB = (() => {
       syncStatus: "local-draft"
     };
     transaction.objectStore(STORES.studyDrafts).put(draft);
+    await transactionToPromise(transaction);
+    return draft;
+  }
+
+  async function saveStudyNewerVersionProtectedDraftAtomically(input = {}) {
+    const scope = requireStudyScope(input.userId, input.studyId);
+    const draftKey = `study-newer-version:${scope.studyId}`;
+    if (String(input.draftKey || draftKey) !== draftKey) {
+      throw createStudyConflictError("STUDY_DRAFT_INVALID", "A matching newer-version draft key is required.", scope.studyId);
+    }
+    const db = await open();
+    const transaction = db.transaction(STORES.studyDrafts, "readwrite");
+    const store = transaction.objectStore(STORES.studyDrafts);
+    const existing = await requestToPromise(
+      store.index("by_user_draft").get([scope.userId, draftKey])
+    );
+    const expectedDraftId = String(input.expectedDraftId || "");
+    if (existing && (
+      !expectedDraftId ||
+      String(existing.protectedDraftId || "") !== expectedDraftId ||
+      Number(existing.draftRevision) !== Number(input.expectedDraftRevision)
+    )) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_NEWER_VERSION_DRAFT_STALE", "This local-only draft changed in another tab. It was not replaced.", scope.studyId);
+    }
+    const protectedDraftId = String(existing?.protectedDraftId || input.protectedDraftId || "");
+    if (!protectedDraftId) {
+      transaction.abort();
+      throw createStudyConflictError("STUDY_NEWER_VERSION_DRAFT_INVALID", "A local-only draft identity is required.", scope.studyId);
+    }
+    const timestamp = Number(input.updatedAt) || Date.now();
+    const draft = {
+      ...(existing || {}),
+      userId: scope.userId,
+      deviceId: String(input.deviceId || existing?.deviceId || ""),
+      draftKey,
+      studyId: scope.studyId,
+      localKey: buildStudyDraftLocalKey(scope.userId, draftKey),
+      protectedDraftId,
+      draftRevision: Number(existing?.draftRevision || 0) + 1,
+      baseVersion: Number.isInteger(Number(input.baseVersion)) ? Number(input.baseVersion) : null,
+      data: input.data || {},
+      purpose: "study-newer-version-protected",
+      protectedAt: timestamp,
+      createdAt: Number(existing?.createdAt) || timestamp,
+      localUpdatedAt: timestamp,
+      syncStatus: "local-draft"
+    };
+    store.put(draft);
     await transactionToPromise(transaction);
     return draft;
   }
@@ -1063,6 +1144,7 @@ window.UserOfflineDB = (() => {
     listStudyConflictSummaries,
     markStudyMutationConflictAtomically,
     saveStudyConflictProtectedDraftAtomically,
+    saveStudyNewerVersionProtectedDraftAtomically,
     discardOrdinaryStudyDraftAtomically,
     queueStudyMutationIfNoConflictAtomically,
     resolveStudyConflictAtomically,
